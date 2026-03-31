@@ -342,10 +342,12 @@ export default function AdminReclamos() {
     const { error } = await supabase.from('devoluciones').update({ aprobado: 'SI', estado: 'pendiente', fecha_aprobado: new Date().toISOString(), fecha_desaprobado: null, motivo_rechazo: null, notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
     if (error) { alert('No se pudo actualizar el aprobado'); return }
     try {
-      const { error: emailErr } = await supabase.functions.invoke('enviar-email-alta-reclamo', {
-        body: { to: (item.email || '').trim(), nombre: item.nombre_apellido || item.nombre || '', apellido: '', tracking_id: item.tracking_id || '' }
+      const respAprobado = await fetch('https://vite-latest-temptech-rma.vercel.app/api/enviar-aprobado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: (item.email || '').trim(), nombre: item.nombre_apellido || item.nombre || '', apellido: '', tracking_id: item.tracking_id || '' })
       })
-      if (emailErr) console.warn('Error mail aprobado:', emailErr)
+      if (!respAprobado.ok) console.warn('Error mail aprobado: HTTP', respAprobado.status)
     } catch { console.warn('Se aprobó, pero falló el envío del mail') }
     await cargar()
   }
@@ -363,8 +365,10 @@ export default function AdminReclamos() {
     const nuevaNota = armarLineaNota('DESAPROBADO', notaDesaprobar)
     const { error } = await supabase.from('devoluciones').update({ estado: 'Ingresado', aprobado: 'NO', fecha_aprobado: null, fecha_desaprobado: new Date().toISOString(), motivo_rechazo: null, notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
     if (error) { alert('Error al desaprobar'); return }
-    await supabase.functions.invoke('enviar-email-rechazo', {
-      body: { email: (item.email || '').trim(), nombre: item.nombre_apellido || item.nombre || '', tracking_id: item.tracking_id || '', texto: textoDesaprobar }
+    await fetch('https://vite-latest-temptech-rma.vercel.app/api/enviar-desaprobado', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: (item.email || '').trim(), nombre: item.nombre_apellido || item.nombre || '', tracking_id: item.tracking_id || '', texto: textoDesaprobar })
     })
     setDesaprobarAbiertoId(null)
     setTextoDesaprobar('')
@@ -391,15 +395,17 @@ export default function AdminReclamos() {
     if (error) { alert('No se pudo rechazar el caso'); return }
 
     try {
-      const { error: emailRechErr } = await supabase.functions.invoke('enviar-email-rechazo', {
-        body: {
+      const respRechazo = await fetch('https://vite-latest-temptech-rma.vercel.app/api/enviar-rechazo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           to: (item.email || '').trim(),
           nombre: item.nombre_apellido || '',
           tracking_id: item.tracking_id || '',
           textoCompleto: motivo,
-        },
+        })
       })
-      if (emailRechErr) console.warn('Error mail rechazo:', emailRechErr)
+      if (!respRechazo.ok) console.warn('Error mail rechazo: HTTP', respRechazo.status)
     } catch { alert('Se rechazó, pero falló el envío del mail') }
 
     setRechazoAbiertoId(null)
