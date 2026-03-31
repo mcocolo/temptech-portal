@@ -213,6 +213,41 @@ export default function Reclamos() {
 
       if (error) throw error
 
+      // Enviar email de confirmación al cliente
+      try {
+        const fechaIngreso = new Date().toLocaleString('es-AR', {
+          timeZone: 'America/Argentina/Buenos_Aires',
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit',
+        })
+        await supabase.functions.invoke('alta-reclamo-email', {
+          body: {
+            email:              user.email || '',
+            nombre:             profile?.full_name || '',
+            trackingId:         tracking_id,
+            fechaIngreso,
+            direccion:          profile?.direccion || '',
+            localidad:          profile?.localidad || '',
+            provincia:          profile?.provincia || '',
+            codigoPostal:       profile?.codigo_postal || '',
+            telefono:           profile?.telefono || '',
+            fechaCompra:        form.fecha_compra || '',
+            diasGarantia:       dias_garantia,
+            canal:              form.canal || '',
+            vendedor:           '',
+            ventaManual:        form.numero_venta_manual || '',
+            producto:           form.producto,
+            modelo:             form.modelo || form.producto,
+            motivo:             form.motivo,
+            descripcion:        form.descripcion_falla,
+            comprobantesUrls:   comprobantes_urls,
+            imagenesProductoUrls: imagenes_urls,
+          },
+        })
+      } catch (emailErr) {
+        console.warn('Email de confirmación falló:', emailErr)
+      }
+
       toast.success(`Reclamo registrado. Tracking: ${tracking_id}`)
       setModalOpen(false)
       resetForm()
@@ -280,21 +315,60 @@ export default function Reclamos() {
           </div>
         </div>
 
-        {/* Nota del equipo */}
+        {/* Novedades / notas del equipo */}
         {selected.notas && (
-          <div style={{ padding: '14px 16px', background: 'var(--accent-dim)', border: '1px solid rgba(255,107,43,0.3)', borderRadius: 10, marginBottom: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.8px' }}>⭐ Novedades del equipo TEMPTECH</div>
-            <div style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-line', color: 'var(--text2)' }}>{selected.notas}</div>
+          <div style={{ padding: '14px 16px', background: 'var(--accent-dim)', border: '1px solid rgba(255,107,43,0.3)', borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.8px' }}>⭐ Novedades del equipo TEMPTECH</div>
+            {selected.notas.split('\n').filter(l => l.trim()).map((linea, i) => (
+              <div key={i} style={{ fontSize: 13, color: 'var(--text2)', padding: '6px 0', borderBottom: i < selected.notas.split('\n').filter(l => l.trim()).length - 1 ? '1px solid rgba(255,107,43,0.15)' : 'none', lineHeight: 1.6 }}>
+                {linea}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Envío */}
+        {/* Datos de envío con link de tracking */}
         {(selected.empresa_envio || selected.codigo_seguimiento || selected.fecha_envio) && (
-          <div style={{ padding: '14px 16px', background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 10 }}>
+          <div style={{ padding: '14px 16px', background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 10, marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#2dd4bf', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.8px' }}>🚚 Datos de envío</div>
-            {selected.empresa_envio && <div style={{ fontSize: 13, marginBottom: 4 }}><span style={{ color: 'var(--text3)' }}>Empresa: </span>{selected.empresa_envio}</div>}
-            {selected.codigo_seguimiento && <div style={{ fontSize: 13, marginBottom: 4 }}><span style={{ color: 'var(--text3)' }}>Código: </span>{selected.codigo_seguimiento}</div>}
-            {selected.fecha_envio && <div style={{ fontSize: 13 }}><span style={{ color: 'var(--text3)' }}>Fecha: </span>{new Date(selected.fecha_envio).toLocaleDateString('es-AR')}</div>}
+            {selected.empresa_envio && (
+              <div style={{ fontSize: 13, marginBottom: 6 }}>
+                <span style={{ color: 'var(--text3)' }}>Empresa: </span>
+                <span style={{ fontWeight: 500 }}>{selected.empresa_envio}</span>
+              </div>
+            )}
+            {selected.codigo_seguimiento && (
+              <div style={{ fontSize: 13, marginBottom: 6 }}>
+                <span style={{ color: 'var(--text3)' }}>Código: </span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#2dd4bf' }}>{selected.codigo_seguimiento}</span>
+              </div>
+            )}
+            {selected.fecha_envio && (
+              <div style={{ fontSize: 13, marginBottom: 10 }}>
+                <span style={{ color: 'var(--text3)' }}>Fecha de envío: </span>
+                {new Date(selected.fecha_envio).toLocaleDateString('es-AR')}
+              </div>
+            )}
+            {selected.codigo_seguimiento && selected.empresa_envio && (
+              (() => {
+                const links = {
+                  'Correo Argentino': `https://www.correoargentino.com.ar/formularios/e-commerce?id=${selected.codigo_seguimiento}`,
+                  'Andreani': `https://www.andreani.com/#!/informacionEnvio/${selected.codigo_seguimiento}`,
+                }
+                const link = links[selected.empresa_envio]
+                if (!link) return null
+                return (
+                  <a href={link} target="_blank" rel="noreferrer" style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    fontSize: 13, fontWeight: 600, color: '#2dd4bf',
+                    background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.3)',
+                    borderRadius: 8, padding: '7px 14px', textDecoration: 'none',
+                  }}>
+                    🔍 Rastrear envío →
+                  </a>
+                )
+              })()
+            )}
           </div>
         )}
       </div>
