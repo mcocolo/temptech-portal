@@ -113,8 +113,12 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
     return links[emp] || cod
   }
 
-  const textoResolucion = (emp, cod) =>
-    `Nos contactamos de TEMPTECH por el reclamo "${item.tracking_id}".\nNuevamente queremos pedirle disculpas por los inconvenientes ocasionados.\nA continuación le dejamos los datos para el seguimiento de su envío.\n\nEmpresa: ${emp || ''}\nCódigo de seguimiento: ${cod || ''}\nLink de seguimiento: ${linkSeguimiento(emp, cod)}`
+  const textoResolucion = (emp, cod) => {
+    if (emp === 'Logistica Propia') {
+      return `Nos contactamos de TEMPTECH por el reclamo "${item.tracking_id}".\nNos pondremos en contacto para coordinar el retiro de la unidad con nuestra logística propia y la entrega de un reemplazo. Recuerde tener el equipo listo para ser retirado y entregar sólo el Panel, conservando el kit de instalación para ser utilizado con la nueva unidad de reemplazo.\n\nSaludos.\nEquipo Soporte TEMPTECH`
+    }
+    return `Nos contactamos de TEMPTECH por el reclamo "${item.tracking_id}".\nNuevamente queremos pedirle disculpas por los inconvenientes ocasionados.\nA continuación le dejamos los datos para el seguimiento de su envío.\n\nEmpresa: ${emp || ''}\nCódigo de seguimiento: ${cod || ''}\nLink de seguimiento: ${linkSeguimiento(emp, cod)}`
+  }
 
   const [empresa, setEmpresa]       = useState(item.empresa_envio || 'Correo Argentino')
   const [codigo, setCodigo]         = useState(item.codigo_seguimiento || '')
@@ -308,6 +312,7 @@ export default function AdminReclamos() {
   const [panelAbierto, setPanelAbierto]         = useState(null)
   const [notificarServiceId, setNotificarServiceId] = useState(null)
   const [notasInput, setNotasInput] = useState({})
+  const [notasInternas, setNotasInternas] = useState({})
 
   const datosFiltrados = datos.filter(item => !busquedaTracking || item.tracking_id?.toLowerCase().includes(busquedaTracking.toLowerCase()))
 
@@ -515,6 +520,16 @@ export default function AdminReclamos() {
     await cargar()
   }
 
+  async function guardarNotaInterna(item) {
+    const texto = (notasInternas[item.id] || '').trim()
+    if (!texto) { alert('Escribí una nota interna antes de guardar'); return }
+    const nuevaNota = armarLineaNota('INTERNO', texto)
+    const { error } = await supabase.from('devoluciones').update({ notas_internas: unirNotas(item.notas_internas, nuevaNota) }).eq('id', item.id)
+    if (error) { alert('Error al guardar la nota interna'); return }
+    setNotasInternas(prev => ({ ...prev, [item.id]: '' }))
+    await cargar()
+  }
+
   async function exportarExcel() {
     try {
       const { data, error } = await supabase.from('devoluciones').select('*').order('fecha_creacion', { ascending: false })
@@ -666,6 +681,24 @@ export default function AdminReclamos() {
                             style={{ flex: 1, background: T.surface3, border: `1px solid ${T.border2}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 12, fontFamily: T.font, resize: 'vertical', outline: 'none', lineHeight: 1.6 }}
                           />
                           <Btn variant="ghost" onClick={() => guardarNotaManual(item)}>💾 Guardar nota</Btn>
+                        </div>
+
+                        {/* Nota interna — solo admins */}
+                        {item.notas_internas && (
+                          <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,209,102,0.08)', border: `1px solid rgba(255,209,102,0.25)`, borderRadius: T.radius }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: T.yellow, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.6px' }}>🔒 Notas internas</div>
+                            <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line' }}>{item.notas_internas}</div>
+                          </div>
+                        )}
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                          <textarea
+                            value={notasInternas[item.id] || ''}
+                            onChange={e => setNotasInternas(prev => ({ ...prev, [item.id]: e.target.value }))}
+                            placeholder="Nota interna (solo admins)..."
+                            rows={2}
+                            style={{ flex: 1, background: 'rgba(255,209,102,0.05)', border: `1px solid rgba(255,209,102,0.25)`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 12, fontFamily: T.font, resize: 'vertical', outline: 'none', lineHeight: 1.6 }}
+                          />
+                          <Btn variant="warn" onClick={() => guardarNotaInterna(item)}>🔒 Guardar interno</Btn>
                         </div>
 
                         {/* Comprobantes — mostrar todos */}

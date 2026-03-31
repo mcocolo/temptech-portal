@@ -466,7 +466,7 @@ export default function Reclamos() {
       )}
 
       {/* ── Modal nuevo reclamo ── */}
-      <Modal open={modalOpen} onClose={() => { setModalOpen(false); resetForm() }} title="⚠️ Registrar Reclamo de Garantía">
+      <Modal open={modalOpen} onClose={null} title="⚠️ Registrar Reclamo de Garantía">
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
           {['Producto', 'Falla', 'Contacto', 'Archivos'].map((label, i) => {

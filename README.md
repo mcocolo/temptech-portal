@@ -65,8 +65,7 @@ cp .env.example .env.local
 
 Completar con tus valores:
 ```env
-VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
+ccVITE_SUPABASE_ANON_KEY=eyJ...
 VITE_APP_NAME=TEMPTECH
 VITE_APP_URL=http://localhost:5173
 ```

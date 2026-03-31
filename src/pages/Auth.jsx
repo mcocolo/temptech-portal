@@ -219,6 +219,8 @@ function Stepper({ step }) {
 
 export default function Auth() {
   const [mode, setMode]         = useState('login')
+  const [showLoginPass, setShowLoginPass] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
   const [step, setStep]         = useState(1)
   const [loading, setLoading]   = useState(false)
   const [registered, setRegistered] = useState(false) // pantalla de confirmación
@@ -276,6 +278,19 @@ export default function Auth() {
     const { error } = await signInWithGoogle()
     if (error) { toast.error('Error al conectar con Google'); setLoading(false) }
     // Supabase redirige automáticamente, no hace falta navigate
+  }
+
+  // ── RECUPERAR CONTRASEÑA ──
+  async function handleReset() {
+    if (!loginEmail.trim()) return toast.error('Ingresá tu email primero')
+    setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    })
+    setLoading(false)
+    if (error) { toast.error('No se pudo enviar el email'); return }
+    setResetSent(true)
+    toast.success('Email de recuperación enviado')
   }
 
   // ── VALIDACIONES POR PASO ──
@@ -464,7 +479,31 @@ export default function Auth() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Field label="Email" type="email" placeholder="tu@email.com" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
-            <Field label="Contraseña" type="password" placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Contraseña</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showLoginPass ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                  style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 40px 10px 14px', color: 'var(--text)', fontSize: 14, outline: 'none', width: '100%', fontFamily: 'var(--font)', transition: 'border .2s' }}
+                  onFocus={e => e.target.style.borderColor = 'rgba(74,108,247,0.6)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+                <button type="button" onClick={() => setShowLoginPass(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, padding: 0, display: 'flex', alignItems: 'center' }}>
+                  {showLoginPass ? '🙈' : '👁'}
+                </button>
+              </div>
+              {resetSent ? (
+                <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>✓ Email de recuperación enviado</div>
+              ) : (
+                <button type="button" onClick={handleReset} disabled={loading} style={{ alignSelf: 'flex-end', background: 'none', border: 'none', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', marginTop: 2, textDecoration: 'underline' }}>
+                  ¿Olvidaste tu contraseña?
+                </button>
+              )}
+            </div>
           </div>
 
           <GradientBtn onClick={handleLogin} loading={loading} style={{ width: '100%', marginTop: 20 }}>
@@ -602,8 +641,30 @@ export default function Auth() {
               <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>Vas a usar estos datos para iniciar sesión</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <Field label="Email" required type="email" placeholder="tu@email.com" value={email} onChange={e => setEmail(e.target.value)} />
-                <Field label="Contraseña" required type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={e => setPassword(e.target.value)} />
-                <Field label="Confirmar contraseña" required type="password" placeholder="Repetí la contraseña" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Contraseña *</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={showLoginPass ? 'text' : 'password'} placeholder="Mínimo 6 caracteres" value={password} onChange={e => setPassword(e.target.value)}
+                      style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 40px 10px 14px', color: 'var(--text)', fontSize: 14, outline: 'none', width: '100%', fontFamily: 'var(--font)' }}
+                      onFocus={e => e.target.style.borderColor = 'rgba(74,108,247,0.6)'} onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                    />
+                    <button type="button" onClick={() => setShowLoginPass(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, padding: 0 }}>
+                      {showLoginPass ? '🙈' : '👁'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Confirmar contraseña *</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={showLoginPass ? 'text' : 'password'} placeholder="Repetí la contraseña" value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
+                      style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 40px 10px 14px', color: 'var(--text)', fontSize: 14, outline: 'none', width: '100%', fontFamily: 'var(--font)' }}
+                      onFocus={e => e.target.style.borderColor = 'rgba(74,108,247,0.6)'} onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                    />
+                    <button type="button" onClick={() => setShowLoginPass(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, padding: 0 }}>
+                      {showLoginPass ? '🙈' : '👁'}
+                    </button>
+                  </div>
+                </div>
               </div>
               {/* Resumen */}
               <div style={{ marginTop: 18, background: 'var(--surface2)', borderRadius: 10, padding: '13px 16px', border: '1px solid var(--border)', fontSize: 13, color: 'var(--text2)' }}>
