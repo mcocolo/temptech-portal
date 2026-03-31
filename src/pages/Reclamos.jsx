@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AdminReclamos from './AdminReclamos'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Button, Modal, Badge, Spinner, Empty } from '@/components/ui'
@@ -106,7 +107,7 @@ const inputStyle = {
 }
 
 export default function Reclamos() {
-  const { user, profile } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
   const [reclamos, setReclamos] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -124,10 +125,30 @@ export default function Reclamos() {
     // Paso 2 — Falla
     motivo: '',
     descripcion_falla: '',
-    // Paso 3 — Archivos
+    // Paso 3 — Datos de contacto
+    direccion: '',
+    localidad: '',
+    provincia: '',
+    codigo_postal: '',
+    telefono: '',
+    // Paso 4 — Archivos
     imagenes: [],
     comprobantes: [],
   })
+
+  // Pre-cargar datos del perfil cuando abre el modal
+  useEffect(() => {
+    if (modalOpen && profile) {
+      setForm(prev => ({
+        ...prev,
+        direccion:    profile.direccion    || '',
+        localidad:    profile.localidad    || '',
+        provincia:    profile.provincia    || '',
+        codigo_postal: profile.codigo_postal || '',
+        telefono:     profile.telefono     || '',
+      }))
+    }
+  }, [modalOpen, profile])
 
   useEffect(() => { if (user) load() }, [user])
 
@@ -192,10 +213,11 @@ export default function Reclamos() {
         portal_user_id: user.id,
         nombre_apellido: profile?.full_name || '',
         email: user.email || '',
-        telefono: profile?.telefono || '',
-        direccion: profile?.direccion || '',
-        localidad: profile?.localidad || '',
-        provincia: profile?.provincia || '',
+        telefono: form.telefono || profile?.telefono || '',
+        direccion: form.direccion || profile?.direccion || '',
+        localidad: form.localidad || profile?.localidad || '',
+        provincia: form.provincia || profile?.provincia || '',
+        codigo_postal: form.codigo_postal || profile?.codigo_postal || '',
         producto: form.producto,
         modelo: form.modelo || form.producto,
         canal: form.canal,
@@ -226,11 +248,11 @@ export default function Reclamos() {
             nombre:             profile?.full_name || '',
             trackingId:         tracking_id,
             fechaIngreso,
-            direccion:          profile?.direccion || '',
-            localidad:          profile?.localidad || '',
-            provincia:          profile?.provincia || '',
-            codigoPostal:       profile?.codigo_postal || '',
-            telefono:           profile?.telefono || '',
+            direccion:          form.direccion    || profile?.direccion    || '',
+            localidad:          form.localidad    || profile?.localidad    || '',
+            provincia:          form.provincia    || profile?.provincia    || '',
+            codigoPostal:       form.codigo_postal || profile?.codigo_postal || '',
+            telefono:           form.telefono     || profile?.telefono     || '',
             fechaCompra:        form.fecha_compra || '',
             diasGarantia:       dias_garantia,
             canal:              form.canal || '',
@@ -259,7 +281,7 @@ export default function Reclamos() {
   }
 
   function resetForm() {
-    setForm({ producto: '', modelo: '', canal: '', numero_venta_manual: '', fecha_compra: '', motivo: '', descripcion_falla: '', imagenes: [], comprobantes: [] })
+    setForm({ producto: '', modelo: '', canal: '', numero_venta_manual: '', fecha_compra: '', motivo: '', descripcion_falla: '', direccion: '', localidad: '', provincia: '', codigo_postal: '', telefono: '', imagenes: [], comprobantes: [] })
     setStep(1)
   }
 
@@ -269,6 +291,9 @@ export default function Reclamos() {
   function removeFile(key, idx) {
     setForm(p => ({ ...p, [key]: p[key].filter((_, i) => i !== idx) }))
   }
+
+  // ── Vista admin ──
+  if (isAdmin) return <AdminReclamos />
 
   // ── Vista detalle ──
   if (selected) return (
@@ -444,7 +469,7 @@ export default function Reclamos() {
       <Modal open={modalOpen} onClose={() => { setModalOpen(false); resetForm() }} title="⚠️ Registrar Reclamo de Garantía">
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
-          {['Producto', 'Falla', 'Archivos'].map((label, i) => {
+          {['Producto', 'Falla', 'Contacto', 'Archivos'].map((label, i) => {
             const n = i + 1
             const done = step > n
             const active = step === n
@@ -459,7 +484,7 @@ export default function Reclamos() {
                   }}>{done ? '✓' : n}</div>
                   <span style={{ fontSize: 10, color: active ? 'var(--text)' : 'var(--text3)', fontWeight: active ? 600 : 400 }}>{label}</span>
                 </div>
-                {i < 2 && <div style={{ height: 2, flex: 1, background: step > n ? 'linear-gradient(90deg,#e8215a,#4a6cf7)' : 'var(--border)', marginBottom: 18 }} />}
+                {i < 3 && <div style={{ height: 2, flex: 1, background: step > n ? 'linear-gradient(90deg,#e8215a,#4a6cf7)' : 'var(--border)', marginBottom: 18 }} />}
               </div>
             )
           })}
@@ -531,8 +556,53 @@ export default function Reclamos() {
           </div>
         )}
 
-        {/* PASO 3 — Archivos */}
+        {/* PASO 3 — Contacto */}
         {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '10px 14px', background: 'rgba(110,181,255,0.08)', border: '1px solid rgba(110,181,255,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
+              📋 Verificá que tus datos de contacto sean correctos para coordinar el reclamo.
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Teléfono *</label>
+              <input value={form.telefono} onChange={e => setF('telefono', e.target.value)} placeholder="+54 11 1234-5678" style={inputStyle} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Dirección</label>
+              <input value={form.direccion} onChange={e => setF('direccion', e.target.value)} placeholder="Av. Corrientes 1234, Piso 3" style={inputStyle} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Localidad</label>
+                <input value={form.localidad} onChange={e => setF('localidad', e.target.value)} placeholder="Buenos Aires" style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Código Postal</label>
+                <input value={form.codigo_postal} onChange={e => setF('codigo_postal', e.target.value)} placeholder="1234" style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Provincia</label>
+              <select value={form.provincia} onChange={e => setF('provincia', e.target.value)} style={inputStyle}>
+                <option value="">Seleccioná...</option>
+                {['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán'].map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+              <Button variant="ghost" onClick={() => setStep(2)}>← Atrás</Button>
+              <Button onClick={() => { if (!form.telefono.trim()) return toast.error('Ingresá tu teléfono'); setStep(4) }}>Continuar →</Button>
+            </div>
+          </div>
+        )}
+
+        {/* PASO 4 — Archivos */}
+        {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ padding: '12px 16px', background: 'rgba(110,181,255,0.08)', border: '1px solid rgba(110,181,255,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
               📎 Adjuntá fotos del producto y el comprobante de compra para agilizar el proceso.
@@ -585,7 +655,7 @@ export default function Reclamos() {
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-              <Button variant="ghost" onClick={() => setStep(2)}>← Atrás</Button>
+              <Button variant="ghost" onClick={() => setStep(3)}>← Atrás</Button>
               <Button variant="danger" onClick={submit} loading={submitting}>
                 <AlertTriangle size={14} /> Enviar reclamo
               </Button>
