@@ -539,6 +539,7 @@ export default function AdminReclamos() {
       <header style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700, color: T.text }}>Panel Admin — Gestión de Reclamos</span>
+        </div>
       </header>
 
       <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
