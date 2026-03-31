@@ -232,7 +232,7 @@ export default function AuthCallback() {
     }).eq('id', googleUser.id)
 
     // Insertar en clientes
-    const { error } = await supabase.from('clientes').insert({
+    const { error } = await supabase.from('clientes').upsert({
       profile_id: googleUser.id,
       user_type:  userType,
       full_name:  googleUser.full_name,
@@ -245,7 +245,7 @@ export default function AuthCallback() {
         razon_social: razonSocial,
         cuit,
       }),
-    })
+    }, { onConflict: 'profile_id' })
 
     if (error) {
       toast.error('Error al guardar los datos')
