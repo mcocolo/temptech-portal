@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+  import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import Layout from '@/components/layout/Layout'
@@ -13,6 +13,10 @@ import Novedades from '@/pages/Novedades'
 import MisConsultas from '@/pages/MisConsultas'
 import Admin from '@/pages/Admin'
 import '@/styles/globals.css'
+import RegistroProducto from './pages/RegistroProducto'
+import ClientesRegistrados from './pages/ClientesRegistrados'
+
+
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -33,6 +37,8 @@ function PrivateRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/registro-producto" element={<RegistroProducto />} />
+<Route path="/clientes-registrados" element={<ClientesRegistrados />} />
       <Route path="/auth"          element={<Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/"              element={<Navigate to="/dashboard" replace />} />
