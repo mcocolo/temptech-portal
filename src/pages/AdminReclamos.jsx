@@ -101,7 +101,7 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
     en\nPILAR UP 21 | AV LUIS LAGOMARSINO 905. Buenos aires.\n\nLuego de despacharlo, te pediremos que nos envíes el comprobante de dicho despacho para que podamos activar el reenvío de una unidad nueva.\n\nLEER IMPORTANTE: Conservar el kit de instalación (no despacharlo con la unidad defectuosa) para poder utilizar con esta nueva unidad*\n\n
     Aguardamos confirmación para poder enviarte la etiqueta.`
     : isService
-    ? `Nos pondremos en contacto para indicarte la fecha de cambio del producto.\nPara realizar el cambio, un miembro de nuestra logística le entregará una unidad de reemplazo para que pueda utilizar mientras realizamos la reparación de su producto.\nSolicitamos por favor, ser tan amable, el día de cambio tener el equipo listo para ser retirado y entregar sólo el Panel, es decir, conservar el kit de instalación (y sus respectivas patas en el caso de corresponder) para ser utilizadas con la unidad de reemplazo.\n\nSaludos.\nEquipo Soporte TEMPTECH`
+    ? `Podemos ofrecerte el servicio de reparación de fábrica, para lo cual, deberás enviar el producto a Obon 1327, Valentín Alsina, CP 1822, Buenos Aires.\nPodés enviarlo a través de la logística que creas conveniente u acercarte a fábrica donde lo revisarán y determinarán si es posible su reparación.\nTe pedimos que nos contactes vía Whatsapp al 11 7237-5839, indicando nombre y apellido en el caso de querer avanzar con nuestro servicio de reparación.`
     : null // generado dinámicamente para Resolución
 
   const linkSeguimiento = (emp, cod) => {
