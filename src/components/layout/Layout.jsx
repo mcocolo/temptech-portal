@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
-  Shield, Bell
+  Shield, Bell, Package, Users
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -21,11 +21,13 @@ const NAV = [
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
+  { label: 'Registrá tu producto', icon: Package, path: '/registro-producto' },
 ]
 
 const ADMIN_NAV = [
   { section: 'Administración' },
   { label: 'Panel Admin', icon: Shield, path: '/admin', isAdmin: true },
+  { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
 ]
 
 export default function Layout({ children }) {
