@@ -13,8 +13,8 @@ import Novedades from '@/pages/Novedades'
 import MisConsultas from '@/pages/MisConsultas'
 import Admin from '@/pages/Admin'
 import '@/styles/globals.css'
-import RegistroProducto from './pages/RegistroProducto'
-import ClientesRegistrados from './pages/ClientesRegistrados'
+import RegistroProducto from '@/pages/RegistroProducto'
+import ClientesRegistrados from '@/pages/ClientesRegistrados'
 
 
 
@@ -37,8 +37,6 @@ function PrivateRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/registro-producto" element={<RegistroProducto />} />
-<Route path="/clientes-registrados" element={<ClientesRegistrados />} />
       <Route path="/auth"          element={<Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/"              element={<Navigate to="/dashboard" replace />} />
@@ -54,6 +52,8 @@ function AppRoutes() {
               <Route path="/novedades"     element={<Novedades />} />
               <Route path="/mis-consultas" element={<MisConsultas />} />
               <Route path="/admin"         element={<Admin />} />
+              <Route path="/registro-producto" element={<RegistroProducto />} />
+              <Route path="/clientes-registrados" element={<ClientesRegistrados />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>
