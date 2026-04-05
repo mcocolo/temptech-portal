@@ -21,7 +21,7 @@ const NAV = [
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
-  { label: 'Registrá tu producto', icon: Package, path: '/registro-producto' },
+  { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
 ]
 
 const ADMIN_NAV = [
@@ -32,7 +32,7 @@ const ADMIN_NAV = [
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { profile, signOut, isAdmin } = useAuth()
+  const { profile, signOut, isAdmin, isAdmin2 } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -55,7 +55,7 @@ export default function Layout({ children }) {
       )}
 
       {/* ── SIDEBAR ── */}
-      <aside style={{
+      <aside className={sidebarOpen ? 'open' : ''} style={{
         position: 'fixed', left: 0, top: 0, bottom: 0, width: 228,
         background: 'var(--surface)',
         borderRight: '1px solid var(--border)',
@@ -211,8 +211,8 @@ export default function Layout({ children }) {
               <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {profile?.full_name || 'Usuario'}
               </div>
-              <div style={{ fontSize: 11, color: isAdmin ? '#7b9fff' : 'var(--text3)' }}>
-                {isAdmin ? '⭐ Admin' : 'Cliente'}
+              <div style={{ fontSize: 11, color: isAdmin ? '#7b9fff' : isAdmin2 ? '#fb923c' : 'var(--text3)' }}>
+                {isAdmin ? '⭐ Admin' : isAdmin2 ? '📦 Control Físico' : 'Cliente'}
               </div>
             </div>
             <button
@@ -229,7 +229,7 @@ export default function Layout({ children }) {
       </aside>
 
       {/* ── MAIN ── */}
-      <div style={{ marginLeft: 228, flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div className="main-content" style={{ marginLeft: 228, flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
         {/* Topbar */}
         <header style={{
@@ -295,6 +295,10 @@ export default function Layout({ children }) {
           aside { transform: translateX(-100%); }
           aside.open { transform: translateX(0) !important; }
           .mobile-menu-btn { display: flex !important; }
+          .main-content { margin-left: 0 !important; }
+          .main-content header { padding: 0 16px !important; }
+          .main-content main { padding: 16px !important; }
+          .main-content footer { padding: 12px 16px !important; flex-direction: column; gap: 6px; text-align: center; }
         }
       `}</style>
     </div>

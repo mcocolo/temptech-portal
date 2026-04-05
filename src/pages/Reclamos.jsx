@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import AdminReclamos from './AdminReclamos'
+import Admin2Reclamos from './Admin2Reclamos'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Button, Modal, Badge, Spinner, Empty } from '@/components/ui'
@@ -107,7 +108,7 @@ const inputStyle = {
 }
 
 export default function Reclamos() {
-  const { user, profile, isAdmin } = useAuth()
+  const { user, profile, isAdmin, isAdmin2 } = useAuth()
   const [reclamos, setReclamos] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -294,6 +295,7 @@ export default function Reclamos() {
 
   // ── Vista admin ──
   if (isAdmin) return <AdminReclamos />
+  if (isAdmin2) return <Admin2Reclamos />
 
   // ── Vista detalle ──
   if (selected) return (

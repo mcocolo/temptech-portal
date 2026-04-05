@@ -229,7 +229,7 @@ function ProductSelector({ value, onChange }) {
 }
 
 export default function Foro() {
-  const { user, profile, isAdmin } = useAuth()
+  const { user, profile, isAdmin, isAdmin2 } = useAuth()
   const [posts, setPosts]         = useState([])
   const [selected, setSelected]   = useState(null)
   const [replies, setReplies]     = useState([])
@@ -362,7 +362,7 @@ export default function Foro() {
         )}
       </div>
 
-      {user && (
+      {user && !isAdmin2 && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 22 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
             {isAdmin ? '⭐ Responder como TEMPTECH (oficial)' : 'Agregar una respuesta'}
@@ -384,7 +384,7 @@ export default function Foro() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Foro de Consultas</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Todas las consultas son públicas y visibles por la comunidad</p>
         </div>
-        {user && <Button onClick={() => setNewPostOpen(true)}>+ Nueva Consulta</Button>}
+        {user && !isAdmin2 && <Button onClick={() => setNewPostOpen(true)}>+ Nueva Consulta</Button>}
       </div>
 
       {/* Filtros */}
