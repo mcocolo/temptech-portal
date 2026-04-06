@@ -530,6 +530,85 @@ export default function AdminReclamos() {
     await cargar()
   }
 
+  function imprimirReclamo(item) {
+    const win = window.open('', '_blank')
+    win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+<title>Reclamo ${item.tracking_id || item.id}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 32px; }
+  @page { size: A4; margin: 20mm; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 14px; margin-bottom: 20px; }
+  .logo-text { font-size: 22px; font-weight: 900; letter-spacing: -1px; color: #1a1a2e; }
+  .logo-sub { font-size: 10px; color: #555; margin-top: 2px; letter-spacing: 2px; text-transform: uppercase; }
+  .tracking { font-size: 18px; font-weight: 700; color: #1a1a2e; font-family: monospace; }
+  .estado-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #e8eaf6; color: #1a1a2e; margin-top: 4px; }
+  .aprobado-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #e8f5e9; color: #2e7d32; margin-left: 6px; }
+  .section { margin-bottom: 18px; }
+  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 24px; }
+  .row { display: flex; gap: 8px; margin-bottom: 6px; }
+  .label { color: #555; min-width: 130px; flex-shrink: 0; }
+  .value { color: #111; font-weight: 500; }
+  .notas { background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 12px; font-size: 11px; white-space: pre-line; color: #333; margin-top: 8px; }
+  .footer { margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; font-size: 10px; color: #888; display: flex; justify-content: space-between; }
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="logo-text">TEMPTECH</div>
+    <div class="logo-sub">Portal de Atención al Cliente</div>
+  </div>
+  <div style="text-align:right">
+    <div class="tracking">${item.tracking_id || `#${item.id}`}</div>
+    <span class="estado-badge">${item.estado || 'Ingresado'}</span>
+    ${item.aprobado === 'SI' ? '<span class="aprobado-badge">✓ Aprobado</span>' : ''}
+    <div style="font-size:11px;color:#555;margin-top:6px">Ingreso: ${formatearFecha(item.fecha_creacion)}</div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="section">
+    <div class="section-title">Cliente</div>
+    ${item.nombre_apellido || item.nombre ? `<div class="row"><span class="label">Nombre</span><span class="value">${item.nombre_apellido || item.nombre}</span></div>` : ''}
+    ${item.email ? `<div class="row"><span class="label">Email</span><span class="value">${item.email}</span></div>` : ''}
+    ${item.telefono ? `<div class="row"><span class="label">Teléfono</span><span class="value">${item.telefono}</span></div>` : ''}
+    ${item.direccion ? `<div class="row"><span class="label">Dirección</span><span class="value">${item.direccion}</span></div>` : ''}
+    ${(item.localidad || item.provincia) ? `<div class="row"><span class="label">Localidad</span><span class="value">${[item.localidad, item.provincia, item.codigo_postal].filter(Boolean).join(' ')}</span></div>` : ''}
+  </div>
+  <div class="section">
+    <div class="section-title">Producto</div>
+    ${item.producto ? `<div class="row"><span class="label">Producto</span><span class="value">${item.producto}</span></div>` : ''}
+    ${item.modelo ? `<div class="row"><span class="label">Modelo</span><span class="value">${item.modelo}</span></div>` : ''}
+    ${item.motivo ? `<div class="row"><span class="label">Motivo</span><span class="value">${item.motivo}</span></div>` : ''}
+    ${item.descripcion_falla ? `<div class="row"><span class="label">Descripción</span><span class="value">${item.descripcion_falla}</span></div>` : ''}
+    ${item.dias_garantia != null ? `<div class="row"><span class="label">Días garantía</span><span class="value">${item.dias_garantia} días</span></div>` : ''}
+  </div>
+  <div class="section">
+    <div class="section-title">Compra</div>
+    ${item.canal ? `<div class="row"><span class="label">Canal</span><span class="value">${item.canal}</span></div>` : ''}
+    ${item.vendedor ? `<div class="row"><span class="label">Vendedor</span><span class="value">${item.vendedor}</span></div>` : ''}
+    ${item.numero_venta_manual ? `<div class="row"><span class="label"># Venta</span><span class="value">${item.numero_venta_manual}</span></div>` : ''}
+    ${item.fecha_compra ? `<div class="row"><span class="label">Fecha compra</span><span class="value">${formatearFecha(item.fecha_compra)}</span></div>` : ''}
+    ${item.fecha_ingreso ? `<div class="row"><span class="label">Fecha ingreso</span><span class="value">${formatearFecha(item.fecha_ingreso)}</span></div>` : ''}
+    ${item.empresa_envio ? `<div class="row"><span class="label">Empresa envío</span><span class="value">${item.empresa_envio}</span></div>` : ''}
+    ${item.codigo_seguimiento ? `<div class="row"><span class="label">Cód. seguimiento</span><span class="value">${item.codigo_seguimiento}</span></div>` : ''}
+    ${item.fecha_envio ? `<div class="row"><span class="label">Fecha envío</span><span class="value">${formatearFecha(item.fecha_envio)}</span></div>` : ''}
+    ${item.motivo_rechazo ? `<div class="row"><span class="label">Motivo rechazo</span><span class="value">${item.motivo_rechazo}</span></div>` : ''}
+  </div>
+</div>
+
+${item.notas ? `<div class="section"><div class="section-title">Historial de notas</div><div class="notas">${item.notas}</div></div>` : ''}
+
+<div class="footer">
+  <span>TEMPTECH · Reclamo ${item.tracking_id || item.id}</span>
+  <span>Impreso: ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</span>
+</div>
+</body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 400)
+  }
+
   async function exportarExcel() {
     try {
       const { data, error } = await supabase.from('devoluciones').select('*').order('fecha_creacion', { ascending: false })
@@ -766,6 +845,7 @@ export default function AdminReclamos() {
 
                     {/* Acciones */}
                     <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <Btn onClick={() => imprimirReclamo(item)} variant="ghost">🖨️ Imprimir</Btn>
                       <Btn onClick={() => cambiarEstado(item, 'pendiente')} disabled={esCerrado}>Pendiente</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Resolucion' })} disabled={!aprobadoSI} variant="primary">🚚 Resolución</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Devolucion' })} disabled={!aprobadoSI} variant="orange">📦 Devolución</Btn>

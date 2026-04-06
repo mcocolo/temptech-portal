@@ -358,23 +358,25 @@ export default function Auth() {
       }),
     }).eq('id', userId)
 
-    // 3. Insertar en tabla clientes
-    await supabase.from('clientes').insert({
-      profile_id: userId,
-      user_type:  userType,
-      full_name:  fullName,
-      email,
-      telefono: userType === 'client' ? clientData.telefono : bizData.telefono,
-      ...(userType === 'client' ? {
-        direccion:  clientData.direccion,
-        localidad:  clientData.localidad,
-        provincia:  clientData.provincia,
-        productos_interesados: clientData.productos_interesados,
-      } : {
-        razon_social: bizData.razon_social,
-        cuit:         bizData.cuit,
-      }),
-    })
+    // 3. Insertar en tabla clientes (ignorar error de trigger)
+    try {
+      await supabase.from('clientes').insert({
+        profile_id: userId,
+        user_type:  userType,
+        full_name:  fullName,
+        email,
+        telefono: userType === 'client' ? clientData.telefono : bizData.telefono,
+        ...(userType === 'client' ? {
+          direccion:  clientData.direccion,
+          localidad:  clientData.localidad,
+          provincia:  clientData.provincia,
+          productos_interesados: clientData.productos_interesados,
+        } : {
+          razon_social: bizData.razon_social,
+          cuit:         bizData.cuit,
+        }),
+      })
+    } catch (_) { /* trigger error no crítico */ }
 
     setRegistered(true)
     setLoading(false)

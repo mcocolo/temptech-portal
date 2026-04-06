@@ -15,6 +15,7 @@ import Admin from '@/pages/Admin'
 import '@/styles/globals.css'
 import RegistroProducto from '@/pages/RegistroProducto'
 import ClientesRegistrados from '@/pages/ClientesRegistrados'
+import Distribuidores from '@/pages/Distribuidores'
 
 
 
@@ -54,6 +55,7 @@ function AppRoutes() {
               <Route path="/admin"         element={<Admin />} />
               <Route path="/registro-producto" element={<RegistroProducto />} />
               <Route path="/clientes-registrados" element={<ClientesRegistrados />} />
+              <Route path="/distribuidores" element={<Distribuidores />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>
