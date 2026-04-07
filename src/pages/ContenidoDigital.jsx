@@ -239,6 +239,9 @@ export default function ContenidoDigital() {
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
 
+      {/* Input de archivo siempre en el DOM */}
+      <input ref={fileRef} type="file" accept="image/*,video/*,.pdf,.zip,.rar" multiple onChange={handleUpload} style={{ display: 'none' }} />
+
       {/* Lightbox */}
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', cursor: 'zoom-out' }}>
@@ -485,7 +488,6 @@ export default function ContenidoDigital() {
 
           {/* Upload */}
           <div style={{ background: 'var(--surface2)', border: '2px dashed var(--border)', borderRadius: 'var(--radius)', padding: '16px', textAlign: 'center' }}>
-            <input ref={fileRef} type="file" accept="image/*,video/*,.pdf,.zip,.rar" multiple onChange={handleUpload} style={{ display: 'none' }} />
             {form.url ? (
               <div>
                 {form.tipo === 'imagen' && <img src={form.url} alt="" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 8, marginBottom: 8 }} />}
