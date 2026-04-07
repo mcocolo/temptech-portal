@@ -18,6 +18,8 @@ import ClientesRegistrados from '@/pages/ClientesRegistrados'
 import Distribuidores from '@/pages/Distribuidores'
 import Pedidos from '@/pages/Pedidos'
 import AdminPedidos from '@/pages/AdminPedidos'
+import AdminPrecios from '@/pages/AdminPrecios'
+import AdminPreventas from '@/pages/AdminPreventas'
 
 
 
@@ -60,6 +62,8 @@ function AppRoutes() {
               <Route path="/distribuidores" element={<Distribuidores />} />
               <Route path="/pedidos" element={<Pedidos />} />
               <Route path="/admin-pedidos" element={<AdminPedidos />} />
+              <Route path="/admin-precios" element={<AdminPrecios />} />
+              <Route path="/admin-preventas" element={<AdminPreventas />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>

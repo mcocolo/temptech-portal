@@ -1,0 +1,23 @@
+codigo,nombre,modelo,precio,categoria
+KF70SIL,Calefón Eléctrico One,3.5/5.5/7Kw 220V Silver,165585.15,calefones_calderas
+FE150TBLACK,Calefón Eléctrico Nova,6/8/9/13.5Kw 220V Black,213182.07,calefones_calderas
+FE150TSIL,Calefón Eléctrico Nova,6/8/9/13.5Kw 220V Silver,213182.07,calefones_calderas
+FE150TBL,Calefón Eléctrico Nova,6/8/9/13.5Kw 220V Blanco,213182.07,calefones_calderas
+FM318BL,Calefón Eléctrico Pulse,9/13.5/18Kw 380V Blanco,450250.68,calefones_calderas
+FM324BL,Calefón Eléctrico Pulse,12/18/24Kw 380V Blanco,493936.98,calefones_calderas
+BF14EBL,Caldera Dual Core,220-380V 14.4Kw Blanco,1701651.65,calefones_calderas
+BF323EBL,Caldera Dual Core,380V 23Kw Blanco,2029298.86,calefones_calderas
+C250STV1,Panel Calefactor Slim,250w,39293.46,paneles_calefactores
+C250STV1TS,Panel Calefactor Slim,250w Toallero Simple,44907.61,paneles_calefactores
+C250STV1TD,Panel Calefactor Slim,250w Toallero Doble,53328.84,paneles_calefactores
+C500STV1,Panel Calefactor Slim,500w,56135.91,paneles_calefactores
+C500STV1TS,Panel Calefactor Slim,500w Toallero Simple,67364.22,paneles_calefactores
+C500STV1TD,Panel Calefactor Slim,500w Toallero Doble,72978.37,paneles_calefactores
+F1400BCO,Panel Calefactor Firenze,1400w Blanco,78592.53,paneles_calefactores
+F1400MV,Panel Calefactor Firenze,1400w Madera Veteada,78592.53,paneles_calefactores
+F1400PA,Panel Calefactor Firenze,1400w Piedra Azteca,78592.53,paneles_calefactores
+F1400PR,Panel Calefactor Firenze,1400w Piedra Romana,78592.53,paneles_calefactores
+F1400MTG,Panel Calefactor Firenze,1400w Marmol Traviatta Gris,78592.53,paneles_calefactores
+F1400PCL,Panel Calefactor Firenze,1400w Piedra Cantera Luna,78592.53,paneles_calefactores
+F1400MCO,Panel Calefactor Firenze,1400w Marmol Calacatta Ocre,78592.53,paneles_calefactores
+F1400SMARTBL,Panel Calefactor Firenze Smart,1400w Smart Wifi - App Temptech,157190.67,paneles_calefactores

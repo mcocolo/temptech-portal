@@ -58,13 +58,21 @@ const STATUS_CONFIG = {
 
 export default function Pedidos() {
   const { user, profile, isDistributor } = useAuth()
-  const [tab, setTab] = useState('nuevo')        // 'nuevo' | 'historial'
+  const [tab, setTab] = useState('nuevo')        // 'nuevo' | 'preventa' | 'historial'
   const [cantidades, setCantidades] = useState({})
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [historial, setHistorial] = useState([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
+
+  // Preventa
+  const [preventas, setPreventas] = useState([])
+  const [loadingPrev, setLoadingPrev] = useState(false)
+  const [prevActiva, setPrevActiva] = useState(null)   // preventa seleccionada
+  const [cantsPrev, setCantsPrev] = useState({})       // { codigo: cantidad a retirar }
+  const [notasPrev, setNotasPrev] = useState('')
+  const [enviandoPrev, setEnviandoPrev] = useState(false)
 
   const descuentos = profile?.descuentos || {}
 
@@ -76,6 +84,11 @@ export default function Pedidos() {
   function setCantidad(codigo, val) {
     const n = Math.max(0, parseInt(val) || 0)
     setCantidades(prev => ({ ...prev, [codigo]: n }))
+  }
+
+  function setCantPrev(codigo, val, max) {
+    const n = Math.min(max, Math.max(0, parseInt(val) || 0))
+    setCantsPrev(prev => ({ ...prev, [codigo]: n }))
   }
 
   // Items en el carrito
@@ -99,6 +112,7 @@ export default function Pedidos() {
     const { error } = await supabase.from('pedidos').insert({
       distribuidor_id: user.id,
       estado: 'pendiente',
+      tipo: 'normal',
       items: itemsCarrito.map(i => ({
         codigo: i.codigo, nombre: i.nombre, modelo: i.modelo,
         categoria: i.categoria, cantidad: i.cantidad,
@@ -118,6 +132,42 @@ export default function Pedidos() {
     setTab('historial')
   }
 
+  async function enviarRetiro() {
+    if (!prevActiva) return
+    const itemsRetiro = prevActiva.items
+      .filter(i => (cantsPrev[i.codigo] || 0) > 0)
+      .map(i => ({
+        codigo: i.codigo, nombre: i.nombre, modelo: i.modelo,
+        categoria: i.categoria,
+        precio_unitario: i.precio_unitario,
+        precio_base: i.precio_unitario,
+        descuento_pct: 0,
+        cantidad: cantsPrev[i.codigo],
+        subtotal: i.precio_unitario * cantsPrev[i.codigo],
+      }))
+    if (itemsRetiro.length === 0) { toast.error('Indicá al menos una cantidad a retirar'); return }
+    const totalRetiro = itemsRetiro.reduce((s, i) => s + i.subtotal, 0)
+
+    setEnviandoPrev(true)
+    const { error } = await supabase.from('pedidos').insert({
+      distribuidor_id: user.id,
+      estado: 'pendiente',
+      tipo: 'preventa',
+      preventa_id: prevActiva.id,
+      items: itemsRetiro,
+      total: totalRetiro,
+      notas: notasPrev.trim() || null,
+    })
+    if (error) { toast.error('Error al enviar el retiro'); setEnviandoPrev(false); return }
+    toast.success('¡Solicitud de retiro enviada! Quedó pendiente de aprobación.')
+    setCantsPrev({})
+    setNotasPrev('')
+    setPrevActiva(null)
+    setEnviandoPrev(false)
+    cargarHistorial()
+    setTab('historial')
+  }
+
   async function cargarHistorial() {
     setLoadingHistorial(true)
     const { data } = await supabase
@@ -129,7 +179,20 @@ export default function Pedidos() {
     setLoadingHistorial(false)
   }
 
+  async function cargarPreventas() {
+    setLoadingPrev(true)
+    const { data } = await supabase
+      .from('preventas')
+      .select('*')
+      .eq('distribuidor_id', user.id)
+      .eq('estado', 'activa')
+      .order('created_at', { ascending: false })
+    setPreventas(data || [])
+    setLoadingPrev(false)
+  }
+
   useEffect(() => { if (tab === 'historial') cargarHistorial() }, [tab])
+  useEffect(() => { if (tab === 'preventa') cargarPreventas() }, [tab])
 
   if (!isDistributor) return null
 
@@ -161,8 +224,8 @@ export default function Pedidos() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 28 }}>
-        {[['nuevo', '🛒 Nuevo pedido'], ['historial', '📋 Historial']].map(([key, lbl]) => (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 28, flexWrap: 'wrap' }}>
+        {[['nuevo', '🛒 Nuevo pedido'], ['preventa', '📦 Preventa'], ['historial', '📋 Historial']].map(([key, lbl]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             padding: '8px 20px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
             background: tab === key ? 'var(--brand-gradient)' : 'var(--surface)',
@@ -319,6 +382,172 @@ export default function Pedidos() {
         </div>
       )}
 
+      {tab === 'preventa' && (
+        <div>
+          {loadingPrev ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
+          ) : preventas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No tenés preventas activas</div>
+              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Contactá a TEMPTECH para acordar una preventa</div>
+            </div>
+          ) : !prevActiva ? (
+            // Seleccionar preventa
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 4 }}>Seleccioná una preventa para solicitar un retiro:</div>
+              {preventas.map(pv => {
+                const items = pv.items || []
+                const totalPv = items.reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0)
+                const retirado = items.reduce((s, i) => s + i.precio_unitario * (i.cantidad_retirada || 0), 0)
+                const pendiente = totalPv - retirado
+                return (
+                  <div key={pv.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                      <div>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '3px 8px', borderRadius: 4, marginRight: 10 }}>
+                          #{pv.id.slice(0, 8).toUpperCase()}
+                        </span>
+                        {pv.fecha_vencimiento && (
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                            Vence: {new Date(pv.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => { setPrevActiva(pv); setCantsPrev({}) }}
+                        style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '7px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                      >
+                        Solicitar retiro →
+                      </button>
+                    </div>
+                    <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {items.map((item, i) => {
+                        const ret = item.cantidad_retirada || 0
+                        const pct = item.cantidad_total > 0 ? (ret / item.cantidad_total) * 100 : 0
+                        return (
+                          <div key={i}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                              <span><span style={{ fontWeight: 600 }}>{item.nombre}</span> <span style={{ color: 'var(--text3)', fontSize: 11 }}>{item.modelo}</span></span>
+                              <span style={{ color: 'var(--text3)', fontSize: 12 }}>{ret} / {item.cantidad_total} retirados</span>
+                            </div>
+                            <div style={{ height: 5, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#3dd68c' : 'var(--brand-gradient)', borderRadius: 3 }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                        <span style={{ color: 'var(--text3)' }}>Saldo disponible</span>
+                        <span style={{ fontWeight: 800, color: '#ffd166' }}>{formatPrecio(pendiente)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            // Formulario de retiro
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                  <button
+                    onClick={() => setPrevActiva(null)}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}
+                  >← Volver</button>
+                  <span style={{ fontSize: 13, color: 'var(--text3)' }}>Preventa <span style={{ color: '#7b9fff', fontFamily: 'monospace' }}>#{prevActiva.id.slice(0, 8).toUpperCase()}</span></span>
+                </div>
+
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+                  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
+                    Indicá cuánto querés retirar
+                  </div>
+                  {prevActiva.items.map((item, i) => {
+                    const pendiente = item.cantidad_total - (item.cantidad_retirada || 0)
+                    const cantRet = cantsPrev[item.codigo] || 0
+                    return (
+                      <div key={i} style={{ padding: '14px 20px', borderBottom: i < prevActiva.items.length - 1 ? '1px solid var(--border)' : 'none', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 16, opacity: pendiente === 0 ? 0.5 : 1 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4 }}>{item.codigo}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo} · {formatPrecio(item.precio_unitario)} c/u</div>
+                          <div style={{ fontSize: 11, color: pendiente > 0 ? '#ffd166' : '#3dd68c', marginTop: 3 }}>
+                            {pendiente > 0 ? `${pendiente} disponibles para retirar` : 'Retiro completo ✓'}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button onClick={() => setCantPrev(item.codigo, cantRet - 1, pendiente)} disabled={pendiente === 0} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                          <input
+                            type="number" min="0" max={pendiente}
+                            value={cantRet || ''}
+                            onChange={e => setCantPrev(item.codigo, e.target.value, pendiente)}
+                            placeholder="0"
+                            disabled={pendiente === 0}
+                            style={{ width: 52, textAlign: 'center', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
+                          />
+                          <button onClick={() => setCantPrev(item.codigo, cantRet + 1, pendiente)} disabled={pendiente === 0} style={{ width: 28, height: 28, borderRadius: 6, background: pendiente > 0 ? 'var(--brand-gradient)' : 'var(--surface2)', border: 'none', color: '#fff', cursor: pendiente > 0 ? 'pointer' : 'default', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Resumen retiro */}
+              <div style={{ position: 'sticky', top: 80 }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+                  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
+                    📦 Resumen del retiro
+                  </div>
+                  <div style={{ padding: '16px 20px' }}>
+                    {Object.values(cantsPrev).every(v => !v) ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '16px 0' }}>
+                        Indicá las cantidades a retirar
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                        {prevActiva.items.filter(i => (cantsPrev[i.codigo] || 0) > 0).map(item => (
+                          <div key={item.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{item.nombre}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text3)' }}>x{cantsPrev[item.codigo]} × {formatPrecio(item.precio_unitario)}</div>
+                            </div>
+                            <div style={{ fontWeight: 700 }}>{formatPrecio(item.precio_unitario * cantsPrev[item.codigo])}</div>
+                          </div>
+                        ))}
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>
+                          <span>Total</span>
+                          <span>{formatPrecio(prevActiva.items.filter(i => cantsPrev[i.codigo] > 0).reduce((s, i) => s + i.precio_unitario * cantsPrev[i.codigo], 0))}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Notas (opcional)</label>
+                      <textarea
+                        value={notasPrev}
+                        onChange={e => setNotasPrev(e.target.value)}
+                        placeholder="Indicaciones de entrega, etc."
+                        rows={3}
+                        style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none' }}
+                      />
+                    </div>
+                    <button
+                      onClick={enviarRetiro}
+                      disabled={enviandoPrev || Object.values(cantsPrev).every(v => !v)}
+                      style={{ width: '100%', background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: Object.values(cantsPrev).every(v => !v) ? 'not-allowed' : 'pointer', opacity: Object.values(cantsPrev).every(v => !v) ? 0.5 : 1, fontFamily: 'var(--font)' }}
+                    >
+                      {enviandoPrev ? 'Enviando...' : '📤 Solicitar retiro'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === 'historial' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {loadingHistorial ? (
@@ -334,6 +563,9 @@ export default function Pedidos() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '3px 8px', borderRadius: 4 }}>#{p.id.slice(0, 8).toUpperCase()}</span>
                     <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}40`, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{cfg.label}</span>
+                    {p.tipo === 'preventa' && (
+                      <span style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.35)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>📦 Preventa</span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <span style={{ fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(p.total)}</span>
