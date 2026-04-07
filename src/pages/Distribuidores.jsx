@@ -5,23 +5,127 @@ import { Spinner } from '@/components/ui'
 import toast from 'react-hot-toast'
 
 const CATEGORIAS = [
-  { key: 'calefones_calderas',   label: 'Calefones / Calderas' },
-  { key: 'paneles_calefactores', label: 'Paneles Calefactores' },
-  { key: 'anafes',               label: 'Anafes' },
+  { key: 'calefones_calderas',   label: 'Calefones / Calderas',  color: '#7b9fff', bg: 'rgba(74,108,247,0.1)' },
+  { key: 'paneles_calefactores', label: 'Paneles Calefactores',  color: '#ffd166', bg: 'rgba(255,209,102,0.1)' },
+  { key: 'anafes',               label: 'Anafes',                color: '#ff6b2b', bg: 'rgba(255,107,43,0.1)' },
 ]
+
+// Precio base * (1 - d1/100) * (1 - d2/100) * (1 - d3/100)
+function calcPrecioFinal(base, dtos) {
+  return dtos.reduce((p, d) => {
+    const n = parseFloat(d) || 0
+    return p * (1 - n / 100)
+  }, base)
+}
+
+function formatPct(val) {
+  const n = parseFloat(val) || 0
+  return n > 0 ? `${n}%` : null
+}
+
+function DescuentosCascada({ dtos, onChange }) {
+  // dtos: [d1, d2, d3]
+  const BASE = 100000
+  const final = calcPrecioFinal(BASE, dtos)
+  const totalEfectivo = (((BASE - final) / BASE) * 100).toFixed(2)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>Dto {i + 1}</div>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={dtos[i] ?? ''}
+              onChange={e => {
+                const next = [...dtos]
+                next[i] = e.target.value
+                onChange(next)
+              }}
+              placeholder="0"
+              style={{ width: 68, background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 8px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', textAlign: 'center' }}
+            />
+            <span style={{ color: 'var(--text3)', fontSize: 13 }}>%</span>
+            {i < 2 && (dtos[i] || dtos[i + 1]) ? <span style={{ color: 'var(--text3)', fontSize: 12 }}>×</span> : null}
+          </div>
+        ))}
+      </div>
+      {/* Preview */}
+      {dtos.some(d => parseFloat(d) > 0) && (
+        <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>Sobre $100.000:</span>
+          {dtos.map((d, i) => parseFloat(d) > 0 ? (
+            <span key={i}>
+              {i > 0 && <span style={{ color: 'var(--text3)' }}>→ </span>}
+              <span style={{ color: '#7b9fff' }}>-{d}%</span>
+            </span>
+          ) : null)}
+          <span>= <strong style={{ color: '#3dd68c' }}>${calcPrecioFinal(100000, dtos).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</strong></span>
+          <span style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.3)', padding: '1px 8px', borderRadius: 20, fontWeight: 700 }}>
+            {totalEfectivo}% efectivo
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Convierte el objeto guardado en arrays de 3 slots: [d1, d2, d3]
+function descToArrays(descObj) {
+  const result = {}
+  CATEGORIAS.forEach(({ key }) => {
+    const v = descObj?.[key]
+    if (Array.isArray(v)) {
+      result[key] = [v[0] ?? '', v[1] ?? '', v[2] ?? '']
+    } else if (v != null && v !== 0 && v !== '') {
+      result[key] = [String(v), '', '']
+    } else {
+      result[key] = ['', '', '']
+    }
+  })
+  return result
+}
+
+// Convierte arrays → objeto para guardar (filtra vacíos y ceros)
+function arraysToDesc(arrObj) {
+  const result = {}
+  CATEGORIAS.forEach(({ key }) => {
+    const arr = (arrObj[key] || ['', '', '']).map(v => parseFloat(v) || 0)
+    // Si todos son 0, guardar 0 simple; si hay más de uno, guardar array
+    const nonZero = arr.filter(v => v > 0)
+    if (nonZero.length === 0) result[key] = 0
+    else if (nonZero.length === 1 && arr[1] === 0 && arr[2] === 0) result[key] = arr[0]
+    else result[key] = arr
+  })
+  return result
+}
+
+// Formatea el descuento para mostrar en el badge
+function formatDescuento(val) {
+  if (!val || val === 0) return null
+  if (Array.isArray(val)) {
+    const activos = val.filter(v => v > 0)
+    if (activos.length === 0) return null
+    if (activos.length === 1) return `${activos[0]}%`
+    return activos.map(v => `${v}%`).join(' + ')
+  }
+  return `${val}%`
+}
 
 export default function Distribuidores() {
   const { isAdmin } = useAuth()
   const [distribuidores, setDistribuidores] = useState([])
   const [loading, setLoading] = useState(true)
-  const [editando, setEditando] = useState(null)      // id del distribuidor en edición
-  const [descuentos, setDescuentos] = useState({})    // { calefones_calderas: '', paneles_calefactores: '', anafes: '' }
+  const [editando, setEditando] = useState(null)
+  const [descuentos, setDescuentos] = useState({})  // { key: [d1, d2, d3] }
   const [guardando, setGuardando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
 
-  useEffect(() => {
-    if (isAdmin) cargar()
-  }, [isAdmin])
+  useEffect(() => { if (isAdmin) cargar() }, [isAdmin])
 
   async function cargar() {
     setLoading(true)
@@ -36,35 +140,20 @@ export default function Distribuidores() {
   }
 
   function abrirEdicion(dist) {
-    const d = dist.descuentos || {}
-    setDescuentos({
-      calefones_calderas:   d.calefones_calderas   ?? '',
-      paneles_calefactores: d.paneles_calefactores ?? '',
-      anafes:               d.anafes               ?? '',
-    })
+    setDescuentos(descToArrays(dist.descuentos))
     setEditando(dist.id)
   }
 
-  function cerrarEdicion() {
-    setEditando(null)
-    setDescuentos({})
-  }
+  function cerrarEdicion() { setEditando(null); setDescuentos({}) }
 
   async function guardarDescuentos(distId) {
     setGuardando(true)
-    const payload = {}
-    CATEGORIAS.forEach(({ key }) => {
-      const val = descuentos[key]
-      payload[key] = val === '' ? 0 : Number(val)
-    })
-    const { error } = await supabase
-      .from('profiles')
-      .update({ descuentos: payload })
-      .eq('id', distId)
+    const payload = arraysToDesc(descuentos)
+    const { error } = await supabase.from('profiles').update({ descuentos: payload }).eq('id', distId)
     if (error) {
       toast.error('Error al guardar')
     } else {
-      toast.success('Descuentos guardados')
+      toast.success('Descuentos guardados ✅')
       setDistribuidores(prev => prev.map(d => d.id === distId ? { ...d, descuentos: payload } : d))
       cerrarEdicion()
     }
@@ -111,14 +200,12 @@ export default function Distribuidores() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtrados.map(dist => (
-            <div key={dist.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+            <div key={dist.id} style={{ background: 'var(--surface)', border: `1px solid ${editando === dist.id ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden', transition: 'border-color .2s' }}>
 
               {/* Info del distribuidor */}
               <div style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,209,102,0.15)', border: '1px solid rgba(255,209,102,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                    🏪
-                  </div>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,209,102,0.15)', border: '1px solid rgba(255,209,102,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🏪</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{dist.razon_social || dist.full_name || 'Sin nombre'}</div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
@@ -129,14 +216,14 @@ export default function Distribuidores() {
                   </div>
                 </div>
 
-                {/* Descuentos actuales */}
+                {/* Badges descuentos actuales */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  {CATEGORIAS.map(({ key, label }) => {
-                    const val = dist.descuentos?.[key]
-                    if (!val) return null
+                  {CATEGORIAS.map(({ key, label, color, bg }) => {
+                    const fmt = formatDescuento(dist.descuentos?.[key])
+                    if (!fmt) return null
                     return (
-                      <span key={key} style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: 'var(--green)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
-                        {label}: {val}%
+                      <span key={key} style={{ background: bg, border: `1px solid ${color}50`, color, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                        {label}: {fmt}
                       </span>
                     )
                   })}
@@ -151,42 +238,36 @@ export default function Distribuidores() {
 
               {/* Panel edición */}
               {editando === dist.id && (
-                <div style={{ borderTop: '1px solid var(--border)', padding: '18px 22px', background: 'rgba(74,108,247,0.04)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>
-                    Descuentos por categoría (%)
+                <div style={{ borderTop: '1px solid var(--border)', padding: '20px 22px', background: 'rgba(74,108,247,0.03)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 18 }}>
+                    Descuentos por categoría — hasta 3 descuentos acumulativos
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 16 }}>
-                    {CATEGORIAS.map(({ key, label }) => (
-                      <div key={key}>
-                        <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                          {label}
-                        </label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={descuentos[key]}
-                            onChange={e => setDescuentos(prev => ({ ...prev, [key]: e.target.value }))}
-                            placeholder="0"
-                            style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 14, outline: 'none', fontFamily: 'var(--font)' }}
-                          />
-                          <span style={{ color: 'var(--text3)', fontSize: 14, fontWeight: 600 }}>%</span>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    {CATEGORIAS.map(({ key, label, color, bg }) => (
+                      <div key={key} style={{ background: 'var(--surface2)', border: `1px solid ${color}30`, borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ background: bg, border: `1px solid ${color}40`, padding: '2px 10px', borderRadius: 20 }}>{label}</span>
                         </div>
+                        <DescuentosCascada
+                          dtos={descuentos[key] || ['', '', '']}
+                          onChange={val => setDescuentos(prev => ({ ...prev, [key]: val }))}
+                        />
                       </div>
                     ))}
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
                     <button
                       onClick={() => guardarDescuentos(dist.id)}
                       disabled={guardando}
-                      style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1, fontFamily: 'var(--font)' }}
+                      style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 22px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1, fontFamily: 'var(--font)' }}
                     >
-                      {guardando ? 'Guardando...' : '💾 Guardar'}
+                      {guardando ? 'Guardando...' : '💾 Guardar descuentos'}
                     </button>
                     <button
                       onClick={cerrarEdicion}
-                      style={{ background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                      style={{ background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                     >
                       Cancelar
                     </button>
