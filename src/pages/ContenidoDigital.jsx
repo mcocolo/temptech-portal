@@ -14,9 +14,35 @@ const CATALOG = [
     bg: 'rgba(255,209,102,0.12)',
     border: 'rgba(255,209,102,0.35)',
     subs: [
-      { value: 'paneles_slim',    label: 'Panel Slim',    emoji: '▪' },
-      { value: 'paneles_firenze', label: 'Panel Firenze', emoji: '▪' },
-      { value: 'paneles_firenze_smart', label: 'Firenze Smart', emoji: '▪' },
+      {
+        value: 'paneles_slim', label: 'Panel Slim', emoji: '▪',
+        subs: [
+          { value: 'paneles_slim_250',    label: 'Slim 250w' },
+          { value: 'paneles_slim_250ts',  label: 'Slim 250w Toallero Simple' },
+          { value: 'paneles_slim_250td',  label: 'Slim 250w Toallero Doble' },
+          { value: 'paneles_slim_500',    label: 'Slim 500w' },
+          { value: 'paneles_slim_500ts',  label: 'Slim 500w Toallero Simple' },
+          { value: 'paneles_slim_500td',  label: 'Slim 500w Toallero Doble' },
+        ],
+      },
+      {
+        value: 'paneles_firenze', label: 'Panel Firenze', emoji: '▪',
+        subs: [
+          { value: 'paneles_firenze_bco', label: '1400w Blanco' },
+          { value: 'paneles_firenze_mv',  label: '1400w Madera Veteada' },
+          { value: 'paneles_firenze_pa',  label: '1400w Piedra Azteca' },
+          { value: 'paneles_firenze_pr',  label: '1400w Piedra Romana' },
+          { value: 'paneles_firenze_mtg', label: '1400w Mármol Traviatta Gris' },
+          { value: 'paneles_firenze_pcl', label: '1400w Piedra Cantera Luna' },
+          { value: 'paneles_firenze_mco', label: '1400w Mármol Calacatta Ocre' },
+        ],
+      },
+      {
+        value: 'paneles_firenze_smart', label: 'Firenze Smart', emoji: '▪',
+        subs: [
+          { value: 'paneles_firenze_smart_wifi', label: '1400w Smart Wifi' },
+        ],
+      },
     ],
   },
   {
@@ -27,10 +53,34 @@ const CATALOG = [
     bg: 'rgba(74,108,247,0.12)',
     border: 'rgba(74,108,247,0.35)',
     subs: [
-      { value: 'calefones_one',    label: 'Calefón One',    emoji: '▪' },
-      { value: 'calefones_nova',   label: 'Calefón Nova',   emoji: '▪' },
-      { value: 'calefones_pulse',  label: 'Calefón Pulse',  emoji: '▪' },
-      { value: 'calefones_caldera', label: 'Caldera Dual Core', emoji: '▪' },
+      {
+        value: 'calefones_one', label: 'Calefón One', emoji: '▪',
+        subs: [
+          { value: 'calefones_one_sil', label: '3,5/5,5/7Kw Silver' },
+        ],
+      },
+      {
+        value: 'calefones_nova', label: 'Calefón Nova', emoji: '▪',
+        subs: [
+          { value: 'calefones_nova_black', label: '6/8/9/13,5Kw Black' },
+          { value: 'calefones_nova_sil',   label: '6/8/9/13,5Kw Silver' },
+          { value: 'calefones_nova_bl',    label: '6/8/9/13,5Kw Blanco' },
+        ],
+      },
+      {
+        value: 'calefones_pulse', label: 'Calefón Pulse', emoji: '▪',
+        subs: [
+          { value: 'calefones_pulse_18', label: '9/13,5/18Kw 380V' },
+          { value: 'calefones_pulse_24', label: '12/18/24Kw 380V' },
+        ],
+      },
+      {
+        value: 'calefones_caldera', label: 'Caldera Dual Core', emoji: '▪',
+        subs: [
+          { value: 'calefones_caldera_14', label: '14,4Kw 220-380V' },
+          { value: 'calefones_caldera_23', label: '23Kw 380V' },
+        ],
+      },
     ],
   },
   {
@@ -41,8 +91,20 @@ const CATALOG = [
     bg: 'rgba(255,107,43,0.12)',
     border: 'rgba(255,107,43,0.35)',
     subs: [
-      { value: 'anafes_induccion',   label: 'Por Inducción',   emoji: '▪' },
-      { value: 'anafes_infrarrojo',  label: 'Por Infrarrojo',  emoji: '▪' },
+      {
+        value: 'anafes_induccion', label: 'Por Inducción', emoji: '▪',
+        subs: [
+          { value: 'anafes_induccion_2h', label: '2 Hornallas' },
+          { value: 'anafes_induccion_4h', label: '4 Hornallas' },
+        ],
+      },
+      {
+        value: 'anafes_infrarrojo', label: 'Por Infrarrojo', emoji: '▪',
+        subs: [
+          { value: 'anafes_infrarrojo_2h', label: '2 Hornallas' },
+          { value: 'anafes_infrarrojo_4h', label: '4 Hornallas' },
+        ],
+      },
     ],
   },
   {
@@ -53,9 +115,9 @@ const CATALOG = [
     bg: 'rgba(61,214,140,0.12)',
     border: 'rgba(61,214,140,0.35)',
     subs: [
-      { value: 'general_logos',      label: 'Logos',            emoji: '▪' },
-      { value: 'general_catalogos',  label: 'Catálogos',        emoji: '▪' },
-      { value: 'general_marketing',  label: 'Marketing',        emoji: '▪' },
+      { value: 'general_logos',     label: 'Logos',     emoji: '▪' },
+      { value: 'general_catalogos', label: 'Catálogos', emoji: '▪' },
+      { value: 'general_marketing', label: 'Marketing', emoji: '▪' },
     ],
   },
 ]
@@ -68,12 +130,25 @@ const TIPOS = {
 }
 
 function findParent(catValue) {
-  return CATALOG.find(c => c.value === catValue || c.subs?.some(s => s.value === catValue))
+  return CATALOG.find(c =>
+    c.value === catValue ||
+    c.subs?.some(s => s.value === catValue || s.subs?.some(ss => ss.value === catValue))
+  )
 }
-function findSub(catValue) {
+function findMid(catValue) {
   for (const c of CATALOG) {
-    const s = c.subs?.find(s => s.value === catValue)
-    if (s) return s
+    for (const s of c.subs || []) {
+      if (s.value === catValue || s.subs?.some(ss => ss.value === catValue)) return s
+    }
+  }
+  return null
+}
+function findLeaf(catValue) {
+  for (const c of CATALOG) {
+    for (const s of c.subs || []) {
+      const ss = s.subs?.find(ss => ss.value === catValue)
+      if (ss) return ss
+    }
   }
   return null
 }
@@ -102,21 +177,26 @@ export default function ContenidoDigital() {
 
   // Filtros
   const [selParent, setSelParent] = useState(null)
-  const [selSub, setSelSub]     = useState(null)
-  const [selTipo, setSelTipo]   = useState(null)
+  const [selSub, setSelSub]       = useState(null)
+  const [selLeaf, setSelLeaf]     = useState(null)
+  const [selTipo, setSelTipo]     = useState(null)
 
   // Form selección
   const [fParent, setFParent]   = useState('paneles')
   const [fSub, setFSub]         = useState('paneles_slim')
+  const [fLeaf, setFLeaf]       = useState('paneles_slim_250')
 
-  useEffect(() => { load() }, [selParent, selSub, selTipo])
+  useEffect(() => { load() }, [selParent, selSub, selLeaf, selTipo])
 
   async function load() {
     setLoading(true)
     let q = supabase.from('contenido_digital').select('*').order('created_at', { ascending: false })
 
-    if (selSub) {
-      q = q.eq('categoria', selSub)
+    if (selLeaf) {
+      q = q.eq('categoria', selLeaf)
+    } else if (selSub) {
+      const mid = findMid(selSub)
+      q = q.in('categoria', getAllLeaves(mid))
     } else if (selParent) {
       const parent = CATALOG.find(c => c.value === selParent)
       q = q.in('categoria', getAllLeaves(parent))
@@ -129,19 +209,32 @@ export default function ContenidoDigital() {
   }
 
   function pickParent(val) {
-    if (selParent === val) { setSelParent(null); setSelSub(null) }
-    else { setSelParent(val); setSelSub(null) }
+    if (selParent === val) { setSelParent(null); setSelSub(null); setSelLeaf(null) }
+    else { setSelParent(val); setSelSub(null); setSelLeaf(null) }
   }
-  function pickSub(val) { setSelSub(selSub === val ? null : val) }
+  function pickSub(val) {
+    if (selSub === val) { setSelSub(null); setSelLeaf(null) }
+    else { setSelSub(val); setSelLeaf(null) }
+  }
+  function pickLeaf(val) { setSelLeaf(selLeaf === val ? null : val) }
 
   function handleFParent(val) {
     setFParent(val)
-    const firstSub = CATALOG.find(c => c.value === val)?.subs?.[0]?.value || ''
-    setFSub(firstSub)
-    setForm(p => ({ ...p, categoria: firstSub }))
+    const firstSub = CATALOG.find(c => c.value === val)?.subs?.[0]
+    const firstLeaf = firstSub?.subs?.[0]?.value || null
+    setFSub(firstSub?.value || '')
+    setFLeaf(firstLeaf)
+    setForm(p => ({ ...p, categoria: firstLeaf || firstSub?.value || '' }))
   }
   function handleFSub(val) {
     setFSub(val)
+    const subData = CATALOG.flatMap(c => c.subs || []).find(s => s.value === val)
+    const firstLeaf = subData?.subs?.[0]?.value || null
+    setFLeaf(firstLeaf)
+    setForm(p => ({ ...p, categoria: firstLeaf || val }))
+  }
+  function handleFLeaf(val) {
+    setFLeaf(val)
     setForm(p => ({ ...p, categoria: val }))
   }
 
@@ -186,7 +279,7 @@ export default function ContenidoDigital() {
       const tipo = detectTipo(ext)
       const title = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
       const { error: dbErr } = await supabase.from('contenido_digital').insert({
-        title, url, tipo, categoria: fSub, description: null,
+        title, url, tipo, categoria: fLeaf || fSub, description: null,
       })
       if (dbErr) fail++
       else ok++
@@ -198,16 +291,20 @@ export default function ContenidoDigital() {
   }
 
   function openAdd() {
-    setEditing(null); setForm(EMPTY_FORM)
-    setFParent('paneles'); setFSub('paneles_slim')
+    setEditing(null)
+    setFParent('paneles'); setFSub('paneles_slim'); setFLeaf('paneles_slim_250')
+    setForm({ ...EMPTY_FORM, categoria: 'paneles_slim_250' })
     setModalOpen(true)
   }
   function openEdit(item, e) {
     e.stopPropagation()
     setEditing(item)
     const parent = findParent(item.categoria)
+    const mid    = findMid(item.categoria)
+    const leaf   = findLeaf(item.categoria)
     setFParent(parent?.value || 'paneles')
-    setFSub(item.categoria)
+    setFSub(mid?.value || '')
+    setFLeaf(leaf?.value || null)
     setForm({ title: item.title, description: item.description || '', url: item.url, tipo: item.tipo, categoria: item.categoria })
     setModalOpen(true)
   }
@@ -348,11 +445,27 @@ export default function ContenidoDigital() {
               {selParent === cat.value && (
                 <div style={{ paddingLeft: 14, marginTop: 2 }}>
                   {cat.subs.map(sub => (
-                    <div key={sub.value} onClick={() => pickSub(sub.value)} style={{ padding: '6px 10px', borderRadius: 7, cursor: 'pointer', fontSize: 12, marginBottom: 2, background: selSub === sub.value ? cat.bg : 'transparent', color: selSub === sub.value ? cat.color : 'var(--text3)', fontWeight: selSub === sub.value ? 600 : 400, borderLeft: `2px solid ${selSub === sub.value ? cat.color : 'var(--border)'}`, transition: 'all .15s' }}
-                      onMouseEnter={e => { if (selSub !== sub.value) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.color = 'var(--text)' } }}
-                      onMouseLeave={e => { if (selSub !== sub.value) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text3)' } }}
-                    >
-                      {sub.label}
+                    <div key={sub.value}>
+                      <div onClick={() => pickSub(sub.value)} style={{ padding: '6px 10px', borderRadius: 7, cursor: 'pointer', fontSize: 12, marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: selSub === sub.value && !selLeaf ? cat.bg : 'transparent', color: selSub === sub.value ? cat.color : 'var(--text3)', fontWeight: selSub === sub.value ? 600 : 400, borderLeft: `2px solid ${selSub === sub.value ? cat.color : 'var(--border)'}`, transition: 'all .15s' }}
+                        onMouseEnter={e => { if (selSub !== sub.value) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.color = 'var(--text)' } }}
+                        onMouseLeave={e => { if (selSub !== sub.value) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text3)' } }}
+                      >
+                        <span>{sub.label}</span>
+                        {sub.subs && <ChevronRight size={11} style={{ opacity: 0.4, transform: selSub === sub.value ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />}
+                      </div>
+                      {/* Nivel 3 */}
+                      {sub.subs && selSub === sub.value && (
+                        <div style={{ paddingLeft: 12, marginBottom: 4 }}>
+                          {sub.subs.map(leaf => (
+                            <div key={leaf.value} onClick={() => pickLeaf(leaf.value)} style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11, marginBottom: 1, background: selLeaf === leaf.value ? cat.bg : 'transparent', color: selLeaf === leaf.value ? cat.color : 'var(--text3)', fontWeight: selLeaf === leaf.value ? 600 : 400, borderLeft: `2px solid ${selLeaf === leaf.value ? cat.color : 'transparent'}`, transition: 'all .15s' }}
+                              onMouseEnter={e => { if (selLeaf !== leaf.value) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.color = 'var(--text)' } }}
+                              onMouseLeave={e => { if (selLeaf !== leaf.value) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text3)' } }}
+                            >
+                              {leaf.label}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -369,8 +482,9 @@ export default function ContenidoDigital() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
             {items.map(item => {
-              const parent = findParent(item.categoria)
-              const sub    = findSub(item.categoria)
+              const parent  = findParent(item.categoria)
+              const mid     = findMid(item.categoria)
+              const leaf    = findLeaf(item.categoria)
               const tipoCfg = TIPOS[item.tipo] || TIPOS.pack
               const TipoIcon = tipoCfg.icon
               const esImagen = item.tipo === 'imagen'
@@ -420,7 +534,12 @@ export default function ContenidoDigital() {
                       </span>
                       {parent && (
                         <span style={{ background: parent.bg, color: parent.color, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20 }}>
-                          {parent.emoji} {sub?.label || parent.label}
+                          {parent.emoji} {mid?.label || parent.label}
+                        </span>
+                      )}
+                      {leaf && (
+                        <span style={{ background: 'var(--surface3)', color: 'var(--text3)', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20 }}>
+                          {leaf.label}
                         </span>
                       )}
                     </div>
@@ -469,6 +588,23 @@ export default function ContenidoDigital() {
                 </div>
               </div>
             )}
+            {/* Nivel 3 — variante específica */}
+            {(() => {
+              const subData = fParentData?.subs?.find(s => s.value === fSub)
+              if (!subData?.subs?.length) return null
+              return (
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Variante</label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {subData.subs.map(ss => (
+                      <button key={ss.value} onClick={() => handleFLeaf(ss.value)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${fLeaf === ss.value ? fParentData.border : 'var(--border)'}`, background: fLeaf === ss.value ? fParentData.bg : 'transparent', color: fLeaf === ss.value ? fParentData.color : 'var(--text3)', fontWeight: fLeaf === ss.value ? 600 : 400 }}>
+                        {ss.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Tipo de archivo */}
