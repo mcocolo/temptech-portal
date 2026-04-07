@@ -7,6 +7,11 @@ function formatPrecio(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n)
 }
 
+function formatFecha(dateStr) {
+  if (!dateStr) return ''
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+}
+
 const STATUS_CONFIG = {
   pendiente:  { label: 'Pendiente',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
   aprobado:   { label: 'Aprobado',   color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
@@ -20,9 +25,10 @@ export default function AdminPedidos() {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
-  const [editando, setEditando] = useState(null)       // id del pedido en edición
-  const [itemsEdit, setItemsEdit] = useState([])       // items editables
+  const [editando, setEditando] = useState(null)
+  const [itemsEdit, setItemsEdit] = useState([])
   const [notaAdmin, setNotaAdmin] = useState('')
+  const [fechaEntrega, setFechaEntrega] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => { if (isAdmin) cargar() }, [isAdmin, filtro])
@@ -41,8 +47,13 @@ export default function AdminPedidos() {
   }
 
   function abrirEdicion(pedido) {
-    setItemsEdit(pedido.items.map(i => ({ ...i })))
+    setItemsEdit(pedido.items.map(i => ({
+      ...i,
+      precio_base: i.precio_base || i.precio_unitario,
+      descuento_pct: i.descuento_pct ?? 0,
+    })))
     setNotaAdmin(pedido.notas_admin || '')
+    setFechaEntrega(pedido.fecha_entrega || '')
     setEditando(pedido.id)
   }
 
@@ -50,6 +61,7 @@ export default function AdminPedidos() {
     setEditando(null)
     setItemsEdit([])
     setNotaAdmin('')
+    setFechaEntrega('')
   }
 
   function actualizarCantidad(idx, val) {
@@ -60,8 +72,18 @@ export default function AdminPedidos() {
     }))
   }
 
+  function actualizarDescuento(idx, val) {
+    const pct = Math.max(0, Math.min(100, parseFloat(val) || 0))
+    setItemsEdit(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      const base = item.precio_base || item.precio_unitario
+      const precioUnit = base * (1 - pct / 100)
+      return { ...item, descuento_pct: pct, precio_unitario: precioUnit, subtotal: precioUnit * item.cantidad }
+    }))
+  }
+
   async function confirmarPedido(pedido, nuevoEstado) {
-    const itemsFinal = nuevoEstado === 'modificado' ? itemsEdit : pedido.items
+    const itemsFinal = (nuevoEstado === 'modificado' || nuevoEstado === 'aprobado') ? itemsEdit : pedido.items
     const totalFinal = itemsFinal.reduce((s, i) => s + i.subtotal, 0)
 
     setGuardando(true)
@@ -70,6 +92,7 @@ export default function AdminPedidos() {
       items: itemsFinal,
       total: totalFinal,
       notas_admin: notaAdmin.trim() || null,
+      fecha_entrega: fechaEntrega || null,
       updated_at: new Date().toISOString(),
     }).eq('id', pedido.id)
 
@@ -81,17 +104,32 @@ export default function AdminPedidos() {
       const nombreDist = pedido.profiles?.razon_social || pedido.profiles?.full_name || 'Distribuidor'
       const pedidoId = pedido.id.slice(0, 8).toUpperCase()
 
-      const textoItems = itemsFinal.map(i => `• ${i.nombre} ${i.modelo} — x${i.cantidad} — ${formatPrecio(i.subtotal)}`).join('\n')
-      const texto = nuevoEstado === 'aprobado'
-        ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue APROBADO.\n\nDetalle:\n${textoItems}\n\nTotal: ${formatPrecio(totalFinal)}${notaAdmin ? `\n\nNota de TEMPTECH: ${notaAdmin}` : ''}\n\nSaludos,\nEquipo TEMPTECH`
-        : nuevoEstado === 'modificado'
-        ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue MODIFICADO por nuestro equipo.\n\nNuevo detalle:\n${textoItems}\n\nTotal actualizado: ${formatPrecio(totalFinal)}${notaAdmin ? `\n\nNota de TEMPTECH: ${notaAdmin}` : ''}\n\nSaludos,\nEquipo TEMPTECH`
-        : `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue RECHAZADO.${notaAdmin ? `\n\nMotivo: ${notaAdmin}` : ''}\n\nSaludos,\nEquipo TEMPTECH`
+      const textoItems = itemsFinal
+        .filter(i => i.cantidad > 0)
+        .map(i => {
+          const desc = i.descuento_pct ? ` (${i.descuento_pct}% desc.)` : ''
+          return `• ${i.nombre} ${i.modelo}${desc} — x${i.cantidad} — ${formatPrecio(i.subtotal)}`
+        }).join('\n')
+
+      const lineaFecha = fechaEntrega ? `\n📅 Fecha de entrega estimada: ${formatFecha(fechaEntrega)}` : ''
+      const lineaNota = notaAdmin ? `\n\nNota de TEMPTECH: ${notaAdmin}` : ''
+
+      const asunto =
+        nuevoEstado === 'aprobado'  ? `TEMPTECH - Pedido #${pedidoId} aprobado ✅` :
+        nuevoEstado === 'modificado' ? `TEMPTECH - Pedido #${pedidoId} modificado ✏️` :
+        `TEMPTECH - Pedido #${pedidoId} rechazado ❌`
+
+      const texto =
+        nuevoEstado === 'aprobado'
+          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue APROBADO.\n\nDetalle:\n${textoItems}\n\nTotal: ${formatPrecio(totalFinal)}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
+          : nuevoEstado === 'modificado'
+          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue MODIFICADO por nuestro equipo.\n\nNuevo detalle:\n${textoItems}\n\nTotal actualizado: ${formatPrecio(totalFinal)}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
+          : `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue RECHAZADO.${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
 
       await supabase.functions.invoke('enviar-email-resolucion', {
         body: {
           to: emailDist,
-          subject: `TEMPTECH - Pedido #${pedidoId} ${nuevoEstado === 'aprobado' ? 'aprobado' : nuevoEstado === 'modificado' ? 'modificado' : 'rechazado'}`,
+          subject: asunto,
           text: texto,
           tracking_id: pedidoId,
           empresa: '', tracking: '', fecha: '',
@@ -99,7 +137,8 @@ export default function AdminPedidos() {
       })
     } catch { /* email no crítico */ }
 
-    toast.success(`Pedido ${nuevoEstado} y email enviado ✅`)
+    const labels = { aprobado: 'aprobado', modificado: 'modificado con cambios', rechazado: 'rechazado' }
+    toast.success(`Pedido ${labels[nuevoEstado]} · Email enviado ✅`)
     cerrarEdicion()
     setGuardando(false)
     cargar()
@@ -131,7 +170,7 @@ export default function AdminPedidos() {
 
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {['todos', 'pendiente', 'aprobado', 'modificado', 'rechazado'].map(f => (
             <button key={f} onClick={() => setFiltro(f)} style={{
               padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
@@ -176,7 +215,7 @@ export default function AdminPedidos() {
                     <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{cfg.label}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <span style={{ fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>{formatPrecio(pedido.total)}</span>
+                    <span style={{ fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>{formatPrecio(isEdit ? totalEdit : pedido.total)}</span>
                     <span style={{ fontSize: 12, color: 'var(--text3)' }}>{new Date(pedido.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
@@ -195,38 +234,67 @@ export default function AdminPedidos() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Detalle del pedido</div>
 
                   {isEdit ? (
-                    // Modo edición
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                       {itemsEdit.map((item, idx) => (
-                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo} · {formatPrecio(item.precio_unitario)} c/u</div>
+                        <div key={idx} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(item.subtotal)}</div>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <button onClick={() => actualizarCantidad(idx, item.cantidad - 1)} style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                            <input
-                              type="number" min="0" value={item.cantidad}
-                              onChange={e => actualizarCantidad(idx, e.target.value)}
-                              style={{ width: 48, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
-                            />
-                            <button onClick={() => actualizarCantidad(idx, item.cantidad + 1)} style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--brand-gradient)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            {/* Descuento */}
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
+                                Descuento % {item.precio_base && item.precio_base !== item.precio_unitario && (
+                                  <span style={{ color: 'var(--text3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                                    (base: {formatPrecio(item.precio_base)})
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <input
+                                  type="number" min="0" max="100" step="0.5"
+                                  value={item.descuento_pct}
+                                  onChange={e => actualizarDescuento(idx, e.target.value)}
+                                  style={{ width: 64, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
+                                />
+                                <span style={{ fontSize: 12, color: 'var(--text3)' }}>%</span>
+                                <span style={{ fontSize: 12, color: 'var(--green)', marginLeft: 4 }}>{formatPrecio(item.precio_unitario)} c/u</span>
+                              </div>
+                            </div>
+                            {/* Cantidad */}
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Cantidad</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <button onClick={() => actualizarCantidad(idx, item.cantidad - 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                                <input
+                                  type="number" min="0" value={item.cantidad}
+                                  onChange={e => actualizarCantidad(idx, e.target.value)}
+                                  style={{ width: 52, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
+                                />
+                                <button onClick={() => actualizarCantidad(idx, item.cantidad + 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--brand-gradient)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', minWidth: 100 }}>{formatPrecio(item.subtotal)}</div>
                         </div>
                       ))}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: 800, fontSize: 15, color: '#7b9fff', paddingTop: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: 800, fontSize: 15, color: '#7b9fff', paddingTop: 4 }}>
                         Total: {formatPrecio(totalEdit)}
                       </div>
                     </div>
                   ) : (
-                    // Modo lectura
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
                       {pedido.items.map((item, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '6px 0', borderBottom: i < pedido.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
                           <div>
                             <span style={{ fontWeight: 600 }}>{item.nombre}</span>
                             <span style={{ color: 'var(--text3)', fontSize: 11, marginLeft: 8 }}>{item.modelo}</span>
+                            {item.descuento_pct > 0 && (
+                              <span style={{ fontSize: 10, marginLeft: 8, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', padding: '1px 6px', borderRadius: 4 }}>{item.descuento_pct}% desc.</span>
+                            )}
                           </div>
                           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                             <span style={{ color: 'var(--text3)' }}>x{item.cantidad} · {formatPrecio(item.precio_unitario)}</span>
@@ -237,30 +305,51 @@ export default function AdminPedidos() {
                     </div>
                   )}
 
-                  {/* Notas */}
+                  {/* Notas distribuidor */}
                   {pedido.notas && !isEdit && (
                     <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text3)' }}>
                       <span style={{ fontWeight: 600 }}>Nota del distribuidor: </span>{pedido.notas}
                     </div>
                   )}
 
-                  {/* Nota admin */}
-                  {isEdit ? (
-                    <div style={{ marginBottom: 14 }}>
-                      <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Nota para el distribuidor (opcional)</label>
-                      <textarea
-                        value={notaAdmin}
-                        onChange={e => setNotaAdmin(e.target.value)}
-                        placeholder="Explicación de cambios, condiciones, fecha de entrega, etc."
-                        rows={3}
-                        style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none', lineHeight: 1.6 }}
-                      />
+                  {/* Fecha entrega (vista) */}
+                  {pedido.fecha_entrega && !isEdit && (
+                    <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(61,214,140,0.06)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                      <span style={{ fontWeight: 700, color: '#3dd68c' }}>📅 Fecha de entrega: </span>{formatFecha(pedido.fecha_entrega)}
                     </div>
-                  ) : pedido.notas_admin ? (
+                  )}
+
+                  {/* Nota admin (vista) */}
+                  {!isEdit && pedido.notas_admin && (
                     <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', fontSize: 12 }}>
                       <span style={{ fontWeight: 700, color: '#7b9fff' }}>Nota TEMPTECH: </span>{pedido.notas_admin}
                     </div>
-                  ) : null}
+                  )}
+
+                  {/* Edición: fecha + nota */}
+                  {isEdit && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14, marginBottom: 14 }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>📅 Fecha de entrega</label>
+                        <input
+                          type="date"
+                          value={fechaEntrega}
+                          onChange={e => setFechaEntrega(e.target.value)}
+                          style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Nota para el distribuidor</label>
+                        <textarea
+                          value={notaAdmin}
+                          onChange={e => setNotaAdmin(e.target.value)}
+                          placeholder="Condiciones, aclaraciones, motivo de cambios..."
+                          rows={2}
+                          style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none', lineHeight: 1.6 }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Acciones */}
@@ -268,7 +357,7 @@ export default function AdminPedidos() {
                   {isEdit ? (
                     <>
                       <button onClick={() => confirmarPedido(pedido, 'aprobado')} disabled={guardando} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        ✓ Aprobar pedido
+                        ✓ Aprobar
                       </button>
                       <button onClick={() => confirmarPedido(pedido, 'modificado')} disabled={guardando} style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         ✏️ Aprobar con cambios

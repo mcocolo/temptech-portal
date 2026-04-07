@@ -102,6 +102,8 @@ export default function Pedidos() {
       items: itemsCarrito.map(i => ({
         codigo: i.codigo, nombre: i.nombre, modelo: i.modelo,
         categoria: i.categoria, cantidad: i.cantidad,
+        precio_base: i.precio,
+        descuento_pct: descuentos[i.categoria] || 0,
         precio_unitario: i.precioFinal, subtotal: i.subtotal,
       })),
       total,
@@ -349,8 +351,14 @@ export default function Pedidos() {
                       </div>
                     ))}
                   </div>
+                  {p.fecha_entrega && (
+                    <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(61,214,140,0.06)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                      <span style={{ fontWeight: 700, color: '#3dd68c' }}>📅 Fecha de entrega: </span>
+                      {new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </div>
+                  )}
                   {p.notas_admin && (
-                    <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text2)' }}>
+                    <div style={{ marginTop: 8, padding: '10px 14px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text2)' }}>
                       <span style={{ fontWeight: 700, color: '#7b9fff' }}>Nota de TEMPTECH: </span>{p.notas_admin}
                     </div>
                   )}
