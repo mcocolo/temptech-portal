@@ -370,21 +370,52 @@ export default function ContenidoDigital() {
       {masivo && isAdmin && (
         <div style={{ background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff', marginBottom: 14 }}>📤 Carga masiva de archivos</div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 6, fontWeight: 600 }}>Categoría destino</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', fontWeight: 600 }}>Categoría destino</label>
+
+            {/* Nivel 1 */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {CATALOG.map(c => (
                 <button key={c.value} onClick={() => handleFParent(c.value)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${fParent === c.value ? c.border : 'var(--border)'}`, background: fParent === c.value ? c.bg : 'transparent', color: fParent === c.value ? c.color : 'var(--text3)', fontWeight: fParent === c.value ? 700 : 400 }}>
                   {c.emoji} {c.label}
                 </button>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {CATALOG.find(c => c.value === fParent)?.subs?.map(s => (
-                <button key={s.value} onClick={() => handleFSub(s.value)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${fSub === s.value ? 'rgba(74,108,247,0.5)' : 'var(--border)'}`, background: fSub === s.value ? 'rgba(74,108,247,0.12)' : 'transparent', color: fSub === s.value ? '#7b9fff' : 'var(--text3)', fontWeight: fSub === s.value ? 600 : 400 }}>
-                  {s.label}
-                </button>
-              ))}
+
+            {/* Nivel 2 */}
+            {(() => {
+              const parentData = CATALOG.find(c => c.value === fParent)
+              if (!parentData) return null
+              return (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 8, borderLeft: `3px solid ${parentData.color}40` }}>
+                  {parentData.subs.map(s => (
+                    <button key={s.value} onClick={() => handleFSub(s.value)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${fSub === s.value ? parentData.border : 'var(--border)'}`, background: fSub === s.value ? parentData.bg : 'transparent', color: fSub === s.value ? parentData.color : 'var(--text3)', fontWeight: fSub === s.value ? 600 : 400 }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+
+            {/* Nivel 3 */}
+            {(() => {
+              const parentData = CATALOG.find(c => c.value === fParent)
+              const subData = parentData?.subs?.find(s => s.value === fSub)
+              if (!subData?.subs?.length) return null
+              return (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 16, borderLeft: `3px solid rgba(74,108,247,0.3)` }}>
+                  {subData.subs.map(ss => (
+                    <button key={ss.value} onClick={() => handleFLeaf(ss.value)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: `1px solid ${fLeaf === ss.value ? 'rgba(74,108,247,0.6)' : 'var(--border)'}`, background: fLeaf === ss.value ? 'rgba(74,108,247,0.15)' : 'transparent', color: fLeaf === ss.value ? '#7b9fff' : 'var(--text3)', fontWeight: fLeaf === ss.value ? 700 : 400 }}>
+                      {ss.label}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+
+            {/* Categoría seleccionada */}
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+              Destino: <span style={{ color: '#7b9fff', fontWeight: 600 }}>{fLeaf || fSub || fParent}</span>
             </div>
           </div>
           <button
