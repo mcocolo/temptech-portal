@@ -36,12 +36,24 @@ export default function AdminPreventas() {
     setLoading(true)
     let q = supabase
       .from('preventas')
-      .select('*, profiles(full_name, email, razon_social)')
+      .select('*')
       .order('created_at', { ascending: false })
     if (filtroEstado !== 'todos') q = q.eq('estado', filtroEstado)
     const { data, error } = await q
-    if (error) toast.error('Error al cargar preventas')
-    else setPreventas(data || [])
+    if (error) { toast.error('Error al cargar preventas'); setLoading(false); return }
+
+    // Buscar datos de distribuidores por separado
+    const ids = [...new Set((data || []).map(p => p.distribuidor_id).filter(Boolean))]
+    let distMap = {}
+    if (ids.length > 0) {
+      const { data: dists } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, razon_social')
+        .in('id', ids)
+      dists?.forEach(d => { distMap[d.id] = d })
+    }
+
+    setPreventas((data || []).map(p => ({ ...p, profiles: distMap[p.distribuidor_id] || null })))
     setLoading(false)
   }
 

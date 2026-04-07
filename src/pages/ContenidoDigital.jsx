@@ -97,6 +97,7 @@ export default function ContenidoDigital() {
   const [form, setForm]         = useState(EMPTY_FORM)
   const [uploading, setUploading] = useState(false)
   const [lightbox, setLightbox] = useState(null)
+  const [masivo, setMasivo] = useState(false)   // panel carga masiva
   const fileRef = useRef()
 
   // Filtros
@@ -144,27 +145,55 @@ export default function ContenidoDigital() {
     setForm(p => ({ ...p, categoria: val }))
   }
 
-  // Upload archivo a Storage
-  async function handleUpload(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `${fSub}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
-    const { error } = await supabase.storage.from('contenido-digital').upload(path, file, { upsert: false })
-    if (error) { toast.error('Error al subir archivo'); setUploading(false); return }
-    const url = STORAGE_URL + path
-
-    // Detectar tipo por extensión
+  function detectTipo(ext) {
     const imgExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg']
     const vidExts = ['mp4', 'mov', 'avi', 'webm']
-    const tipo = imgExts.includes(ext.toLowerCase()) ? 'imagen'
-               : vidExts.includes(ext.toLowerCase()) ? 'video'
-               : ext.toLowerCase() === 'pdf' ? 'pdf' : 'pack'
+    return imgExts.includes(ext.toLowerCase()) ? 'imagen'
+         : vidExts.includes(ext.toLowerCase()) ? 'video'
+         : ext.toLowerCase() === 'pdf' ? 'pdf' : 'pack'
+  }
 
-    setForm(p => ({ ...p, url, tipo }))
+  // Upload múltiples archivos
+  async function handleUpload(e) {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+
+    // Si es un solo archivo en modo edición o primer archivo en modal
+    if (files.length === 1 && modalOpen) {
+      const file = files[0]
+      setUploading(true)
+      const ext = file.name.split('.').pop()
+      const path = `${fSub}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
+      const { error } = await supabase.storage.from('contenido-digital').upload(path, file, { upsert: true })
+      if (error) { toast.error('Error al subir: ' + error.message); setUploading(false); return }
+      setForm(p => ({ ...p, url: STORAGE_URL + path, tipo: detectTipo(ext) }))
+      setUploading(false)
+      toast.success('Archivo subido ✅')
+      e.target.value = ''
+      return
+    }
+
+    // Múltiples archivos → subir y guardar en BD todos de una
+    setUploading(true)
+    let ok = 0
+    let fail = 0
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const path = `${fSub}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
+      const { error: upErr } = await supabase.storage.from('contenido-digital').upload(path, file, { upsert: true })
+      if (upErr) { fail++; continue }
+      const url = STORAGE_URL + path
+      const tipo = detectTipo(ext)
+      const title = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
+      const { error: dbErr } = await supabase.from('contenido_digital').insert({
+        title, url, tipo, categoria: fSub, description: null,
+      })
+      if (dbErr) fail++
+      else ok++
+    }
     setUploading(false)
-    toast.success('Archivo subido ✅')
+    if (ok > 0) { toast.success(`${ok} archivo${ok > 1 ? 's' : ''} subido${ok > 1 ? 's' : ''} ✅`); load() }
+    if (fail > 0) toast.error(`${fail} archivo${fail > 1 ? 's' : ''} fallaron`)
     e.target.value = ''
   }
 
@@ -224,8 +253,52 @@ export default function ContenidoDigital() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Contenido Digital</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Imágenes, fichas y material de producto para distribuidores</p>
         </div>
-        {isAdmin && <Button onClick={openAdd}><Plus size={14} /> Agregar contenido</Button>}
+        {isAdmin && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => setMasivo(m => !m)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: masivo ? 'var(--surface3)' : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}
+          >
+            <Upload size={14} /> Subir varios
+          </button>
+          <Button onClick={openAdd}><Plus size={14} /> Agregar uno</Button>
+        </div>
+      )}
       </div>
+
+      {/* Panel carga masiva */}
+      {masivo && isAdmin && (
+        <div style={{ background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff', marginBottom: 14 }}>📤 Carga masiva de archivos</div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 6, fontWeight: 600 }}>Categoría destino</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+              {CATALOG.map(c => (
+                <button key={c.value} onClick={() => handleFParent(c.value)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${fParent === c.value ? c.border : 'var(--border)'}`, background: fParent === c.value ? c.bg : 'transparent', color: fParent === c.value ? c.color : 'var(--text3)', fontWeight: fParent === c.value ? 700 : 400 }}>
+                  {c.emoji} {c.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {CATALOG.find(c => c.value === fParent)?.subs?.map(s => (
+                <button key={s.value} onClick={() => handleFSub(s.value)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${fSub === s.value ? 'rgba(74,108,247,0.5)' : 'var(--border)'}`, background: fSub === s.value ? 'rgba(74,108,247,0.12)' : 'transparent', color: fSub === s.value ? '#7b9fff' : 'var(--text3)', fontWeight: fSub === s.value ? 600 : 400 }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}
+          >
+            <Upload size={14} /> {uploading ? 'Subiendo...' : 'Elegir archivos'}
+          </button>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
+            Podés seleccionar múltiples archivos a la vez. Se publican automáticamente con el nombre del archivo como título.
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: 24, alignItems: 'start' }}>
 
@@ -412,7 +485,7 @@ export default function ContenidoDigital() {
 
           {/* Upload */}
           <div style={{ background: 'var(--surface2)', border: '2px dashed var(--border)', borderRadius: 'var(--radius)', padding: '16px', textAlign: 'center' }}>
-            <input ref={fileRef} type="file" accept="image/*,video/*,.pdf,.zip,.rar" onChange={handleUpload} style={{ display: 'none' }} />
+            <input ref={fileRef} type="file" accept="image/*,video/*,.pdf,.zip,.rar" multiple onChange={handleUpload} style={{ display: 'none' }} />
             {form.url ? (
               <div>
                 {form.tipo === 'imagen' && <img src={form.url} alt="" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 8, marginBottom: 8 }} />}
