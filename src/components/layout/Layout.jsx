@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
-  Shield, Bell, Package, Users, Store
+  Shield, Bell, Package, Users, Store, ShoppingCart
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -22,6 +22,7 @@ const NAV = [
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
+  { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos', isDistributor: true },
 ]
 
 const ADMIN_NAV = [
@@ -29,15 +30,17 @@ const ADMIN_NAV = [
   { label: 'Panel Admin', icon: Shield, path: '/admin', isAdmin: true },
   { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
   { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
+  { label: 'Pedidos', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
 ]
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { profile, signOut, isAdmin, isAdmin2 } = useAuth()
+  const { profile, signOut, isAdmin, isAdmin2, isDistributor } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  const allNav = isAdmin ? [...NAV, ...ADMIN_NAV] : NAV
+  const baseNav = NAV.filter(item => !item.isDistributor || isDistributor)
+  const allNav = isAdmin ? [...baseNav, ...ADMIN_NAV] : baseNav
 
   function handleNav(path) {
     navigate(path)

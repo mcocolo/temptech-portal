@@ -16,6 +16,8 @@ import '@/styles/globals.css'
 import RegistroProducto from '@/pages/RegistroProducto'
 import ClientesRegistrados from '@/pages/ClientesRegistrados'
 import Distribuidores from '@/pages/Distribuidores'
+import Pedidos from '@/pages/Pedidos'
+import AdminPedidos from '@/pages/AdminPedidos'
 
 
 
@@ -56,6 +58,8 @@ function AppRoutes() {
               <Route path="/registro-producto" element={<RegistroProducto />} />
               <Route path="/clientes-registrados" element={<ClientesRegistrados />} />
               <Route path="/distribuidores" element={<Distribuidores />} />
+              <Route path="/pedidos" element={<Pedidos />} />
+              <Route path="/admin-pedidos" element={<AdminPedidos />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>
