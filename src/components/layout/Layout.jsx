@@ -19,6 +19,7 @@ const NAV = [
   { section: 'Recursos' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+  { label: 'Contenido Digital', icon: Package,         path: '/contenido-digital' },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },

@@ -20,6 +20,7 @@ import Pedidos from '@/pages/Pedidos'
 import AdminPedidos from '@/pages/AdminPedidos'
 import AdminPrecios from '@/pages/AdminPrecios'
 import AdminPreventas from '@/pages/AdminPreventas'
+import ContenidoDigital from '@/pages/ContenidoDigital'
 
 
 
@@ -64,6 +65,7 @@ function AppRoutes() {
               <Route path="/admin-pedidos" element={<AdminPedidos />} />
               <Route path="/admin-precios" element={<AdminPrecios />} />
               <Route path="/admin-preventas" element={<AdminPreventas />} />
+              <Route path="/contenido-digital" element={<ContenidoDigital />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>
