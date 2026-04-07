@@ -60,6 +60,7 @@ export default function Pedidos() {
   const { user, profile, isDistributor } = useAuth()
   const [tab, setTab] = useState('nuevo')        // 'nuevo' | 'historial'
   const [cantidades, setCantidades] = useState({})
+  const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [historial, setHistorial] = useState([])
@@ -132,6 +133,25 @@ export default function Pedidos() {
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
+
+      {/* Lightbox */}
+      {imagenAmpliada && (
+        <div
+          onClick={() => setImagenAmpliada(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)', cursor: 'zoom-out' }}
+        >
+          <img
+            src={imagenAmpliada}
+            alt="Producto"
+            style={{ maxWidth: '80vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12, boxShadow: '0 0 60px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setImagenAmpliada(null)}
+            style={{ position: 'fixed', top: 20, right: 20, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >×</button>
+        </div>
+      )}
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Mis Pedidos</h1>
@@ -186,7 +206,12 @@ export default function Pedidos() {
                           transition: 'background .15s',
                         }}>
                           {/* Imagen */}
-                          <div style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div
+                            onClick={() => p.imagen && setImagenAmpliada(p.imagen)}
+                            style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: p.imagen ? 'zoom-in' : 'default', transition: 'border-color .15s' }}
+                            onMouseEnter={e => p.imagen && (e.currentTarget.style.borderColor = '#7b9fff')}
+                            onMouseLeave={e => p.imagen && (e.currentTarget.style.borderColor = 'var(--border)')}
+                          >
                             {p.imagen ? (
                               <img src={p.imagen} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { e.currentTarget.style.display = 'none' }} />
                             ) : (
