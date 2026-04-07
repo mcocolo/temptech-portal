@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
 
+const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
+
 // ── Catálogo de productos ──────────────────────────────────────────
 const CATALOGO = [
   {
@@ -10,14 +12,14 @@ const CATALOGO = [
     label: 'Calefones / Calderas',
     emoji: '🚿',
     productos: [
-      { codigo: 'KF70SIL',    nombre: 'Calefón Eléctrico One',        modelo: '3,5/5,5/7Kw 220V Silver',       precio: 165585.15 },
-      { codigo: 'FE150TBLACK',nombre: 'Calefón Eléctrico Nova',       modelo: '6/8/9/13,5Kw 220V Black',       precio: 213182.07 },
-      { codigo: 'FE150TSIL',  nombre: 'Calefón Eléctrico Nova',       modelo: '6/8/9/13,5Kw 220V Silver',      precio: 213182.07 },
-      { codigo: 'FE150TBL',   nombre: 'Calefón Eléctrico Nova',       modelo: '6/8/9/13,5Kw 220V Blanco',      precio: 213182.07 },
-      { codigo: 'FM318BL',    nombre: 'Calefón Eléctrico Pulse',      modelo: '9/13,5/18Kw 380V Blanco',       precio: 450250.68 },
-      { codigo: 'FM324BL',    nombre: 'Calefón Eléctrico Pulse',      modelo: '12/18/24Kw 380V Blanco',        precio: 493936.98 },
-      { codigo: 'BF14EBL',    nombre: 'Caldera Dual Core',            modelo: '220-380V 14,4Kw Blanco',        precio: 1701651.65 },
-      { codigo: 'BF323EBL',   nombre: 'Caldera Dual Core',            modelo: '380V 23Kw Blanco',              precio: 2029298.86 },
+      { codigo: 'KF70SIL',    nombre: 'Calefón Eléctrico One',         modelo: '3,5/5,5/7Kw 220V Silver',        precio: 165585.15,  imagen: `${IMG}KF70SIL.png` },
+      { codigo: 'FE150TBLACK',nombre: 'Calefón Eléctrico Nova',        modelo: '6/8/9/13,5Kw 220V Black',        precio: 213182.07,  imagen: `${IMG}FE150TBLACK.png` },
+      { codigo: 'FE150TSIL',  nombre: 'Calefón Eléctrico Nova',        modelo: '6/8/9/13,5Kw 220V Silver',       precio: 213182.07,  imagen: `${IMG}FE150TSIL.png` },
+      { codigo: 'FE150TBL',   nombre: 'Calefón Eléctrico Nova',        modelo: '6/8/9/13,5Kw 220V Blanco',       precio: 213182.07,  imagen: `${IMG}FE150TBL.png` },
+      { codigo: 'FM318BL',    nombre: 'Calefón Eléctrico Pulse',       modelo: '9/13,5/18Kw 380V Blanco',        precio: 450250.68,  imagen: `${IMG}FM318BL.png` },
+      { codigo: 'FM324BL',    nombre: 'Calefón Eléctrico Pulse',       modelo: '12/18/24Kw 380V Blanco',         precio: 493936.98,  imagen: `${IMG}FM324BL.png` },
+      { codigo: 'BF14EBL',    nombre: 'Caldera Dual Core',             modelo: '220-380V 14,4Kw Blanco',         precio: 1701651.65, imagen: `${IMG}BF14EBL.png` },
+      { codigo: 'BF323EBL',   nombre: 'Caldera Dual Core',             modelo: '380V 23Kw Blanco',               precio: 2029298.86, imagen: `${IMG}BF323EBL.png` },
     ],
   },
   {
@@ -25,20 +27,20 @@ const CATALOGO = [
     label: 'Paneles Calefactores',
     emoji: '🔆',
     productos: [
-      { codigo: 'C250STV1',     nombre: 'Panel Calefactor Slim',        modelo: '250w',                          precio: 39293.46 },
-      { codigo: 'C250STV1TS',   nombre: 'Panel Calefactor Slim',        modelo: '250w Toallero Simple',          precio: 44907.61 },
-      { codigo: 'C250STV1TD',   nombre: 'Panel Calefactor Slim',        modelo: '250w Toallero Doble',           precio: 53328.84 },
-      { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim',        modelo: '500w',                          precio: 56135.91 },
-      { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim',        modelo: '500w Toallero Simple',          precio: 67364.22 },
-      { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim',        modelo: '500w Toallero Doble',           precio: 72978.37 },
-      { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze',     modelo: '1400w Blanco',                  precio: 78592.53 },
-      { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze',     modelo: '1400w Madera Veteada',          precio: 78592.53 },
-      { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze',     modelo: '1400w Piedra Azteca',           precio: 78592.53 },
-      { codigo: 'F1400PR',      nombre: 'Panel Calefactor Firenze',     modelo: '1400w Piedra Romana',           precio: 78592.53 },
-      { codigo: 'F1400MTG',     nombre: 'Panel Calefactor Firenze',     modelo: '1400w Mármol Traviatta Gris',   precio: 78592.53 },
-      { codigo: 'F1400PCL',     nombre: 'Panel Calefactor Firenze',     modelo: '1400w Piedra Cantera Luna',     precio: 78592.53 },
-      { codigo: 'F1400MCO',     nombre: 'Panel Calefactor Firenze',     modelo: '1400w Mármol Calacatta Ocre',   precio: 78592.53 },
-      { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart',modelo: '1400w Smart Wifi - App Temptech', precio: 157190.67 },
+      { codigo: 'C250STV1',     nombre: 'Panel Calefactor Slim',         modelo: '250w',                           precio: 39293.46,  imagen: `${IMG}C250STV1.png` },
+      { codigo: 'C250STV1TS',   nombre: 'Panel Calefactor Slim',         modelo: '250w Toallero Simple',           precio: 44907.61,  imagen: `${IMG}C250STV1TS.png` },
+      { codigo: 'C250STV1TD',   nombre: 'Panel Calefactor Slim',         modelo: '250w Toallero Doble',            precio: 53328.84,  imagen: `${IMG}C250STV1TD.png` },
+      { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim',         modelo: '500w',                           precio: 56135.91,  imagen: `${IMG}C500STV1.png` },
+      { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim',         modelo: '500w Toallero Simple',           precio: 67364.22,  imagen: `${IMG}C500STV1TS.png` },
+      { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim',         modelo: '500w Toallero Doble',            precio: 72978.37,  imagen: `${IMG}C500STV1TD.png` },
+      { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze',      modelo: '1400w Blanco',                   precio: 78592.53,  imagen: `${IMG}Firenze%20BL%201.png` },
+      { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze',      modelo: '1400w Madera Veteada',           precio: 78592.53,  imagen: `${IMG}F1400MV.png` },
+      { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze',      modelo: '1400w Piedra Azteca',            precio: 78592.53,  imagen: `${IMG}F1400PA.png` },
+      { codigo: 'F1400PR',      nombre: 'Panel Calefactor Firenze',      modelo: '1400w Piedra Romana',            precio: 78592.53,  imagen: `${IMG}F1400PR.png` },
+      { codigo: 'F1400MTG',     nombre: 'Panel Calefactor Firenze',      modelo: '1400w Mármol Traviatta Gris',    precio: 78592.53,  imagen: `${IMG}F1400MTG.png` },
+      { codigo: 'F1400PCL',     nombre: 'Panel Calefactor Firenze',      modelo: '1400w Piedra Cantera Luna',      precio: 78592.53,  imagen: `${IMG}F1400PCL.png` },
+      { codigo: 'F1400MCO',     nombre: 'Panel Calefactor Firenze',      modelo: '1400w Mármol Calacatta Ocre',    precio: 78592.53,  imagen: `${IMG}F1400MCO.png` },
+      { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart',modelo: '1400w Smart Wifi - App Temptech',precio: 157190.67, imagen: `${IMG}F1400SMARTBL.png` },
     ],
   },
 ]
@@ -176,13 +178,22 @@ export default function Pedidos() {
                       const cant = cantidades[p.codigo] || 0
                       return (
                         <div key={p.codigo} style={{
-                          display: 'grid', gridTemplateColumns: '1fr auto auto',
+                          display: 'grid', gridTemplateColumns: '56px 1fr auto auto',
                           alignItems: 'center', gap: 16,
                           padding: '12px 20px',
                           borderBottom: i < cat.productos.length - 1 ? '1px solid var(--border)' : 'none',
                           background: cant > 0 ? 'rgba(74,108,247,0.04)' : 'transparent',
                           transition: 'background .15s',
                         }}>
+                          {/* Imagen */}
+                          <div style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {p.imagen ? (
+                              <img src={p.imagen} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { e.currentTarget.style.display = 'none' }} />
+                            ) : (
+                              <span style={{ fontSize: 22, opacity: 0.3 }}>📦</span>
+                            )}
+                          </div>
+
                           {/* Info */}
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
