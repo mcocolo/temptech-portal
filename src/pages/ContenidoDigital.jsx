@@ -94,15 +94,23 @@ const CATALOG = [
       {
         value: 'anafes_induccion', label: 'Por Inducción', emoji: '▪',
         subs: [
-          { value: 'anafes_induccion_2h', label: '2 Hornallas' },
-          { value: 'anafes_induccion_4h', label: '4 Hornallas' },
+          { value: 'anafes_ind_2h_perilla', label: '2H Con Perilla' },
+          { value: 'anafes_ind_2h_touch',   label: '2H Touch' },
+          { value: 'anafes_ind_4he_perilla', label: '4H Extractor Con Perilla' },
+          { value: 'anafes_ind_4he_touch',   label: '4H Extractor Touch' },
+          { value: 'anafes_ind_4hs_perilla', label: '4H Simple Con Perilla' },
+          { value: 'anafes_ind_4hs_touch',   label: '4H Simple Touch' },
         ],
       },
       {
         value: 'anafes_infrarrojo', label: 'Por Infrarrojo', emoji: '▪',
         subs: [
-          { value: 'anafes_infrarrojo_2h', label: '2 Hornallas' },
-          { value: 'anafes_infrarrojo_4h', label: '4 Hornallas' },
+          { value: 'anafes_inf_2h_perilla',  label: '2H Con Perilla' },
+          { value: 'anafes_inf_2h_touch',    label: '2H Touch' },
+          { value: 'anafes_inf_4he_perilla', label: '4H Extractor Con Perilla' },
+          { value: 'anafes_inf_4he_touch',   label: '4H Extractor Touch' },
+          { value: 'anafes_inf_4hs_perilla', label: '4H Simple Con Perilla' },
+          { value: 'anafes_inf_4hs_touch',   label: '4H Simple Touch' },
         ],
       },
     ],
