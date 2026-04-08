@@ -77,8 +77,20 @@ export default function Pedidos() {
   const descuentos = profile?.descuentos || {}
 
   function precioConDescuento(precio, categoria) {
-    const desc = descuentos[categoria] || 0
-    return precio * (1 - desc / 100)
+    const desc = descuentos[categoria]
+    if (!desc || desc === 0) return precio
+    if (Array.isArray(desc)) {
+      return desc.reduce((p, d) => p * (1 - (parseFloat(d) || 0) / 100), precio)
+    }
+    return precio * (1 - parseFloat(desc) / 100)
+  }
+
+  function pctEfectivo(categoria) {
+    const desc = descuentos[categoria]
+    if (!desc || desc === 0) return 0
+    const base = 100
+    const final = precioConDescuento(base, categoria)
+    return ((base - final) / base * 100).toFixed(1)
   }
 
   function setCantidad(codigo, val) {
@@ -249,11 +261,11 @@ export default function Pedidos() {
                       <span style={{ fontSize: 20 }}>{cat.emoji}</span>
                       <span style={{ fontWeight: 700, fontSize: 15 }}>{cat.label}</span>
                     </div>
-                    {desc > 0 && (
+                    {desc > 0 || (Array.isArray(desc) && desc.some(d => parseFloat(d) > 0)) ? (
                       <span style={{ background: 'rgba(61,214,140,0.12)', color: 'var(--green)', border: '1px solid rgba(61,214,140,0.3)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
-                        {desc}% de descuento aplicado
+                        {pctEfectivo(cat.categoria)}% de descuento aplicado
                       </span>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Productos */}
@@ -295,10 +307,10 @@ export default function Pedidos() {
 
                           {/* Precio */}
                           <div style={{ textAlign: 'right', minWidth: 130 }}>
-                            {desc > 0 && (
+                            {pctEfectivo(cat.categoria) > 0 && (
                               <div style={{ fontSize: 11, color: 'var(--text3)', textDecoration: 'line-through' }}>{formatPrecio(p.precio)}</div>
                             )}
-                            <div style={{ fontSize: 14, fontWeight: 700, color: desc > 0 ? 'var(--green)' : 'var(--text)' }}>{formatPrecio(precioFinal)}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: pctEfectivo(cat.categoria) > 0 ? 'var(--green)' : 'var(--text)' }}>{formatPrecio(precioFinal)}</div>
                           </div>
 
                           {/* Cantidad */}
