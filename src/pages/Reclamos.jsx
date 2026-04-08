@@ -115,6 +115,9 @@ export default function Reclamos() {
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [step, setStep] = useState(1)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({})
+  const [editSubmitting, setEditSubmitting] = useState(false)
 
   const [form, setForm] = useState({
     // Paso 1 — Producto
@@ -281,6 +284,51 @@ export default function Reclamos() {
     setSubmitting(false)
   }
 
+  function abrirEdicion(r) {
+    setEditForm({
+      producto: r.producto || '',
+      canal: r.canal || '',
+      numero_venta_manual: r.numero_venta_manual || '',
+      fecha_compra: r.fecha_compra ? r.fecha_compra.slice(0, 10) : '',
+      motivo: r.motivo || '',
+      descripcion_falla: r.descripcion_falla || '',
+      telefono: r.telefono || '',
+      direccion: r.direccion || '',
+      localidad: r.localidad || '',
+      provincia: r.provincia || '',
+      codigo_postal: r.codigo_postal || '',
+    })
+    setEditOpen(true)
+  }
+
+  async function guardarEdicion() {
+    if (!editForm.producto) return toast.error('Seleccioná el producto')
+    if (!editForm.motivo) return toast.error('Seleccioná el motivo')
+    if (!editForm.descripcion_falla.trim()) return toast.error('Describí la falla')
+    setEditSubmitting(true)
+    const { error } = await supabase.from('devoluciones').update({
+      producto: editForm.producto,
+      modelo: editForm.producto,
+      canal: editForm.canal,
+      numero_venta_manual: editForm.numero_venta_manual,
+      fecha_compra: editForm.fecha_compra || null,
+      motivo: editForm.motivo,
+      descripcion_falla: editForm.descripcion_falla,
+      telefono: editForm.telefono,
+      direccion: editForm.direccion,
+      localidad: editForm.localidad,
+      provincia: editForm.provincia,
+      codigo_postal: editForm.codigo_postal,
+    }).eq('id', selected.id)
+    setEditSubmitting(false)
+    if (error) { toast.error('Error al guardar los cambios'); return }
+    toast.success('Reclamo actualizado')
+    setEditOpen(false)
+    await load()
+    // Actualizar el selected con los nuevos datos
+    setSelected(prev => ({ ...prev, ...editForm }))
+  }
+
   function resetForm() {
     setForm({ producto: '', modelo: '', canal: '', numero_venta_manual: '', fecha_compra: '', motivo: '', descripcion_falla: '', direccion: '', localidad: '', provincia: '', codigo_postal: '', telefono: '', imagenes: [], comprobantes: [] })
     setStep(1)
@@ -314,7 +362,17 @@ export default function Reclamos() {
               <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>{selected.modelo}</div>
             )}
           </div>
-          <StatusBadge estado={selected.estado} />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <StatusBadge estado={selected.estado} />
+            {selected.estado === 'Ingresado' && (
+              <button
+                onClick={() => abrirEdicion(selected)}
+                style={{ background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#7b9fff', cursor: 'pointer' }}
+              >
+                ✏️ Editar
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Info grid */}
@@ -466,6 +524,91 @@ export default function Reclamos() {
           ))}
         </div>
       )}
+
+      {/* ── Modal editar reclamo ── */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="✏️ Editar Reclamo">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ padding: '10px 14px', background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
+            ⚠️ Solo podés editar reclamos en estado <strong>Ingresado</strong>.
+          </div>
+
+          <Field label="Producto *">
+            <select value={editForm.producto} onChange={e => setEditForm(p => ({ ...p, producto: e.target.value }))} style={inputStyle}>
+              <option value="">Seleccioná el producto...</option>
+              {PRODUCT_CATALOG.map(g => (
+                <optgroup key={g.group} label={`${g.emoji} ${g.group}`}>
+                  {g.subs.flatMap(s => s.products).map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Canal de compra">
+              <select value={editForm.canal} onChange={e => setEditForm(p => ({ ...p, canal: e.target.value }))} style={inputStyle}>
+                <option value="">Seleccioná...</option>
+                {CANALES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="N° de pedido / venta">
+              <input value={editForm.numero_venta_manual} onChange={e => setEditForm(p => ({ ...p, numero_venta_manual: e.target.value }))} placeholder="Ej: 88421" style={inputStyle} />
+            </Field>
+          </div>
+
+          <Field label="Fecha de compra">
+            <input type="date" value={editForm.fecha_compra} onChange={e => setEditForm(p => ({ ...p, fecha_compra: e.target.value }))} style={{ ...inputStyle, colorScheme: 'dark' }} />
+          </Field>
+
+          <Field label="Motivo del reclamo *">
+            <select value={editForm.motivo} onChange={e => setEditForm(p => ({ ...p, motivo: e.target.value }))} style={inputStyle}>
+              <option value="">Seleccioná el motivo...</option>
+              {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </Field>
+
+          <Field label="Descripción de la falla *">
+            <textarea
+              value={editForm.descripcion_falla}
+              onChange={e => setEditForm(p => ({ ...p, descripcion_falla: e.target.value }))}
+              rows={4}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+            />
+          </Field>
+
+          <Field label="Teléfono">
+            <input value={editForm.telefono} onChange={e => setEditForm(p => ({ ...p, telefono: e.target.value }))} style={inputStyle} />
+          </Field>
+
+          <Field label="Dirección">
+            <input value={editForm.direccion} onChange={e => setEditForm(p => ({ ...p, direccion: e.target.value }))} style={inputStyle} />
+          </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Localidad">
+              <input value={editForm.localidad} onChange={e => setEditForm(p => ({ ...p, localidad: e.target.value }))} style={inputStyle} />
+            </Field>
+            <Field label="Código Postal">
+              <input value={editForm.codigo_postal} onChange={e => setEditForm(p => ({ ...p, codigo_postal: e.target.value }))} style={inputStyle} />
+            </Field>
+          </div>
+
+          <Field label="Provincia">
+            <select value={editForm.provincia} onChange={e => setEditForm(p => ({ ...p, provincia: e.target.value }))} style={inputStyle}>
+              <option value="">Seleccioná...</option>
+              {['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán'].map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </Field>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancelar</Button>
+            <Button onClick={guardarEdicion} loading={editSubmitting}>💾 Guardar cambios</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── Modal nuevo reclamo ── */}
       <Modal open={modalOpen} onClose={null} title="⚠️ Registrar Reclamo de Garantía">

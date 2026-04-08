@@ -313,8 +313,19 @@ export default function AdminReclamos() {
   const [notificarServiceId, setNotificarServiceId] = useState(null)
   const [notasInput, setNotasInput] = useState({})
   const [notasInternas, setNotasInternas] = useState({})
+  const [editandoId, setEditandoId] = useState(null)
+  const [editForm, setEditForm] = useState({})
 
-  const datosFiltrados = datos.filter(item => !busquedaTracking || item.tracking_id?.toLowerCase().includes(busquedaTracking.toLowerCase()))
+  const datosFiltrados = datos.filter(item => {
+    if (!busquedaTracking) return true
+    const q = busquedaTracking.toLowerCase()
+    return (
+      item.tracking_id?.toLowerCase().includes(q) ||
+      item.nombre_apellido?.toLowerCase().includes(q) ||
+      item.nombre?.toLowerCase().includes(q) ||
+      item.email?.toLowerCase().includes(q)
+    )
+  })
 
   function armarLineaNota(tipo, texto) {
     const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -502,6 +513,48 @@ export default function AdminReclamos() {
     alert('Notificación de Service enviada ✅')
   }
 
+  function abrirEdicion(item) {
+    setEditForm({
+      nombre_apellido: item.nombre_apellido || item.nombre || '',
+      email: item.email || '',
+      telefono: item.telefono || '',
+      direccion: item.direccion || '',
+      localidad: item.localidad || '',
+      provincia: item.provincia || '',
+      codigo_postal: item.codigo_postal || '',
+      producto: item.producto || '',
+      modelo: item.modelo || '',
+      motivo: item.motivo || '',
+      descripcion_falla: item.descripcion_falla || '',
+      canal: item.canal || '',
+      numero_venta_manual: item.numero_venta_manual || '',
+      fecha_compra: item.fecha_compra ? item.fecha_compra.slice(0, 10) : '',
+    })
+    setEditandoId(item.id)
+  }
+
+  async function guardarEdicion(item) {
+    const { error } = await supabase.from('devoluciones').update({
+      nombre_apellido: editForm.nombre_apellido,
+      email: editForm.email,
+      telefono: editForm.telefono,
+      direccion: editForm.direccion,
+      localidad: editForm.localidad,
+      provincia: editForm.provincia,
+      codigo_postal: editForm.codigo_postal,
+      producto: editForm.producto,
+      modelo: editForm.modelo,
+      motivo: editForm.motivo,
+      descripcion_falla: editForm.descripcion_falla,
+      canal: editForm.canal,
+      numero_venta_manual: editForm.numero_venta_manual,
+      fecha_compra: editForm.fecha_compra || null,
+    }).eq('id', item.id)
+    if (error) { alert('Error al guardar los cambios'); return }
+    setEditandoId(null)
+    await cargar()
+  }
+
   async function cerrarCaso(item) {
     const texto = window.prompt('Nota para CERRAR:', '')
     if (texto === null) return
@@ -659,7 +712,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 200 }}>
-            <input type="text" placeholder="🔍 Buscar por tracking..." value={busquedaTracking} onChange={e => setBusquedaTracking(e.target.value)} style={inputStyle} />
+            <input type="text" placeholder="🔍 Buscar por tracking, nombre o email..." value={busquedaTracking} onChange={e => setBusquedaTracking(e.target.value)} style={inputStyle} />
             {busquedaTracking && <button onClick={() => setBusquedaTracking('')} style={{ background: T.surface3, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text2, fontSize: 12, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>Limpiar</button>}
           </div>
           <button onClick={exportarExcel} style={{ background: T.greenDim, color: T.green, border: `1px solid ${T.green}40`, borderRadius: T.radius, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>📊 Exportar Excel</button>
@@ -846,6 +899,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     {/* Acciones */}
                     <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <Btn onClick={() => imprimirReclamo(item)} variant="ghost">🖨️ Imprimir</Btn>
+                      <Btn onClick={() => editandoId === item.id ? setEditandoId(null) : abrirEdicion(item)} variant="ghost">✏️ Editar</Btn>
                       <Btn onClick={() => cambiarEstado(item, 'pendiente')} disabled={esCerrado}>Pendiente</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Resolucion' })} disabled={!aprobadoSI} variant="primary">🚚 Resolución</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Devolucion' })} disabled={!aprobadoSI} variant="orange">📦 Devolución</Btn>
@@ -912,6 +966,48 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         onClose={() => setNotificarServiceId(null)}
                         onGuardar={(datos) => guardarNotificarService(item, datos)}
                       />
+                    )}
+
+                    {/* Panel edición */}
+                    {editandoId === item.id && (
+                      <div style={{ margin: '0 22px 18px', padding: 18, background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: T.radius }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff', marginBottom: 14 }}>✏️ Editar datos del reclamo</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                          {[
+                            { label: 'Nombre y Apellido', key: 'nombre_apellido' },
+                            { label: 'Email', key: 'email' },
+                            { label: 'Teléfono', key: 'telefono' },
+                            { label: 'Dirección', key: 'direccion' },
+                            { label: 'Localidad', key: 'localidad' },
+                            { label: 'Provincia', key: 'provincia' },
+                            { label: 'Código Postal', key: 'codigo_postal' },
+                            { label: 'Canal', key: 'canal' },
+                            { label: '# Venta', key: 'numero_venta_manual' },
+                            { label: 'Fecha compra', key: 'fecha_compra', type: 'date' },
+                          ].map(({ label, key, type }) => (
+                            <div key={key}>
+                              <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</label>
+                              <input type={type || 'text'} value={editForm[key]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }} />
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Producto</label>
+                          <input value={editForm.producto} onChange={e => setEditForm(f => ({ ...f, producto: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }} />
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Motivo</label>
+                          <input value={editForm.motivo} onChange={e => setEditForm(f => ({ ...f, motivo: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }} />
+                        </div>
+                        <div style={{ marginBottom: 14 }}>
+                          <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Descripción de la falla</label>
+                          <textarea value={editForm.descripcion_falla} onChange={e => setEditForm(f => ({ ...f, descripcion_falla: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, padding: '7px 10px', fontSize: 12 }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <Btn variant="primary" onClick={() => guardarEdicion(item)}>💾 Guardar cambios</Btn>
+                          <Btn onClick={() => setEditandoId(null)}>Cancelar</Btn>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

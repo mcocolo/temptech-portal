@@ -179,7 +179,7 @@ export default function ContenidoDigital() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [form, setForm]         = useState(EMPTY_FORM)
   const [uploading, setUploading] = useState(false)
-  const [lightbox, setLightbox] = useState(null)
+  const [lightbox, setLightbox] = useState(null) // { index, images }
   const [masivo, setMasivo] = useState(false)   // panel carga masiva
   const fileRef = useRef()
 
@@ -350,8 +350,15 @@ export default function ContenidoDigital() {
       {/* Lightbox */}
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', cursor: 'zoom-out' }}>
-          <img src={lightbox} alt="" style={{ maxWidth: '85vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: 12, boxShadow: '0 0 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()} />
+          <img src={lightbox.images[lightbox.index]} alt="" style={{ maxWidth: '85vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: 12, boxShadow: '0 0 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()} />
           <button onClick={() => setLightbox(null)} style={{ position: 'fixed', top: 20, right: 20, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          {lightbox.index > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, index: lb.index - 1 })) }} style={{ position: 'fixed', left: 20, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 48, height: 48, color: '#fff', fontSize: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+          )}
+          {lightbox.index < lightbox.images.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, index: lb.index + 1 })) }} style={{ position: 'fixed', right: 20, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 48, height: 48, color: '#fff', fontSize: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+          )}
+          <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>{lightbox.index + 1} / {lightbox.images.length}</div>
         </div>
       )}
 
@@ -547,7 +554,7 @@ export default function ContenidoDigital() {
 
                   {/* Preview */}
                   <div
-                    onClick={() => esImagen && setLightbox(item.url)}
+                    onClick={() => { if (!esImagen) return; const imgs = items.filter(i => i.tipo === 'imagen').map(i => i.url); setLightbox({ index: imgs.indexOf(item.url), images: imgs }) }}
                     style={{ height: 160, background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: esImagen ? 'zoom-in' : 'default', borderBottom: '1px solid var(--border)' }}
                   >
                     {esImagen ? (
