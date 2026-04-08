@@ -3,6 +3,43 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
 
+const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
+
+const CATALOGO_ADMIN = [
+  {
+    categoria: 'calefones_calderas', label: 'Calefones / Calderas', emoji: '🚿',
+    productos: [
+      { codigo: 'KF70SIL',    nombre: 'Calefón Eléctrico One',          modelo: '3,5/5,5/7Kw 220V Silver',         precio: 165585.15 },
+      { codigo: 'FE150TBLACK',nombre: 'Calefón Eléctrico Nova',         modelo: '6/8/9/13,5Kw 220V Black',         precio: 213182.07 },
+      { codigo: 'FE150TSIL',  nombre: 'Calefón Eléctrico Nova',         modelo: '6/8/9/13,5Kw 220V Silver',        precio: 213182.07 },
+      { codigo: 'FE150TBL',   nombre: 'Calefón Eléctrico Nova',         modelo: '6/8/9/13,5Kw 220V Blanco',        precio: 213182.07 },
+      { codigo: 'FM318BL',    nombre: 'Calefón Eléctrico Pulse',        modelo: '9/13,5/18Kw 380V Blanco',         precio: 450250.68 },
+      { codigo: 'FM324BL',    nombre: 'Calefón Eléctrico Pulse',        modelo: '12/18/24Kw 380V Blanco',          precio: 493936.98 },
+      { codigo: 'BF14EBL',    nombre: 'Caldera Dual Core',              modelo: '220-380V 14,4Kw Blanco',          precio: 1701651.65 },
+      { codigo: 'BF323EBL',   nombre: 'Caldera Dual Core',              modelo: '380V 23Kw Blanco',                precio: 2029298.86 },
+    ],
+  },
+  {
+    categoria: 'paneles_calefactores', label: 'Paneles Calefactores', emoji: '🔆',
+    productos: [
+      { codigo: 'C250STV1',     nombre: 'Panel Calefactor Slim',          modelo: '250w',                            precio: 39293.46 },
+      { codigo: 'C250STV1TS',   nombre: 'Panel Calefactor Slim',          modelo: '250w Toallero Simple',            precio: 44907.61 },
+      { codigo: 'C250STV1TD',   nombre: 'Panel Calefactor Slim',          modelo: '250w Toallero Doble',             precio: 53328.84 },
+      { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim',          modelo: '500w',                            precio: 56135.91 },
+      { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim',          modelo: '500w Toallero Simple',            precio: 67364.22 },
+      { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim',          modelo: '500w Toallero Doble',             precio: 72978.37 },
+      { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Blanco',                    precio: 78592.53 },
+      { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Madera Veteada',            precio: 78592.53 },
+      { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Piedra Azteca',             precio: 78592.53 },
+      { codigo: 'F1400PR',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Piedra Romana',             precio: 78592.53 },
+      { codigo: 'F1400MTG',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Mármol Traviatta Gris',     precio: 78592.53 },
+      { codigo: 'F1400PCL',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Piedra Cantera Luna',       precio: 78592.53 },
+      { codigo: 'F1400MCO',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Mármol Calacatta Ocre',     precio: 78592.53 },
+      { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart', modelo: '1400w Smart Wifi - App Temptech', precio: 157190.67 },
+    ],
+  },
+]
+
 function formatPrecio(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n)
 }
@@ -13,10 +50,11 @@ function formatFecha(dateStr) {
 }
 
 const STATUS_CONFIG = {
-  pendiente:  { label: 'Pendiente',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
-  aprobado:   { label: 'Aprobado',   color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
-  modificado: { label: 'Modificado', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
-  rechazado:  { label: 'Rechazado',  color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
+  pendiente:   { label: 'Pendiente',   color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
+  aprobado:    { label: 'Aprobado',    color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
+  modificado:  { label: 'Modificado',  color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
+  rechazado:   { label: 'Rechazado',   color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
+  finalizado:  { label: 'Finalizado',  color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' },
 }
 
 export default function AdminPedidos() {
@@ -30,6 +68,8 @@ export default function AdminPedidos() {
   const [notaAdmin, setNotaAdmin] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [showProductPicker, setShowProductPicker] = useState(false)
 
   useEffect(() => { if (isAdmin) cargar() }, [isAdmin, filtro])
 
@@ -55,6 +95,43 @@ export default function AdminPedidos() {
     setNotaAdmin(pedido.notas_admin || '')
     setFechaEntrega(pedido.fecha_entrega || '')
     setEditando(pedido.id)
+  }
+
+  async function eliminarPedido(id) {
+    const { error } = await supabase.from('pedidos').delete().eq('id', id)
+    if (error) { toast.error('Error al eliminar el pedido'); return }
+    toast.success('Pedido eliminado')
+    setConfirmDelete(null)
+    cargar()
+  }
+
+  function eliminarItem(idx) {
+    setItemsEdit(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function agregarProducto(prod) {
+    const yaExiste = itemsEdit.findIndex(i => i.codigo === prod.codigo)
+    if (yaExiste !== -1) {
+      // Incrementar cantidad del existente
+      setItemsEdit(prev => prev.map((item, i) => {
+        if (i !== yaExiste) return item
+        const nuevaCant = item.cantidad + 1
+        return { ...item, cantidad: nuevaCant, subtotal: item.precio_unitario * nuevaCant }
+      }))
+    } else {
+      setItemsEdit(prev => [...prev, {
+        codigo: prod.codigo,
+        nombre: prod.nombre,
+        modelo: prod.modelo,
+        precio_base: prod.precio,
+        precio_unitario: prod.precio,
+        descuento_pct: 0,
+        cantidad: 1,
+        subtotal: prod.precio,
+        categoria: prod.categoria,
+      }])
+    }
+    setShowProductPicker(false)
   }
 
   function cerrarEdicion() {
@@ -171,7 +248,7 @@ export default function AdminPedidos() {
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['todos', 'pendiente', 'aprobado', 'modificado', 'rechazado'].map(f => (
+          {['todos', 'pendiente', 'aprobado', 'modificado', 'rechazado', 'finalizado'].map(f => (
             <button key={f} onClick={() => setFiltro(f)} style={{
               padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
               background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',
@@ -242,7 +319,10 @@ export default function AdminPedidos() {
                               <div style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</div>
                               <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
                             </div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(item.subtotal)}</div>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(item.subtotal)}</div>
+                              <button onClick={() => eliminarItem(idx)} style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '3px 8px', fontSize: 11, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>✕ Quitar</button>
+                            </div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                             {/* Descuento */}
@@ -281,6 +361,36 @@ export default function AdminPedidos() {
                           </div>
                         </div>
                       ))}
+                      {/* Botón agregar producto */}
+                      <button onClick={() => setShowProductPicker(showProductPicker === pedido.id ? null : pedido.id)}
+                        style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px dashed rgba(74,108,247,0.4)', borderRadius: 'var(--radius)', padding: '8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        + Agregar producto
+                      </button>
+
+                      {/* Picker de productos */}
+                      {showProductPicker === pedido.id && (
+                        <div style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>Seleccioná un producto para agregar</div>
+                          {CATALOGO_ADMIN.map(cat => (
+                            <div key={cat.categoria}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 6 }}>{cat.emoji} {cat.label}</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {cat.productos.map(prod => (
+                                  <button key={prod.codigo} onClick={() => agregarProducto({ ...prod, categoria: cat.categoria })}
+                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontFamily: 'var(--font)', textAlign: 'left' }}>
+                                    <div>
+                                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{prod.nombre}</span>
+                                      <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>{prod.modelo}</span>
+                                    </div>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(prod.precio)}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: 800, fontSize: 15, color: '#7b9fff', paddingTop: 4 }}>
                         Total: {formatPrecio(totalEdit)}
                       </div>
@@ -370,9 +480,33 @@ export default function AdminPedidos() {
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => abrirEdicion(pedido)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                      Gestionar pedido
-                    </button>
+                    <>
+                      <button onClick={() => abrirEdicion(pedido)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        Gestionar pedido
+                      </button>
+                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
+                        <button
+                          onClick={async () => {
+                            const { error } = await supabase.from('pedidos').update({ estado: 'finalizado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
+                            if (error) toast.error('Error al finalizar'); else { toast.success('Pedido finalizado ✅'); cargar() }
+                          }}
+                          style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                        >
+                          ✓ Finalizado
+                        </button>
+                      )}
+                      {confirmDelete === pedido.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 12, color: '#ff5577' }}>¿Confirmar eliminación?</span>
+                          <button onClick={() => eliminarPedido(pedido.id)} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 'var(--radius)', padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>Sí, eliminar</button>
+                          <button onClick={() => setConfirmDelete(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>No</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDelete(pedido.id)} style={{ background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          🗑 Eliminar
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
