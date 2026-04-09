@@ -170,7 +170,9 @@ const STORAGE_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/
 const EMPTY_FORM = { title: '', description: '', url: '', tipo: 'imagen', categoria: 'paneles_slim' }
 
 export default function ContenidoDigital() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isDistributor } = useAuth()
+
+  if (!isAdmin && !isDistributor) return null
   const [items, setItems]       = useState([])
   const [loading, setLoading]   = useState(true)
   const [modalOpen, setModalOpen] = useState(false)

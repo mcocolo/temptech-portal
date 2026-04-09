@@ -487,8 +487,8 @@ export default function AdminPedidos() {
                       {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
                         <button
                           onClick={async () => {
-                            const { error } = await supabase.from('pedidos').update({ estado: 'finalizado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
-                            if (error) toast.error('Error al finalizar'); else { toast.success('Pedido finalizado ✅'); cargar() }
+                            const { error } = await supabase.from('pedidos').update({ estado: 'finalizado' }).eq('id', pedido.id)
+                            if (error) toast.error('Error: ' + error.message); else { toast.success('Pedido finalizado ✅'); cargar() }
                           }}
                           style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                         >

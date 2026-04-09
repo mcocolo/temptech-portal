@@ -19,7 +19,7 @@ const NAV = [
   { section: 'Recursos' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
-  { label: 'Contenido Digital', icon: Package,         path: '/contenido-digital' },
+  { label: 'Contenido Digital', icon: Package,         path: '/contenido-digital', isDistributor: true },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
@@ -42,7 +42,7 @@ export default function Layout({ children }) {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  const baseNav = NAV.filter(item => !item.isDistributor || isDistributor)
+  const baseNav = NAV.filter(item => !item.isDistributor || isDistributor || isAdmin)
   const allNav = isAdmin ? [...baseNav, ...ADMIN_NAV] : baseNav
 
   function handleNav(path) {

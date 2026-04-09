@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Spinner, Empty } from '@/components/ui'
-import { Search, ExternalLink, Pencil, X, Check } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { Search, ExternalLink, Pencil, X, Check, ChevronLeft, MessageSquare, AlertTriangle, Package, FileText } from 'lucide-react'
+import { formatDistanceToNow, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 
@@ -20,13 +20,23 @@ const PROVINCIAS = [
   'Santiago del Estero','Tierra del Fuego','Tucumán',
 ]
 
+const STATUS_RECLAMO = {
+  'Ingresado':  { label: 'Ingresado',  color: '#6eb5ff' },
+  'pendiente':  { label: 'Pendiente',  color: '#ffd166' },
+  'Resolucion': { label: 'Resolución', color: '#b39dfa' },
+  'Devolucion': { label: 'Devolución', color: '#fb923c' },
+  'Service':    { label: 'Service',    color: '#2dd4bf' },
+  'rechazado':  { label: 'Rechazado',  color: '#ff5577' },
+  'cerrado':    { label: 'Cerrado',    color: '#888888' },
+}
+
 const inputSt = {
   background: 'var(--surface3)', border: '1px solid var(--border)',
   borderRadius: 8, padding: '7px 10px', color: 'var(--text)',
   fontSize: 13, outline: 'none', width: '100%', fontFamily: 'var(--font)',
 }
 
-function LabelInput({ label, children }) {
+function LI({ label, children }) {
   return (
     <div>
       <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>{label}</div>
@@ -35,6 +45,367 @@ function LabelInput({ label, children }) {
   )
 }
 
+function Field({ label, val }) {
+  if (!val) return null
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</div>
+      <div style={{ fontSize: 13 }}>{val}</div>
+    </div>
+  )
+}
+
+function fDate(d) {
+  if (!d) return '-'
+  try { return format(new Date(d), 'dd/MM/yyyy HH:mm', { locale: es }) } catch { return d }
+}
+
+// ── Vista de perfil completo ──────────────────────────────────────────────────
+function PerfilCliente({ u, onBack, isDistrib }) {
+  const cl = u.clientes
+  const [tab, setTab] = useState('datos')
+  const [historial, setHistorial] = useState({ posts: [], reclamos: [], productos: [] })
+  const [loadingH, setLoadingH] = useState(false)
+
+  // Edición
+  const [editando, setEditando] = useState(false)
+  const [editForm, setEditForm] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  // Nota interna
+  const [nota, setNota] = useState(cl?.notas_admin || '')
+  const [savingNota, setSavingNota] = useState(false)
+
+  useEffect(() => {
+    async function loadHistorial() {
+      setLoadingH(true)
+      const [postsRes, reclamosRes, productosRes] = await Promise.all([
+        supabase.from('posts').select('*, replies(id)').eq('user_id', u.id).order('created_at', { ascending: false }),
+        supabase.from('devoluciones').select('tracking_id, producto, motivo, estado, fecha_creacion').eq('portal_user_id', u.id).order('fecha_creacion', { ascending: false }),
+        supabase.from('productos_registrados').select('*').eq('portal_user_id', u.id).order('created_at', { ascending: false }),
+      ])
+      setHistorial({
+        posts:     postsRes.data || [],
+        reclamos:  reclamosRes.data || [],
+        productos: productosRes.data || [],
+      })
+      setLoadingH(false)
+    }
+    loadHistorial()
+  }, [u.id])
+
+  function abrirEdicion() {
+    if (isDistrib) {
+      const desc = u.descuentos || {}
+      setEditForm({
+        desc_calefones_calderas:   desc.calefones_calderas   ?? '',
+        desc_paneles_calefactores: desc.paneles_calefactores ?? '',
+        desc_anafes:               desc.anafes               ?? '',
+        direccion_entrega:         cl?.direccion_entrega || '',
+        horario_entrega:           cl?.horario_entrega   || '',
+        persona_contacto:          cl?.persona_contacto  || '',
+      })
+    } else {
+      setEditForm({
+        full_name:         u.full_name || cl?.full_name || '',
+        email:             u.email || cl?.email || '',
+        telefono:          u.telefono || cl?.telefono || '',
+        direccion:         cl?.direccion || '',
+        localidad:         cl?.localidad || '',
+        provincia:         cl?.provincia || '',
+        codigo_postal:     cl?.codigo_postal || '',
+        direccion_entrega: cl?.direccion_entrega || '',
+        horario_entrega:   cl?.horario_entrega || '',
+        persona_contacto:  cl?.persona_contacto || '',
+      })
+    }
+    setEditando(true)
+  }
+
+  function setEF(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
+
+  async function guardar() {
+    setSaving(true)
+    try {
+      if (isDistrib) {
+        const desc = {
+          calefones_calderas:   editForm.desc_calefones_calderas   !== '' ? parseFloat(editForm.desc_calefones_calderas)   : null,
+          paneles_calefactores: editForm.desc_paneles_calefactores !== '' ? parseFloat(editForm.desc_paneles_calefactores) : null,
+          anafes:               editForm.desc_anafes               !== '' ? parseFloat(editForm.desc_anafes)               : null,
+        }
+        Object.keys(desc).forEach(k => { if (desc[k] === null) delete desc[k] })
+        await supabase.from('profiles').update({ descuentos: desc }).eq('id', u.id)
+        if (cl?.id) await supabase.from('clientes').update({ direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
+      } else {
+        await supabase.from('profiles').update({ full_name: editForm.full_name, email: editForm.email, telefono: editForm.telefono }).eq('id', u.id)
+        if (cl?.id) await supabase.from('clientes').update({ full_name: editForm.full_name, email: editForm.email, telefono: editForm.telefono, direccion: editForm.direccion, localidad: editForm.localidad, provincia: editForm.provincia, codigo_postal: editForm.codigo_postal, direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
+      }
+      toast.success('Guardado')
+      setEditando(false)
+    } catch (e) { toast.error(e.message) }
+    setSaving(false)
+  }
+
+  async function guardarNota() {
+    if (!cl?.id) { toast.error('No se encontró el registro del cliente'); return }
+    setSavingNota(true)
+    const { error } = await supabase.from('clientes').update({ notas_admin: nota }).eq('id', cl.id)
+    setSavingNota(false)
+    if (error) toast.error(error.message); else toast.success('Nota guardada')
+  }
+
+  const TABS = [
+    { key: 'datos',     label: 'Datos',          icon: '👤' },
+    { key: 'reclamos',  label: `Reclamos (${historial.reclamos.length})`,   icon: '⚠️' },
+    { key: 'consultas', label: `Consultas (${historial.posts.length})`,      icon: '💬' },
+    { key: 'productos', label: `Productos Reg. (${historial.productos.length})`, icon: '📦' },
+    { key: 'notas',     label: 'Notas internas',  icon: '🔒' },
+  ]
+
+  return (
+    <div style={{ animation: 'fadeUp 0.3s ease' }}>
+      {/* Back */}
+      <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, cursor: 'pointer', padding: 0 }}>
+        <ChevronLeft size={15} /> Volver al listado
+      </button>
+
+      {/* Header del perfil */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '22px 26px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 50, height: 50, borderRadius: '50%', background: isDistrib ? 'rgba(255,209,102,0.15)' : 'rgba(74,108,247,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+            {isDistrib ? '🏪' : '👤'}
+          </div>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800 }}>{u.full_name || cl?.full_name || '-'}</div>
+            {isDistrib && cl?.razon_social && <div style={{ fontSize: 13, color: '#ffd166', fontWeight: 600 }}>{cl.razon_social}</div>}
+            <div style={{ fontSize: 12, color: 'var(--text3)' }}>{u.email || cl?.email}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {isDistrib && cl?.client_code && (
+            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '4px 12px', borderRadius: 8, fontSize: 13 }}>{cl.client_code}</span>
+          )}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 14px', fontSize: 12 }}>
+            <span style={{ color: '#6eb5ff', fontWeight: 700 }}>{historial.reclamos.length}</span> <span style={{ color: 'var(--text3)' }}>reclamos</span>
+            <span style={{ color: 'var(--text3)', margin: '0 2px' }}>·</span>
+            <span style={{ color: '#fb923c', fontWeight: 700 }}>{historial.posts.length}</span> <span style={{ color: 'var(--text3)' }}>consultas</span>
+            <span style={{ color: 'var(--text3)', margin: '0 2px' }}>·</span>
+            <span style={{ color: '#3dd68c', fontWeight: 700 }}>{historial.productos.length}</span> <span style={{ color: 'var(--text3)' }}>productos</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 24 }}>
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: tab === t.key ? 700 : 400,
+            color: tab === t.key ? 'var(--text)' : 'var(--text3)',
+            borderBottom: `2px solid ${tab === t.key ? '#7b9fff' : 'transparent'}`,
+            marginBottom: -1, transition: 'all .15s', whiteSpace: 'nowrap',
+          }}>{t.icon} {t.label}</button>
+        ))}
+      </div>
+
+      {/* ── TAB: Datos ── */}
+      {tab === 'datos' && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '22px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>Información del {isDistrib ? 'distribuidor' : 'cliente'}</div>
+            {!editando
+              ? <button onClick={abrirEdicion} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><Pencil size={12} /> Editar</button>
+              : <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={guardar} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><Check size={13} /> {saving ? 'Guardando...' : 'Guardar'}</button>
+                  <button onClick={() => setEditando(false)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}><X size={13} /> Cancelar</button>
+                </div>
+            }
+          </div>
+
+          {editando ? (
+            isDistrib ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#ffd166', marginBottom: 10 }}>📊 Descuentos por categoría</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                    {CATEGORIAS_DESC.map(cat => (
+                      <LI key={cat.key} label={`${cat.label} (%)`}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input type="number" min="0" max="100" step="0.5" value={editForm[`desc_${cat.key}`]} onChange={e => setEF(`desc_${cat.key}`, e.target.value)} style={{ ...inputSt, width: 80, textAlign: 'center' }} />
+                          <span style={{ color: 'var(--text3)', fontSize: 13 }}>%</span>
+                        </div>
+                      </LI>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 10 }}>📍 Datos de entrega</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <LI label="Dirección de entrega"><input value={editForm.direccion_entrega} onChange={e => setEF('direccion_entrega', e.target.value)} style={inputSt} /></LI>
+                    <LI label="Horario de entrega"><input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} /></LI>
+                    <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <LI label="Nombre y Apellido"><input value={editForm.full_name} onChange={e => setEF('full_name', e.target.value)} style={inputSt} /></LI>
+                <LI label="Email"><input value={editForm.email} onChange={e => setEF('email', e.target.value)} style={inputSt} /></LI>
+                <LI label="Teléfono"><input value={editForm.telefono} onChange={e => setEF('telefono', e.target.value)} style={inputSt} /></LI>
+                <LI label="Dirección"><input value={editForm.direccion} onChange={e => setEF('direccion', e.target.value)} style={inputSt} /></LI>
+                <LI label="Localidad"><input value={editForm.localidad} onChange={e => setEF('localidad', e.target.value)} style={inputSt} /></LI>
+                <LI label="Código Postal"><input value={editForm.codigo_postal} onChange={e => setEF('codigo_postal', e.target.value)} style={inputSt} /></LI>
+                <LI label="Provincia">
+                  <select value={editForm.provincia} onChange={e => setEF('provincia', e.target.value)} style={inputSt}>
+                    <option value="">Seleccioná...</option>
+                    {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </LI>
+                <div />
+                <LI label="Dirección de entrega"><input value={editForm.direccion_entrega} onChange={e => setEF('direccion_entrega', e.target.value)} style={inputSt} /></LI>
+                <LI label="Horario de entrega"><input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} /></LI>
+                <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
+              </div>
+            )
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px 28px' }}>
+              {isDistrib ? [
+                { label: 'Email',               val: u.email || cl?.email },
+                { label: 'Teléfono',            val: u.telefono || cl?.telefono },
+                { label: 'CUIT',                val: cl?.cuit },
+                { label: 'Desc. Calefones/Calderas', val: u.descuentos?.calefones_calderas != null ? `${u.descuentos.calefones_calderas}%` : null },
+                { label: 'Desc. Paneles',       val: u.descuentos?.paneles_calefactores != null ? `${u.descuentos.paneles_calefactores}%` : null },
+                { label: 'Desc. Anafes',        val: u.descuentos?.anafes != null ? `${u.descuentos.anafes}%` : null },
+                { label: 'Dirección de entrega',val: cl?.direccion_entrega },
+                { label: 'Horario de entrega',  val: cl?.horario_entrega },
+                { label: 'Persona de contacto', val: cl?.persona_contacto },
+              ].map(f => <Field key={f.label} {...f} />) : [
+                { label: 'Email',               val: u.email || cl?.email },
+                { label: 'Teléfono',            val: u.telefono || cl?.telefono },
+                { label: 'Dirección',           val: cl?.direccion },
+                { label: 'Localidad',           val: cl?.localidad },
+                { label: 'Provincia',           val: cl?.provincia },
+                { label: 'Código Postal',       val: cl?.codigo_postal },
+                { label: 'Dirección de entrega',val: cl?.direccion_entrega },
+                { label: 'Horario de entrega',  val: cl?.horario_entrega },
+                { label: 'Persona de contacto', val: cl?.persona_contacto },
+              ].map(f => <Field key={f.label} {...f} />)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: Reclamos ── */}
+      {tab === 'reclamos' && (
+        loadingH ? <div style={{ textAlign: 'center', padding: 60 }}><Spinner size={24} /></div> :
+        historial.reclamos.length === 0 ? (
+          <Empty icon="✅" title="Sin reclamos de garantía" description="Este cliente no realizó reclamos" />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {historial.reclamos.map(r => {
+              const cfg = STATUS_RECLAMO[r.estado] || STATUS_RECLAMO['Ingresado']
+              return (
+                <div key={r.tracking_id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <AlertTriangle size={18} color={cfg.color} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{r.producto}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                      <span style={{ fontFamily: 'monospace', color: '#7b9fff' }}>{r.tracking_id}</span>
+                      {r.motivo && <span> · {r.motivo}</span>}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}40`, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{cfg.label}</span>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{fDate(r.fecha_creacion)}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      )}
+
+      {/* ── TAB: Consultas foro ── */}
+      {tab === 'consultas' && (
+        loadingH ? <div style={{ textAlign: 'center', padding: 60 }}><Spinner size={24} /></div> :
+        historial.posts.length === 0 ? (
+          <Empty icon="💬" title="Sin consultas" description="Este cliente no publicó consultas en el foro" />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {historial.posts.map(p => (
+              <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                <MessageSquare size={18} color="var(--text3)" style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                    {(p.replies?.length || 0)} respuestas · {fDate(p.created_at)}
+                  </div>
+                </div>
+                <span style={{
+                  background: p.status === 'resolved' ? 'rgba(61,214,140,0.12)' : 'rgba(255,209,102,0.12)',
+                  color: p.status === 'resolved' ? '#3dd68c' : '#ffd166',
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                  border: `1px solid ${p.status === 'resolved' ? 'rgba(61,214,140,0.35)' : 'rgba(255,209,102,0.35)'}`,
+                }}>{p.status === 'resolved' ? 'Resuelto' : 'Pendiente'}</span>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* ── TAB: Productos registrados ── */}
+      {tab === 'productos' && (
+        loadingH ? <div style={{ textAlign: 'center', padding: 60 }}><Spinner size={24} /></div> :
+        historial.productos.length === 0 ? (
+          <Empty icon="📦" title="Sin productos registrados" description="Este cliente no registró compras" />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {historial.productos.map(p => (
+              <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                <Package size={18} color="var(--text3)" style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{p.producto}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                    {p.canal && <span>{p.canal} · </span>}
+                    {p.fecha_compra ? `Compra: ${new Date(p.fecha_compra + 'T12:00:00').toLocaleDateString('es-AR')} · ` : ''}
+                    Registrado: {fDate(p.created_at)}
+                  </div>
+                </div>
+                {p.comprobante_url && (
+                  <a href={p.comprobante_url} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#7b9fff', textDecoration: 'none', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: 6, padding: '4px 10px' }}>
+                    <ExternalLink size={11} /> Comprobante
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* ── TAB: Notas internas ── */}
+      {tab === 'notas' && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '22px 24px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#ffd166', marginBottom: 12 }}>🔒 Notas internas del equipo TEMPTECH</div>
+          <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14 }}>Estas notas solo son visibles para admins. Usalas para registrar observaciones, acuerdos comerciales, historial de contacto, etc.</p>
+          <textarea
+            value={nota}
+            onChange={e => setNota(e.target.value)}
+            rows={8}
+            placeholder="Ingresá notas internas sobre este cliente..."
+            style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none', lineHeight: 1.7, marginBottom: 12 }}
+          />
+          <button onClick={guardarNota} disabled={savingNota}
+            style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: savingNota ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>
+            🔒 {savingNota ? 'Guardando...' : 'Guardar nota'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Componente principal ─────────────────────────────────────────────────────
 export default function ClientesRegistrados() {
   const { isAdmin } = useAuth()
   const [usuarios, setUsuarios] = useState([])
@@ -42,9 +413,10 @@ export default function ClientesRegistrados() {
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [tab, setTab] = useState('clientes')
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState(null) // productos_registrados expand
+  const [detailUser, setDetailUser] = useState(null) // perfil completo
 
-  // Edición
+  // Edición inline en lista (para productos reg)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
@@ -92,98 +464,16 @@ export default function ClientesRegistrados() {
     ? filtrarProductos()
     : filtrar(tab === 'clientes' ? clientes : distribuidores)
 
-  const TABS = [
-    { key: 'clientes',       label: '👤 Clientes',      count: clientes.length,       color: '#7b9fff', bg: 'rgba(74,108,247,0.1)',   border: 'rgba(74,108,247,0.35)' },
-    { key: 'distribuidores', label: '🏪 Distribuidores', count: distribuidores.length,  color: '#ffd166', bg: 'rgba(255,209,102,0.1)', border: 'rgba(255,209,102,0.35)' },
-    { key: 'productos',      label: '📦 Productos Reg.', count: productosReg.length,    color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
+  const TABS_MAIN = [
+    { key: 'clientes',       label: '👤 Clientes',      count: clientes.length,      color: '#7b9fff', bg: 'rgba(74,108,247,0.1)',   border: 'rgba(74,108,247,0.35)' },
+    { key: 'distribuidores', label: '🏪 Distribuidores', count: distribuidores.length, color: '#ffd166', bg: 'rgba(255,209,102,0.1)', border: 'rgba(255,209,102,0.35)' },
+    { key: 'productos',      label: '📦 Productos Reg.', count: productosReg.length,   color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
   ]
 
-  // ── Abrir edición ──
-  function abrirEdicion(u) {
-    const cl = u.clientes
-    if (tab === 'clientes') {
-      setEditForm({
-        full_name:          u.full_name || cl?.full_name || '',
-        email:              u.email || cl?.email || '',
-        telefono:           u.telefono || cl?.telefono || '',
-        direccion:          cl?.direccion || '',
-        localidad:          cl?.localidad || '',
-        provincia:          cl?.provincia || '',
-        codigo_postal:      cl?.codigo_postal || '',
-        direccion_entrega:  cl?.direccion_entrega || '',
-        horario_entrega:    cl?.horario_entrega || '',
-        persona_contacto:   cl?.persona_contacto || '',
-      })
-    } else {
-      // Distribuidor: solo descuentos + 3 campos
-      const descuentos = u.descuentos || {}
-      setEditForm({
-        desc_calefones_calderas:   descuentos.calefones_calderas   ?? '',
-        desc_paneles_calefactores: descuentos.paneles_calefactores ?? '',
-        desc_anafes:               descuentos.anafes               ?? '',
-        direccion_entrega:         cl?.direccion_entrega || '',
-        horario_entrega:           cl?.horario_entrega || '',
-        persona_contacto:          cl?.persona_contacto || '',
-      })
-    }
-    setEditingId(u.id)
-    setSelected(null)
-  }
-
-  function setEF(key, val) { setEditForm(f => ({ ...f, [key]: val })) }
-
-  // ── Guardar ──
-  async function guardarEdicion(u) {
-    setSaving(true)
-    try {
-      const cl = u.clientes
-      if (tab === 'clientes') {
-        // Actualizar profiles
-        await supabase.from('profiles').update({
-          full_name: editForm.full_name,
-          email:     editForm.email,
-          telefono:  editForm.telefono,
-        }).eq('id', u.id)
-        // Actualizar clientes (si existe)
-        if (cl?.id) {
-          await supabase.from('clientes').update({
-            full_name:         editForm.full_name,
-            email:             editForm.email,
-            telefono:          editForm.telefono,
-            direccion:         editForm.direccion,
-            localidad:         editForm.localidad,
-            provincia:         editForm.provincia,
-            codigo_postal:     editForm.codigo_postal,
-            direccion_entrega: editForm.direccion_entrega,
-            horario_entrega:   editForm.horario_entrega,
-            persona_contacto:  editForm.persona_contacto,
-          }).eq('id', cl.id)
-        }
-      } else {
-        // Distribuidor: solo descuentos + 3 campos
-        const descuentos = {
-          calefones_calderas:   editForm.desc_calefones_calderas   !== '' ? parseFloat(editForm.desc_calefones_calderas)   : null,
-          paneles_calefactores: editForm.desc_paneles_calefactores !== '' ? parseFloat(editForm.desc_paneles_calefactores) : null,
-          anafes:               editForm.desc_anafes               !== '' ? parseFloat(editForm.desc_anafes)               : null,
-        }
-        // Limpiar nulos
-        Object.keys(descuentos).forEach(k => { if (descuentos[k] === null) delete descuentos[k] })
-        await supabase.from('profiles').update({ descuentos }).eq('id', u.id)
-        if (cl?.id) {
-          await supabase.from('clientes').update({
-            direccion_entrega: editForm.direccion_entrega,
-            horario_entrega:   editForm.horario_entrega,
-            persona_contacto:  editForm.persona_contacto,
-          }).eq('id', cl.id)
-        }
-      }
-      toast.success('Guardado correctamente')
-      setEditingId(null)
-      await load()
-    } catch (err) {
-      toast.error('Error al guardar: ' + err.message)
-    }
-    setSaving(false)
+  // Mostrar perfil completo
+  if (detailUser) {
+    const isDistrib = detailUser.user_type === 'distributor' || detailUser.clientes?.user_type === 'distributor'
+    return <PerfilCliente u={detailUser} isDistrib={isDistrib} onBack={() => setDetailUser(null)} />
   }
 
   return (
@@ -209,7 +499,7 @@ export default function ClientesRegistrados() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {TABS.map(t => (
+        {TABS_MAIN.map(t => (
           <button key={t.key} onClick={() => { setTab(t.key); setSelected(null); setBusqueda(''); setEditingId(null) }}
             style={{ padding: '8px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${tab === t.key ? t.border : 'var(--border)'}`, background: tab === t.key ? t.bg : 'transparent', color: tab === t.key ? t.color : 'var(--text3)', transition: 'all .15s' }}
           >
@@ -288,177 +578,49 @@ export default function ClientesRegistrados() {
             </tbody>
           </table>
           <div style={{ padding: '10px 18px', fontSize: 12, color: 'var(--text3)', borderTop: '1px solid var(--border)' }}>
-            {listaActual.length} resultado{listaActual.length !== 1 ? 's' : ''}{busqueda ? ` para "${busqueda}"` : ''}
+            {listaActual.length} resultado{listaActual.length !== 1 ? 's' : ''}
           </div>
         </div>
       ) : (
         /* ── Clientes / Distribuidores ── */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {listaActual.map(u => {
             const cl = u.clientes
             const createdAt = u.created_at || cl?.created_at
-            const isEditing = editingId === u.id
             const isDistrib = tab === 'distribuidores'
 
             return (
-              <div key={u.id} style={{ background: 'var(--surface)', border: `1px solid ${isEditing ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-
-                {/* Header */}
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: isDistrib ? 'rgba(255,209,102,0.15)' : 'rgba(74,108,247,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                      {isDistrib ? '🏪' : '👤'}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{u.full_name || cl?.full_name || '-'}</div>
-                      {isDistrib && cl?.razon_social && <div style={{ fontSize: 12, color: '#ffd166' }}>{cl.razon_social}</div>}
-                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{u.email || cl?.email}</div>
-                    </div>
+              <div key={u.id}
+                onClick={() => setDetailUser(u)}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'translateY(0)' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, cursor: 'pointer', transition: 'all .15s' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: isDistrib ? 'rgba(255,209,102,0.15)' : 'rgba(74,108,247,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                    {isDistrib ? '🏪' : '👤'}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {isDistrib && cl?.client_code && (
-                      <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '3px 10px', borderRadius: 6 }}>{cl.client_code}</span>
-                    )}
-                    {createdAt && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDistanceToNow(new Date(createdAt), { addSuffix: true, locale: es })}</span>}
-                    {isEditing ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => guardarEdicion(u)} disabled={saving}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
-                          <Check size={13} /> {saving ? 'Guardando...' : 'Guardar'}
-                        </button>
-                        <button onClick={() => setEditingId(null)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
-                          <X size={13} /> Cancelar
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={() => abrirEdicion(u)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                        <Pencil size={12} /> Editar
-                      </button>
-                    )}
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{u.full_name || cl?.full_name || '-'}</div>
+                    {isDistrib && cl?.razon_social && <div style={{ fontSize: 12, color: '#ffd166' }}>{cl.razon_social}</div>}
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{u.email || cl?.email}</div>
                   </div>
                 </div>
-
-                {/* Body — vista o edición */}
-                {isEditing ? (
-                  <div style={{ padding: '18px 20px' }}>
-                    {isDistrib ? (
-                      /* ── Edición distribuidor: descuentos + 3 campos ── */
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#ffd166', marginBottom: 12 }}>📊 Descuentos por categoría</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-                            {CATEGORIAS_DESC.map(cat => (
-                              <LabelInput key={cat.key} label={`${cat.label} (%)`}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <input type="number" min="0" max="100" step="0.5"
-                                    value={editForm[`desc_${cat.key}`]}
-                                    onChange={e => setEF(`desc_${cat.key}`, e.target.value)}
-                                    style={{ ...inputSt, width: 80, textAlign: 'center' }}
-                                  />
-                                  <span style={{ fontSize: 13, color: 'var(--text3)' }}>%</span>
-                                </div>
-                              </LabelInput>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 12 }}>📍 Datos de entrega</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                            <LabelInput label="Dirección de entrega">
-                              <input value={editForm.direccion_entrega} onChange={e => setEF('direccion_entrega', e.target.value)} style={inputSt} />
-                            </LabelInput>
-                            <LabelInput label="Horario de entrega">
-                              <input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} />
-                            </LabelInput>
-                            <LabelInput label="Persona de contacto">
-                              <input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} />
-                            </LabelInput>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* ── Edición cliente: todos los campos ── */
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <LabelInput label="Nombre y Apellido">
-                          <input value={editForm.full_name} onChange={e => setEF('full_name', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Email">
-                          <input value={editForm.email} onChange={e => setEF('email', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Teléfono">
-                          <input value={editForm.telefono} onChange={e => setEF('telefono', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Dirección">
-                          <input value={editForm.direccion} onChange={e => setEF('direccion', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Localidad">
-                          <input value={editForm.localidad} onChange={e => setEF('localidad', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Código Postal">
-                          <input value={editForm.codigo_postal} onChange={e => setEF('codigo_postal', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Provincia">
-                          <select value={editForm.provincia} onChange={e => setEF('provincia', e.target.value)} style={inputSt}>
-                            <option value="">Seleccioná...</option>
-                            {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
-                          </select>
-                        </LabelInput>
-                        <div /> {/* spacer */}
-                        <LabelInput label="Dirección de entrega">
-                          <input value={editForm.direccion_entrega} onChange={e => setEF('direccion_entrega', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Horario de entrega">
-                          <input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} />
-                        </LabelInput>
-                        <LabelInput label="Persona de contacto">
-                          <input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} />
-                        </LabelInput>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* ── Vista ── */
-                  <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px 24px' }}>
-                    {isDistrib ? [
-                      { label: 'Email',              val: u.email || cl?.email },
-                      { label: 'Teléfono',           val: u.telefono || cl?.telefono },
-                      { label: 'CUIT',               val: cl?.cuit },
-                      { label: 'Descuento Calefones',val: u.descuentos?.calefones_calderas != null ? `${u.descuentos.calefones_calderas}%` : null },
-                      { label: 'Descuento Paneles',  val: u.descuentos?.paneles_calefactores != null ? `${u.descuentos.paneles_calefactores}%` : null },
-                      { label: 'Descuento Anafes',   val: u.descuentos?.anafes != null ? `${u.descuentos.anafes}%` : null },
-                      { label: 'Dir. de entrega',    val: cl?.direccion_entrega },
-                      { label: 'Horario de entrega', val: cl?.horario_entrega },
-                      { label: 'Persona de contacto',val: cl?.persona_contacto },
-                    ].filter(f => f.val).map(f => (
-                      <div key={f.label}>
-                        <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{f.label}</div>
-                        <div style={{ fontSize: 13 }}>{f.val}</div>
-                      </div>
-                    )) : [
-                      { label: 'Email',              val: u.email || cl?.email },
-                      { label: 'Teléfono',           val: u.telefono || cl?.telefono },
-                      { label: 'Dirección',          val: cl?.direccion },
-                      { label: 'Localidad',          val: cl?.localidad },
-                      { label: 'Provincia',          val: cl?.provincia },
-                      { label: 'Código Postal',      val: cl?.codigo_postal },
-                      { label: 'Dir. de entrega',    val: cl?.direccion_entrega },
-                      { label: 'Horario de entrega', val: cl?.horario_entrega },
-                      { label: 'Persona de contacto',val: cl?.persona_contacto },
-                    ].filter(f => f.val).map(f => (
-                      <div key={f.label}>
-                        <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{f.label}</div>
-                        <div style={{ fontSize: 13 }}>{f.val}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  {isDistrib && cl?.client_code && (
+                    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '3px 10px', borderRadius: 6 }}>{cl.client_code}</span>
+                  )}
+                  {u.telefono || cl?.telefono
+                    ? <span style={{ fontSize: 12, color: 'var(--text3)' }}>{u.telefono || cl.telefono}</span>
+                    : null}
+                  {createdAt && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDistanceToNow(new Date(createdAt), { addSuffix: true, locale: es })}</span>}
+                  <span style={{ fontSize: 11, color: '#7b9fff' }}>Ver perfil →</span>
+                </div>
               </div>
             )
           })}
           <div style={{ fontSize: 12, color: 'var(--text3)', padding: '4px 0' }}>
-            {listaActual.length} resultado{listaActual.length !== 1 ? 's' : ''}{busqueda ? ` para "${busqueda}"` : ''}
+            {listaActual.length} resultado{listaActual.length !== 1 ? 's' : ''}
           </div>
         </div>
       )}
