@@ -60,11 +60,23 @@ function fDate(d) {
   try { return format(new Date(d), 'dd/MM/yyyy HH:mm', { locale: es }) } catch { return d }
 }
 
+function formatPrecio(n) {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n)
+}
+
+const STATUS_PEDIDO = {
+  pendiente:  { label: 'Pendiente',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)' },
+  aprobado:   { label: 'Aprobado',   color: '#3dd68c', bg: 'rgba(61,214,140,0.12)'  },
+  modificado: { label: 'Modificado', color: '#fb923c', bg: 'rgba(251,146,60,0.12)'  },
+  rechazado:  { label: 'Rechazado',  color: '#ff5577', bg: 'rgba(255,85,119,0.12)'  },
+  finalizado: { label: 'Finalizado', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)' },
+}
+
 // ── Vista de perfil completo ──────────────────────────────────────────────────
 function PerfilCliente({ u, onBack, isDistrib }) {
   const cl = u.clientes
   const [tab, setTab] = useState('datos')
-  const [historial, setHistorial] = useState({ posts: [], reclamos: [], productos: [] })
+  const [historial, setHistorial] = useState({ posts: [], reclamos: [], productos: [], pedidos: [] })
   const [loadingH, setLoadingH] = useState(false)
 
   // Edición
@@ -79,15 +91,20 @@ function PerfilCliente({ u, onBack, isDistrib }) {
   useEffect(() => {
     async function loadHistorial() {
       setLoadingH(true)
-      const [postsRes, reclamosRes, productosRes] = await Promise.all([
+      const queries = [
         supabase.from('posts').select('*, replies(id)').eq('user_id', u.id).order('created_at', { ascending: false }),
         supabase.from('devoluciones').select('tracking_id, producto, motivo, estado, fecha_creacion').eq('portal_user_id', u.id).order('fecha_creacion', { ascending: false }),
         supabase.from('productos_registrados').select('*').eq('portal_user_id', u.id).order('created_at', { ascending: false }),
-      ])
+        isDistrib
+          ? supabase.from('pedidos').select('*').eq('distribuidor_id', u.id).order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] }),
+      ]
+      const [postsRes, reclamosRes, productosRes, pedidosRes] = await Promise.all(queries)
       setHistorial({
         posts:     postsRes.data || [],
         reclamos:  reclamosRes.data || [],
         productos: productosRes.data || [],
+        pedidos:   pedidosRes.data || [],
       })
       setLoadingH(false)
     }
@@ -156,6 +173,7 @@ function PerfilCliente({ u, onBack, isDistrib }) {
 
   const TABS = [
     { key: 'datos',     label: 'Datos',          icon: '👤' },
+    ...(isDistrib ? [{ key: 'pedidos', label: `Pedidos (${historial.pedidos.length})`, icon: '📋' }] : []),
     { key: 'reclamos',  label: `Reclamos (${historial.reclamos.length})`,   icon: '⚠️' },
     { key: 'consultas', label: `Consultas (${historial.posts.length})`,      icon: '💬' },
     { key: 'productos', label: `Productos Reg. (${historial.productos.length})`, icon: '📦' },
@@ -379,6 +397,78 @@ function PerfilCliente({ u, onBack, isDistrib }) {
                 )}
               </div>
             ))}
+          </div>
+        )
+      )}
+
+      {/* ── TAB: Pedidos (solo distribuidores) ── */}
+      {tab === 'pedidos' && (
+        loadingH ? <div style={{ textAlign: 'center', padding: 60 }}><Spinner size={24} /></div> :
+        historial.pedidos.length === 0 ? (
+          <Empty icon="📋" title="Sin pedidos" description="Este distribuidor no tiene pedidos aún" />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {historial.pedidos.map(p => {
+              const cfg = STATUS_PEDIDO[p.estado] || STATUS_PEDIDO.pendiente
+              return (
+                <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+                  {/* Header */}
+                  <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 8px', borderRadius: 4 }}>
+                        #{p.id.slice(0, 8).toUpperCase()}
+                      </span>
+                      <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}40`, fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20 }}>
+                        {cfg.label}
+                      </span>
+                      {p.tipo === 'preventa' && (
+                        <span style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.35)', fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20 }}>
+                          📦 Preventa
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 700, color: '#7b9fff', fontSize: 14 }}>{formatPrecio(p.total)}</div>
+                        {p.incluir_iva && <div style={{ fontSize: 10, color: 'var(--text3)' }}>c/IVA incl.</div>}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
+                    </div>
+                  </div>
+                  {/* Items */}
+                  <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {(p.items || []).map((item, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span style={{ color: 'var(--text2)' }}>
+                          {item.nombre} <span style={{ color: 'var(--text3)', fontSize: 11 }}>{item.modelo}</span>
+                        </span>
+                        <span style={{ color: 'var(--text3)' }}>x{item.cantidad} · {formatPrecio(item.subtotal)}</span>
+                      </div>
+                    ))}
+                    {p.incluir_iva && p.iva_monto > 0 && (
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)' }}>
+                          <span>Subtotal neto</span><span>{formatPrecio(p.total - p.iva_monto)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)' }}>
+                          <span>IVA (21%)</span><span>{formatPrecio(p.iva_monto)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {p.notas_admin && (
+                      <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 6, fontSize: 11, color: 'var(--text2)' }}>
+                        <span style={{ fontWeight: 700, color: '#7b9fff' }}>Nota TEMPTECH: </span>{p.notas_admin}
+                      </div>
+                    )}
+                    {p.fecha_entrega && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: '#3dd68c' }}>
+                        📅 Entrega: {new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )
       )}

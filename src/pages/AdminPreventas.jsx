@@ -28,7 +28,10 @@ export default function AdminPreventas() {
   const [itemsForm, setItemsForm] = useState([])    // [{ codigo, nombre, modelo, categoria, precio_unitario, cantidad_total }]
   const [notasForm, setNotasForm] = useState('')
   const [fechaVenc, setFechaVenc] = useState('')
+  const [incluirIVA, setIncluirIVA] = useState(false)
   const [guardando, setGuardando] = useState(false)
+
+  const IVA_PCT = 0.21
 
   useEffect(() => { if (isAdmin) { cargar(); cargarDists(); cargarPrecios() } }, [isAdmin])
 
@@ -123,6 +126,7 @@ export default function AdminPreventas() {
     setItemsForm([])
     setNotasForm('')
     setFechaVenc('')
+    setIncluirIVA(false)
     setGuardando(false)
     setTab('lista')
     setFiltroEstado('activa')
@@ -297,13 +301,41 @@ export default function AdminPreventas() {
                   </div>
                 )}
 
-                {itemsForm.length > 0 && (
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>
-                      <span>Total preventa</span>
-                      <span>{formatPrecio(itemsForm.reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0))}</span>
+                {itemsForm.length > 0 && (() => {
+                  const totalNeto = itemsForm.reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0)
+                  const ivaAmount = incluirIVA ? totalNeto * IVA_PCT : 0
+                  return (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 16 }}>
+                      {incluirIVA && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
+                            <span>Subtotal (neto)</span>
+                            <span>{formatPrecio(totalNeto)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
+                            <span>IVA (21%)</span>
+                            <span>{formatPrecio(ivaAmount)}</span>
+                          </div>
+                        </>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>
+                        <span>Total{incluirIVA ? ' c/IVA' : ' preventa'}</span>
+                        <span>{formatPrecio(totalNeto + ivaAmount)}</span>
+                      </div>
                     </div>
-                  </div>
+                  )
+                })()}
+
+                {itemsForm.length > 0 && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={incluirIVA}
+                      onChange={e => setIncluirIVA(e.target.checked)}
+                      style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
+                  </label>
                 )}
 
                 <button

@@ -70,6 +70,9 @@ export default function AdminPedidos() {
   const [guardando, setGuardando] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
+  const [incluirIVAEdit, setIncluirIVAEdit] = useState(false)
+
+  const IVA_PCT = 0.21
 
   useEffect(() => { if (isAdmin) cargar() }, [isAdmin, filtro])
 
@@ -94,6 +97,7 @@ export default function AdminPedidos() {
     })))
     setNotaAdmin(pedido.notas_admin || '')
     setFechaEntrega(pedido.fecha_entrega || '')
+    setIncluirIVAEdit(pedido.incluir_iva || false)
     setEditando(pedido.id)
   }
 
@@ -139,6 +143,7 @@ export default function AdminPedidos() {
     setItemsEdit([])
     setNotaAdmin('')
     setFechaEntrega('')
+    setIncluirIVAEdit(false)
   }
 
   function actualizarCantidad(idx, val) {
@@ -161,13 +166,17 @@ export default function AdminPedidos() {
 
   async function confirmarPedido(pedido, nuevoEstado) {
     const itemsFinal = (nuevoEstado === 'modificado' || nuevoEstado === 'aprobado') ? itemsEdit : pedido.items
-    const totalFinal = itemsFinal.reduce((s, i) => s + i.subtotal, 0)
+    const totalNeto = itemsFinal.reduce((s, i) => s + i.subtotal, 0)
+    const ivaFinal = incluirIVAEdit ? totalNeto * IVA_PCT : 0
+    const totalFinal = totalNeto + ivaFinal
 
     setGuardando(true)
     const { error } = await supabase.from('pedidos').update({
       estado: nuevoEstado,
       items: itemsFinal,
       total: totalFinal,
+      iva_monto: ivaFinal,
+      incluir_iva: incluirIVAEdit,
       notas_admin: notaAdmin.trim() || null,
       fecha_entrega: fechaEntrega || null,
       updated_at: new Date().toISOString(),
@@ -190,6 +199,7 @@ export default function AdminPedidos() {
 
       const lineaFecha = fechaEntrega ? `\n📅 Fecha de entrega estimada: ${formatFecha(fechaEntrega)}` : ''
       const lineaNota = notaAdmin ? `\n\nNota de TEMPTECH: ${notaAdmin}` : ''
+      const lineaIVA = incluirIVAEdit ? `\nSubtotal neto: ${formatPrecio(totalNeto)}\nIVA (21%): ${formatPrecio(ivaFinal)}\nTotal c/IVA: ${formatPrecio(totalFinal)}` : `\nTotal: ${formatPrecio(totalFinal)}`
 
       const asunto =
         nuevoEstado === 'aprobado'  ? `TEMPTECH - Pedido #${pedidoId} aprobado ✅` :
@@ -198,9 +208,9 @@ export default function AdminPedidos() {
 
       const texto =
         nuevoEstado === 'aprobado'
-          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue APROBADO.\n\nDetalle:\n${textoItems}\n\nTotal: ${formatPrecio(totalFinal)}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
+          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue APROBADO.\n\nDetalle:\n${textoItems}\n${lineaIVA}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
           : nuevoEstado === 'modificado'
-          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue MODIFICADO por nuestro equipo.\n\nNuevo detalle:\n${textoItems}\n\nTotal actualizado: ${formatPrecio(totalFinal)}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
+          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue MODIFICADO por nuestro equipo.\n\nNuevo detalle:\n${textoItems}\n${lineaIVA}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
           : `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue RECHAZADO.${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
 
       await supabase.functions.invoke('enviar-email-resolucion', {
@@ -278,7 +288,9 @@ export default function AdminPedidos() {
             const cfg = STATUS_CONFIG[pedido.estado] || STATUS_CONFIG.pendiente
             const dist = pedido.profiles
             const isEdit = editando === pedido.id
-            const totalEdit = itemsEdit.reduce((s, i) => s + i.subtotal, 0)
+            const totalNetoEdit = itemsEdit.reduce((s, i) => s + i.subtotal, 0)
+            const ivaEdit = incluirIVAEdit ? totalNetoEdit * IVA_PCT : 0
+            const totalEdit = totalNetoEdit + ivaEdit
 
             return (
               <div key={pedido.id} style={{ background: 'var(--surface)', border: `1px solid ${isEdit ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
@@ -391,8 +403,33 @@ export default function AdminPedidos() {
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: 800, fontSize: 15, color: '#7b9fff', paddingTop: 4 }}>
-                        Total: {formatPrecio(totalEdit)}
+                      {/* Toggle IVA en edición */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', marginTop: 4 }}>
+                        <input
+                          type="checkbox"
+                          checked={incluirIVAEdit}
+                          onChange={e => setIncluirIVAEdit(e.target.checked)}
+                          style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }}
+                        />
+                        <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
+                      </label>
+
+                      <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 8 }}>
+                        {incluirIVAEdit && (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
+                              <span>Subtotal neto</span>
+                              <span>{formatPrecio(totalNetoEdit)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
+                              <span>IVA (21%)</span>
+                              <span>{formatPrecio(ivaEdit)}</span>
+                            </div>
+                          </>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>
+                          Total{incluirIVAEdit ? ' c/IVA' : ''}: {formatPrecio(totalEdit)}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -412,6 +449,22 @@ export default function AdminPedidos() {
                           </div>
                         </div>
                       ))}
+                      {pedido.incluir_iva && pedido.iva_monto > 0 && (
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)' }}>
+                            <span>Subtotal neto</span>
+                            <span>{formatPrecio(pedido.total - pedido.iva_monto)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)' }}>
+                            <span>IVA (21%)</span>
+                            <span>{formatPrecio(pedido.iva_monto)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, color: '#7b9fff' }}>
+                            <span>Total c/IVA</span>
+                            <span>{formatPrecio(pedido.total)}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

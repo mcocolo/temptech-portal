@@ -62,6 +62,7 @@ export default function Pedidos() {
   const [cantidades, setCantidades] = useState({})
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
+  const [incluirIVA, setIncluirIVA] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [historial, setHistorial] = useState([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
@@ -72,6 +73,7 @@ export default function Pedidos() {
   const [prevActiva, setPrevActiva] = useState(null)   // preventa seleccionada
   const [cantsPrev, setCantsPrev] = useState({})       // { codigo: cantidad a retirar }
   const [notasPrev, setNotasPrev] = useState('')
+  const [incluirIVAPrev, setIncluirIVAPrev] = useState(false)
   const [enviandoPrev, setEnviandoPrev] = useState(false)
 
   const descuentos = profile?.descuentos || {}
@@ -117,6 +119,9 @@ export default function Pedidos() {
   )
 
   const total = itemsCarrito.reduce((s, i) => s + i.subtotal, 0)
+  const IVA_PCT = 0.21
+  const ivaAmount = incluirIVA ? total * IVA_PCT : 0
+  const totalConIVA = total + ivaAmount
 
   async function enviarPedido() {
     if (itemsCarrito.length === 0) { toast.error('Agregá al menos un producto'); return }
@@ -132,7 +137,9 @@ export default function Pedidos() {
         descuento_pct: descuentos[i.categoria] || 0,
         precio_unitario: i.precioFinal, subtotal: i.subtotal,
       })),
-      total,
+      total: totalConIVA,
+      iva_monto: ivaAmount,
+      incluir_iva: incluirIVA,
       notas: notas.trim() || null,
     })
     if (error) { toast.error('Error al enviar el pedido'); setEnviando(false); return }
@@ -158,7 +165,9 @@ export default function Pedidos() {
         subtotal: i.precio_unitario * cantsPrev[i.codigo],
       }))
     if (itemsRetiro.length === 0) { toast.error('Indicá al menos una cantidad a retirar'); return }
-    const totalRetiro = itemsRetiro.reduce((s, i) => s + i.subtotal, 0)
+    const totalNetoRetiro = itemsRetiro.reduce((s, i) => s + i.subtotal, 0)
+    const ivaMontoRetiro = incluirIVAPrev ? totalNetoRetiro * IVA_PCT : 0
+    const totalRetiro = totalNetoRetiro + ivaMontoRetiro
 
     setEnviandoPrev(true)
     const { error } = await supabase.from('pedidos').insert({
@@ -168,6 +177,8 @@ export default function Pedidos() {
       preventa_id: prevActiva.id,
       items: itemsRetiro,
       total: totalRetiro,
+      iva_monto: ivaMontoRetiro,
+      incluir_iva: incluirIVAPrev,
       notas: notasPrev.trim() || null,
     })
     if (error) { toast.error('Error al enviar el retiro'); setEnviandoPrev(false); return }
@@ -362,11 +373,34 @@ export default function Pedidos() {
 
                 {itemsCarrito.length > 0 && (
                   <>
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>Total</span>
-                      <span style={{ fontWeight: 800, fontSize: 16, color: '#7b9fff' }}>{formatPrecio(total)}</span>
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 8 }}>
+                      {incluirIVA && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, color: 'var(--text3)' }}>Subtotal (neto)</span>
+                            <span style={{ fontSize: 13, color: 'var(--text3)' }}>{formatPrecio(total)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, color: 'var(--text3)' }}>IVA (21%)</span>
+                            <span style={{ fontSize: 13, color: 'var(--text3)' }}>{formatPrecio(ivaAmount)}</span>
+                          </div>
+                        </>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: incluirIVA ? 6 : 0, paddingTop: incluirIVA ? 6 : 0, borderTop: incluirIVA ? '1px solid var(--border)' : 'none' }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>Total{incluirIVA ? ' c/IVA' : ''}</span>
+                        <span style={{ fontWeight: 800, fontSize: 16, color: '#7b9fff' }}>{formatPrecio(totalConIVA)}</span>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 14, textAlign: 'center' }}>Precios en pesos · IVA no incluido</div>
+                    {/* Toggle IVA */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', userSelect: 'none' }}>
+                      <input
+                        type="checkbox"
+                        checked={incluirIVA}
+                        onChange={e => setIncluirIVA(e.target.checked)}
+                        style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }}
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
+                    </label>
                   </>
                 )}
 
@@ -518,22 +552,53 @@ export default function Pedidos() {
                       <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '16px 0' }}>
                         Indicá las cantidades a retirar
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-                        {prevActiva.items.filter(i => (cantsPrev[i.codigo] || 0) > 0).map(item => (
-                          <div key={item.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                            <div>
-                              <div style={{ fontWeight: 600 }}>{item.nombre}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text3)' }}>x{cantsPrev[item.codigo]} × {formatPrecio(item.precio_unitario)}</div>
+                    ) : (() => {
+                      const itemsRetiroVista = prevActiva.items.filter(i => (cantsPrev[i.codigo] || 0) > 0)
+                      const totalNetoVista = itemsRetiroVista.reduce((s, i) => s + i.precio_unitario * cantsPrev[i.codigo], 0)
+                      const ivaVista = incluirIVAPrev ? totalNetoVista * IVA_PCT : 0
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                          {itemsRetiroVista.map(item => (
+                            <div key={item.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                              <div>
+                                <div style={{ fontWeight: 600 }}>{item.nombre}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text3)' }}>x{cantsPrev[item.codigo]} × {formatPrecio(item.precio_unitario)}</div>
+                              </div>
+                              <div style={{ fontWeight: 700 }}>{formatPrecio(item.precio_unitario * cantsPrev[item.codigo])}</div>
                             </div>
-                            <div style={{ fontWeight: 700 }}>{formatPrecio(item.precio_unitario * cantsPrev[item.codigo])}</div>
+                          ))}
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+                            {incluirIVAPrev && (
+                              <>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
+                                  <span>Subtotal (neto)</span>
+                                  <span>{formatPrecio(totalNetoVista)}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
+                                  <span>IVA (21%)</span>
+                                  <span>{formatPrecio(ivaVista)}</span>
+                                </div>
+                              </>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>
+                              <span>Total{incluirIVAPrev ? ' c/IVA' : ''}</span>
+                              <span>{formatPrecio(totalNetoVista + ivaVista)}</span>
+                            </div>
                           </div>
-                        ))}
-                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>
-                          <span>Total</span>
-                          <span>{formatPrecio(prevActiva.items.filter(i => cantsPrev[i.codigo] > 0).reduce((s, i) => s + i.precio_unitario * cantsPrev[i.codigo], 0))}</span>
                         </div>
-                      </div>
+                      )
+                    })()}
+                    {/* Toggle IVA preventa */}
+                    {!Object.values(cantsPrev).every(v => !v) && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          checked={incluirIVAPrev}
+                          onChange={e => setIncluirIVAPrev(e.target.checked)}
+                          style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }}
+                        />
+                        <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
+                      </label>
                     )}
                     <div style={{ marginBottom: 14 }}>
                       <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Notas (opcional)</label>
@@ -580,20 +645,39 @@ export default function Pedidos() {
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <span style={{ fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(p.total)}</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(p.total)}</span>
+                      {p.incluir_iva && <div style={{ fontSize: 10, color: 'var(--text3)' }}>c/IVA incl.</div>}
+                    </div>
                     <span style={{ fontSize: 12, color: 'var(--text3)' }}>{new Date(p.created_at).toLocaleDateString('es-AR')}</span>
                   </div>
                 </div>
 
                 {/* Items */}
                 <div style={{ padding: '14px 20px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: p.notas_admin ? 12 : 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                     {(p.items || []).map((item, i) => (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                         <span style={{ color: 'var(--text2)' }}>{item.nombre} <span style={{ color: 'var(--text3)', fontSize: 11 }}>{item.modelo}</span></span>
                         <span style={{ color: 'var(--text3)' }}>x{item.cantidad} · {formatPrecio(item.subtotal)}</span>
                       </div>
                     ))}
+                    {p.incluir_iva && p.iva_monto > 0 && (
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)' }}>
+                          <span>Subtotal neto</span>
+                          <span>{formatPrecio(p.total - p.iva_monto)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)' }}>
+                          <span>IVA (21%)</span>
+                          <span>{formatPrecio(p.iva_monto)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
+                          <span>Total c/IVA</span>
+                          <span style={{ color: '#7b9fff' }}>{formatPrecio(p.total)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {p.fecha_entrega && (
                     <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(61,214,140,0.06)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)', fontSize: 12 }}>
