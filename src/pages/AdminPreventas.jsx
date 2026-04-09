@@ -31,6 +31,13 @@ export default function AdminPreventas() {
   const [incluirIVA, setIncluirIVA] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
+  // Registrar entrega de preventa
+  const [entregandoPv, setEntregandoPv] = useState(null) // id de la preventa con entrega abierta
+  const [cantEntrega, setCantEntrega] = useState({})     // { codigo: cantidad }
+  const [entregaIVA, setEntregaIVA] = useState(false)
+  const [entregaNotas, setEntregaNotas] = useState('')
+  const [registrandoEntrega, setRegistrandoEntrega] = useState(false)
+
   // Edición de preventa existente
   const [editandoPv, setEditandoPv] = useState(null)    // id de la preventa editándose
   const [pvItemsEdit, setPvItemsEdit] = useState([])
@@ -221,6 +228,77 @@ export default function AdminPreventas() {
     if (error) { toast.error('Error al guardar: ' + error.message); return }
     toast.success('Preventa actualizada ✅')
     cerrarEdicionPv()
+    cargar()
+  }
+
+  function abrirEntrega(pv) {
+    setCantEntrega({})
+    setEntregaIVA(pv.incluir_iva || false)
+    setEntregaNotas('')
+    setEntregandoPv(pv.id)
+    setEditandoPv(null) // cerrar edición si estaba abierta
+  }
+
+  function cerrarEntrega() {
+    setEntregandoPv(null)
+    setCantEntrega({})
+    setEntregaIVA(false)
+    setEntregaNotas('')
+  }
+
+  async function registrarEntrega(pv) {
+    const itemsEntrega = pv.items
+      .filter(i => (cantEntrega[i.codigo] || 0) > 0)
+      .map(i => ({
+        codigo: i.codigo, nombre: i.nombre, modelo: i.modelo,
+        categoria: i.categoria,
+        precio_unitario: i.precio_unitario,
+        precio_base: i.precio_unitario,
+        descuento_pct: 0,
+        cantidad: cantEntrega[i.codigo],
+        subtotal: i.precio_unitario * cantEntrega[i.codigo],
+      }))
+
+    if (itemsEntrega.length === 0) { toast.error('Indicá al menos una cantidad'); return }
+
+    const totalNeto = itemsEntrega.reduce((s, i) => s + i.subtotal, 0)
+    const ivaMonto  = entregaIVA ? totalNeto * IVA_PCT : 0
+    const totalFinal = totalNeto + ivaMonto
+
+    setRegistrandoEntrega(true)
+
+    // 1. Crear pedido aprobado
+    const { error: errPedido } = await supabase.from('pedidos').insert({
+      distribuidor_id: pv.distribuidor_id,
+      estado: 'aprobado',
+      tipo: 'preventa',
+      preventa_id: pv.id,
+      items: itemsEntrega,
+      total: totalFinal,
+      iva_monto: ivaMonto,
+      incluir_iva: entregaIVA,
+      notas_admin: entregaNotas.trim() || null,
+    })
+
+    if (errPedido) { toast.error('Error al registrar: ' + errPedido.message); setRegistrandoEntrega(false); return }
+
+    // 2. Actualizar cantidad_retirada en la preventa
+    const itemsActualizados = pv.items.map(i => ({
+      ...i,
+      cantidad_retirada: (i.cantidad_retirada || 0) + (cantEntrega[i.codigo] || 0),
+    }))
+
+    const { error: errPv } = await supabase.from('preventas').update({
+      items: itemsActualizados,
+      updated_at: new Date().toISOString(),
+    }).eq('id', pv.id)
+
+    setRegistrandoEntrega(false)
+
+    if (errPv) { toast.error('Pedido creado pero error al actualizar la preventa: ' + errPv.message); return }
+
+    toast.success('Entrega registrada ✅')
+    cerrarEntrega()
     cargar()
   }
 
@@ -650,6 +728,93 @@ export default function AdminPreventas() {
                               </button>
                             </div>
                           </div>
+                        ) : entregandoPv === pv.id ? (
+                          /* ── MODO ENTREGA ── */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#3dd68c', marginBottom: 2 }}>
+                              📦 Registrar entrega — indicá las cantidades a entregar
+                            </div>
+                            {items.map((item, i) => {
+                              const pendiente = item.cantidad_total - (item.cantidad_retirada || 0)
+                              const cant = cantEntrega[item.codigo] || 0
+                              return (
+                                <div key={i} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 16, opacity: pendiente === 0 ? 0.5 : 1 }}>
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4 }}>{item.codigo}</span>
+                                      <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
+                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo} · {formatPrecio(item.precio_unitario)} c/u</div>
+                                    <div style={{ fontSize: 11, color: pendiente > 0 ? '#ffd166' : '#3dd68c', marginTop: 2 }}>
+                                      {pendiente > 0 ? `${pendiente} disponibles` : 'Completo ✓'}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <button onClick={() => setCantEntrega(p => ({ ...p, [item.codigo]: Math.max(0, (p[item.codigo] || 0) - 1) }))} disabled={pendiente === 0 || cant === 0}
+                                      style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                                    <input type="number" min="0" max={pendiente} value={cant || ''}
+                                      onChange={e => setCantEntrega(p => ({ ...p, [item.codigo]: Math.min(pendiente, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                                      placeholder="0" disabled={pendiente === 0}
+                                      style={{ width: 52, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
+                                    <button onClick={() => setCantEntrega(p => ({ ...p, [item.codigo]: Math.min(pendiente, (p[item.codigo] || 0) + 1) }))} disabled={pendiente === 0 || cant >= pendiente}
+                                      style={{ width: 28, height: 28, borderRadius: 6, background: pendiente > 0 ? 'var(--brand-gradient)' : 'var(--surface2)', border: 'none', color: '#fff', cursor: pendiente > 0 ? 'pointer' : 'default', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+
+                            {/* Resumen entrega */}
+                            {Object.values(cantEntrega).some(v => v > 0) && (() => {
+                              const itemsEnt = items.filter(i => (cantEntrega[i.codigo] || 0) > 0)
+                              const neto = itemsEnt.reduce((s, i) => s + i.precio_unitario * cantEntrega[i.codigo], 0)
+                              const iva  = entregaIVA ? neto * IVA_PCT : 0
+                              return (
+                                <div style={{ padding: '10px 14px', background: 'rgba(61,214,140,0.06)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)' }}>
+                                  {itemsEnt.map(i => (
+                                    <div key={i.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
+                                      <span>{i.nombre} x{cantEntrega[i.codigo]}</span>
+                                      <span>{formatPrecio(i.precio_unitario * cantEntrega[i.codigo])}</span>
+                                    </div>
+                                  ))}
+                                  {entregaIVA && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4 }}>
+                                      <span>IVA (21%)</span><span>{formatPrecio(iva)}</span>
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 800, color: '#3dd68c', marginTop: 4 }}>
+                                    <span>Total entrega{entregaIVA ? ' c/IVA' : ''}</span>
+                                    <span>{formatPrecio(neto + iva)}</span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+
+                            {/* Toggle IVA + notas */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                                <input type="checkbox" checked={entregaIVA} onChange={e => setEntregaIVA(e.target.checked)}
+                                  style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }} />
+                                <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
+                              </label>
+                              <div>
+                                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nota interna (opcional)</div>
+                                <textarea value={entregaNotas} onChange={e => setEntregaNotas(e.target.value)} rows={2}
+                                  placeholder="Observaciones de la entrega..."
+                                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'none', outline: 'none' }} />
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => registrarEntrega(pv)} disabled={registrandoEntrega || !Object.values(cantEntrega).some(v => v > 0)}
+                                style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '7px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: !Object.values(cantEntrega).some(v => v > 0) ? 0.5 : 1 }}>
+                                {registrandoEntrega ? 'Registrando...' : '📦 Confirmar entrega'}
+                              </button>
+                              <button onClick={cerrarEntrega}
+                                style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
                         ) : (
                           /* ── MODO VISTA ── */
                           <>
@@ -718,6 +883,10 @@ export default function AdminPreventas() {
                               </button>
                               {pv.estado === 'activa' && (
                                 <>
+                                  <button onClick={() => abrirEntrega(pv)}
+                                    style={{ background: 'rgba(61,214,140,0.1)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                    📦 Registrar entrega
+                                  </button>
                                   <button onClick={() => cambiarEstado(pv.id, 'completada')} style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                                     ✓ Marcar completada
                                   </button>
