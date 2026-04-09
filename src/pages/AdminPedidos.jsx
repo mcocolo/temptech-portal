@@ -72,6 +72,13 @@ export default function AdminPedidos() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [incluirIVAEdit, setIncluirIVAEdit] = useState(false)
+  const [esActualizacionPrecios, setEsActualizacionPrecios] = useState(false)
+
+  // Datos internos (remito, notas internas, factura) — editables sin gestionar el pedido
+  const [editingInternals, setEditingInternals] = useState(null) // pedido.id
+  const [internalsForm, setInternalsForm] = useState({ nro_remito: '', notas_internas: '' })
+  const [guardandoInternals, setGuardandoInternals] = useState(false)
+  const [subiendoFactura, setSubiendoFactura] = useState(null)  // pedido.id
 
   // Nuevo pedido (admin crea en nombre de distribuidor)
   const [distribuidores, setDistribuidores] = useState([])
@@ -236,6 +243,75 @@ export default function AdminPedidos() {
     setNotaAdmin('')
     setFechaEntrega('')
     setIncluirIVAEdit(false)
+    setEsActualizacionPrecios(false)
+  }
+
+  function abrirActualizacionPrecios(pedido) {
+    abrirEdicion(pedido)
+    setEsActualizacionPrecios(true)
+  }
+
+  async function actualizarPrecios(pedido) {
+    const itemsFinal = itemsEdit.filter(i => i.cantidad > 0)
+    if (itemsFinal.length === 0) { toast.error('El pedido no puede quedar sin items'); return }
+    const totalNeto = itemsFinal.reduce((s, i) => s + i.subtotal, 0)
+    const ivaFinal = incluirIVAEdit ? totalNeto * IVA_PCT : 0
+    const totalFinal = totalNeto + ivaFinal
+
+    setGuardando(true)
+    const { error } = await supabase.from('pedidos').update({
+      items: itemsFinal,
+      total: totalFinal,
+      iva_monto: ivaFinal,
+      incluir_iva: incluirIVAEdit,
+      updated_at: new Date().toISOString(),
+    }).eq('id', pedido.id)
+    setGuardando(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Precios actualizados ✅')
+    cerrarEdicion()
+    cargar()
+  }
+
+  function abrirInternals(pedido) {
+    setInternalsForm({ nro_remito: pedido.nro_remito || '', notas_internas: pedido.notas_internas || '' })
+    setEditingInternals(pedido.id)
+  }
+
+  async function guardarInternals(pedidoId) {
+    setGuardandoInternals(true)
+    const { error } = await supabase.from('pedidos').update({
+      nro_remito: internalsForm.nro_remito.trim() || null,
+      notas_internas: internalsForm.notas_internas.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', pedidoId)
+    setGuardandoInternals(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Datos internos guardados')
+    setEditingInternals(null)
+    cargar()
+  }
+
+  async function subirFactura(pedido, file) {
+    if (!file) return
+    setSubiendoFactura(pedido.id)
+    const ext = file.name.split('.').pop()
+    const path = `pedidos/${pedido.id}/factura_${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+    if (uploadError) { toast.error('Error al subir: ' + uploadError.message); setSubiendoFactura(null); return }
+    const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+    const { error } = await supabase.from('pedidos').update({ factura_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    setSubiendoFactura(null)
+    if (error) { toast.error('Error al guardar URL'); return }
+    toast.success('Factura subida ✅')
+    cargar()
+  }
+
+  async function eliminarFactura(pedido) {
+    const { error } = await supabase.from('pedidos').update({ factura_url: null, updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    if (error) { toast.error('Error al eliminar'); return }
+    toast.success('Factura eliminada')
+    cargar()
   }
 
   function actualizarCantidad(idx, val) {
@@ -271,6 +347,8 @@ export default function AdminPedidos() {
       incluir_iva: incluirIVAEdit,
       notas_admin: notaAdmin.trim() || null,
       fecha_entrega: fechaEntrega || null,
+      nro_remito: pedido.nro_remito || null,
+      notas_internas: pedido.notas_internas || null,
       updated_at: new Date().toISOString(),
     }).eq('id', pedido.id)
 
@@ -785,6 +863,100 @@ export default function AdminPedidos() {
                     </div>
                   )}
 
+                  {/* ── Datos internos ── */}
+                  {!isEdit && (
+                    <div style={{ marginTop: 12, padding: '12px 14px', background: 'rgba(255,209,102,0.04)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 'var(--radius)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: editingInternals === pedido.id ? 10 : 0 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#ffd166', textTransform: 'uppercase', letterSpacing: '0.7px' }}>🔒 Datos internos</span>
+                        {editingInternals !== pedido.id && (
+                          <button onClick={() => abrirInternals(pedido)}
+                            style={{ background: 'none', border: 'none', color: '#ffd166', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>
+                            ✏️ Editar
+                          </button>
+                        )}
+                      </div>
+
+                      {editingInternals === pedido.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div>
+                            <label style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>N° de remito</label>
+                            <input
+                              type="text"
+                              value={internalsForm.nro_remito}
+                              onChange={e => setInternalsForm(f => ({ ...f, nro_remito: e.target.value }))}
+                              placeholder="Ej: 0001-00012345"
+                              style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 4 }}>Notas internas</label>
+                            <textarea
+                              value={internalsForm.notas_internas}
+                              onChange={e => setInternalsForm(f => ({ ...f, notas_internas: e.target.value }))}
+                              placeholder="Observaciones internas, solo visibles para el equipo..."
+                              rows={2}
+                              style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none', lineHeight: 1.6 }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => guardarInternals(pedido.id)} disabled={guardandoInternals}
+                              style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              {guardandoInternals ? 'Guardando...' : '✓ Guardar'}
+                            </button>
+                            <button onClick={() => setEditingInternals(null)}
+                              style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>N° Remito</div>
+                            <div style={{ fontSize: 13, fontFamily: 'monospace', color: pedido.nro_remito ? 'var(--text)' : 'var(--text3)' }}>
+                              {pedido.nro_remito || '—'}
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Notas internas</div>
+                            <div style={{ fontSize: 12, color: pedido.notas_internas ? 'var(--text2)' : 'var(--text3)' }}>
+                              {pedido.notas_internas || '—'}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Factura */}
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Factura</div>
+                        {pedido.factura_url ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <a href={pedido.factura_url} target="_blank" rel="noreferrer"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#3dd68c', textDecoration: 'none' }}>
+                              📄 Ver factura
+                            </a>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#7b9fff', cursor: 'pointer' }}>
+                              🔄 Reemplazar
+                              <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                                onChange={e => subirFactura(pedido, e.target.files[0])} />
+                            </label>
+                            <button onClick={() => eliminarFactura(pedido)}
+                              style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ✕
+                            </button>
+                            {subiendoFactura === pedido.id && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Subiendo...</span>}
+                          </div>
+                        ) : (
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,209,102,0.08)', border: '1px dashed rgba(255,209,102,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer' }}>
+                            {subiendoFactura === pedido.id ? '⏳ Subiendo...' : '📎 Adjuntar factura'}
+                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                              onChange={e => subirFactura(pedido, e.target.files[0])} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Edición: fecha + nota */}
                   {isEdit && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14, marginBottom: 14 }}>
@@ -815,23 +987,39 @@ export default function AdminPedidos() {
                 <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {isEdit ? (
                     <>
-                      <button onClick={() => confirmarPedido(pedido, 'aprobado')} disabled={guardando} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        ✓ Aprobar
-                      </button>
-                      <button onClick={() => confirmarPedido(pedido, 'modificado')} disabled={guardando} style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        ✏️ Aprobar con cambios
-                      </button>
-                      <button onClick={() => confirmarPedido(pedido, 'rechazado')} disabled={guardando} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        ✕ Rechazar
-                      </button>
-                      <button onClick={cerrarEdicion} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        Cancelar
-                      </button>
+                      {esActualizacionPrecios ? (
+                        <>
+                          <button onClick={() => actualizarPrecios(pedido)} disabled={guardando} style={{ background: 'rgba(74,108,247,0.12)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.4)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            {guardando ? 'Guardando...' : '💾 Guardar cambios de precios'}
+                          </button>
+                          <button onClick={cerrarEdicion} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => confirmarPedido(pedido, 'aprobado')} disabled={guardando} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ✓ Aprobar
+                          </button>
+                          <button onClick={() => confirmarPedido(pedido, 'modificado')} disabled={guardando} style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ✏️ Aprobar con cambios
+                          </button>
+                          <button onClick={() => confirmarPedido(pedido, 'rechazado')} disabled={guardando} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ✕ Rechazar
+                          </button>
+                          <button onClick={cerrarEdicion} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            Cancelar
+                          </button>
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
                       <button onClick={() => abrirEdicion(pedido)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         Gestionar pedido
+                      </button>
+                      <button onClick={() => abrirActualizacionPrecios(pedido)} style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        💲 Actualizar precios
                       </button>
                       {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
                         <button
