@@ -484,14 +484,23 @@ export default function AdminPreventas() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                            Retirado: <span style={{ color: '#3dd68c', fontWeight: 700 }}>{formatPrecio(totalRetirado(items))}</span>
-                            {' / '}
-                            <span style={{ fontWeight: 700 }}>{formatPrecio(totalPreventa(items))}</span>
-                            {totalPreventa(items) > 0 && (
-                              <span style={{ marginLeft: 6, color: '#3dd68c', fontWeight: 700 }}>
-                                ({((totalRetirado(items) / totalPreventa(items)) * 100).toFixed(0)}%)
-                              </span>
-                            )}
+                            {(() => {
+                              const neto = totalPreventa(items)
+                              const total = pv.incluir_iva ? neto + (pv.iva_monto || neto * IVA_PCT) : neto
+                              const retirado = totalRetirado(items)
+                              return (
+                                <>
+                                  Retirado: <span style={{ color: '#3dd68c', fontWeight: 700 }}>{formatPrecio(retirado)}</span>
+                                  {' / '}
+                                  <span style={{ fontWeight: 700 }}>{formatPrecio(total)}</span>
+                                  {total > 0 && (
+                                    <span style={{ marginLeft: 6, color: '#3dd68c', fontWeight: 700 }}>
+                                      ({((retirado / total) * 100).toFixed(0)}%)
+                                    </span>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </div>
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
                             {pv.incluir_iva && (
