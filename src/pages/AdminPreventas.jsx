@@ -31,6 +31,14 @@ export default function AdminPreventas() {
   const [incluirIVA, setIncluirIVA] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
+  // Edición de preventa existente
+  const [editandoPv, setEditandoPv] = useState(null)    // id de la preventa editándose
+  const [pvItemsEdit, setPvItemsEdit] = useState([])
+  const [pvNotasEdit, setPvNotasEdit] = useState('')
+  const [pvFechaEdit, setPvFechaEdit] = useState('')
+  const [pvShowPicker, setPvShowPicker] = useState(false)
+  const [guardandoPv, setGuardandoPv] = useState(false)
+
   const IVA_PCT = 0.21
 
   useEffect(() => { if (isAdmin) { cargar(); cargarDists(); cargarPrecios() } }, [isAdmin])
@@ -137,6 +145,70 @@ export default function AdminPreventas() {
     const { error } = await supabase.from('preventas').update({ estado: nuevoEstado, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { toast.error('Error al actualizar'); return }
     toast.success(`Preventa ${nuevoEstado}`)
+    cargar()
+  }
+
+  function abrirEdicionPv(pv) {
+    setPvItemsEdit(pv.items.map(i => ({ ...i })))
+    setPvNotasEdit(pv.notas || '')
+    setPvFechaEdit(pv.fecha_vencimiento || '')
+    setPvShowPicker(false)
+    setEditandoPv(pv.id)
+  }
+
+  function cerrarEdicionPv() {
+    setEditandoPv(null)
+    setPvItemsEdit([])
+    setPvNotasEdit('')
+    setPvFechaEdit('')
+    setPvShowPicker(false)
+  }
+
+  function pvActualizarPrecio(idx, val) {
+    const precio = Math.max(0, parseFloat(val) || 0)
+    setPvItemsEdit(prev => prev.map((item, i) => i !== idx ? item : { ...item, precio_unitario: precio }))
+  }
+
+  function pvActualizarCantidad(idx, val) {
+    const n = Math.max(0, parseInt(val) || 0)
+    setPvItemsEdit(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      const min = item.cantidad_retirada || 0
+      return { ...item, cantidad_total: Math.max(n, min) }
+    }))
+  }
+
+  function pvQuitarItem(idx) {
+    const item = pvItemsEdit[idx]
+    if ((item.cantidad_retirada || 0) > 0) { toast.error('No se puede quitar un producto que ya tiene retiros'); return }
+    setPvItemsEdit(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function pvAgregarProducto(prod) {
+    if (pvItemsEdit.find(i => i.codigo === prod.codigo)) { toast('Ya está en la preventa', { icon: '⚠️' }); return }
+    setPvItemsEdit(prev => [...prev, {
+      codigo: prod.codigo, nombre: prod.nombre, modelo: prod.modelo,
+      categoria: prod.categoria, precio_unitario: prod.precio,
+      cantidad_total: 1, cantidad_retirada: 0,
+    }])
+    setPvShowPicker(false)
+  }
+
+  async function guardarEdicionPv(pv) {
+    if (pvItemsEdit.length === 0) { toast.error('La preventa debe tener al menos un producto'); return }
+    if (pvItemsEdit.some(i => i.precio_unitario <= 0)) { toast.error('Todos los precios deben ser mayores a 0'); return }
+    if (pvItemsEdit.some(i => i.cantidad_total <= 0)) { toast.error('Todas las cantidades deben ser mayores a 0'); return }
+    setGuardandoPv(true)
+    const { error } = await supabase.from('preventas').update({
+      items: pvItemsEdit,
+      notas: pvNotasEdit.trim() || null,
+      fecha_vencimiento: pvFechaEdit || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', pv.id)
+    setGuardandoPv(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Preventa actualizada ✅')
+    cerrarEdicionPv()
     cargar()
   }
 
@@ -422,69 +494,183 @@ export default function AdminPreventas() {
                     {/* Detalle expandido */}
                     {abierta && (
                       <div style={{ padding: '16px 20px' }}>
-                        {/* Progreso por producto */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-                          {items.map((item, i) => {
-                            const retirado = item.cantidad_retirada || 0
-                            const pct = item.cantidad_total > 0 ? (retirado / item.cantidad_total) * 100 : 0
-                            const pendiente = item.cantidad_total - retirado
-                            return (
-                              <div key={i} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                                  <div>
-                                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4, marginRight: 8 }}>{item.codigo}</span>
-                                    <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
-                                    <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 6 }}>{item.modelo}</span>
+                        {editandoPv === pv.id ? (
+                          /* ── MODO EDICIÓN ── */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {pvItemsEdit.map((item, idx) => {
+                              const retirado = item.cantidad_retirada || 0
+                              return (
+                                <div key={idx} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                                    <div>
+                                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4, marginRight: 8 }}>{item.codigo}</span>
+                                      <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
+                                      <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 6 }}>{item.modelo}</span>
+                                    </div>
+                                    <button onClick={() => pvQuitarItem(idx)}
+                                      disabled={retirado > 0}
+                                      title={retirado > 0 ? 'Ya tiene retiros' : 'Quitar'}
+                                      style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '3px 8px', fontSize: 11, color: retirado > 0 ? 'var(--text3)' : '#ff5577', cursor: retirado > 0 ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>
+                                      ✕ Quitar
+                                    </button>
                                   </div>
-                                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                                    {formatPrecio(item.precio_unitario)} c/u
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                    <div>
+                                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Precio unitario</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>$</span>
+                                        <input type="number" min="0" step="0.01" value={item.precio_unitario}
+                                          onChange={e => pvActualizarPrecio(idx, e.target.value)}
+                                          style={{ width: '100%', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 7px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>
+                                        Cantidad total {retirado > 0 && <span style={{ color: '#ffd166', textTransform: 'none' }}>(mín. {retirado} retirados)</span>}
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        <button onClick={() => pvActualizarCantidad(idx, item.cantidad_total - 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                                        <input type="number" min={retirado} value={item.cantidad_total}
+                                          onChange={e => pvActualizarCantidad(idx, e.target.value)}
+                                          style={{ width: 56, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
+                                        <button onClick={() => pvActualizarCantidad(idx, item.cantidad_total + 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--brand-gradient)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div style={{ marginTop: 6, fontSize: 12, color: '#7b9fff', fontWeight: 700, textAlign: 'right' }}>
+                                    {formatPrecio(item.precio_unitario * item.cantidad_total)}
                                   </div>
                                 </div>
-                                {/* Barra de progreso */}
-                                <div style={{ height: 6, background: 'var(--surface3)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
-                                  <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#3dd68c' : 'var(--brand-gradient)', borderRadius: 3, transition: 'width 0.3s' }} />
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)' }}>
-                                  <span>Retirado: <strong style={{ color: '#3dd68c' }}>{retirado}</strong> / {item.cantidad_total}</span>
-                                  <span>Pendiente: <strong style={{ color: pendiente > 0 ? '#ffd166' : 'var(--text3)' }}>{pendiente}</strong></span>
-                                  <span>{formatPrecio(item.precio_unitario * retirado)} retirado</span>
-                                </div>
+                              )
+                            })}
+
+                            {/* Agregar producto */}
+                            <button onClick={() => setPvShowPicker(v => !v)}
+                              style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px dashed rgba(74,108,247,0.4)', borderRadius: 'var(--radius)', padding: '8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              + Agregar producto
+                            </button>
+
+                            {pvShowPicker && (
+                              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px', maxHeight: 280, overflowY: 'auto' }}>
+                                {['calefones_calderas', 'paneles_calefactores', 'anafes'].map(cat => {
+                                  const prods = precios.filter(p => p.categoria === cat)
+                                  if (!prods.length) return null
+                                  const labels = { calefones_calderas: '🚿 Calefones / Calderas', paneles_calefactores: '🔆 Paneles', anafes: '🔥 Anafes' }
+                                  return (
+                                    <div key={cat} style={{ marginBottom: 10 }}>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 5 }}>{labels[cat]}</div>
+                                      {prods.map(p => (
+                                        <button key={p.codigo} onClick={() => pvAgregarProducto(p)}
+                                          disabled={!!pvItemsEdit.find(i => i.codigo === p.codigo)}
+                                          style={{ display: 'flex', justifyContent: 'space-between', width: '100%', background: pvItemsEdit.find(i => i.codigo === p.codigo) ? 'var(--surface3)' : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px', cursor: pvItemsEdit.find(i => i.codigo === p.codigo) ? 'default' : 'pointer', fontFamily: 'var(--font)', marginBottom: 4 }}>
+                                          <span style={{ fontSize: 12, color: pvItemsEdit.find(i => i.codigo === p.codigo) ? 'var(--text3)' : 'var(--text)' }}>{p.nombre} <span style={{ color: 'var(--text3)', fontSize: 11 }}>{p.modelo}</span></span>
+                                          <span style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(p.precio)}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )
+                                })}
                               </div>
-                            )
-                          })}
-                        </div>
+                            )}
 
-                        {/* Totales */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
-                          {[
-                            { label: 'Total preventa', value: totalPreventa(items), color: 'var(--text)' },
-                            { label: 'Retirado', value: totalRetirado(items), color: '#3dd68c' },
-                            { label: 'Pendiente', value: totalPendiente(items), color: '#ffd166' },
-                          ].map(({ label, value, color }) => (
-                            <div key={label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center' }}>
-                              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{label}</div>
-                              <div style={{ fontSize: 14, fontWeight: 800, color }}>{formatPrecio(value)}</div>
+                            {/* Notas y fecha */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 4 }}>
+                              <div>
+                                <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 5 }}>Fecha de vencimiento</div>
+                                <input type="date" value={pvFechaEdit} onChange={e => setPvFechaEdit(e.target.value)}
+                                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 5 }}>Notas</div>
+                                <textarea value={pvNotasEdit} onChange={e => setPvNotasEdit(e.target.value)} rows={2}
+                                  placeholder="Condiciones pactadas..."
+                                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'none', outline: 'none' }} />
+                              </div>
                             </div>
-                          ))}
-                        </div>
 
-                        {/* Notas */}
-                        {pv.notas && (
-                          <div style={{ marginBottom: 14, padding: '8px 12px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', fontSize: 12 }}>
-                            <span style={{ fontWeight: 700, color: '#7b9fff' }}>Notas: </span>{pv.notas}
+                            {/* Botones */}
+                            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                              <button onClick={() => guardarEdicionPv(pv)} disabled={guardandoPv}
+                                style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '7px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                {guardandoPv ? 'Guardando...' : '✓ Guardar cambios'}
+                              </button>
+                              <button onClick={cerrarEdicionPv}
+                                style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                Cancelar
+                              </button>
+                            </div>
                           </div>
-                        )}
+                        ) : (
+                          /* ── MODO VISTA ── */
+                          <>
+                            {/* Progreso por producto */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                              {items.map((item, i) => {
+                                const retirado = item.cantidad_retirada || 0
+                                const pct = item.cantidad_total > 0 ? (retirado / item.cantidad_total) * 100 : 0
+                                const pendiente = item.cantidad_total - retirado
+                                return (
+                                  <div key={i} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                                      <div>
+                                        <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4, marginRight: 8 }}>{item.codigo}</span>
+                                        <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
+                                        <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 6 }}>{item.modelo}</span>
+                                      </div>
+                                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>{formatPrecio(item.precio_unitario)} c/u</div>
+                                    </div>
+                                    <div style={{ height: 6, background: 'var(--surface3)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
+                                      <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? '#3dd68c' : 'var(--brand-gradient)', borderRadius: 3, transition: 'width 0.3s' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)' }}>
+                                      <span>Retirado: <strong style={{ color: '#3dd68c' }}>{retirado}</strong> / {item.cantidad_total}</span>
+                                      <span>Pendiente: <strong style={{ color: pendiente > 0 ? '#ffd166' : 'var(--text3)' }}>{pendiente}</strong></span>
+                                      <span>{formatPrecio(item.precio_unitario * retirado)} retirado</span>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
 
-                        {/* Acciones */}
-                        {pv.estado === 'activa' && (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={() => cambiarEstado(pv.id, 'completada')} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                              ✓ Marcar completada
-                            </button>
-                            <button onClick={() => cambiarEstado(pv.id, 'cancelada')} style={{ background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                              Cancelar preventa
-                            </button>
-                          </div>
+                            {/* Totales */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+                              {[
+                                { label: 'Total preventa', value: totalPreventa(items), color: 'var(--text)' },
+                                { label: 'Retirado', value: totalRetirado(items), color: '#3dd68c' },
+                                { label: 'Pendiente', value: totalPendiente(items), color: '#ffd166' },
+                              ].map(({ label, value, color }) => (
+                                <div key={label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center' }}>
+                                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{label}</div>
+                                  <div style={{ fontSize: 14, fontWeight: 800, color }}>{formatPrecio(value)}</div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Notas */}
+                            {pv.notas && (
+                              <div style={{ marginBottom: 14, padding: '8px 12px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                                <span style={{ fontWeight: 700, color: '#7b9fff' }}>Notas: </span>{pv.notas}
+                              </div>
+                            )}
+
+                            {/* Acciones */}
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <button onClick={() => abrirEdicionPv(pv)}
+                                style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                ✏️ Editar preventa
+                              </button>
+                              {pv.estado === 'activa' && (
+                                <>
+                                  <button onClick={() => cambiarEstado(pv.id, 'completada')} style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                    ✓ Marcar completada
+                                  </button>
+                                  <button onClick={() => cambiarEstado(pv.id, 'cancelada')} style={{ background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                    Cancelar preventa
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </>
                         )}
                       </div>
                     )}
