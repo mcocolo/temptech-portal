@@ -332,6 +332,16 @@ export default function AdminPedidos() {
     }))
   }
 
+  function actualizarPrecioUnitario(idx, val) {
+    const precio = Math.max(0, parseFloat(val) || 0)
+    setItemsEdit(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      const base = item.precio_base || item.precio_unitario
+      const descPct = base > 0 ? Math.max(0, (base - precio) / base * 100) : 0
+      return { ...item, precio_unitario: precio, descuento_pct: Math.round(descPct * 100) / 100, subtotal: precio * item.cantidad }
+    }))
+  }
+
   async function confirmarPedido(pedido, nuevoEstado) {
     const itemsFinal = (nuevoEstado === 'modificado' || nuevoEstado === 'aprobado') ? itemsEdit : pedido.items
     const totalNeto = itemsFinal.reduce((s, i) => s + i.subtotal, 0)
@@ -710,25 +720,35 @@ export default function AdminPedidos() {
                               <button onClick={() => eliminarItem(idx)} style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '3px 8px', fontSize: 11, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>✕ Quitar</button>
                             </div>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                            {/* Descuento */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            {/* Precio unitario */}
                             <div>
                               <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
-                                Descuento % {item.precio_base && item.precio_base !== item.precio_unitario && (
-                                  <span style={{ color: 'var(--text3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-                                    (base: {formatPrecio(item.precio_base)})
+                                Precio c/u
+                                {item.precio_base && (
+                                  <span style={{ color: 'var(--text3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>
+                                    (lista: {formatPrecio(item.precio_base)})
                                   </span>
                                 )}
                               </div>
+                              <input
+                                type="number" min="0" step="0.01"
+                                value={item.precio_unitario}
+                                onChange={e => actualizarPrecioUnitario(idx, e.target.value)}
+                                style={{ width: '100%', background: 'var(--surface3)', border: '1px solid rgba(74,108,247,0.4)', borderRadius: 6, padding: '5px 8px', color: '#7b9fff', fontSize: 13, fontWeight: 700, outline: 'none', fontFamily: 'var(--font)' }}
+                              />
+                            </div>
+                            {/* Descuento */}
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Descuento %</div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <input
                                   type="number" min="0" max="100" step="0.5"
                                   value={item.descuento_pct}
                                   onChange={e => actualizarDescuento(idx, e.target.value)}
-                                  style={{ width: 64, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
+                                  style={{ width: '100%', textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
                                 />
                                 <span style={{ fontSize: 12, color: 'var(--text3)' }}>%</span>
-                                <span style={{ fontSize: 12, color: 'var(--green)', marginLeft: 4 }}>{formatPrecio(item.precio_unitario)} c/u</span>
                               </div>
                             </div>
                             {/* Cantidad */}
@@ -739,7 +759,7 @@ export default function AdminPedidos() {
                                 <input
                                   type="number" min="0" value={item.cantidad}
                                   onChange={e => actualizarCantidad(idx, e.target.value)}
-                                  style={{ width: 52, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
+                                  style={{ width: 44, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
                                 />
                                 <button onClick={() => actualizarCantidad(idx, item.cantidad + 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--brand-gradient)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                               </div>
