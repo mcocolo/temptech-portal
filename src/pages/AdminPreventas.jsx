@@ -37,6 +37,7 @@ export default function AdminPreventas() {
   const [pvNotasEdit, setPvNotasEdit] = useState('')
   const [pvFechaEdit, setPvFechaEdit] = useState('')
   const [pvShowPicker, setPvShowPicker] = useState(false)
+  const [pvIVAEdit, setPvIVAEdit] = useState(false)
   const [guardandoPv, setGuardandoPv] = useState(false)
 
   const IVA_PCT = 0.21
@@ -117,6 +118,9 @@ export default function AdminPreventas() {
     if (itemsForm.some(i => i.cantidad_total <= 0)) { toast.error('Todas las cantidades deben ser mayores a 0'); return }
     if (itemsForm.some(i => i.precio_unitario <= 0)) { toast.error('Todos los precios deben ser mayores a 0'); return }
 
+    const totalNeto = itemsForm.reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0)
+    const ivaMonto  = incluirIVA ? totalNeto * IVA_PCT : 0
+
     setGuardando(true)
     const { error } = await supabase.from('preventas').insert({
       distribuidor_id: distId,
@@ -124,6 +128,8 @@ export default function AdminPreventas() {
       items: itemsForm,
       notas: notasForm.trim() || null,
       fecha_vencimiento: fechaVenc || null,
+      incluir_iva: incluirIVA,
+      iva_monto: ivaMonto,
       created_by: user.id,
     })
 
@@ -152,6 +158,7 @@ export default function AdminPreventas() {
     setPvItemsEdit(pv.items.map(i => ({ ...i })))
     setPvNotasEdit(pv.notas || '')
     setPvFechaEdit(pv.fecha_vencimiento || '')
+    setPvIVAEdit(pv.incluir_iva || false)
     setPvShowPicker(false)
     setEditandoPv(pv.id)
   }
@@ -161,6 +168,7 @@ export default function AdminPreventas() {
     setPvItemsEdit([])
     setPvNotasEdit('')
     setPvFechaEdit('')
+    setPvIVAEdit(false)
     setPvShowPicker(false)
   }
 
@@ -198,11 +206,15 @@ export default function AdminPreventas() {
     if (pvItemsEdit.length === 0) { toast.error('La preventa debe tener al menos un producto'); return }
     if (pvItemsEdit.some(i => i.precio_unitario <= 0)) { toast.error('Todos los precios deben ser mayores a 0'); return }
     if (pvItemsEdit.some(i => i.cantidad_total <= 0)) { toast.error('Todas las cantidades deben ser mayores a 0'); return }
+    const totalNetoEdit = pvItemsEdit.reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0)
+    const ivaMontoEdit  = pvIVAEdit ? totalNetoEdit * IVA_PCT : 0
     setGuardandoPv(true)
     const { error } = await supabase.from('preventas').update({
       items: pvItemsEdit,
       notas: pvNotasEdit.trim() || null,
       fecha_vencimiento: pvFechaEdit || null,
+      incluir_iva: pvIVAEdit,
+      iva_monto: ivaMontoEdit,
       updated_at: new Date().toISOString(),
     }).eq('id', pv.id)
     setGuardandoPv(false)
@@ -481,11 +493,18 @@ export default function AdminPreventas() {
                               </span>
                             )}
                           </div>
-                          {pv.fecha_vencimiento && (
-                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                              Vence: {new Date(pv.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
+                            {pv.incluir_iva && (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.12)', border: '1px solid rgba(74,108,247,0.3)', padding: '1px 7px', borderRadius: 10 }}>
+                                IVA incl.
+                              </span>
+                            )}
+                            {pv.fecha_vencimiento && (
+                              <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                                Vence: {new Date(pv.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <span style={{ color: 'var(--text3)', fontSize: 14 }}>{abierta ? '▲' : '▼'}</span>
                       </div>
@@ -573,6 +592,28 @@ export default function AdminPreventas() {
                               </div>
                             )}
 
+                            {/* Toggle IVA */}
+                            {(() => {
+                              const netoEdit = pvItemsEdit.reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0)
+                              const ivaEdit  = pvIVAEdit ? netoEdit * IVA_PCT : 0
+                              return (
+                                <div style={{ padding: '10px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', marginBottom: pvIVAEdit ? 8 : 0 }}>
+                                    <input type="checkbox" checked={pvIVAEdit} onChange={e => setPvIVAEdit(e.target.checked)}
+                                      style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }} />
+                                    <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
+                                  </label>
+                                  {pvIVAEdit && (
+                                    <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text3)', flexWrap: 'wrap' }}>
+                                      <span>Subtotal neto: <strong style={{ color: 'var(--text)' }}>{formatPrecio(netoEdit)}</strong></span>
+                                      <span>IVA: <strong style={{ color: '#7b9fff' }}>{formatPrecio(ivaEdit)}</strong></span>
+                                      <span>Total c/IVA: <strong style={{ color: '#7b9fff' }}>{formatPrecio(netoEdit + ivaEdit)}</strong></span>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
+
                             {/* Notas y fecha */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 4 }}>
                               <div>
@@ -633,7 +674,7 @@ export default function AdminPreventas() {
                             </div>
 
                             {/* Totales */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: pv.incluir_iva ? 8 : 16 }}>
                               {[
                                 { label: 'Total preventa', value: totalPreventa(items), color: 'var(--text)' },
                                 { label: 'Retirado', value: totalRetirado(items), color: '#3dd68c' },
@@ -645,6 +686,13 @@ export default function AdminPreventas() {
                                 </div>
                               ))}
                             </div>
+                            {pv.incluir_iva && (
+                              <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12 }}>
+                                <span style={{ color: 'var(--text3)' }}>Subtotal neto: <strong style={{ color: 'var(--text)' }}>{formatPrecio(totalPreventa(items))}</strong></span>
+                                <span style={{ color: 'var(--text3)' }}>IVA (21%): <strong style={{ color: '#7b9fff' }}>{formatPrecio(pv.iva_monto || totalPreventa(items) * IVA_PCT)}</strong></span>
+                                <span style={{ color: 'var(--text3)' }}>Total c/IVA: <strong style={{ color: '#7b9fff' }}>{formatPrecio(totalPreventa(items) + (pv.iva_monto || totalPreventa(items) * IVA_PCT))}</strong></span>
+                              </div>
+                            )}
 
                             {/* Notas */}
                             {pv.notas && (
