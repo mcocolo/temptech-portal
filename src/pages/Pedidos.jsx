@@ -483,9 +483,18 @@ export default function Pedidos() {
                           </div>
                         )
                       })}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                        <span style={{ color: 'var(--text3)' }}>Saldo disponible</span>
-                        <span style={{ fontWeight: 800, color: '#ffd166' }}>{formatPrecio(pendiente)}</span>
+                      <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: 'var(--text3)' }}>Retirado</span>
+                          <span style={{ fontWeight: 700, color: '#3dd68c' }}>
+                            {formatPrecio(retirado)}
+                            {totalPv > 0 && <span style={{ fontSize: 11, marginLeft: 5 }}>({((retirado / totalPv) * 100).toFixed(0)}%)</span>}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: 'var(--text3)' }}>Saldo disponible</span>
+                          <span style={{ fontWeight: 800, color: '#ffd166' }}>{formatPrecio(pendiente)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>

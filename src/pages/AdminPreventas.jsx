@@ -403,6 +403,11 @@ export default function AdminPreventas() {
                             Retirado: <span style={{ color: '#3dd68c', fontWeight: 700 }}>{formatPrecio(totalRetirado(items))}</span>
                             {' / '}
                             <span style={{ fontWeight: 700 }}>{formatPrecio(totalPreventa(items))}</span>
+                            {totalPreventa(items) > 0 && (
+                              <span style={{ marginLeft: 6, color: '#3dd68c', fontWeight: 700 }}>
+                                ({((totalRetirado(items) / totalPreventa(items)) * 100).toFixed(0)}%)
+                              </span>
+                            )}
                           </div>
                           {pv.fecha_vencimiento && (
                             <div style={{ fontSize: 11, color: 'var(--text3)' }}>
