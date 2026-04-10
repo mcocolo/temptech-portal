@@ -251,6 +251,27 @@ export default function AdminPedidos() {
     setEsActualizacionPrecios(true)
   }
 
+  async function finalizarPedido(pedido) {
+    const { error } = await supabase.from('pedidos').update({ estado: 'finalizado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+
+    // Si es retiro de preventa, actualizar cantidad_retirada en la preventa
+    if (pedido.tipo === 'preventa' && pedido.preventa_id) {
+      const { data: pv } = await supabase.from('preventas').select('items').eq('id', pedido.preventa_id).single()
+      if (pv?.items) {
+        const updatedItems = pv.items.map(pvItem => {
+          const pedidoItem = pedido.items.find(i => i.codigo === pvItem.codigo)
+          if (!pedidoItem) return pvItem
+          return { ...pvItem, cantidad_retirada: (pvItem.cantidad_retirada || 0) + pedidoItem.cantidad }
+        })
+        await supabase.from('preventas').update({ items: updatedItems }).eq('id', pedido.preventa_id)
+      }
+    }
+
+    toast.success('Pedido finalizado ✅')
+    cargar()
+  }
+
   async function actualizarPrecios(pedido) {
     const itemsFinal = itemsEdit.filter(i => i.cantidad > 0)
     if (itemsFinal.length === 0) { toast.error('El pedido no puede quedar sin items'); return }
@@ -1043,10 +1064,7 @@ export default function AdminPedidos() {
                       </button>
                       {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
                         <button
-                          onClick={async () => {
-                            const { error } = await supabase.from('pedidos').update({ estado: 'finalizado' }).eq('id', pedido.id)
-                            if (error) toast.error('Error: ' + error.message); else { toast.success('Pedido finalizado ✅'); cargar() }
-                          }}
+                          onClick={() => finalizarPedido(pedido)}
                           style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                         >
                           ✓ Finalizado
