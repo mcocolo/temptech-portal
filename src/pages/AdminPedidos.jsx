@@ -362,7 +362,7 @@ export default function AdminPedidos() {
       updated_at: new Date().toISOString(),
     }).eq('id', pedido.id)
 
-    if (error) { toast.error('Error al guardar'); setGuardando(false); return }
+    if (error) { toast.error('Error al guardar: ' + error.message); setGuardando(false); return }
 
     // Enviar email al distribuidor
     try {

@@ -527,7 +527,7 @@ export default function Pedidos() {
                             <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4 }}>{item.codigo}</span>
                             <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo} · {formatPrecio(item.precio_unitario)} c/u</div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
                           <div style={{ fontSize: 11, color: pendiente > 0 ? '#ffd166' : '#3dd68c', marginTop: 3 }}>
                             {pendiente > 0 ? `${pendiente} disponibles para retirar` : 'Retiro completo ✓'}
                           </div>
@@ -563,52 +563,20 @@ export default function Pedidos() {
                       </div>
                     ) : (() => {
                       const itemsRetiroVista = prevActiva.items.filter(i => (cantsPrev[i.codigo] || 0) > 0)
-                      const totalNetoVista = itemsRetiroVista.reduce((s, i) => s + i.precio_unitario * cantsPrev[i.codigo], 0)
-                      const ivaVista = incluirIVAPrev ? totalNetoVista * IVA_PCT : 0
                       return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                           {itemsRetiroVista.map(item => (
-                            <div key={item.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                            <div key={item.codigo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                               <div>
                                 <div style={{ fontWeight: 600 }}>{item.nombre}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text3)' }}>x{cantsPrev[item.codigo]} × {formatPrecio(item.precio_unitario)}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
                               </div>
-                              <div style={{ fontWeight: 700 }}>{formatPrecio(item.precio_unitario * cantsPrev[item.codigo])}</div>
+                              <div style={{ fontWeight: 700, color: '#7b9fff' }}>x{cantsPrev[item.codigo]}</div>
                             </div>
                           ))}
-                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
-                            {incluirIVAPrev && (
-                              <>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
-                                  <span>Subtotal (neto)</span>
-                                  <span>{formatPrecio(totalNetoVista)}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
-                                  <span>IVA (21%)</span>
-                                  <span>{formatPrecio(ivaVista)}</span>
-                                </div>
-                              </>
-                            )}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>
-                              <span>Total{incluirIVAPrev ? ' c/IVA' : ''}</span>
-                              <span>{formatPrecio(totalNetoVista + ivaVista)}</span>
-                            </div>
-                          </div>
                         </div>
                       )
                     })()}
-                    {/* Toggle IVA preventa */}
-                    {!Object.values(cantsPrev).every(v => !v) && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer', userSelect: 'none' }}>
-                        <input
-                          type="checkbox"
-                          checked={incluirIVAPrev}
-                          onChange={e => setIncluirIVAPrev(e.target.checked)}
-                          style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }}
-                        />
-                        <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
-                      </label>
-                    )}
                     <div style={{ marginBottom: 14 }}>
                       <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Notas (opcional)</label>
                       <textarea

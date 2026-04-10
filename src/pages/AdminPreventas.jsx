@@ -744,7 +744,7 @@ export default function AdminPreventas() {
                                       <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4 }}>{item.codigo}</span>
                                       <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
                                     </div>
-                                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo} · {formatPrecio(item.precio_unitario)} c/u</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
                                     <div style={{ fontSize: 11, color: pendiente > 0 ? '#ffd166' : '#3dd68c', marginTop: 2 }}>
                                       {pendiente > 0 ? `${pendiente} disponibles` : 'Completo ✓'}
                                     </div>
@@ -766,42 +766,24 @@ export default function AdminPreventas() {
                             {/* Resumen entrega */}
                             {Object.values(cantEntrega).some(v => v > 0) && (() => {
                               const itemsEnt = items.filter(i => (cantEntrega[i.codigo] || 0) > 0)
-                              const neto = itemsEnt.reduce((s, i) => s + i.precio_unitario * cantEntrega[i.codigo], 0)
-                              const iva  = entregaIVA ? neto * IVA_PCT : 0
                               return (
                                 <div style={{ padding: '10px 14px', background: 'rgba(61,214,140,0.06)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)' }}>
                                   {itemsEnt.map(i => (
                                     <div key={i.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
-                                      <span>{i.nombre} x{cantEntrega[i.codigo]}</span>
-                                      <span>{formatPrecio(i.precio_unitario * cantEntrega[i.codigo])}</span>
+                                      <span>{i.nombre}</span>
+                                      <span style={{ fontWeight: 700, color: '#3dd68c' }}>x{cantEntrega[i.codigo]}</span>
                                     </div>
                                   ))}
-                                  {entregaIVA && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4 }}>
-                                      <span>IVA (21%)</span><span>{formatPrecio(iva)}</span>
-                                    </div>
-                                  )}
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 800, color: '#3dd68c', marginTop: 4 }}>
-                                    <span>Total entrega{entregaIVA ? ' c/IVA' : ''}</span>
-                                    <span>{formatPrecio(neto + iva)}</span>
-                                  </div>
                                 </div>
                               )
                             })()}
 
-                            {/* Toggle IVA + notas */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-                                <input type="checkbox" checked={entregaIVA} onChange={e => setEntregaIVA(e.target.checked)}
-                                  style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }} />
-                                <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
-                              </label>
-                              <div>
-                                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nota interna (opcional)</div>
-                                <textarea value={entregaNotas} onChange={e => setEntregaNotas(e.target.value)} rows={2}
-                                  placeholder="Observaciones de la entrega..."
-                                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'none', outline: 'none' }} />
-                              </div>
+                            {/* Notas */}
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nota interna (opcional)</div>
+                              <textarea value={entregaNotas} onChange={e => setEntregaNotas(e.target.value)} rows={2}
+                                placeholder="Observaciones de la entrega..."
+                                style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'none', outline: 'none' }} />
                             </div>
 
                             <div style={{ display: 'flex', gap: 8 }}>
