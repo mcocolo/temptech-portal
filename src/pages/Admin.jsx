@@ -80,6 +80,13 @@ export default function Admin() {
     loadAll()
   }
 
+  async function deletePost(postId) {
+    const { error } = await supabase.from('posts').delete().eq('id', postId)
+    if (error) { toast.error('Error al eliminar'); return }
+    toast.success('Consulta eliminada')
+    loadAll()
+  }
+
   async function toggleUserRole(userId, currentRole) {
     const newRole = currentRole === 'admin' ? 'client' : 'admin'
     await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
@@ -162,12 +169,15 @@ export default function Admin() {
                       <td style={{ padding: '12px 16px', fontSize: 13, textAlign: 'center' }}>{p.replies?.length || 0}</td>
                       <td style={{ padding: '12px 16px' }}><Badge color={STATUS_POST[p.status]?.color}>{STATUS_POST[p.status]?.label}</Badge></td>
                       <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text3)' }}>{formatDistanceToNow(new Date(p.created_at), { addSuffix: true, locale: es })}</td>
-                      <td style={{ padding: '12px 16px' }}>
+                      <td style={{ padding: '12px 16px', display: 'flex', gap: 6, alignItems: 'center' }}>
                         {p.status === 'open' && (
                           <Button size="sm" variant="success" onClick={() => markPostResolved(p.id)}>
                             <CheckCircle size={12} /> Resolver
                           </Button>
                         )}
+                        <Button size="sm" variant="danger" onClick={() => { if (window.confirm('¿Eliminar esta consulta?')) deletePost(p.id) }}>
+                          🗑
+                        </Button>
                       </td>
                     </tr>
                   ))}
