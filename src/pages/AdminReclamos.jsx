@@ -55,14 +55,30 @@ function Btn({ children, onClick, disabled, variant = 'ghost' }) {
   )
 }
 
-function InfoRow({ label, value }) {
+function InfoRow({ label, value, highlight }) {
   if (!value && value !== 0) return null
   return (
     <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
       <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: T.text2 }}>{value}</span>
+      <span style={{ color: highlight || T.text2, fontWeight: highlight ? 700 : 400 }}>{value}</span>
     </div>
   )
+}
+
+function tiempoSinRespuesta(fechaIngreso) {
+  if (!fechaIngreso) return null
+  const ingreso = new Date(fechaIngreso)
+  if (isNaN(ingreso.getTime())) return null
+  const ahora = new Date()
+  const diffMs = ahora - ingreso
+  if (diffMs < 0) return null
+  const totalMinutos = Math.floor(diffMs / 60000)
+  const dias = Math.floor(totalMinutos / (60 * 24))
+  const horas = Math.floor((totalMinutos % (60 * 24)) / 60)
+  const minutos = totalMinutos % 60
+  if (dias > 0) return `${dias}d ${horas}h ${minutos}m`
+  if (horas > 0) return `${horas}h ${minutos}m`
+  return `${minutos}m`
 }
 
 function formatearFecha(fecha) {
@@ -790,6 +806,13 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         <InfoRow label="# Venta" value={item.numero_venta_manual} />
                         <InfoRow label="Fecha compra" value={formatearFecha(item.fecha_compra)} />
                         <InfoRow label="Fecha ingreso" value={formatearFecha(item.fecha_ingreso)} />
+                        {item.estado !== 'cerrado' && item.estado !== 'rechazado' && (() => {
+                          const t = tiempoSinRespuesta(item.fecha_ingreso)
+                          if (!t) return null
+                          const diffH = (new Date() - new Date(item.fecha_ingreso)) / 3600000
+                          const color = diffH > 48 ? T.red : diffH > 24 ? T.yellow : T.green
+                          return <InfoRow label="Tiempo sin respuesta" value={t} highlight={color} />
+                        })()}
                         {(item.fecha_envio || item.fecha_resolucion) && <InfoRow label="Fecha de envío" value={formatearFecha(item.fecha_envio || item.fecha_resolucion)} />}
                       </div>
                     </div>

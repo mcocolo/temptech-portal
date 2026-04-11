@@ -80,7 +80,7 @@ const getThumb = (url) => { const id = getYouTubeId(url); return id ? `https://i
 const getEmbed = (url) => { const id = getYouTubeId(url); return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0` : url }
 const isShort  = (url) => url?.includes('/shorts/')
 
-const EMPTY_FORM = { title: '', description: '', url: '', duration: '', category: 'paneles_tutorial' }
+const EMPTY_FORM = { title: '', description: '', url: '', duration: '', category: 'paneles_tutorial', download_url: '' }
 
 export default function Videos() {
   const { isAdmin } = useAuth()
@@ -132,7 +132,7 @@ export default function Videos() {
     setEditing(v)
     const parent = getParent(v.category)
     setFParent(parent?.value || 'paneles')
-    setForm({ title: v.title, description: v.description || '', url: v.url, duration: v.duration || '', category: v.category })
+    setForm({ title: v.title, description: v.description || '', url: v.url, duration: v.duration || '', category: v.category, download_url: v.download_url || '' })
     setModalOpen(true)
   }
 
@@ -306,8 +306,16 @@ export default function Videos() {
                 <div style={{ padding: 16 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, lineHeight: 1.4 }}>{v.title}</div>
                   {v.description && <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{v.description}</div>}
-                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 10 }}>
-                    {new Date(v.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                      {new Date(v.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </div>
+                    {v.download_url && (
+                      <a href={v.download_url} download onClick={e => e.stopPropagation()} target="_blank" rel="noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#3dd68c', textDecoration: 'none' }}>
+                        ⬇ Descargar
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>
@@ -330,6 +338,12 @@ export default function Videos() {
               <iframe src={getEmbed(playing.url)} title={playing.title} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: 'var(--radius-lg)' }} />
             </div>
             {playing.description && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 12, lineHeight: 1.6 }}>{playing.description}</p>}
+            {playing.download_url && (
+              <a href={playing.download_url} download target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#3dd68c', textDecoration: 'none', marginTop: 10 }}>
+                ⬇ Descargar video
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -369,6 +383,7 @@ export default function Videos() {
           </div>
 
           <Textarea label="Descripción (opcional)" placeholder="Breve descripción del video..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={3} />
+          <Input label="Link de descarga (opcional)" placeholder="https://... (Google Drive, Dropbox, Supabase Storage, etc.)" value={form.download_url} onChange={e => setForm(p => ({ ...p, download_url: e.target.value }))} />
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
             <Button variant="ghost" onClick={() => { setModalOpen(false); setEditing(null) }}>Cancelar</Button>
             <Button onClick={submit} loading={submitting}>{editing ? 'Guardar cambios' : 'Publicar'}</Button>
