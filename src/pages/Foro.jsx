@@ -306,6 +306,23 @@ export default function Foro() {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, votes: currentVotes + 1 } : p))
   }
 
+  async function deletePost(postId) {
+    if (!window.confirm('¿Eliminar esta consulta?')) return
+    const { error } = await supabase.from('posts').delete().eq('id', postId)
+    if (error) { toast.error('Error al eliminar'); return }
+    toast.success('Consulta eliminada')
+    setSelected(null)
+    loadPosts()
+  }
+
+  async function deleteReply(replyId) {
+    if (!window.confirm('¿Eliminar esta respuesta?')) return
+    const { error } = await supabase.from('replies').delete().eq('id', replyId)
+    if (error) { toast.error('Error al eliminar'); return }
+    toast.success('Respuesta eliminada')
+    openPost(selected)
+  }
+
   // ── POST DETAIL ──
   if (selected) return (
     <div style={{ animation: 'fadeUp 0.3s ease', maxWidth: 760 }}>
@@ -330,7 +347,15 @@ export default function Foro() {
             )
           })()}
         </div>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, marginBottom: 14, lineHeight: 1.3 }}>{selected.title}</h1>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.3 }}>{selected.title}</h1>
+          {isAdmin && (
+            <button onClick={() => deletePost(selected.id)}
+              style={{ flexShrink: 0, background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '5px 12px', fontSize: 12, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
+              🗑 Eliminar consulta
+            </button>
+          )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
           <Avatar name={selected.profiles?.full_name} size={28} />
           <span style={{ fontSize: 13, color: 'var(--text2)' }}>{selected.profiles?.full_name}</span>
@@ -355,6 +380,15 @@ export default function Foro() {
                 <Avatar name={r.profiles?.full_name} size={26} />
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{r.profiles?.full_name}</span>
                 <span style={{ fontSize: 12, color: 'var(--text3)' }}>{formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: es })}</span>
+                {isAdmin && (
+                  <button onClick={() => deleteReply(r.id)}
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: '2px 6px', borderRadius: 4 }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#ff5577'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text3)'}
+                    title="Eliminar respuesta">
+                    🗑
+                  </button>
+                )}
               </div>
               <p style={{ fontSize: 14, lineHeight: 1.75, color: '#c0c2cc', whiteSpace: 'pre-wrap' }}>{r.body}</p>
             </div>
@@ -471,6 +505,12 @@ export default function Foro() {
                 <span style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}><MessageSquare size={12} /> {post.replies?.length || 0}</span>
                 <span style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}><Eye size={12} /> {post.views || 0}</span>
                 <span style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: es })}</span>
+                {isAdmin && (
+                  <button onClick={e => { e.stopPropagation(); deletePost(post.id) }}
+                    style={{ marginLeft: 4, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '2px 8px', fontSize: 11, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
+                    🗑
+                  </button>
+                )}
               </div>
             </div>
           </div>
