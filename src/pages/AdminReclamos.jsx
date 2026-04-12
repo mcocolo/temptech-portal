@@ -571,6 +571,13 @@ export default function AdminReclamos() {
     await cargar()
   }
 
+  async function eliminarReclamo(item) {
+    if (!window.confirm(`¿Eliminar el reclamo #${item.tracking_id || item.id.slice(0,8).toUpperCase()}? Esta acción no se puede deshacer.`)) return
+    const { error } = await supabase.from('devoluciones').delete().eq('id', item.id)
+    if (error) { alert('Error al eliminar: ' + error.message); return }
+    await cargar()
+  }
+
   async function cerrarCaso(item) {
     const texto = window.prompt('Nota para CERRAR:', '')
     if (texto === null) return
@@ -932,6 +939,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                       <Btn onClick={() => handleDesaprobar(item)} disabled={desaprobarBloqueado} variant="warn">Desaprobar</Btn>
                       <Btn onClick={() => { setRechazoAbiertoId(item.id); setTextoRechazo(item.motivo_rechazo || DEFAULT_RECHAZO(item.tracking_id)); setNotaRechazo('') }} disabled={esCerrado} variant="danger">Rechazar</Btn>
                       <Btn onClick={() => cerrarCaso(item)}>Cerrar</Btn>
+                      <Btn onClick={() => eliminarReclamo(item)} variant="danger">🗑 Eliminar</Btn>
                     </div>
 
                     {/* Panel desaprobar */}
