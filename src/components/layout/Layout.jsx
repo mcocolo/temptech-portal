@@ -36,6 +36,26 @@ const ADMIN_NAV = [
   { label: 'Preventas', icon: Package, path: '/admin-preventas', isAdmin: true },
 ]
 
+const ADMIN2_NAV = [
+  { section: 'Gestión' },
+  { label: 'Reclamos', icon: AlertTriangle, path: '/reclamos', isAdmin: true },
+  { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
+  { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
+  { label: 'Preventas', icon: Package, path: '/admin-preventas', isAdmin: true },
+]
+
+// Nav base para admin2: sin Reclamos (client), sin Mis Pedidos
+const NAV_ADMIN2 = [
+  { section: 'Principal' },
+  { label: 'Panel',             icon: LayoutDashboard, path: '/dashboard' },
+  { label: 'Novedades',         icon: Newspaper,       path: '/novedades' },
+  { section: 'Comunidad' },
+  { label: 'Foro de Consultas', icon: MessageSquare,   path: '/foro' },
+  { section: 'Recursos' },
+  { label: 'Videos',            icon: Video,           path: '/videos' },
+  { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+]
+
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { profile, signOut, isAdmin, isAdmin2, isDistributor } = useAuth()
@@ -43,7 +63,11 @@ export default function Layout({ children }) {
   const location  = useLocation()
 
   const baseNav = NAV.filter(item => !item.isDistributor || isDistributor || isAdmin)
-  const allNav = isAdmin ? [...baseNav, ...ADMIN_NAV] : baseNav
+  const allNav = isAdmin
+    ? [...baseNav, ...ADMIN_NAV]
+    : isAdmin2
+    ? [...NAV_ADMIN2, ...ADMIN2_NAV]
+    : baseNav
 
   function handleNav(path) {
     navigate(path)

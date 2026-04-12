@@ -497,7 +497,7 @@ function PerfilCliente({ u, onBack, isDistrib }) {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 export default function ClientesRegistrados() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isAdmin2 } = useAuth()
   const [usuarios, setUsuarios] = useState([])
   const [productosReg, setProductosReg] = useState([])
   const [loading, setLoading] = useState(true)
@@ -524,7 +524,7 @@ export default function ClientesRegistrados() {
     setLoading(false)
   }
 
-  if (!isAdmin) return null
+  if (!isAdmin && !isAdmin2) return null
 
   const clientes       = usuarios.filter(u => u.user_type === 'client'      || u.clientes?.user_type === 'client')
   const distribuidores = usuarios.filter(u => u.user_type === 'distributor' || u.clientes?.user_type === 'distributor')

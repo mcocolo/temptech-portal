@@ -14,7 +14,7 @@ const ESTADO_CONFIG = {
 }
 
 export default function AdminPreventas() {
-  const { isAdmin, user } = useAuth()
+  const { isAdmin, isAdmin2, user } = useAuth()
   const [tab, setTab] = useState('lista')           // 'lista' | 'nueva'
   const [preventas, setPreventas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -306,7 +306,7 @@ export default function AdminPreventas() {
   const totalRetirado = (items) => items.reduce((s, i) => s + i.precio_unitario * (i.cantidad_retirada || 0), 0)
   const totalPendiente = (items) => items.reduce((s, i) => s + i.precio_unitario * (i.cantidad_total - (i.cantidad_retirada || 0)), 0)
 
-  if (!isAdmin) return null
+  if (!isAdmin && !isAdmin2) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>

@@ -117,7 +117,7 @@ function formatDescuento(val) {
 }
 
 export default function Distribuidores() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isAdmin2 } = useAuth()
   const [distribuidores, setDistribuidores] = useState([])
   const [loading, setLoading] = useState(true)
   const [editando, setEditando] = useState(null)
@@ -165,7 +165,7 @@ export default function Distribuidores() {
     return !q || (d.razon_social || '').toLowerCase().includes(q) || (d.email || '').toLowerCase().includes(q) || (d.full_name || '').toLowerCase().includes(q)
   })
 
-  if (!isAdmin) return null
+  if (!isAdmin && !isAdmin2) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
