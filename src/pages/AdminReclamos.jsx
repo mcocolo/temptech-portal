@@ -780,15 +780,6 @@ export default function AdminReclamos() {
     await cargar()
   }
 
-  async function guardarSupervision(item, data) {
-    const { error } = await supabase.from('devoluciones').update({
-      supervision_fabrica: data,
-    }).eq('id', item.id)
-    if (error) { alert('Error al guardar supervisión: ' + error.message); return }
-    setSupervisionAbierto(null)
-    await cargar()
-  }
-
   async function guardarSupervision(item, supervision) {
     const { error } = await supabase.from('devoluciones').update({
       supervision_fabrica: supervision,
@@ -1186,7 +1177,6 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <Btn onClick={() => imprimirReclamo(item)} variant="ghost">🖨️ Imprimir</Btn>
                       <Btn onClick={() => editandoId === item.id ? setEditandoId(null) : abrirEdicion(item)} variant="ghost">✏️ Editar</Btn>
-                      <Btn onClick={() => setSupervisionAbierto(item)} variant="warn">🏭 Supervisión</Btn>
                       <Btn onClick={() => cambiarEstado(item, 'pendiente')} disabled={esCerrado}>Pendiente</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Resolucion' })} disabled={!aprobadoSI} variant="primary">🚚 Resolución</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Devolucion' })} disabled={!aprobadoSI} variant="orange">📦 Devolución</Btn>
