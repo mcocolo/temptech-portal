@@ -39,9 +39,6 @@ const ADMIN_NAV = [
 const ADMIN2_NAV = [
   { section: 'Gestión' },
   { label: 'Reclamos', icon: AlertTriangle, path: '/reclamos', isAdmin: true },
-  { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
-  { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
-  { label: 'Preventas', icon: Package, path: '/admin-preventas', isAdmin: true },
 ]
 
 // Nav base para admin2: sin Reclamos (client), sin Mis Pedidos

@@ -342,8 +342,7 @@ export default function Reclamos() {
   }
 
   // ── Vista admin ──
-  if (isAdmin) return <AdminReclamos />
-  if (isAdmin2) return <Admin2Reclamos />
+  if (isAdmin || isAdmin2) return <AdminReclamos />
 
   // ── Vista detalle ──
   if (selected) return (
