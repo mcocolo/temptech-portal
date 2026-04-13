@@ -120,13 +120,16 @@ function esFirenze(producto) {
 }
 
 function SupervisionFabrica({ item, onClose, onGuardar }) {
-  const productoReclamo = item.modelo ? `${item.producto} ${item.modelo}` : item.producto || ''
+  const productoReclamo = (item.modelo && item.modelo !== item.producto) ? `${item.producto} ${item.modelo}` : item.producto || ''
   const [coincide, setCoincide] = useState(null)         // true | false | null
   const [productoReal, setProductoReal] = useState('')
   const [roto, setRoto] = useState(null)
   const [golpeado, setGolpeado] = useState(null)
   const [funciona, setFunciona] = useState(null)
   const [tieneKit, setTieneKit] = useState(null)
+  const [cantTacos, setCantTacos] = useState('')
+  const [cantTornillos, setCantTornillos] = useState('')
+  const [cantEmbellecedores, setCantEmbellecedores] = useState('')
   const [tienePatas, setTienePatas] = useState(null)
   const [recuperable, setRecuperable] = useState(null)
   const [nota, setNota] = useState('')
@@ -179,6 +182,9 @@ function SupervisionFabrica({ item, onClose, onGuardar }) {
       producto_real: coincide === false ? productoReal : null,
       roto, golpeado, funciona,
       tiene_kit: tieneKit,
+      kit_tacos: tieneKit === false ? (parseInt(cantTacos) || null) : null,
+      kit_tornillos: tieneKit === false ? (parseInt(cantTornillos) || null) : null,
+      kit_embellecedores: tieneKit === false ? (parseInt(cantEmbellecedores) || null) : null,
       tiene_patas: mostrarPatas ? tienePatas : null,
       recuperable,
       nota: nota.trim() || null,
@@ -223,6 +229,32 @@ function SupervisionFabrica({ item, onClose, onGuardar }) {
           <SiNo label="¿Está golpeado?" value={golpeado} onChange={setGolpeado} />
           <SiNo label="¿Funciona?" value={funciona} onChange={setFunciona} />
           <SiNo label="¿Contiene kit?" value={tieneKit} onChange={setTieneKit} ayuda="No incluye tarugos" />
+          {tieneKit === false && (
+            <div style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 11, color: T.text3, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Contenido del kit recibido</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                {[
+                  { label: 'Tacos', val: cantTacos, set: setCantTacos },
+                  { label: 'Tornillos', val: cantTornillos, set: setCantTornillos },
+                  { label: 'Embellecedores', val: cantEmbellecedores, set: setCantEmbellecedores },
+                ].map(({ label, val, set }) => (
+                  <div key={label}>
+                    <div style={{ fontSize: 11, color: T.text3, fontWeight: 600, marginBottom: 5 }}>{label}</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[1, 2].map(n => (
+                        <button key={n} onClick={() => set(val === String(n) ? '' : String(n))}
+                          style={{ flex: 1, padding: '6px 0', borderRadius: T.radius, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: T.font, border: 'none',
+                            background: val === String(n) ? 'rgba(74,108,247,0.2)' : T.surface3,
+                            color: val === String(n) ? '#7b9fff' : T.text3,
+                            outline: val === String(n) ? '1.5px solid #7b9fff' : 'none',
+                          }}>{n}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {mostrarPatas && <SiNo label="¿Contiene patas?" value={tienePatas} onChange={setTienePatas} />}
 
           <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
@@ -243,11 +275,18 @@ function SupervisionFabrica({ item, onClose, onGuardar }) {
                 ))}
               </div>
             )}
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.surface3, border: `1px dashed ${T.border2}`, borderRadius: T.radius, padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: T.text2 }}>
-              📷 {imagenes.length > 0 ? `Agregar más (${imagenes.length})` : 'Agregar imágenes'}
-              <input type="file" accept="image/*" multiple capture="environment" style={{ display: 'none' }}
-                onChange={e => { if (e.target.files?.length) setImagenes(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
-            </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.surface3, border: `1px dashed ${T.border2}`, borderRadius: T.radius, padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: T.text2 }}>
+                🖼 {imagenes.length > 0 ? `Agregar más (${imagenes.length})` : 'Elegir archivo'}
+                <input type="file" accept="image/*" multiple style={{ display: 'none' }}
+                  onChange={e => { if (e.target.files?.length) setImagenes(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.surface3, border: `1px dashed ${T.border2}`, borderRadius: T.radius, padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: T.text2 }}>
+                📷 Tomar foto
+                <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+                  onChange={e => { if (e.target.files?.length) setImagenes(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
+              </label>
+            </div>
           </div>
 
           {/* Nota */}
@@ -1279,7 +1318,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
       {/* Modal Ver Supervisión */}
       {supervisionVer && (() => {
         const sv = supervisionVer.supervision_fabrica
-        const productoReclamo = supervisionVer.modelo ? `${supervisionVer.producto} ${supervisionVer.modelo}` : supervisionVer.producto || ''
+        const productoReclamo = (supervisionVer.modelo && supervisionVer.modelo !== supervisionVer.producto) ? `${supervisionVer.producto} ${supervisionVer.modelo}` : supervisionVer.producto || ''
         const yn = (v) => v === true ? <span style={{ color: T.green, fontWeight: 700 }}>SÍ</span> : v === false ? <span style={{ color: T.red, fontWeight: 700 }}>NO</span> : <span style={{ color: T.text3 }}>—</span>
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(6px)' }}>
@@ -1314,6 +1353,19 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     {yn(val)}
                   </div>
                 ))}
+                {sv.tiene_kit === false && (sv.kit_tacos || sv.kit_tornillos || sv.kit_embellecedores) && (
+                  <div style={{ padding: '10px 14px', background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius }}>
+                    <div style={{ fontSize: 10, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Contenido del kit recibido</div>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      {[['Tacos', sv.kit_tacos], ['Tornillos', sv.kit_tornillos], ['Embellecedores', sv.kit_embellecedores]].map(([label, val]) => val != null && (
+                        <div key={label} style={{ fontSize: 13 }}>
+                          <span style={{ color: T.text3 }}>{label}: </span>
+                          <strong style={{ color: T.text }}>{val}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {sv.nota && (
                   <div style={{ padding: '10px 14px', background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius }}>
                     <div style={{ fontSize: 10, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nota</div>
