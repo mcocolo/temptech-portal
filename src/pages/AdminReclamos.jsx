@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx-js-style'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 
 
 const T = {
@@ -104,6 +105,171 @@ async function subirArchivoAdmin(file, trackingId) {
 
 const DEFAULT_RECHAZO = (trackingId = 'XXXXXXXXX') =>
   `Por medio de la presente le comunicamos que en el día de la fecha se realizó el control de documentación correspondiente al reclamo "${trackingId}" y el mismo no fue aprobado.\n\nMOTIVO: FUERA DE GARANTÍA ---> Podemos ofrecerte el servicio de reparación de fábrica, para lo cual, deberás enviar el producto a Obon 1327, Valentín Alsina, CP 1822, Buenos Aires. Podés enviarlo a través de la logística que creas conveniente u acercarte a fábrica, donde lo revisarán y determinarán si es posible su reparación.\n\nMOTIVO: NO APLICA GARANTÍA ---> El producto sufrió modificaciones físicas que imposibilitan su reparación.`
+
+const PRODUCTOS_SUPERVISION = [
+  'Panel Calefactor Slim 250w', 'Panel Calefactor Slim 250w Toallero Simple', 'Panel Calefactor Slim 250w Toallero Doble',
+  'Panel Calefactor Slim 500w', 'Panel Calefactor Slim 500w Toallero Simple', 'Panel Calefactor Slim 500w Toallero Doble',
+  'Panel Calefactor Firenze 1400w Blanco', 'Panel Calefactor Firenze 1400w Madera Veteada', 'Panel Calefactor Firenze 1400w Piedra Azteca',
+  'Panel Calefactor Firenze 1400w Piedra Romana', 'Panel Calefactor Firenze 1400w Mármol Traviatta Gris', 'Panel Calefactor Firenze 1400w Piedra Cantera Luna',
+  'Panel Calefactor Firenze 1400w Mármol Calacatta Ocre', 'Panel Calefactor Firenze Smart 1400w Wifi',
+  'Calefón Eléctrico One', 'Calefón Eléctrico Nova', 'Calefón Eléctrico Pulse', 'Caldera Dual Core',
+]
+
+function esFirenze(producto) {
+  return typeof producto === 'string' && producto.toLowerCase().includes('firenze')
+}
+
+function SupervisionFabrica({ item, onClose, onGuardar }) {
+  const productoReclamo = item.modelo ? `${item.producto} ${item.modelo}` : item.producto || ''
+  const [coincide, setCoincide] = useState(null)         // true | false | null
+  const [productoReal, setProductoReal] = useState('')
+  const [roto, setRoto] = useState(null)
+  const [golpeado, setGolpeado] = useState(null)
+  const [funciona, setFunciona] = useState(null)
+  const [tieneKit, setTieneKit] = useState(null)
+  const [tienePatas, setTienePatas] = useState(null)
+  const [recuperable, setRecuperable] = useState(null)
+  const [nota, setNota] = useState('')
+  const [imagenes, setImagenes] = useState([])
+  const [guardando, setGuardando] = useState(false)
+
+  const productoEval = coincide === false ? productoReal : productoReclamo
+  const mostrarPatas = esFirenze(productoEval)
+
+  function SiNo({ label, value, onChange, ayuda }) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: T.surface2, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{label}</div>
+          {ayuda && <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>{ayuda}</div>}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {[true, false].map(v => (
+            <button key={String(v)} onClick={() => onChange(value === v ? null : v)}
+              style={{ padding: '5px 16px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: T.font, border: 'none',
+                background: value === v ? (v ? T.greenDim : T.redDim) : T.surface3,
+                color: value === v ? (v ? T.green : T.red) : T.text3,
+                outline: value === v ? `1.5px solid ${v ? T.green : T.red}` : 'none',
+              }}>
+              {v ? 'SÍ' : 'NO'}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  async function guardar() {
+    setGuardando(true)
+    const urls = []
+    for (const img of imagenes) {
+      try {
+        const safeName = sanitizeFileName(img.name)
+        const path = `supervision/${item.id}/${Date.now()}_${safeName}`
+        const { error } = await supabase.storage.from('devoluciones').upload(path, img, { upsert: false })
+        if (!error) {
+          const { data } = supabase.storage.from('devoluciones').getPublicUrl(path)
+          urls.push(data.publicUrl)
+        }
+      } catch {}
+    }
+    const supervision = {
+      fecha: new Date().toISOString(),
+      coincide_producto: coincide,
+      producto_real: coincide === false ? productoReal : null,
+      roto, golpeado, funciona,
+      tiene_kit: tieneKit,
+      tiene_patas: mostrarPatas ? tienePatas : null,
+      recuperable,
+      nota: nota.trim() || null,
+      imagenes: urls,
+    }
+    await onGuardar(supervision)
+    setGuardando(false)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(6px)' }}>
+      <div style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: T.radiusLg, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ padding: '18px 22px 14px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: T.surface, zIndex: 1 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>🏭 Supervisión Fábrica</div>
+            <div style={{ fontSize: 12, color: T.text3, marginTop: 2 }}>Reclamo #{item.tracking_id || item.id?.slice(0,8).toUpperCase()}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Producto del reclamo */}
+          <div style={{ padding: '10px 14px', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: T.radius, fontSize: 13, color: T.blue }}>
+            <span style={{ fontWeight: 600 }}>Producto del reclamo: </span>{productoReclamo || '—'}
+          </div>
+
+          <SiNo label="¿El producto coincide con el reclamo?" value={coincide} onChange={setCoincide} />
+
+          {coincide === false && (
+            <div>
+              <div style={{ fontSize: 11, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 5 }}>Seleccioná el producto recibido</div>
+              <select value={productoReal} onChange={e => setProductoReal(e.target.value)}
+                style={{ width: '100%', background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '9px 12px', color: productoReal ? T.text : T.text3, fontSize: 13, fontFamily: T.font, outline: 'none' }}>
+                <option value="">Seleccioná un producto...</option>
+                {PRODUCTOS_SUPERVISION.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          )}
+
+          <SiNo label="¿Está roto?" value={roto} onChange={setRoto} />
+          <SiNo label="¿Está golpeado?" value={golpeado} onChange={setGolpeado} />
+          <SiNo label="¿Funciona?" value={funciona} onChange={setFunciona} />
+          <SiNo label="¿Contiene kit?" value={tieneKit} onChange={setTieneKit} ayuda="No incluye tarugos" />
+          {mostrarPatas && <SiNo label="¿Contiene patas?" value={tienePatas} onChange={setTienePatas} />}
+
+          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
+            <SiNo label="¿El producto es recuperable?" value={recuperable} onChange={setRecuperable} />
+          </div>
+
+          {/* Imágenes */}
+          <div>
+            <div style={{ fontSize: 11, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Adjuntar imágenes (opcional)</div>
+            {imagenes.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {imagenes.map((f, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img src={URL.createObjectURL(f)} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}` }} />
+                    <button onClick={() => setImagenes(prev => prev.filter((_, j) => j !== i))}
+                      style={{ position: 'absolute', top: -6, right: -6, background: T.red, border: 'none', borderRadius: '50%', width: 18, height: 18, color: '#fff', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.surface3, border: `1px dashed ${T.border2}`, borderRadius: T.radius, padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: T.text2 }}>
+              📷 {imagenes.length > 0 ? `Agregar más (${imagenes.length})` : 'Agregar imágenes'}
+              <input type="file" accept="image/*" multiple capture="environment" style={{ display: 'none' }}
+                onChange={e => { if (e.target.files?.length) setImagenes(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
+            </label>
+          </div>
+
+          {/* Nota */}
+          <div>
+            <div style={{ fontSize: 11, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 5 }}>Nota (opcional)</div>
+            <textarea value={nota} onChange={e => setNota(e.target.value)} rows={3}
+              placeholder="Observaciones de la revisión..."
+              style={{ width: '100%', background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, resize: 'vertical', outline: 'none', lineHeight: 1.6 }} />
+          </div>
+
+          {/* Botones */}
+          <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+            <Btn variant="success" onClick={guardar} disabled={guardando || coincide === null}>
+              {guardando ? 'Guardando...' : '✓ Guardar supervisión'}
+            </Btn>
+            <Btn onClick={onClose}>Cancelar</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Panel unificado Resolución / Devolución / Service ──
 function PanelEnvio({ item, tipo, onClose, onGuardar }) {
@@ -331,6 +497,10 @@ export default function AdminReclamos() {
   const [notasInternas, setNotasInternas] = useState({})
   const [editandoId, setEditandoId] = useState(null)
   const [editForm, setEditForm] = useState({})
+  const [supervisionAbierto, setSupervisionAbierto] = useState(null)  // item abierto para cargar
+  const [supervisionVer, setSupervisionVer] = useState(null)           // item para ver resultado
+
+  const { isAdmin, isAdmin2 } = useAuth()
 
   const datosFiltrados = datos.filter(item => {
     if (!busquedaTracking) return true
@@ -568,6 +738,24 @@ export default function AdminReclamos() {
     }).eq('id', item.id)
     if (error) { alert('Error al guardar los cambios'); return }
     setEditandoId(null)
+    await cargar()
+  }
+
+  async function guardarSupervision(item, data) {
+    const { error } = await supabase.from('devoluciones').update({
+      supervision_fabrica: data,
+    }).eq('id', item.id)
+    if (error) { alert('Error al guardar supervisión: ' + error.message); return }
+    setSupervisionAbierto(null)
+    await cargar()
+  }
+
+  async function guardarSupervision(item, supervision) {
+    const { error } = await supabase.from('devoluciones').update({
+      supervision_fabrica: supervision,
+    }).eq('id', item.id)
+    if (error) { alert('Error al guardar supervisión: ' + error.message); return }
+    setSupervisionAbierto(null)
     await cargar()
   }
 
@@ -812,6 +1000,21 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         <InfoRow label="Vendedor" value={item.vendedor} />
                         <InfoRow label="# Venta" value={item.numero_venta_manual} />
                         <InfoRow label="Fecha compra" value={formatearFecha(item.fecha_compra)} />
+                        {/* Supervisión fábrica */}
+                        <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
+                          <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Supervisión fábrica</span>
+                          {item.supervision_fabrica ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ color: T.green, fontWeight: 700 }}>✓ Completada</span>
+                              <button onClick={() => setSupervisionVer(item)}
+                                style={{ background: 'rgba(74,108,247,0.12)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '1px 10px', fontSize: 11, fontWeight: 600, color: '#7b9fff', cursor: 'pointer', fontFamily: T.font }}>
+                                VER
+                              </button>
+                            </span>
+                          ) : (
+                            <span style={{ color: T.text3 }}>—</span>
+                          )}
+                        </div>
                         <InfoRow label="Fecha ingreso" value={formatearFecha(item.fecha_ingreso)} />
                         {item.estado !== 'cerrado' && item.estado !== 'rechazado' && (() => {
                           const t = tiempoSinRespuesta(item.fecha_ingreso)
@@ -821,6 +1024,20 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           return <InfoRow label="Tiempo sin respuesta" value={t} highlight={color} />
                         })()}
                         {(item.fecha_envio || item.fecha_resolucion) && <InfoRow label="Fecha de envío" value={formatearFecha(item.fecha_envio || item.fecha_resolucion)} />}
+                        <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5, alignItems: 'center' }}>
+                          <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Supervisión fábrica</span>
+                          {item.supervision_fabrica ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ color: T.green, fontWeight: 700 }}>SÍ</span>
+                              <button onClick={() => setSupervisionVer(item)}
+                                style={{ background: 'rgba(74,108,247,0.12)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '2px 10px', fontSize: 11, color: '#7b9fff', cursor: 'pointer', fontWeight: 600, fontFamily: T.font }}>
+                                VER
+                              </button>
+                            </span>
+                          ) : (
+                            <span style={{ color: T.text3 }}>NO</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -930,6 +1147,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <Btn onClick={() => imprimirReclamo(item)} variant="ghost">🖨️ Imprimir</Btn>
                       <Btn onClick={() => editandoId === item.id ? setEditandoId(null) : abrirEdicion(item)} variant="ghost">✏️ Editar</Btn>
+                      <Btn onClick={() => setSupervisionAbierto(item)} variant="warn">🏭 Supervisión</Btn>
                       <Btn onClick={() => cambiarEstado(item, 'pendiente')} disabled={esCerrado}>Pendiente</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Resolucion' })} disabled={!aprobadoSI} variant="primary">🚚 Resolución</Btn>
                       <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Devolucion' })} disabled={!aprobadoSI} variant="orange">📦 Devolución</Btn>
@@ -939,6 +1157,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                       <Btn onClick={() => handleDesaprobar(item)} disabled={desaprobarBloqueado} variant="warn">Desaprobar</Btn>
                       <Btn onClick={() => { setRechazoAbiertoId(item.id); setTextoRechazo(item.motivo_rechazo || DEFAULT_RECHAZO(item.tracking_id)); setNotaRechazo('') }} disabled={esCerrado} variant="danger">Rechazar</Btn>
                       <Btn onClick={() => cerrarCaso(item)}>Cerrar</Btn>
+                      <Btn onClick={() => setSupervisionAbierto(item)} variant="teal">🏭 Supervisión</Btn>
                       <Btn onClick={() => eliminarReclamo(item)} variant="danger">🗑 Eliminar</Btn>
                     </div>
 
@@ -1047,6 +1266,81 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
           </div>
         )}
       </div>
+
+      {/* Modal Supervisión Fábrica — cargar nueva */}
+      {supervisionAbierto && (
+        <SupervisionFabrica
+          item={supervisionAbierto}
+          onClose={() => setSupervisionAbierto(null)}
+          onGuardar={(data) => guardarSupervision(supervisionAbierto, data)}
+        />
+      )}
+
+      {/* Modal Ver Supervisión */}
+      {supervisionVer && (() => {
+        const sv = supervisionVer.supervision_fabrica
+        const productoReclamo = supervisionVer.modelo ? `${supervisionVer.producto} ${supervisionVer.modelo}` : supervisionVer.producto || ''
+        const yn = (v) => v === true ? <span style={{ color: T.green, fontWeight: 700 }}>SÍ</span> : v === false ? <span style={{ color: T.red, fontWeight: 700 }}>NO</span> : <span style={{ color: T.text3 }}>—</span>
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(6px)' }}>
+            <div style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: T.radiusLg, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ padding: '18px 22px 14px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>🏭 Supervisión Fábrica</div>
+                  <div style={{ fontSize: 12, color: T.text3, marginTop: 2 }}>#{supervisionVer.tracking_id} · {sv.fecha ? formatearFecha(sv.fecha) : '—'}</div>
+                </div>
+                <button onClick={() => setSupervisionVer(null)} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+              </div>
+              <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ padding: '10px 14px', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: T.radius, fontSize: 13, color: T.blue }}>
+                  <span style={{ fontWeight: 600 }}>Producto del reclamo: </span>{productoReclamo || '—'}
+                </div>
+                {sv.coincide_producto === false && sv.producto_real && (
+                  <div style={{ padding: '8px 14px', background: T.redDim, border: `1px solid ${T.red}40`, borderRadius: T.radius, fontSize: 13, color: T.red }}>
+                    ⚠️ Producto recibido: <strong>{sv.producto_real}</strong>
+                  </div>
+                )}
+                {[
+                  ['¿Coincide con el reclamo?', sv.coincide_producto],
+                  ['¿Está roto?', sv.roto],
+                  ['¿Está golpeado?', sv.golpeado],
+                  ['¿Funciona?', sv.funciona],
+                  ['¿Contiene kit?', sv.tiene_kit],
+                  ...(sv.tiene_patas !== null && sv.tiene_patas !== undefined ? [['¿Contiene patas?', sv.tiene_patas]] : []),
+                  ['¿Es recuperable?', sv.recuperable],
+                ].map(([label, val]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', background: T.surface2, borderRadius: T.radius, border: `1px solid ${T.border}`, fontSize: 13 }}>
+                    <span style={{ color: T.text2 }}>{label}</span>
+                    {yn(val)}
+                  </div>
+                ))}
+                {sv.nota && (
+                  <div style={{ padding: '10px 14px', background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius }}>
+                    <div style={{ fontSize: 10, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nota</div>
+                    <div style={{ fontSize: 13, color: T.text2, whiteSpace: 'pre-wrap' }}>{sv.nota}</div>
+                  </div>
+                )}
+                {sv.imagenes?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>Imágenes ({sv.imagenes.length})</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {sv.imagenes.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer">
+                          <img src={url} alt="" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}` }} />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
+                  <Btn onClick={() => { setSupervisionVer(null); setSupervisionAbierto(supervisionVer) }}>✏️ Editar</Btn>
+                  <Btn onClick={() => setSupervisionVer(null)}>Cerrar</Btn>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
