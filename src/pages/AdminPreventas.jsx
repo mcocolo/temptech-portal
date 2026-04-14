@@ -207,6 +207,14 @@ export default function AdminPreventas() {
     }))
   }
 
+  function pvActualizarRetirado(idx, val) {
+    const n = Math.max(0, parseInt(val) || 0)
+    setPvItemsEdit(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      return { ...item, cantidad_retirada: Math.min(n, item.cantidad_total) }
+    }))
+  }
+
   function pvQuitarItem(idx) {
     const item = pvItemsEdit[idx]
     if ((item.cantidad_retirada || 0) > 0) { toast.error('No se puede quitar un producto que ya tiene retiros'); return }
@@ -649,7 +657,7 @@ export default function AdminPreventas() {
                                       ✕ Quitar
                                     </button>
                                   </div>
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                                     <div>
                                       <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Precio unitario</div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -661,7 +669,7 @@ export default function AdminPreventas() {
                                     </div>
                                     <div>
                                       <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>
-                                        Cantidad total {retirado > 0 && <span style={{ color: '#ffd166', textTransform: 'none' }}>(mín. {retirado} retirados)</span>}
+                                        Cant. total {retirado > 0 && <span style={{ color: '#ffd166', textTransform: 'none' }}>(mín. {retirado})</span>}
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                         <button onClick={() => pvActualizarCantidad(idx, item.cantidad_total - 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
@@ -669,6 +677,16 @@ export default function AdminPreventas() {
                                           onChange={e => pvActualizarCantidad(idx, e.target.value)}
                                           style={{ width: 56, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
                                         <button onClick={() => pvActualizarCantidad(idx, item.cantidad_total + 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--brand-gradient)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 10, color: '#ffd166', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Cant. retirada</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        <button onClick={() => pvActualizarRetirado(idx, retirado - 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                                        <input type="number" min="0" max={item.cantidad_total} value={retirado}
+                                          onChange={e => pvActualizarRetirado(idx, e.target.value)}
+                                          style={{ width: 52, textAlign: 'center', background: 'var(--surface3)', border: '1px solid rgba(255,209,102,0.4)', borderRadius: 6, padding: '5px', color: '#ffd166', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', fontWeight: 700 }} />
+                                        <button onClick={() => pvActualizarRetirado(idx, retirado + 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                                       </div>
                                     </div>
                                   </div>
