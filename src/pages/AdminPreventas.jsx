@@ -893,7 +893,7 @@ export default function AdminPreventas() {
                               <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center', position: 'relative' }}>
                                 <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Saldo cobrado</div>
                                 {editandoSaldo === pv.id ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                  <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>$</span>
                                     <input
                                       type="number" min="0" step="0.01"
@@ -901,16 +901,16 @@ export default function AdminPreventas() {
                                       onChange={e => setSaldoInput(e.target.value)}
                                       onKeyDown={e => { if (e.key === 'Enter') guardarSaldo(pv.id); if (e.key === 'Escape') setEditandoSaldo(null) }}
                                       autoFocus
-                                      style={{ width: 110, background: 'var(--surface3)', border: '1px solid rgba(74,108,247,0.5)', borderRadius: 6, padding: '3px 7px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', textAlign: 'right' }}
+                                      style={{ width: 110, background: 'var(--surface)', border: '2px solid #7b9fff', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 14, outline: 'none', fontFamily: 'var(--font)', textAlign: 'right', fontWeight: 700 }}
                                     />
-                                    <button onClick={() => guardarSaldo(pv.id)} style={{ background: 'rgba(61,214,140,0.15)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 6, color: '#3dd68c', cursor: 'pointer', fontSize: 13, padding: '2px 8px' }}>✓</button>
-                                    <button onClick={() => setEditandoSaldo(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: '2px 6px' }}>✕</button>
+                                    <button onClick={e => { e.stopPropagation(); guardarSaldo(pv.id) }} style={{ background: 'rgba(61,214,140,0.15)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 6, color: '#3dd68c', cursor: 'pointer', fontSize: 13, padding: '2px 8px', fontFamily: 'var(--font)' }}>✓</button>
+                                    <button onClick={e => { e.stopPropagation(); setEditandoSaldo(null) }} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: '2px 6px' }}>✕</button>
                                   </div>
                                 ) : (
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                                     <span style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa' }}>{formatPrecio(pv.saldo_cobrado || 0)}</span>
-                                    <button onClick={() => { setEditandoSaldo(pv.id); setSaldoInput(pv.saldo_cobrado || 0) }}
-                                      style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>✏️</button>
+                                    <button onClick={e => { e.stopPropagation(); setEditandoSaldo(pv.id); setSaldoInput(pv.saldo_cobrado || 0) }}
+                                      style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.4)', borderRadius: 6, color: '#a78bfa', cursor: 'pointer', fontSize: 12, padding: '2px 8px', fontFamily: 'var(--font)', fontWeight: 600 }}>✏️ Editar</button>
                                   </div>
                                 )}
                               </div>
