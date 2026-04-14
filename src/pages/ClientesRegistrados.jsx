@@ -787,6 +787,7 @@ export default function ClientesRegistrados() {
   }
 
   return (
+    <>
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Clientes Registrados</h1>
@@ -1042,5 +1043,6 @@ export default function ClientesRegistrados() {
         </div>
       </div>
     )}
+    </>
   )
 }
