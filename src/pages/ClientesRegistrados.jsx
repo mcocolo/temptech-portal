@@ -197,7 +197,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800 }}>{u.full_name || cl?.full_name || '-'}</div>
             {isDistrib && cl?.razon_social && <div style={{ fontSize: 13, color: '#ffd166', fontWeight: 600 }}>{cl.razon_social}</div>}
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>{u.email || cl?.email}</div>
-            {!isDistrib && (
+            {isDistrib && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>Vendedor:</span>
                 <select
@@ -736,7 +736,7 @@ export default function ClientesRegistrados() {
                   {u.telefono || cl?.telefono
                     ? <span style={{ fontSize: 12, color: 'var(--text3)' }}>{u.telefono || cl.telefono}</span>
                     : null}
-                  {!isDistrib && (
+                  {isDistrib && (
                     <span style={{ fontSize: 11, fontWeight: 600, color: u.vendedor_id ? '#3dd68c' : 'var(--text3)', background: u.vendedor_id ? 'rgba(61,214,140,0.1)' : 'var(--surface2)', border: `1px solid ${u.vendedor_id ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, padding: '2px 8px', borderRadius: 20 }}>
                       {nombreVendedor(u.vendedor_id)}
                     </span>
