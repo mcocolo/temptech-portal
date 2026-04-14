@@ -73,7 +73,7 @@ const STATUS_PEDIDO = {
 }
 
 // ── Vista de perfil completo ──────────────────────────────────────────────────
-function PerfilCliente({ u, onBack, isDistrib }) {
+function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedor }) {
   const cl = u.clientes
   const [tab, setTab] = useState('datos')
   const [historial, setHistorial] = useState({ posts: [], reclamos: [], productos: [], pedidos: [] })
@@ -197,6 +197,22 @@ function PerfilCliente({ u, onBack, isDistrib }) {
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800 }}>{u.full_name || cl?.full_name || '-'}</div>
             {isDistrib && cl?.razon_social && <div style={{ fontSize: 13, color: '#ffd166', fontWeight: 600 }}>{cl.razon_social}</div>}
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>{u.email || cl?.email}</div>
+            {!isDistrib && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>Vendedor:</span>
+                <select
+                  value={u.vendedor_id || ''}
+                  onChange={e => onAsignarVendedor?.(u.id, e.target.value || null)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="">TEMPTECH</option>
+                  {vendedores.map(v => (
+                    <option key={v.id} value={v.id}>{v.razon_social || v.full_name || v.email}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -499,6 +515,7 @@ function PerfilCliente({ u, onBack, isDistrib }) {
 export default function ClientesRegistrados() {
   const { isAdmin, isAdmin2 } = useAuth()
   const [usuarios, setUsuarios] = useState([])
+  const [vendedores, setVendedores] = useState([])
   const [productosReg, setProductosReg] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -515,13 +532,29 @@ export default function ClientesRegistrados() {
 
   async function load() {
     setLoading(true)
-    const [{ data: perfiles }, { data: prods }] = await Promise.all([
+    const [{ data: perfiles }, { data: prods }, { data: vends }] = await Promise.all([
       supabase.from('profiles').select('*, clientes(*)').order('created_at', { ascending: false }),
       supabase.from('productos_registrados').select('*').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('id, full_name, razon_social, email').eq('role', 'vendedor'),
     ])
     setUsuarios(perfiles || [])
     setProductosReg(prods || [])
+    setVendedores(vends || [])
     setLoading(false)
+  }
+
+  async function asignarVendedor(userId, vendedorId) {
+    const { error } = await supabase.from('profiles').update({ vendedor_id: vendedorId || null }).eq('id', userId)
+    if (error) { toast.error('Error al asignar vendedor'); return }
+    toast.success('Vendedor asignado ✅')
+    setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, vendedor_id: vendedorId || null } : u))
+    if (detailUser?.id === userId) setDetailUser(prev => ({ ...prev, vendedor_id: vendedorId || null }))
+  }
+
+  function nombreVendedor(vendedor_id) {
+    if (!vendedor_id) return 'TEMPTECH'
+    const v = vendedores.find(v => v.id === vendedor_id)
+    return v ? (v.razon_social || v.full_name || v.email) : 'TEMPTECH'
   }
 
   if (!isAdmin && !isAdmin2) return null
@@ -563,7 +596,7 @@ export default function ClientesRegistrados() {
   // Mostrar perfil completo
   if (detailUser) {
     const isDistrib = detailUser.user_type === 'distributor' || detailUser.clientes?.user_type === 'distributor'
-    return <PerfilCliente u={detailUser} isDistrib={isDistrib} onBack={() => setDetailUser(null)} />
+    return <PerfilCliente u={detailUser} isDistrib={isDistrib} onBack={() => setDetailUser(null)} vendedores={vendedores} onAsignarVendedor={asignarVendedor} />
   }
 
   return (
@@ -703,6 +736,11 @@ export default function ClientesRegistrados() {
                   {u.telefono || cl?.telefono
                     ? <span style={{ fontSize: 12, color: 'var(--text3)' }}>{u.telefono || cl.telefono}</span>
                     : null}
+                  {!isDistrib && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: u.vendedor_id ? '#3dd68c' : 'var(--text3)', background: u.vendedor_id ? 'rgba(61,214,140,0.1)' : 'var(--surface2)', border: `1px solid ${u.vendedor_id ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, padding: '2px 8px', borderRadius: 20 }}>
+                      {nombreVendedor(u.vendedor_id)}
+                    </span>
+                  )}
                   {createdAt && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDistanceToNow(new Date(createdAt), { addSuffix: true, locale: es })}</span>}
                   <span style={{ fontSize: 11, color: '#7b9fff' }}>Ver perfil →</span>
                 </div>

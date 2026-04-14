@@ -41,7 +41,7 @@ const ADMIN2_NAV = [
   { label: 'Reclamos', icon: AlertTriangle, path: '/reclamos', isAdmin: true },
 ]
 
-// Nav base para admin2: sin Reclamos (client), sin Mis Pedidos
+// Nav base para admin2
 const NAV_ADMIN2 = [
   { section: 'Principal' },
   { label: 'Panel',             icon: LayoutDashboard, path: '/dashboard' },
@@ -53,9 +53,24 @@ const NAV_ADMIN2 = [
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
 ]
 
+// Nav para vendedor
+const NAV_VENDEDOR = [
+  { section: 'Principal' },
+  { label: 'Panel',             icon: LayoutDashboard, path: '/dashboard' },
+  { label: 'Novedades',         icon: Newspaper,       path: '/novedades' },
+  { section: 'Gestión' },
+  { label: 'Mis Clientes',      icon: Users,           path: '/mis-clientes' },
+  { label: 'Reclamos',          icon: AlertTriangle,   path: '/reclamos' },
+  { label: 'Pedidos',           icon: ShoppingCart,    path: '/admin-pedidos' },
+  { section: 'Recursos' },
+  { label: 'Lista de Precios',  icon: Tags,            path: '/admin-precios' },
+  { label: 'Videos',            icon: Video,           path: '/videos' },
+  { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+]
+
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { profile, signOut, isAdmin, isAdmin2, isDistributor } = useAuth()
+  const { profile, signOut, isAdmin, isAdmin2, isVendedor, isDistributor } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -64,6 +79,8 @@ export default function Layout({ children }) {
     ? [...baseNav, ...ADMIN_NAV]
     : isAdmin2
     ? [...NAV_ADMIN2, ...ADMIN2_NAV]
+    : isVendedor
+    ? NAV_VENDEDOR
     : baseNav
 
   function handleNav(path) {

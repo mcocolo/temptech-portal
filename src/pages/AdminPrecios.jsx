@@ -53,7 +53,7 @@ function parsearCSV(texto) {
 }
 
 export default function AdminPrecios() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isVendedor } = useAuth()
   const [precios, setPrecios] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroCat, setFiltroCat] = useState('todos')
@@ -63,7 +63,7 @@ export default function AdminPrecios() {
   const [precioEdit, setPrecioEdit] = useState('')
   const fileRef = useRef()
 
-  useEffect(() => { if (isAdmin) cargar() }, [isAdmin])
+  useEffect(() => { if (isAdmin || isVendedor) cargar() }, [isAdmin, isVendedor])
 
   async function cargar() {
     setLoading(true)
@@ -128,7 +128,7 @@ export default function AdminPrecios() {
 
   const preciosFiltrados = filtroCat === 'todos' ? precios : precios.filter(p => p.categoria === filtroCat)
 
-  if (!isAdmin) return null
+  if (!isAdmin && !isVendedor) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -145,18 +145,22 @@ export default function AdminPrecios() {
           >
             <RefreshCw size={13} /> Actualizar
           </button>
-          <button
-            onClick={() => fileRef.current?.click()}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--brand-gradient)', border: 'none', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font)' }}
-          >
-            <Upload size={14} /> Subir CSV
-          </button>
-          <input ref={fileRef} type="file" accept=".csv" onChange={handleArchivo} style={{ display: 'none' }} />
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => fileRef.current?.click()}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--brand-gradient)', border: 'none', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font)' }}
+              >
+                <Upload size={14} /> Subir CSV
+              </button>
+              <input ref={fileRef} type="file" accept=".csv" onChange={handleArchivo} style={{ display: 'none' }} />
+            </>
+          )}
         </div>
       </div>
 
-      {/* Instrucciones CSV */}
-      <div style={{ background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24 }}>
+      {/* Instrucciones CSV — solo admin */}
+      {isAdmin && <div style={{ background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <FileText size={14} color="#7b9fff" />
           <span style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff' }}>Formato del CSV</span>
@@ -170,7 +174,7 @@ export default function AdminPrecios() {
         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 10 }}>
           💡 En Excel: <strong>Archivo → Guardar como → CSV UTF-8 (delimitado por comas)</strong>. El precio debe usar punto como decimal (ej: <code>165585.15</code>).
         </div>
-      </div>
+      </div>}
 
       {/* Preview CSV */}
       {preview && (
@@ -266,7 +270,7 @@ export default function AdminPrecios() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--surface2)' }}>
-                  {['Código', 'Nombre', 'Modelo', 'Categoría', 'Precio', 'Actualizado', ''].map(h => (
+                  {['Código', 'Nombre', 'Modelo', 'Categoría', 'Precio', 'Actualizado', ...(isAdmin ? [''] : [])].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--text3)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -303,7 +307,7 @@ export default function AdminPrecios() {
                       {p.updated_at ? new Date(p.updated_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                     </td>
                     <td style={{ padding: '10px 16px' }}>
-                      {editando === p.codigo ? (
+                      {isAdmin && editando === p.codigo ? (
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={guardarPrecioIndividual} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             Guardar
@@ -312,7 +316,7 @@ export default function AdminPrecios() {
                             ✕
                           </button>
                         </div>
-                      ) : (
+                      ) : isAdmin ? (
                         <button
                           onClick={() => { setEditando(p.codigo); setPrecioEdit(p.precio.toString()) }}
                           style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}
@@ -321,7 +325,7 @@ export default function AdminPrecios() {
                         >
                           Editar
                         </button>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}

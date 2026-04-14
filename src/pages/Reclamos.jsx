@@ -108,7 +108,7 @@ const inputStyle = {
 }
 
 export default function Reclamos() {
-  const { user, profile, isAdmin, isAdmin2 } = useAuth()
+  const { user, profile, isAdmin, isAdmin2, isVendedor } = useAuth()
   const [reclamos, setReclamos] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -158,11 +158,22 @@ export default function Reclamos() {
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase
-      .from('devoluciones')
-      .select('*')
-      .eq('portal_user_id', user.id)
-      .order('fecha_creacion', { ascending: false })
+    let query = supabase.from('devoluciones').select('*').order('fecha_creacion', { ascending: false })
+
+    if (isVendedor) {
+      // Traer emails de los clientes del vendedor
+      const { data: clientes } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('vendedor_id', user.id)
+      const emails = (clientes || []).map(c => c.email).filter(Boolean)
+      if (emails.length === 0) { setReclamos([]); setLoading(false); return }
+      query = query.in('email', emails)
+    } else {
+      query = query.eq('portal_user_id', user.id)
+    }
+
+    const { data } = await query
     setReclamos(data || [])
     setLoading(false)
   }
@@ -382,7 +393,7 @@ export default function Reclamos() {
             { label: 'N° de venta', val: selected.numero_venta_manual },
             { label: 'Fecha de compra', val: selected.fecha_compra ? new Date(selected.fecha_compra).toLocaleDateString('es-AR') : null },
             { label: 'Días de garantía', val: selected.dias_garantia != null ? `${selected.dias_garantia} días` : null },
-            { label: 'Fecha de ingreso', val: selected.fecha_ingreso ? new Date(selected.fecha_ingreso).toLocaleDateString('es-AR', { hour: '2-digit', minute: '2-digit' }) : null },
+            { label: 'Fecha de ingreso', val: selected.fecha_ingreso ? new Date(selected.fecha_ingreso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null },
           ].filter(r => r.val).map(r => (
             <div key={r.label}>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{r.label}</div>
@@ -464,8 +475,8 @@ export default function Reclamos() {
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Mis Reclamos</h1>
-          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Registrá y seguí el estado de tus reclamos de garantía</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>{isVendedor ? 'Reclamos de mis clientes' : 'Mis Reclamos'}</h1>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>{isVendedor ? 'Reclamos de tus clientes' : 'Registrá y seguí el estado de tus reclamos de garantía'}</p>
         </div>
         {user && (
           <Button variant="danger" onClick={() => { setModalOpen(true); setStep(1) }}>
@@ -511,7 +522,12 @@ export default function Reclamos() {
             >
               <Package size={18} color="var(--text3)" style={{ flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{r.producto}</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {r.producto}
+                  {isVendedor && r.nombre_apellido && (
+                    <span style={{ marginLeft: 10, fontSize: 12, fontWeight: 400, color: 'var(--text3)' }}>👤 {r.nombre_apellido}</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
                   <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>{r.tracking_id}</span>
                   {' · '}{r.motivo}

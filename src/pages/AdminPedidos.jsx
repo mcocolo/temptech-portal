@@ -58,7 +58,7 @@ const STATUS_CONFIG = {
 }
 
 export default function AdminPedidos() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isVendedor, user } = useAuth()
   const [vista, setVista] = useState('lista')          // 'lista' | 'nuevo'
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -92,7 +92,10 @@ export default function AdminPedidos() {
 
   const IVA_PCT = 0.21
 
-  useEffect(() => { if (isAdmin) { cargar(); cargarDistribuidores() } }, [isAdmin, filtro])
+  useEffect(() => {
+    if (isAdmin) { cargar(); cargarDistribuidores() }
+    else if (isVendedor && user) cargar()
+  }, [isAdmin, isVendedor, filtro])
 
   async function cargar() {
     setLoading(true)
@@ -101,6 +104,18 @@ export default function AdminPedidos() {
       .select('*, profiles(full_name, email, razon_social)')
       .order('created_at', { ascending: false })
     if (filtro !== 'todos') q = q.eq('estado', filtro)
+
+    if (isVendedor && user) {
+      // Solo pedidos de clientes de este vendedor
+      const { data: clientes } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('vendedor_id', user.id)
+      const ids = (clientes || []).map(c => c.id)
+      if (ids.length === 0) { setPedidos([]); setLoading(false); return }
+      q = q.in('distribuidor_id', ids)
+    }
+
     const { data, error } = await q
     if (error) toast.error('Error al cargar pedidos')
     else setPedidos(data || [])
@@ -441,7 +456,7 @@ export default function AdminPedidos() {
     return nombre.includes(q) || email.includes(q) || id.includes(q)
   })
 
-  if (!isAdmin) return null
+  if (!isAdmin && !isVendedor) return null
 
   // ── Vista: Nuevo pedido ──────────────────────────────────────────────────────
   if (vista === 'nuevo') {
