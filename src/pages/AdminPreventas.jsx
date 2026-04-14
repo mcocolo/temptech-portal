@@ -40,6 +40,18 @@ export default function AdminPreventas() {
   const [subiendoFactura, setSubiendoFactura] = useState(false)
   const [registrandoEntrega, setRegistrandoEntrega] = useState(false)
 
+  // Edición saldo cobrado inline
+  const [editandoSaldo, setEditandoSaldo] = useState(null)  // id de preventa
+  const [saldoInput, setSaldoInput] = useState('')
+
+  async function guardarSaldo(pvId) {
+    const valor = parseFloat(saldoInput) || 0
+    const { error } = await supabase.from('preventas').update({ saldo_cobrado: valor }).eq('id', pvId)
+    if (error) { toast.error('Error al guardar saldo'); return }
+    setEditandoSaldo(null)
+    cargar()
+  }
+
   // Edición de preventa existente
   const [editandoPv, setEditandoPv] = useState(null)    // id de la preventa editándose
   const [pvItemsEdit, setPvItemsEdit] = useState([])
@@ -863,7 +875,7 @@ export default function AdminPreventas() {
                             </div>
 
                             {/* Totales */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: pv.incluir_iva ? 8 : 16 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 8 }}>
                               {[
                                 { label: 'Total preventa', value: totalPreventa(items), color: 'var(--text)' },
                                 { label: 'Retirado', value: totalRetirado(items), color: '#3dd68c' },
@@ -874,6 +886,42 @@ export default function AdminPreventas() {
                                   <div style={{ fontSize: 14, fontWeight: 800, color }}>{formatPrecio(value)}</div>
                                 </div>
                               ))}
+                            </div>
+
+                            {/* Saldo cobrado */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: pv.incluir_iva ? 8 : 16 }}>
+                              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center', position: 'relative' }}>
+                                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Saldo cobrado</div>
+                                {editandoSaldo === pv.id ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>$</span>
+                                    <input
+                                      type="number" min="0" step="0.01"
+                                      value={saldoInput}
+                                      onChange={e => setSaldoInput(e.target.value)}
+                                      onKeyDown={e => { if (e.key === 'Enter') guardarSaldo(pv.id); if (e.key === 'Escape') setEditandoSaldo(null) }}
+                                      autoFocus
+                                      style={{ width: 110, background: 'var(--surface3)', border: '1px solid rgba(74,108,247,0.5)', borderRadius: 6, padding: '3px 7px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', textAlign: 'right' }}
+                                    />
+                                    <button onClick={() => guardarSaldo(pv.id)} style={{ background: 'rgba(61,214,140,0.15)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 6, color: '#3dd68c', cursor: 'pointer', fontSize: 13, padding: '2px 8px' }}>✓</button>
+                                    <button onClick={() => setEditandoSaldo(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: '2px 6px' }}>✕</button>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                    <span style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa' }}>{formatPrecio(pv.saldo_cobrado || 0)}</span>
+                                    <button onClick={() => { setEditandoSaldo(pv.id); setSaldoInput(pv.saldo_cobrado || 0) }}
+                                      style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>✏️</button>
+                                  </div>
+                                )}
+                              </div>
+                              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center' }}>
+                                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Saldo deudor</div>
+                                {(() => {
+                                  const total = pv.incluir_iva ? totalPreventa(items) + (pv.iva_monto || totalPreventa(items) * IVA_PCT) : totalPreventa(items)
+                                  const deuda = Math.max(0, total - (pv.saldo_cobrado || 0))
+                                  return <div style={{ fontSize: 14, fontWeight: 800, color: deuda > 0 ? '#ff5577' : '#3dd68c' }}>{formatPrecio(deuda)}</div>
+                                })()}
+                              </div>
                             </div>
                             {pv.incluir_iva && (
                               <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12 }}>
