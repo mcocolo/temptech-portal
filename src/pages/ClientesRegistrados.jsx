@@ -714,6 +714,16 @@ export default function ClientesRegistrados() {
               <span style={{ color: '#7b9fff', fontWeight: 700 }}>{misClients.length}</span> <span style={{ color: 'var(--text3)' }}>clientes</span>
             </div>
             <button
+              onClick={async () => {
+                const { error } = await supabase.auth.resetPasswordForEmail(v.email, { redirectTo: window.location.origin })
+                if (error) toast.error('Error: ' + error.message)
+                else toast.success(`Email de reseteo enviado a ${v.email} ✅`)
+              }}
+              style={{ background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', color: '#7b9fff', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+            >
+              🔑 Resetear contraseña
+            </button>
+            <button
               onClick={() => { if (window.confirm(`¿Eliminar a ${v.full_name || v.email}?`)) { eliminarUsuario(v.id); setDetailVendedor(null) } }}
               style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.35)', color: '#ff5577', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
             >
