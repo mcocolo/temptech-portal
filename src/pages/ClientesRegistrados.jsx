@@ -573,6 +573,35 @@ export default function ClientesRegistrados() {
   const [selected, setSelected] = useState(null) // productos_registrados expand
   const [detailUser, setDetailUser] = useState(null) // perfil completo
   const [detailVendedor, setDetailVendedor] = useState(null)
+  const [modalNuevoVendedor, setModalNuevoVendedor] = useState(false)
+  const [nvForm, setNvForm] = useState({ email: '', password: '', full_name: '', razon_social: '', telefono: '', localidad: '', provincia: '', zona_cobertura: '' })
+  const [creandoVendedor, setCreandoVendedor] = useState(false)
+
+  async function crearVendedor() {
+    if (!nvForm.email || !nvForm.password) { toast.error('Email y contraseña son obligatorios'); return }
+    setCreandoVendedor(true)
+    const { data, error } = await supabase.rpc('crear_cliente_vendedor', {
+      p_email:      nvForm.email.trim(),
+      p_password:   nvForm.password,
+      p_full_name:  nvForm.full_name.trim() || null,
+      p_razon_social: nvForm.razon_social.trim() || null,
+      p_telefono:   nvForm.telefono.trim() || null,
+      p_localidad:  nvForm.localidad.trim() || null,
+      p_provincia:  nvForm.provincia.trim() || null,
+      p_vendedor_id: null,
+    })
+    if (error) { toast.error('Error: ' + error.message); setCreandoVendedor(false); return }
+    // Asignar role vendedor y zona_cobertura
+    await supabase.from('profiles').update({
+      role: 'vendedor',
+      zona_cobertura: nvForm.zona_cobertura.trim() || null,
+    }).eq('id', data)
+    toast.success('Vendedor creado ✅')
+    setCreandoVendedor(false)
+    setModalNuevoVendedor(false)
+    setNvForm({ email: '', password: '', full_name: '', razon_social: '', telefono: '', localidad: '', provincia: '', zona_cobertura: '' })
+    load()
+  }
 
   // Edición inline en lista (para productos reg)
   const [editingId, setEditingId] = useState(null)
@@ -865,6 +894,12 @@ export default function ClientesRegistrados() {
       ) : tab === 'vendedores' ? (
         /* ── Vendedores ── */
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+            <button onClick={() => setModalNuevoVendedor(true)}
+              style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              + Nuevo vendedor
+            </button>
+          </div>
           {listaActual.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay vendedores registrados</div>
           ) : listaActual.map(v => {
@@ -952,5 +987,60 @@ export default function ClientesRegistrados() {
         </div>
       )}
     </div>
+
+    {/* Modal nuevo vendedor */}
+    {modalNuevoVendedor && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 28, width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>🧑‍💼 Nuevo vendedor</span>
+            <button onClick={() => setModalNuevoVendedor(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 18 }}>✕</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ gridColumn: '1/-1' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Email *</div>
+              <input style={inputSt} type="email" value={nvForm.email} onChange={e => setNvForm(p => ({ ...p, email: e.target.value }))} placeholder="vendedor@email.com" />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Contraseña *</div>
+              <input style={inputSt} type="password" value={nvForm.password} onChange={e => setNvForm(p => ({ ...p, password: e.target.value }))} placeholder="Mínimo 6 caracteres" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Nombre</div>
+              <input style={inputSt} value={nvForm.full_name} onChange={e => setNvForm(p => ({ ...p, full_name: e.target.value }))} placeholder="Nombre y apellido" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Razón social</div>
+              <input style={inputSt} value={nvForm.razon_social} onChange={e => setNvForm(p => ({ ...p, razon_social: e.target.value }))} placeholder="Empresa (opcional)" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Teléfono</div>
+              <input style={inputSt} value={nvForm.telefono} onChange={e => setNvForm(p => ({ ...p, telefono: e.target.value }))} placeholder="+54 11..." />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Localidad</div>
+              <input style={inputSt} value={nvForm.localidad} onChange={e => setNvForm(p => ({ ...p, localidad: e.target.value }))} placeholder="Ciudad" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Provincia</div>
+              <select style={inputSt} value={nvForm.provincia} onChange={e => setNvForm(p => ({ ...p, provincia: e.target.value }))}>
+                <option value="">Seleccionar...</option>
+                {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Zona de cobertura</div>
+              <input style={inputSt} value={nvForm.zona_cobertura} onChange={e => setNvForm(p => ({ ...p, zona_cobertura: e.target.value }))} placeholder="Ej: GBA Norte, Córdoba..." />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={() => setModalNuevoVendedor(false)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', color: 'var(--text2)' }}>Cancelar</button>
+            <button onClick={crearVendedor} disabled={creandoVendedor} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: creandoVendedor ? 0.6 : 1 }}>
+              {creandoVendedor ? 'Creando...' : 'Crear vendedor'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   )
 }
