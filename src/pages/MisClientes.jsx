@@ -106,7 +106,7 @@ function DescuentosCascada({ dtos, onChange }) {
 }
 
 const EMPTY_FORM = {
-  email: '', password: '', full_name: '', razon_social: '',
+  email: '', full_name: '', razon_social: '',
   cuit: '', telefono: '', localidad: '', provincia: '',
 }
 
@@ -137,12 +137,14 @@ export default function MisClientes() {
   }
 
   async function crearCliente() {
-    if (!form.email || !form.password) { toast.error('Email y contraseña son obligatorios'); return }
+    if (!form.email) { toast.error('El email es obligatorio'); return }
     setCreando(true)
+    // Generar contraseña aleatoria — el vendedor maneja al cliente, no necesita login
+    const autoPass = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-4).toUpperCase()
 
     const { data, error } = await supabase.rpc('crear_cliente_vendedor', {
       p_email:        form.email.trim(),
-      p_password:     form.password,
+      p_password:     autoPass,
       p_full_name:    form.full_name.trim(),
       p_razon_social: form.razon_social.trim(),
       p_cuit:         form.cuit.trim(),
@@ -315,10 +317,6 @@ export default function MisClientes() {
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Email *</label>
                   <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inputSt} placeholder="cliente@email.com" />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Contraseña *</label>
-                  <input type="text" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} style={inputSt} placeholder="Contraseña inicial" />
                 </div>
               </div>
 
