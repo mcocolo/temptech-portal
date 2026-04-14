@@ -121,6 +121,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         direccion_entrega:         cl?.direccion_entrega || '',
         horario_entrega:           cl?.horario_entrega   || '',
         persona_contacto:          cl?.persona_contacto  || '',
+        dirs_alt: (u.direcciones_entrega || [{},{},{}]).slice(0,3).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'' })),
       })
     } else {
       setEditForm({
@@ -151,7 +152,8 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
           anafes:               editForm.desc_anafes               !== '' ? parseFloat(editForm.desc_anafes)               : null,
         }
         Object.keys(desc).forEach(k => { if (desc[k] === null) delete desc[k] })
-        await supabase.from('profiles').update({ descuentos: desc }).eq('id', u.id)
+        const dirsAlt = (editForm.dirs_alt || []).filter(d => d.direccion.trim())
+        await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt }).eq('id', u.id)
         if (cl?.id) await supabase.from('clientes').update({ direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
       } else {
         await supabase.from('profiles').update({ full_name: editForm.full_name, email: editForm.email, telefono: editForm.telefono }).eq('id', u.id)
@@ -284,10 +286,48 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                 </div>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 10 }}>📍 Datos de entrega</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <LI label="Dirección de entrega"><input value={editForm.direccion_entrega} onChange={e => setEF('direccion_entrega', e.target.value)} style={inputSt} /></LI>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                    <LI label="Dirección principal"><input value={editForm.direccion_entrega} onChange={e => setEF('direccion_entrega', e.target.value)} style={inputSt} /></LI>
                     <LI label="Horario de entrega"><input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} /></LI>
                     <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
+                  </div>
+                  {/* Direcciones alternativas */}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 10 }}>Direcciones alternativas</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[0,1,2].map(i => (
+                      <div key={i} style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600 }}>Dirección {i + 2}</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>Nombre / referencia</div>
+                            <input
+                              value={editForm.dirs_alt?.[i]?.nombre || ''}
+                              onChange={e => { const d = [...(editForm.dirs_alt||[{},{},{}])]; d[i] = { ...d[i], nombre: e.target.value }; setEF('dirs_alt', d) }}
+                              placeholder="Ej: Depósito"
+                              style={{ ...inputSt, fontSize: 12 }}
+                            />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>Dirección</div>
+                            <input
+                              value={editForm.dirs_alt?.[i]?.direccion || ''}
+                              onChange={e => { const d = [...(editForm.dirs_alt||[{},{},{}])]; d[i] = { ...d[i], direccion: e.target.value }; setEF('dirs_alt', d) }}
+                              placeholder="Calle 123"
+                              style={{ ...inputSt, fontSize: 12 }}
+                            />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>Localidad</div>
+                            <input
+                              value={editForm.dirs_alt?.[i]?.localidad || ''}
+                              onChange={e => { const d = [...(editForm.dirs_alt||[{},{},{}])]; d[i] = { ...d[i], localidad: e.target.value }; setEF('dirs_alt', d) }}
+                              placeholder="Ciudad"
+                              style={{ ...inputSt, fontSize: 12 }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -532,6 +572,7 @@ export default function ClientesRegistrados() {
   const [tab, setTab] = useState('clientes')
   const [selected, setSelected] = useState(null) // productos_registrados expand
   const [detailUser, setDetailUser] = useState(null) // perfil completo
+  const [detailVendedor, setDetailVendedor] = useState(null)
 
   // Edición inline en lista (para productos reg)
   const [editingId, setEditingId] = useState(null)
@@ -545,7 +586,7 @@ export default function ClientesRegistrados() {
     const [{ data: perfiles }, { data: prods }, { data: vends }] = await Promise.all([
       supabase.from('profiles').select('*, clientes(*), vendedor_id').order('created_at', { ascending: false }),
       supabase.from('productos_registrados').select('*').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, full_name, razon_social, email').eq('role', 'vendedor'),
+      supabase.from('profiles').select('id, full_name, razon_social, email, telefono, localidad, provincia, zona_cobertura, created_at').eq('role', 'vendedor'),
     ])
     setUsuarios(perfiles || [])
     setProductosReg(prods || [])
@@ -621,6 +662,94 @@ export default function ClientesRegistrados() {
     { key: 'productos',      label: '📦 Productos Reg.', count: productosReg.length,   color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
     { key: 'vendedores',     label: '🧑‍💼 Vendedores',    count: vendedores.length,     color: '#b39dfa', bg: 'rgba(179,157,250,0.1)', border: 'rgba(179,157,250,0.35)' },
   ]
+
+  // Mostrar perfil vendedor
+  if (detailVendedor) {
+    const v = detailVendedor
+    const misDistrib = usuarios.filter(u => u.vendedor_id === v.id && (u.user_type === 'distributor' || u.clientes?.user_type === 'distributor'))
+    const misClients = usuarios.filter(u => u.vendedor_id === v.id && (u.user_type === 'client'      || u.clientes?.user_type === 'client'))
+    return (
+      <div style={{ animation: 'fadeUp 0.3s ease' }}>
+        <button onClick={() => setDetailVendedor(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, cursor: 'pointer', padding: 0 }}>
+          <ChevronLeft size={15} /> Volver al listado
+        </button>
+
+        {/* Header */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '22px 26px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 50, height: 50, borderRadius: '50%', background: 'rgba(179,157,250,0.15)', border: '1px solid rgba(179,157,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🧑‍💼</div>
+            <div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800 }}>{v.razon_social || v.full_name || '-'}</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{v.email}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 14px', fontSize: 12 }}>
+              <span style={{ color: '#b39dfa', fontWeight: 700 }}>{misDistrib.length}</span> <span style={{ color: 'var(--text3)' }}>distribuidores</span>
+              <span style={{ color: 'var(--text3)', margin: '0 2px' }}>·</span>
+              <span style={{ color: '#7b9fff', fontWeight: 700 }}>{misClients.length}</span> <span style={{ color: 'var(--text3)' }}>clientes</span>
+            </div>
+            <button
+              onClick={() => { if (window.confirm(`¿Eliminar a ${v.full_name || v.email}?`)) { eliminarUsuario(v.id); setDetailVendedor(null) } }}
+              style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.35)', color: '#ff5577', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+            >
+              🗑 Eliminar
+            </button>
+          </div>
+        </div>
+
+        {/* Datos */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 22px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 16 }}>Datos del vendedor</div>
+            {[
+              ['Email',           v.email],
+              ['Teléfono',        v.telefono],
+              ['Localidad',       v.localidad],
+              ['Provincia',       v.provincia],
+              ['Zona de cobertura', v.zona_cobertura],
+            ].map(([label, val]) => !val ? null : (
+              <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 10 }}>
+                <span style={{ color: 'var(--text3)', minWidth: 140, flexShrink: 0 }}>{label}</span>
+                <span style={{ color: 'var(--text2)' }}>{val}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Listado clientes/distribuidores */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 22px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 16 }}>Sus clientes</div>
+            {misDistrib.length === 0 && misClients.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sin clientes asignados</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {misDistrib.map(u => (
+                  <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13 }}>
+                    <span>🏪</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>{u.clientes?.razon_social || u.full_name || '-'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{u.email}</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '2px 8px', borderRadius: 20 }}>Distribuidor</span>
+                  </div>
+                ))}
+                {misClients.map(u => (
+                  <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13 }}>
+                    <span>👤</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>{u.full_name || '-'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{u.email}</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 8px', borderRadius: 20 }}>Cliente</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Mostrar perfil completo
   if (detailUser) {
@@ -741,12 +870,16 @@ export default function ClientesRegistrados() {
           ) : listaActual.map(v => {
             const misClientes = usuarios.filter(u => u.vendedor_id === v.id)
             return (
-              <div key={v.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div key={v.id}
+                onClick={() => setDetailVendedor(v)}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(179,157,250,0.5)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'translateY(0)' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, cursor: 'pointer', transition: 'all .15s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(179,157,250,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🧑‍💼</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{v.razon_social || v.full_name || '-'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{v.email}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{v.email}{v.localidad ? ` · ${v.localidad}` : ''}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -757,7 +890,7 @@ export default function ClientesRegistrados() {
                     <strong style={{ color: '#7b9fff' }}>{misClientes.filter(c => c.user_type === 'client' || c.clientes?.user_type === 'client').length}</strong> clientes
                   </span>
                   <button
-                    onClick={e => { e.stopPropagation(); if (window.confirm(`¿Eliminar a ${v.razon_social || v.full_name || v.email}?`)) eliminarUsuario(v.id) }}
+                    onClick={e => { e.stopPropagation(); if (window.confirm(`¿Eliminar a ${v.razon_social || v.full_name || v.email}?`)) { eliminarUsuario(v.id); setDetailVendedor(null) } }}
                     style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.35)', color: '#ff5577', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                   >
                     🗑 Eliminar

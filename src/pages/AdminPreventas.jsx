@@ -36,6 +36,8 @@ export default function AdminPreventas() {
   const [cantEntrega, setCantEntrega] = useState({})     // { codigo: cantidad }
   const [entregaIVA, setEntregaIVA] = useState(false)
   const [entregaNotas, setEntregaNotas] = useState('')
+  const [entregaFactura, setEntregaFactura] = useState(null)   // File
+  const [subiendoFactura, setSubiendoFactura] = useState(false)
   const [registrandoEntrega, setRegistrandoEntrega] = useState(false)
 
   // Edición de preventa existente
@@ -244,6 +246,7 @@ export default function AdminPreventas() {
     setCantEntrega({})
     setEntregaIVA(false)
     setEntregaNotas('')
+    setEntregaFactura(null)
   }
 
   async function registrarEntrega(pv) {
@@ -267,6 +270,19 @@ export default function AdminPreventas() {
 
     setRegistrandoEntrega(true)
 
+    // 0. Subir factura si existe
+    let facturaUrl = null
+    if (entregaFactura) {
+      setSubiendoFactura(true)
+      const ext = entregaFactura.name.split('.').pop()
+      const path = `preventas/${pv.id}/${Date.now()}_factura.${ext}`
+      const { error: errUp } = await supabase.storage.from('facturas').upload(path, entregaFactura, { upsert: true })
+      setSubiendoFactura(false)
+      if (errUp) { toast.error('Error al subir factura: ' + errUp.message); setRegistrandoEntrega(false); return }
+      const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(path)
+      facturaUrl = urlData.publicUrl
+    }
+
     // 1. Crear pedido aprobado
     const { error: errPedido } = await supabase.from('pedidos').insert({
       distribuidor_id: pv.distribuidor_id,
@@ -278,6 +294,7 @@ export default function AdminPreventas() {
       iva_monto: ivaMonto,
       incluir_iva: entregaIVA,
       notas_admin: entregaNotas.trim() || null,
+      ...(facturaUrl ? { factura_url: facturaUrl } : {}),
     })
 
     if (errPedido) { toast.error('Error al registrar: ' + errPedido.message); setRegistrandoEntrega(false); return }
@@ -786,10 +803,26 @@ export default function AdminPreventas() {
                                 style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'none', outline: 'none' }} />
                             </div>
 
+                            {/* Factura */}
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Factura (opcional)</div>
+                              {entregaFactura ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(61,214,140,0.07)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                                  <span style={{ flex: 1, color: '#3dd68c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {entregaFactura.name}</span>
+                                  <button onClick={() => setEntregaFactura(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕</button>
+                                </div>
+                              ) : (
+                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
+                                  📎 Adjuntar factura
+                                  <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setEntregaFactura(e.target.files[0] || null)} />
+                                </label>
+                              )}
+                            </div>
+
                             <div style={{ display: 'flex', gap: 8 }}>
-                              <button onClick={() => registrarEntrega(pv)} disabled={registrandoEntrega || !Object.values(cantEntrega).some(v => v > 0)}
+                              <button onClick={() => registrarEntrega(pv)} disabled={registrandoEntrega || subiendoFactura || !Object.values(cantEntrega).some(v => v > 0)}
                                 style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '7px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: !Object.values(cantEntrega).some(v => v > 0) ? 0.5 : 1 }}>
-                                {registrandoEntrega ? 'Registrando...' : '📦 Confirmar entrega'}
+                                {subiendoFactura ? 'Subiendo factura...' : registrandoEntrega ? 'Registrando...' : '📦 Confirmar entrega'}
                               </button>
                               <button onClick={cerrarEntrega}
                                 style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>

@@ -62,6 +62,7 @@ export default function Pedidos() {
   const [cantidades, setCantidades] = useState({})
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
+  const [direccionEntrega, setDireccionEntrega] = useState('')
   const [incluirIVA, setIncluirIVA] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [historial, setHistorial] = useState([])
@@ -141,11 +142,13 @@ export default function Pedidos() {
       iva_monto: ivaAmount,
       incluir_iva: incluirIVA,
       notas: notas.trim() || null,
+      direccion_entrega: direccionEntrega || null,
     })
     if (error) { toast.error('Error al enviar el pedido'); setEnviando(false); return }
     toast.success('¡Pedido enviado! Quedó pendiente de aprobación.')
     setCantidades({})
     setNotas('')
+    setDireccionEntrega('')
     setEnviando(false)
     cargarHistorial()
     setTab('historial')
@@ -404,12 +407,41 @@ export default function Pedidos() {
                   </>
                 )}
 
+                {/* Dirección de entrega */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Dirección de entrega</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {/* Dirección principal */}
+                    {profile?.clientes?.direccion_entrega && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: direccionEntrega === '__principal__' ? 'rgba(74,108,247,0.08)' : 'var(--surface2)', border: `1px solid ${direccionEntrega === '__principal__' ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 13 }}>
+                        <input type="radio" name="dir" value="__principal__" checked={direccionEntrega === '__principal__'} onChange={() => setDireccionEntrega('__principal__')} style={{ accentColor: '#7b9fff' }} />
+                        <span>{profile.clientes.direccion_entrega}</span>
+                        <span style={{ fontSize: 11, color: '#7b9fff', marginLeft: 'auto' }}>Principal</span>
+                      </label>
+                    )}
+                    {/* Direcciones alternativas */}
+                    {(profile?.direcciones_entrega || []).filter(d => d?.direccion).map((d, i) => (
+                      <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: direccionEntrega === d.direccion ? 'rgba(74,108,247,0.08)' : 'var(--surface2)', border: `1px solid ${direccionEntrega === d.direccion ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 13 }}>
+                        <input type="radio" name="dir" value={d.direccion} checked={direccionEntrega === d.direccion} onChange={() => setDireccionEntrega(d.direccion)} style={{ accentColor: '#7b9fff' }} />
+                        <span>{d.direccion}{d.localidad ? ` — ${d.localidad}` : ''}</span>
+                        {d.nombre && <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 'auto' }}>{d.nombre}</span>}
+                      </label>
+                    ))}
+                    {/* Retiro en fábrica */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: direccionEntrega === '__fabrica__' ? 'rgba(61,214,140,0.08)' : 'var(--surface2)', border: `1px solid ${direccionEntrega === '__fabrica__' ? 'rgba(61,214,140,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 13 }}>
+                      <input type="radio" name="dir" value="__fabrica__" checked={direccionEntrega === '__fabrica__'} onChange={() => setDireccionEntrega('__fabrica__')} style={{ accentColor: '#3dd68c' }} />
+                      <span>🏭 Retiro en fábrica</span>
+                      <span style={{ fontSize: 11, color: '#3dd68c', marginLeft: 'auto' }}>Obon 1327, Valentín Alsina</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Notas (opcional)</label>
                   <textarea
                     value={notas}
                     onChange={e => setNotas(e.target.value)}
-                    placeholder="Indicaciones especiales, dirección de entrega, etc."
+                    placeholder="Indicaciones especiales, etc."
                     rows={3}
                     style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none', lineHeight: 1.6 }}
                   />
