@@ -1050,7 +1050,11 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             <span style={{ color: T.text3 }}>—</span>
                           )}
                         </div>
-                        <InfoRow label="Fecha ingreso" value={formatearFecha(item.fecha_ingreso)} />
+                        <InfoRow label="Fecha ingreso" value={
+                          /^\d{4}-\d{2}-\d{2}$/.test(String(item.fecha_ingreso || ''))
+                            ? formatearFecha(item.fecha_creacion || item.fecha_ingreso)
+                            : formatearFecha(item.fecha_ingreso)
+                        } />
                         {item.estado !== 'cerrado' && item.estado !== 'rechazado' && (() => {
                           const t = tiempoSinRespuesta(item.fecha_ingreso)
                           if (!t) return null
