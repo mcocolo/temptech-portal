@@ -79,6 +79,7 @@ export default function AdminPedidos() {
   const [internalsForm, setInternalsForm] = useState({ nro_remito: '', notas_internas: '' })
   const [guardandoInternals, setGuardandoInternals] = useState(false)
   const [subiendoFactura, setSubiendoFactura] = useState(null)  // pedido.id
+  const [subiendoPago, setSubiendoPago] = useState(null)  // pedido.id
 
   // Nuevo pedido (admin crea en nombre de distribuidor)
   const [distribuidores, setDistribuidores] = useState([])
@@ -349,6 +350,28 @@ export default function AdminPedidos() {
     const { error } = await supabase.from('pedidos').update({ factura_url: null, updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error al eliminar'); return }
     toast.success('Factura eliminada')
+    cargar()
+  }
+
+  async function subirPago(pedido, file) {
+    if (!file) return
+    setSubiendoPago(pedido.id)
+    const ext = file.name.split('.').pop()
+    const path = `pedidos/${pedido.id}/pago_${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+    if (uploadError) { toast.error('Error al subir: ' + uploadError.message); setSubiendoPago(null); return }
+    const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+    const { error } = await supabase.from('pedidos').update({ pago_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    setSubiendoPago(null)
+    if (error) { toast.error('Error al guardar URL'); return }
+    toast.success('Comprobante subido ✅')
+    cargar()
+  }
+
+  async function eliminarPago(pedido) {
+    const { error } = await supabase.from('pedidos').update({ pago_url: null, updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    if (error) { toast.error('Error al eliminar'); return }
+    toast.success('Comprobante eliminado')
     cargar()
   }
 
@@ -1009,6 +1032,35 @@ export default function AdminPedidos() {
                             {subiendoFactura === pedido.id ? '⏳ Subiendo...' : '📎 Adjuntar factura'}
                             <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
                               onChange={e => subirFactura(pedido, e.target.files[0])} />
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Comprobante de pago */}
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(61,214,140,0.15)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Comprobante de pago</div>
+                        {pedido.pago_url ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <a href={pedido.pago_url} target="_blank" rel="noreferrer"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#3dd68c', textDecoration: 'none' }}>
+                              💸 Ver comprobante
+                            </a>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#7b9fff', cursor: 'pointer' }}>
+                              🔄 Reemplazar
+                              <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                                onChange={e => subirPago(pedido, e.target.files[0])} />
+                            </label>
+                            <button onClick={() => eliminarPago(pedido)}
+                              style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ✕
+                            </button>
+                            {subiendoPago === pedido.id && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Subiendo...</span>}
+                          </div>
+                        ) : (
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer' }}>
+                            {subiendoPago === pedido.id ? '⏳ Subiendo...' : '💸 Adjuntar comprobante'}
+                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                              onChange={e => subirPago(pedido, e.target.files[0])} />
                           </label>
                         )}
                       </div>
