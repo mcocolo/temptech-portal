@@ -580,22 +580,17 @@ export default function ClientesRegistrados() {
   async function crearVendedor() {
     if (!nvForm.email || !nvForm.password) { toast.error('Email y contraseña son obligatorios'); return }
     setCreandoVendedor(true)
-    const { data, error } = await supabase.rpc('crear_cliente_vendedor', {
-      p_email:      nvForm.email.trim(),
-      p_password:   nvForm.password,
-      p_full_name:  nvForm.full_name.trim() || null,
-      p_razon_social: nvForm.razon_social.trim() || null,
-      p_telefono:   nvForm.telefono.trim() || null,
-      p_localidad:  nvForm.localidad.trim() || null,
-      p_provincia:  nvForm.provincia.trim() || null,
-      p_vendedor_id: null,
+    const { error } = await supabase.rpc('crear_vendedor', {
+      p_email:          nvForm.email.trim(),
+      p_password:       nvForm.password,
+      p_full_name:      nvForm.full_name.trim() || null,
+      p_razon_social:   nvForm.razon_social.trim() || null,
+      p_telefono:       nvForm.telefono.trim() || null,
+      p_localidad:      nvForm.localidad.trim() || null,
+      p_provincia:      nvForm.provincia.trim() || null,
+      p_zona_cobertura: nvForm.zona_cobertura.trim() || null,
     })
     if (error) { toast.error('Error: ' + error.message); setCreandoVendedor(false); return }
-    // Asignar role vendedor y zona_cobertura
-    await supabase.from('profiles').update({
-      role: 'vendedor',
-      zona_cobertura: nvForm.zona_cobertura.trim() || null,
-    }).eq('id', data)
     toast.success('Vendedor creado ✅')
     setCreandoVendedor(false)
     setModalNuevoVendedor(false)
