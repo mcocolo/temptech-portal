@@ -528,12 +528,12 @@ export default function ClientesRegistrados() {
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { if (isAdmin) load() }, [isAdmin])
+  useEffect(() => { if (isAdmin || isAdmin2) load() }, [isAdmin, isAdmin2])
 
   async function load() {
     setLoading(true)
     const [{ data: perfiles }, { data: prods }, { data: vends }] = await Promise.all([
-      supabase.from('profiles').select('*, clientes(*)').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('*, clientes(*), vendedor_id').order('created_at', { ascending: false }),
       supabase.from('productos_registrados').select('*').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, full_name, razon_social, email').eq('role', 'vendedor'),
     ])
