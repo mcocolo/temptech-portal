@@ -585,12 +585,18 @@ export default function ClientesRegistrados() {
 
   const listaActual = tab === 'productos'
     ? filtrarProductos()
+    : tab === 'vendedores'
+    ? vendedores.filter(v => {
+        const q = busqueda.toLowerCase()
+        return !q || (v.full_name || '').toLowerCase().includes(q) || (v.email || '').toLowerCase().includes(q) || (v.razon_social || '').toLowerCase().includes(q)
+      })
     : filtrar(tab === 'clientes' ? clientes : distribuidores)
 
   const TABS_MAIN = [
     { key: 'clientes',       label: '👤 Clientes',      count: clientes.length,      color: '#7b9fff', bg: 'rgba(74,108,247,0.1)',   border: 'rgba(74,108,247,0.35)' },
     { key: 'distribuidores', label: '🏪 Distribuidores', count: distribuidores.length, color: '#ffd166', bg: 'rgba(255,209,102,0.1)', border: 'rgba(255,209,102,0.35)' },
     { key: 'productos',      label: '📦 Productos Reg.', count: productosReg.length,   color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
+    { key: 'vendedores',     label: '🧑‍💼 Vendedores',    count: vendedores.length,     color: '#b39dfa', bg: 'rgba(179,157,250,0.1)', border: 'rgba(179,157,250,0.35)' },
   ]
 
   // Mostrar perfil completo
@@ -702,6 +708,37 @@ export default function ClientesRegistrados() {
           </table>
           <div style={{ padding: '10px 18px', fontSize: 12, color: 'var(--text3)', borderTop: '1px solid var(--border)' }}>
             {listaActual.length} resultado{listaActual.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+      ) : tab === 'vendedores' ? (
+        /* ── Vendedores ── */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {listaActual.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay vendedores registrados</div>
+          ) : listaActual.map(v => {
+            const misClientes = usuarios.filter(u => u.vendedor_id === v.id)
+            return (
+              <div key={v.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(179,157,250,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🧑‍💼</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{v.razon_social || v.full_name || '-'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{v.email}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                    <strong style={{ color: '#b39dfa' }}>{misClientes.filter(c => c.user_type === 'distributor' || c.clientes?.user_type === 'distributor').length}</strong> distribuidores
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                    <strong style={{ color: '#7b9fff' }}>{misClientes.filter(c => c.user_type === 'client' || c.clientes?.user_type === 'client').length}</strong> clientes
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+          <div style={{ fontSize: 12, color: 'var(--text3)', padding: '4px 0' }}>
+            {listaActual.length} vendedor{listaActual.length !== 1 ? 'es' : ''}
           </div>
         </div>
       ) : (
