@@ -580,22 +580,31 @@ export default function ClientesRegistrados() {
   async function crearVendedor() {
     if (!nvForm.email || !nvForm.password) { toast.error('Email y contraseña son obligatorios'); return }
     setCreandoVendedor(true)
-    const { error } = await supabase.rpc('crear_vendedor', {
-      p_email:          nvForm.email.trim(),
-      p_password:       nvForm.password,
-      p_full_name:      nvForm.full_name.trim() || null,
-      p_razon_social:   nvForm.razon_social.trim() || null,
-      p_telefono:       nvForm.telefono.trim() || null,
-      p_localidad:      nvForm.localidad.trim() || null,
-      p_provincia:      nvForm.provincia.trim() || null,
-      p_zona_cobertura: nvForm.zona_cobertura.trim() || null,
-    })
-    if (error) { toast.error('Error: ' + error.message); setCreandoVendedor(false); return }
-    toast.success('Vendedor creado ✅')
+    try {
+      const res = await fetch('/api/crear-vendedor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:          nvForm.email.trim(),
+          password:       nvForm.password,
+          full_name:      nvForm.full_name.trim() || null,
+          razon_social:   nvForm.razon_social.trim() || null,
+          telefono:       nvForm.telefono.trim() || null,
+          localidad:      nvForm.localidad.trim() || null,
+          provincia:      nvForm.provincia.trim() || null,
+          zona_cobertura: nvForm.zona_cobertura.trim() || null,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { toast.error('Error: ' + json.error); setCreandoVendedor(false); return }
+      toast.success('Vendedor creado ✅')
+      setModalNuevoVendedor(false)
+      setNvForm({ email: '', password: '', full_name: '', razon_social: '', telefono: '', localidad: '', provincia: '', zona_cobertura: '' })
+      load()
+    } catch (e) {
+      toast.error('Error de conexión')
+    }
     setCreandoVendedor(false)
-    setModalNuevoVendedor(false)
-    setNvForm({ email: '', password: '', full_name: '', razon_social: '', telefono: '', localidad: '', provincia: '', zona_cobertura: '' })
-    load()
   }
 
   // Edición inline en lista (para productos reg)
