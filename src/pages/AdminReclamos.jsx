@@ -84,6 +84,11 @@ function tiempoSinRespuesta(fechaIngreso) {
 
 function formatearFecha(fecha) {
   if (!fecha) return '-'
+  // Si es solo fecha sin hora (YYYY-MM-DD), mostrar sin hora para evitar desfase UTC
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+    const [y, m, d] = String(fecha).split('-')
+    return `${d}/${m}/${y}`
+  }
   const d = new Date(fecha)
   if (isNaN(d.getTime())) return fecha
   return d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
