@@ -73,7 +73,7 @@ const STATUS_PEDIDO = {
 }
 
 // ── Vista de perfil completo ──────────────────────────────────────────────────
-function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedor }) {
+function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedor, onEliminar }) {
   const cl = u.clientes
   const [tab, setTab] = useState('datos')
   const [historial, setHistorial] = useState({ posts: [], reclamos: [], productos: [], pedidos: [] })
@@ -215,7 +215,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {isDistrib && cl?.client_code && (
             <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '4px 12px', borderRadius: 8, fontSize: 13 }}>{cl.client_code}</span>
           )}
@@ -226,6 +226,16 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
             <span style={{ color: 'var(--text3)', margin: '0 2px' }}>·</span>
             <span style={{ color: '#3dd68c', fontWeight: 700 }}>{historial.productos.length}</span> <span style={{ color: 'var(--text3)' }}>productos</span>
           </div>
+          <button
+            onClick={() => {
+              if (window.confirm(`¿Eliminar a ${u.full_name || u.email}? Esta acción no se puede deshacer.`)) {
+                onEliminar?.(u.id)
+              }
+            }}
+            style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.35)', color: '#ff5577', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+          >
+            🗑 Eliminar
+          </button>
         </div>
       </div>
 
@@ -543,6 +553,19 @@ export default function ClientesRegistrados() {
     setLoading(false)
   }
 
+  async function eliminarUsuario(userId) {
+    const { error } = await supabase.rpc('eliminar_usuario', { p_user_id: userId })
+    if (error) {
+      // Fallback: solo borrar el perfil si no existe la función
+      const { error: e2 } = await supabase.from('profiles').delete().eq('id', userId)
+      if (e2) { toast.error('Error al eliminar: ' + e2.message); return }
+    }
+    toast.success('Usuario eliminado')
+    setDetailUser(null)
+    setUsuarios(prev => prev.filter(u => u.id !== userId))
+    setVendedores(prev => prev.filter(v => v.id !== userId))
+  }
+
   async function asignarVendedor(userId, vendedorId) {
     const { error } = await supabase.from('profiles').update({ vendedor_id: vendedorId || null }).eq('id', userId)
     if (error) { toast.error('Error al asignar vendedor'); return }
@@ -559,8 +582,8 @@ export default function ClientesRegistrados() {
 
   if (!isAdmin && !isAdmin2) return null
 
-  const clientes       = usuarios.filter(u => u.user_type === 'client'      || u.clientes?.user_type === 'client')
-  const distribuidores = usuarios.filter(u => u.user_type === 'distributor' || u.clientes?.user_type === 'distributor')
+  const clientes       = usuarios.filter(u => u.role !== 'vendedor' && u.role !== 'admin' && u.role !== 'admin2' && (u.user_type === 'client'      || u.clientes?.user_type === 'client'))
+  const distribuidores = usuarios.filter(u => u.role !== 'vendedor' && u.role !== 'admin' && u.role !== 'admin2' && (u.user_type === 'distributor' || u.clientes?.user_type === 'distributor'))
 
   const filtrar = (lista) => {
     if (!busqueda) return lista
@@ -602,7 +625,7 @@ export default function ClientesRegistrados() {
   // Mostrar perfil completo
   if (detailUser) {
     const isDistrib = detailUser.user_type === 'distributor' || detailUser.clientes?.user_type === 'distributor'
-    return <PerfilCliente u={detailUser} isDistrib={isDistrib} onBack={() => setDetailUser(null)} vendedores={vendedores} onAsignarVendedor={asignarVendedor} />
+    return <PerfilCliente u={detailUser} isDistrib={isDistrib} onBack={() => setDetailUser(null)} vendedores={vendedores} onAsignarVendedor={asignarVendedor} onEliminar={eliminarUsuario} />
   }
 
   return (
@@ -733,6 +756,12 @@ export default function ClientesRegistrados() {
                   <span style={{ fontSize: 12, color: 'var(--text3)' }}>
                     <strong style={{ color: '#7b9fff' }}>{misClientes.filter(c => c.user_type === 'client' || c.clientes?.user_type === 'client').length}</strong> clientes
                   </span>
+                  <button
+                    onClick={e => { e.stopPropagation(); if (window.confirm(`¿Eliminar a ${v.razon_social || v.full_name || v.email}?`)) eliminarUsuario(v.id) }}
+                    style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.35)', color: '#ff5577', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                  >
+                    🗑 Eliminar
+                  </button>
                 </div>
               </div>
             )
