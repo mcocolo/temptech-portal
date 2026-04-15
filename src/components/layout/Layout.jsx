@@ -15,7 +15,7 @@ const NAV = [
   { label: 'Novedades',         icon: Newspaper,       path: '/novedades' },
   { section: 'Comunidad' },
   { label: 'Foro de Consultas', icon: MessageSquare,   path: '/foro' },
-  { label: 'Reclamos',          icon: AlertTriangle,   path: '/reclamos' },
+  { label: 'Service / Garantía', icon: AlertTriangle,   path: '/reclamos' },
   { section: 'Recursos' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
@@ -38,7 +38,7 @@ const ADMIN_NAV = [
 
 const ADMIN2_NAV = [
   { section: 'Gestión' },
-  { label: 'Reclamos', icon: AlertTriangle, path: '/reclamos', isAdmin: true },
+  { label: 'Service / Garantía', icon: AlertTriangle, path: '/reclamos', isAdmin: true },
 ]
 
 // Nav base para admin2
@@ -60,7 +60,7 @@ const NAV_VENDEDOR = [
   { label: 'Novedades',         icon: Newspaper,       path: '/novedades' },
   { section: 'Gestión' },
   { label: 'Mis Clientes',      icon: Users,           path: '/mis-clientes' },
-  { label: 'Reclamos',          icon: AlertTriangle,   path: '/reclamos' },
+  { label: 'Service / Garantía', icon: AlertTriangle,   path: '/reclamos' },
   { label: 'Pedidos',           icon: ShoppingCart,    path: '/admin-pedidos' },
   { section: 'Recursos' },
   { label: 'Lista de Precios',  icon: Tags,            path: '/admin-precios' },
