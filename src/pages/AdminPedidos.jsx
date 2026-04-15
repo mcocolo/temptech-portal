@@ -95,8 +95,9 @@ export default function AdminPedidos() {
 
   useEffect(() => {
     if (isAdmin) { cargar(); cargarDistribuidores() }
-    else if (isVendedor && user) cargar()
-  }, [isAdmin, isVendedor, filtro])
+    else if (isVendedor && user) { cargar(); cargarDistribuidoresVendedor() }
+  }, [isAdmin, isVendedor, filtro, user])
+
 
   async function cargar() {
     setLoading(true)
@@ -128,6 +129,16 @@ export default function AdminPedidos() {
       .from('profiles')
       .select('id, full_name, razon_social, email')
       .eq('user_type', 'distributor')
+      .order('razon_social')
+    setDistribuidores(data || [])
+  }
+
+  async function cargarDistribuidoresVendedor() {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, razon_social, email')
+      .eq('user_type', 'distributor')
+      .eq('vendedor_id', user.id)
       .order('razon_social')
     setDistribuidores(data || [])
   }
