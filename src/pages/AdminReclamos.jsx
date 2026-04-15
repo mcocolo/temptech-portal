@@ -1056,9 +1056,17 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             : formatearFecha(item.fecha_ingreso)
                         } />
                         {item.estado !== 'cerrado' && item.estado !== 'rechazado' && (() => {
-                          const t = tiempoSinRespuesta(item.fecha_ingreso)
+                          const fechaBase = item.fecha_creacion || item.fecha_ingreso
+                          const t = tiempoSinRespuesta(fechaBase)
                           if (!t) return null
-                          const diffH = (new Date() - new Date(item.fecha_ingreso)) / 3600000
+                          const diffH = (new Date() - new Date(fechaBase)) / 3600000
+                          const color = diffH > 48 ? T.red : diffH > 24 ? T.yellow : T.green
+                          return <InfoRow label="Tiempo desde inicio reclamo" value={t} highlight={color} />
+                        })()}
+                        {item.estado !== 'cerrado' && item.estado !== 'rechazado' && item.updated_at && (() => {
+                          const t = tiempoSinRespuesta(item.updated_at)
+                          if (!t) return null
+                          const diffH = (new Date() - new Date(item.updated_at)) / 3600000
                           const color = diffH > 48 ? T.red : diffH > 24 ? T.yellow : T.green
                           return <InfoRow label="Tiempo sin respuesta" value={t} highlight={color} />
                         })()}
