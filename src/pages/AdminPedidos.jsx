@@ -405,20 +405,25 @@ export default function AdminPedidos() {
     cargar()
   }
 
-  async function subirPago(pedido, file) {
-    if (!file) return
+  async function subirPagoMultiple(pedido, files) {
+    if (!files || files.length === 0) return
     setSubiendoPago(pedido.id)
-    const ext = file.name.split('.').pop()
-    const path = `pedidos/${pedido.id}/pago_${Date.now()}.${ext}`
-    const { error: uploadError } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
-    if (uploadError) { toast.error('Error al subir: ' + uploadError.message); setSubiendoPago(null); return }
-    const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
     const archivosActuales = Array.isArray(pedido.pago_archivos) ? pedido.pago_archivos : (pedido.pago_url ? [pedido.pago_url] : [])
-    const nuevosArchivos = [...archivosActuales, publicUrl]
-    const { error } = await supabase.from('pedidos').update({ pago_archivos: nuevosArchivos, pago_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    const nuevasUrls = []
+    for (const file of Array.from(files)) {
+      const ext = file.name.split('.').pop()
+      const path = `pedidos/${pedido.id}/pago_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+      if (uploadError) { toast.error('Error al subir ' + file.name + ': ' + uploadError.message); continue }
+      const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+      nuevasUrls.push(publicUrl)
+    }
+    if (nuevasUrls.length === 0) { setSubiendoPago(null); return }
+    const nuevosArchivos = [...archivosActuales, ...nuevasUrls]
+    const { error } = await supabase.from('pedidos').update({ pago_archivos: nuevosArchivos, pago_url: nuevosArchivos[nuevosArchivos.length - 1], updated_at: new Date().toISOString() }).eq('id', pedido.id)
     setSubiendoPago(null)
-    if (error) { toast.error('Error al guardar: ' + error.message); console.error('subirPago error:', error); return }
-    toast.success('Comprobante subido ✅')
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success(`${nuevasUrls.length} comprobante${nuevasUrls.length > 1 ? 's' : ''} subido${nuevasUrls.length > 1 ? 's' : ''} ✅`)
     cargar()
   }
 
@@ -1134,8 +1139,8 @@ export default function AdminPedidos() {
                               ))}
                               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', marginTop: archivos.length ? 4 : 0 }}>
                                 {subiendoPago === pedido.id ? '⏳ Subiendo...' : '+ Agregar comprobante'}
-                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
-                                  onChange={e => subirPago(pedido, e.target.files[0])} />
+                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display: 'none' }}
+                                  onChange={e => { subirPagoMultiple(pedido, e.target.files); e.target.value = '' }} />
                               </label>
                             </div>
                           )
