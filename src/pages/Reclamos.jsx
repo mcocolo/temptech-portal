@@ -60,11 +60,35 @@ const PRODUCT_CATALOG = [
 ]
 
 const CANALES = ['Mercado Libre', 'Tienda Nube', 'WhatsApp', 'Instagram', 'Distribuidor', 'Otro']
-const MOTIVOS = [
-  'No enciende', 'No calienta', 'Golpe de transporte', 'Falta de patas Firenze',
-  'Falta de piezas', 'Pantalla no funciona', 'WiFi no conecta', 'Pérdida de agua',
-  'Ruido anormal', 'Otro',
-]
+
+const MOTIVOS_POR_CATEGORIA = {
+  'Paneles Calefactores': [
+    'No calienta', 'Detalle de pintura', 'Detalle en terminación',
+    'Falla en Tecla', 'No enciende el led de Tecla', 'Golpe de transporte',
+    'Faltante de Kit o piezas', 'Falta de patas Firenze', 'Marco mal terminado',
+    'Ruido', 'Medida barral incorrecta', 'Cambio comercial', 'Envío Incorrecto', 'Otro',
+  ],
+  'Calefones': [
+    'No calienta agua', 'Pierde agua', 'Falla eléctrica', 'Error instalación',
+    'Golpe transporte', 'Error en Pantalla', 'Cambio Comercial', 'Devolución', 'Otro',
+  ],
+  'Calderas': [
+    'No calienta agua', 'Pierde agua', 'Falla eléctrica', 'Error instalación',
+    'Golpe transporte', 'Error en Pantalla', 'Cambio Comercial', 'Devolución', 'Otro',
+  ],
+  'Anafes Vitro': [
+    'No enciende', 'No calienta', 'Pantalla no funciona', 'Ruido anormal',
+    'Golpe de transporte', 'Falta de piezas', 'Cambio comercial', 'Envío Incorrecto', 'Otro',
+  ],
+}
+
+function getMotivos(producto) {
+  if (!producto) return ['Seleccioná el motivo...']
+  const cat = PRODUCT_CATALOG.find(g => g.subs.flatMap(s => s.products).includes(producto))
+  return MOTIVOS_POR_CATEGORIA[cat?.group] || [
+    'No enciende', 'No calienta', 'Golpe de transporte', 'Falta de piezas', 'Ruido anormal', 'Otro',
+  ]
+}
 
 const STATUS_CONFIG = {
   'Ingresado':  { label: 'Ingresado',   color: '#6eb5ff', bg: 'rgba(110,181,255,0.12)' },
@@ -579,7 +603,7 @@ export default function Reclamos() {
           <Field label="Motivo del reclamo *">
             <select value={editForm.motivo} onChange={e => setEditForm(p => ({ ...p, motivo: e.target.value }))} style={inputStyle}>
               <option value="">Seleccioná el motivo...</option>
-              {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+              {getMotivos(editForm.producto).map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </Field>
 
@@ -626,7 +650,7 @@ export default function Reclamos() {
       </Modal>
 
       {/* ── Modal nuevo reclamo ── */}
-      <Modal open={modalOpen} onClose={null} title="⚠️ Registrar Reclamo de Garantía">
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); resetForm() }} title="⚠️ Registrar Reclamo de Garantía">
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
           {['Producto', 'Falla', 'Contacto', 'Archivos'].map((label, i) => {
@@ -695,7 +719,7 @@ export default function Reclamos() {
             <Field label="Motivo del reclamo *">
               <select value={form.motivo} onChange={e => setF('motivo', e.target.value)} style={inputStyle}>
                 <option value="">Seleccioná el motivo...</option>
-                {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+                {getMotivos(form.producto).map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </Field>
 
