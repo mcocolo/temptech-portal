@@ -73,6 +73,7 @@ const STATUS_CONFIG = {
   modificado:  { label: 'Modificado',  color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
   rechazado:   { label: 'Rechazado',   color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
   finalizado:  { label: 'Finalizado',  color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' },
+  entregado:   { label: 'Entregado',   color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
 }
 
 export default function AdminPedidos() {
@@ -339,6 +340,13 @@ export default function AdminPedidos() {
     }
 
     toast.success('Pedido finalizado ✅')
+    cargar()
+  }
+
+  async function entregarPedido(pedido) {
+    const { error } = await supabase.from('pedidos').update({ estado: 'entregado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Pedido marcado como entregado ✅')
     cargar()
   }
 
@@ -776,7 +784,7 @@ export default function AdminPedidos() {
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['todos', 'pendiente', 'aprobado', 'modificado', 'rechazado', 'finalizado'].map(f => (
+          {['todos', 'pendiente', 'aprobado', 'modificado', 'rechazado', 'finalizado', 'entregado'].map(f => (
             <button key={f} onClick={() => setFiltro(f)} style={{
               padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
               background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',
@@ -1120,7 +1128,7 @@ export default function AdminPedidos() {
 
                       {/* Comprobante de pago */}
                       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(61,214,140,0.15)' }}>
-                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Comprobante de pago</div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Comprobantes de Pagos + Retenciones</div>
                         {(() => {
                           const archivos = Array.isArray(pedido.pago_archivos) && pedido.pago_archivos.length > 0
                             ? pedido.pago_archivos
@@ -1219,6 +1227,14 @@ export default function AdminPedidos() {
                           style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                         >
                           ✓ Finalizado
+                        </button>
+                      )}
+                      {pedido.estado === 'finalizado' && (
+                        <button
+                          onClick={() => entregarPedido(pedido)}
+                          style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                        >
+                          📦 Entregado
                         </button>
                       )}
                       {confirmDelete === pedido.id ? (

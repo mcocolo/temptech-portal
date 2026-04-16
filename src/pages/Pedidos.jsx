@@ -54,6 +54,8 @@ const STATUS_CONFIG = {
   aprobado:   { label: 'Aprobado',   color: '#3dd68c', bg: 'rgba(61,214,140,0.12)' },
   modificado: { label: 'Modificado', color: '#fb923c', bg: 'rgba(251,146,60,0.12)' },
   rechazado:  { label: 'Rechazado',  color: '#ff5577', bg: 'rgba(255,85,119,0.12)' },
+  finalizado: { label: 'Finalizado', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)' },
+  entregado:  { label: 'Entregado',  color: '#38bdf8', bg: 'rgba(56,189,248,0.12)' },
 }
 
 export default function Pedidos() {
@@ -750,7 +752,7 @@ export default function Pedidos() {
 
                   {/* Comprobante de pago */}
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(61,214,140,0.15)' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Comprobante de pago</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Comprobantes de Pagos + Retenciones</div>
                     {(() => {
                       const archivos = Array.isArray(p.pago_archivos) && p.pago_archivos.length > 0
                         ? p.pago_archivos
