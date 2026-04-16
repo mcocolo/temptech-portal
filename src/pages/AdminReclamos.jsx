@@ -126,18 +126,20 @@ function esFirenze(producto) {
 
 function SupervisionFabrica({ item, onClose, onGuardar }) {
   const productoReclamo = (item.modelo && item.modelo !== item.producto) ? `${item.producto} ${item.modelo}` : item.producto || ''
-  const [coincide, setCoincide] = useState(null)         // true | false | null
-  const [productoReal, setProductoReal] = useState('')
-  const [roto, setRoto] = useState(null)
-  const [golpeado, setGolpeado] = useState(null)
-  const [funciona, setFunciona] = useState(null)
-  const [tieneKit, setTieneKit] = useState(null)
-  const [cantTacos, setCantTacos] = useState('')
-  const [cantTornillos, setCantTornillos] = useState('')
-  const [cantEmbellecedores, setCantEmbellecedores] = useState('')
-  const [tienePatas, setTienePatas] = useState(null)
-  const [recuperable, setRecuperable] = useState(null)
-  const [nota, setNota] = useState('')
+  const sv = item.supervision_fabrica || {}
+  const [coincide, setCoincide] = useState(sv.coincide_producto ?? null)
+  const [productoReal, setProductoReal] = useState(sv.producto_real || '')
+  const [roto, setRoto] = useState(sv.roto ?? null)
+  const [golpeado, setGolpeado] = useState(sv.golpeado ?? null)
+  const [funciona, setFunciona] = useState(sv.funciona ?? null)
+  const [tieneKit, setTieneKit] = useState(sv.tiene_kit ?? null)
+  const [cantTacos, setCantTacos] = useState(sv.kit_tacos != null ? String(sv.kit_tacos) : '')
+  const [cantTornillos, setCantTornillos] = useState(sv.kit_tornillos != null ? String(sv.kit_tornillos) : '')
+  const [cantEmbellecedores, setCantEmbellecedores] = useState(sv.kit_embellecedores != null ? String(sv.kit_embellecedores) : '')
+  const [tienePatas, setTienePatas] = useState(sv.tiene_patas ?? null)
+  const [recuperable, setRecuperable] = useState(sv.recuperable ?? null)
+  const [nota, setNota] = useState(sv.nota || '')
+  const [imagenesExistentes, setImagenesExistentes] = useState(sv.imagenes || [])
   const [imagenes, setImagenes] = useState([])
   const [guardando, setGuardando] = useState(false)
 
@@ -193,7 +195,7 @@ function SupervisionFabrica({ item, onClose, onGuardar }) {
       tiene_patas: mostrarPatas ? tienePatas : null,
       recuperable,
       nota: nota.trim() || null,
-      imagenes: urls,
+      imagenes: [...imagenesExistentes, ...urls],
     }
     await onGuardar(supervision)
     setGuardando(false)
@@ -269,10 +271,17 @@ function SupervisionFabrica({ item, onClose, onGuardar }) {
           {/* Imágenes */}
           <div>
             <div style={{ fontSize: 11, color: T.text3, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Adjuntar imágenes (opcional)</div>
-            {imagenes.length > 0 && (
+            {(imagenesExistentes.length > 0 || imagenes.length > 0) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {imagenesExistentes.map((url, i) => (
+                  <div key={'ex_' + i} style={{ position: 'relative' }}>
+                    <img src={url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}` }} />
+                    <button onClick={() => setImagenesExistentes(prev => prev.filter((_, j) => j !== i))}
+                      style={{ position: 'absolute', top: -6, right: -6, background: T.red, border: 'none', borderRadius: '50%', width: 18, height: 18, color: '#fff', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>×</button>
+                  </div>
+                ))}
                 {imagenes.map((f, i) => (
-                  <div key={i} style={{ position: 'relative' }}>
+                  <div key={'new_' + i} style={{ position: 'relative' }}>
                     <img src={URL.createObjectURL(f)} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}` }} />
                     <button onClick={() => setImagenes(prev => prev.filter((_, j) => j !== i))}
                       style={{ position: 'absolute', top: -6, right: -6, background: T.red, border: 'none', borderRadius: '50%', width: 18, height: 18, color: '#fff', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>×</button>
