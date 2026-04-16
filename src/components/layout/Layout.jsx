@@ -19,6 +19,7 @@ const NAV = [
   { section: 'Recursos' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+  { label: 'Documentación',     icon: ClipboardList,   path: '/documentacion',     isDistributor: true },
   { label: 'Contenido Digital', icon: Package,         path: '/contenido-digital', isDistributor: true },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },

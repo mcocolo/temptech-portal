@@ -22,6 +22,7 @@ import AdminPrecios from '@/pages/AdminPrecios'
 import AdminPreventas from '@/pages/AdminPreventas'
 import ContenidoDigital from '@/pages/ContenidoDigital'
 import MisClientes from '@/pages/MisClientes'
+import Documentacion from '@/pages/Documentacion'
 
 
 
@@ -68,6 +69,7 @@ function AppRoutes() {
               <Route path="/admin-preventas" element={<AdminPreventas />} />
               <Route path="/contenido-digital" element={<ContenidoDigital />} />
               <Route path="/mis-clientes"     element={<MisClientes />} />
+              <Route path="/documentacion"    element={<Documentacion />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>
