@@ -5,6 +5,12 @@ import toast from 'react-hot-toast'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
+const CATEGORIAS_META = {
+  calefones_calderas:  { label: 'Calefones / Calderas',  emoji: '🚿' },
+  paneles_calefactores:{ label: 'Paneles Calefactores',  emoji: '🔆' },
+  anafes:              { label: 'Anafes',                emoji: '🔥' },
+}
+
 const CATALOGO_ADMIN = [
   {
     categoria: 'calefones_calderas', label: 'Calefones / Calderas', emoji: '🚿',
@@ -93,6 +99,9 @@ export default function AdminPedidos() {
   const [subiendoFactura, setSubiendoFactura] = useState(null)  // pedido.id
   const [subiendoPago, setSubiendoPago] = useState(null)  // pedido.id
 
+  // Catálogo desde DB
+  const [catalogoDB, setCatalogoDB] = useState([])
+
   // Nuevo pedido (admin crea en nombre de distribuidor)
   const [distribuidores, setDistribuidores] = useState([])
   const [npDistId, setNpDistId] = useState('')
@@ -106,8 +115,8 @@ export default function AdminPedidos() {
   const IVA_PCT = 0.21
 
   useEffect(() => {
-    if (isAdmin) { cargar(); cargarDistribuidores() }
-    else if (isVendedor && user) { cargar(); cargarDistribuidoresVendedor() }
+    if (isAdmin) { cargar(); cargarDistribuidores(); cargarCatalogo() }
+    else if (isVendedor && user) { cargar(); cargarDistribuidoresVendedor(); cargarCatalogo() }
   }, [isAdmin, isVendedor, filtro, user])
 
 
@@ -136,10 +145,27 @@ export default function AdminPedidos() {
     setLoading(false)
   }
 
+  async function cargarCatalogo() {
+    const { data } = await supabase.from('precios').select('*').order('categoria').order('nombre')
+    if (!data) return
+    const grupos = {}
+    data.forEach(p => {
+      if (!grupos[p.categoria]) grupos[p.categoria] = []
+      grupos[p.categoria].push(p)
+    })
+    const cat = Object.entries(grupos).map(([categoria, productos]) => ({
+      categoria,
+      label: CATEGORIAS_META[categoria]?.label || categoria,
+      emoji: CATEGORIAS_META[categoria]?.emoji || '📦',
+      productos,
+    }))
+    setCatalogoDB(cat)
+  }
+
   async function cargarDistribuidores() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, razon_social, email')
+      .select('id, full_name, razon_social, email, descuentos_categoria')
       .eq('user_type', 'distributor')
       .order('razon_social')
     setDistribuidores(data || [])
@@ -148,7 +174,7 @@ export default function AdminPedidos() {
   async function cargarDistribuidoresVendedor() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, razon_social, email')
+      .select('id, full_name, razon_social, email, descuentos_categoria')
       .eq('user_type', 'distributor')
       .eq('vendedor_id', user.id)
       .order('razon_social')
@@ -156,6 +182,9 @@ export default function AdminPedidos() {
   }
 
   function npAgregarProducto(prod) {
+    const dist = distribuidores.find(d => d.id === npDistId)
+    const descPct = dist?.descuentos_categoria?.[prod.categoria] ?? 0
+    const precioUnit = prod.precio * (1 - descPct / 100)
     const idx = npItems.findIndex(i => i.codigo === prod.codigo)
     if (idx !== -1) {
       setNpItems(prev => prev.map((item, i) => {
@@ -167,8 +196,8 @@ export default function AdminPedidos() {
       setNpItems(prev => [...prev, {
         codigo: prod.codigo, nombre: prod.nombre, modelo: prod.modelo,
         categoria: prod.categoria, precio_base: prod.precio,
-        precio_unitario: prod.precio, descuento_pct: 0,
-        cantidad: 1, subtotal: prod.precio,
+        precio_unitario: precioUnit, descuento_pct: descPct,
+        cantidad: 1, subtotal: precioUnit,
       }])
     }
   }
@@ -534,7 +563,18 @@ export default function AdminPedidos() {
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Distribuidor *</div>
               <select
                 value={npDistId}
-                onChange={e => setNpDistId(e.target.value)}
+                onChange={e => {
+                  const newId = e.target.value
+                  setNpDistId(newId)
+                  const dist = distribuidores.find(d => d.id === newId)
+                  if (dist) {
+                    setNpItems(prev => prev.map(item => {
+                      const descPct = dist.descuentos_categoria?.[item.categoria] ?? 0
+                      const precioUnit = item.precio_base * (1 - descPct / 100)
+                      return { ...item, descuento_pct: descPct, precio_unitario: precioUnit, subtotal: precioUnit * item.cantidad }
+                    }))
+                  }
+                }}
                 style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: npDistId ? 'var(--text)' : 'var(--text3)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
               >
                 <option value="">Seleccioná un distribuidor...</option>
@@ -549,7 +589,7 @@ export default function AdminPedidos() {
               <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
                 Seleccioná los productos
               </div>
-              {CATALOGO_ADMIN.map(cat => (
+              {(catalogoDB.length > 0 ? catalogoDB : CATALOGO_ADMIN).map(cat => (
                 <div key={cat.categoria}>
                   <div style={{ padding: '10px 20px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)' }}>
                     {cat.emoji} {cat.label}
@@ -598,6 +638,7 @@ export default function AdminPedidos() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</div>
                           <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
+                          {item.codigo && <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'monospace', marginTop: 2 }}>#{item.codigo}</div>}
                         </div>
                         <button onClick={() => npQuitarItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, padding: '0 0 0 8px', lineHeight: 1 }}>×</button>
                       </div>
@@ -798,6 +839,7 @@ export default function AdminPedidos() {
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</div>
                               <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
+                              {item.codigo && <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'monospace', marginTop: 2 }}>#{item.codigo}</div>}
                             </div>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                               <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff' }}>{formatPrecio(item.subtotal)}</div>
@@ -861,7 +903,7 @@ export default function AdminPedidos() {
                       {showProductPicker === pedido.id && (
                         <div style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>Seleccioná un producto para agregar</div>
-                          {CATALOGO_ADMIN.map(cat => (
+                          {(catalogoDB.length > 0 ? catalogoDB : CATALOGO_ADMIN).map(cat => (
                             <div key={cat.categoria}>
                               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 6 }}>{cat.emoji} {cat.label}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -917,6 +959,7 @@ export default function AdminPedidos() {
                           <div>
                             <span style={{ fontWeight: 600 }}>{item.nombre}</span>
                             <span style={{ color: 'var(--text3)', fontSize: 11, marginLeft: 8 }}>{item.modelo}</span>
+                            {item.codigo && <span style={{ color: 'var(--text3)', fontSize: 10, marginLeft: 8, fontFamily: 'monospace' }}>#{item.codigo}</span>}
                             {item.descuento_pct > 0 && (
                               <span style={{ fontSize: 10, marginLeft: 8, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', padding: '1px 6px', borderRadius: 4 }}>{item.descuento_pct}% desc.</span>
                             )}

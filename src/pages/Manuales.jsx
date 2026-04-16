@@ -44,8 +44,9 @@ const CATALOG = [
         label: 'Anafe por Inducción',
         emoji: '⚡',
         subs: [
-          { value: 'cocinas_induccion_2h', label: '2 Hornallas' },
-          { value: 'cocinas_induccion_4h', label: '4 Hornallas' },
+          { value: 'cocinas_induccion_2h',          label: '2 Hornallas' },
+          { value: 'cocinas_induccion_4h',          label: '4 Hornallas' },
+          { value: 'cocinas_induccion_4h_extractor', label: '4 Hornallas con Extractor' },
         ],
       },
       {
@@ -53,8 +54,8 @@ const CATALOG = [
         label: 'Anafe por Infrarrojo',
         emoji: '🌡',
         subs: [
-          { value: 'cocinas_infrarrojo_2h', label: '2 Hornallas' },
-          { value: 'cocinas_infrarrojo_4h', label: '4 Hornallas' },
+          { value: 'cocinas_infrarrojo_2h',          label: '2 Hornallas' },
+          { value: 'cocinas_infrarrojo_4h_extractor', label: '4 Hornallas con Extractor' },
         ],
       },
     ],
