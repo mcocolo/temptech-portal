@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
-  Shield, Bell, Package, Users, Store, ShoppingCart, Tags
+  Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
+  ShoppingBag, Wrench, Check
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -69,11 +71,73 @@ const NAV_VENDEDOR = [
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
 ]
 
+const NOTIF_ICONS = { pedido: '🛒', reclamo: '🔧', foro: '💬', preventa: '📦' }
+const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', preventa: '#a78bfa' }
+
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { profile, signOut, isAdmin, isAdmin2, isVendedor, isDistributor } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
+
+  // Notificaciones (solo admin)
+  const [notifs, setNotifs]           = useState([])
+  const [showNotifs, setShowNotifs]   = useState(false)
+  const notifRef                      = useRef(null)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    cargarNotifs()
+
+    const channel = supabase
+      .channel('notificaciones-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones' }, payload => {
+        setNotifs(prev => [payload.new, ...prev].slice(0, 50))
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [isAdmin])
+
+  // Cerrar popup al hacer click afuera
+  useEffect(() => {
+    function handleClick(e) {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifs(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  async function cargarNotifs() {
+    const { data } = await supabase
+      .from('notificaciones')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    setNotifs(data || [])
+  }
+
+  async function marcarTodasLeidas() {
+    await supabase.from('notificaciones').update({ leida: true }).eq('leida', false)
+    setNotifs(prev => prev.map(n => ({ ...n, leida: true })))
+  }
+
+  async function marcarLeida(id) {
+    await supabase.from('notificaciones').update({ leida: true }).eq('id', id)
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n))
+  }
+
+  const unreadCount = notifs.filter(n => !n.leida).length
+
+  function formatNotifTime(dateStr) {
+    const d = new Date(dateStr)
+    const now = new Date()
+    const diff = Math.floor((now - d) / 1000)
+    if (diff < 60) return 'ahora'
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`
+    if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+  }
 
   const baseNav = NAV.filter(item => !item.isDistributor || isDistributor || isAdmin)
   const allNav = isAdmin
@@ -300,17 +364,123 @@ export default function Layout({ children }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button style={{
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 8, width: 34, height: 34,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text2)', transition: 'all .15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-blue)'; e.currentTarget.style.color = 'var(--brand-blue)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text2)' }}
-            >
-              <Bell size={15} />
-            </button>
+            {isAdmin && (
+              <div ref={notifRef} style={{ position: 'relative' }}>
+                {/* Botón campana */}
+                <button
+                  onClick={() => setShowNotifs(v => !v)}
+                  style={{
+                    background: showNotifs ? 'rgba(74,108,247,0.15)' : 'var(--surface2)',
+                    border: `1px solid ${showNotifs ? 'rgba(74,108,247,0.5)' : 'var(--border)'}`,
+                    borderRadius: 8, width: 34, height: 34,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: showNotifs ? '#7b9fff' : 'var(--text2)', transition: 'all .15s',
+                    cursor: 'pointer', position: 'relative',
+                  }}
+                  onMouseEnter={e => { if (!showNotifs) { e.currentTarget.style.borderColor = 'var(--brand-blue)'; e.currentTarget.style.color = 'var(--brand-blue)' } }}
+                  onMouseLeave={e => { if (!showNotifs) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text2)' } }}
+                >
+                  <Bell size={15} />
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -4, right: -4,
+                      background: '#ff5577', color: '#fff',
+                      fontSize: 9, fontWeight: 800,
+                      width: 16, height: 16, borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '2px solid var(--bg)',
+                    }}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Popup notificaciones */}
+                {showNotifs && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 10px)', right: 0,
+                    width: 360, maxHeight: 480,
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-lg)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                    zIndex: 200,
+                  }}>
+                    {/* Header */}
+                    <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>
+                        Notificaciones
+                        {unreadCount > 0 && (
+                          <span style={{ marginLeft: 8, background: '#ff5577', color: '#fff', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 20 }}>
+                            {unreadCount} nuevas
+                          </span>
+                        )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={marcarTodasLeidas}
+                          style={{ background: 'none', border: 'none', color: '#7b9fff', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font)' }}
+                        >
+                          <Check size={11} /> Marcar leídas
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lista */}
+                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                      {notifs.length === 0 ? (
+                        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+                          Sin notificaciones
+                        </div>
+                      ) : notifs.map(n => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            marcarLeida(n.id)
+                            if (n.link) { navigate(n.link); setShowNotifs(false) }
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 12,
+                            padding: '12px 16px',
+                            background: n.leida ? 'transparent' : 'rgba(74,108,247,0.05)',
+                            borderBottom: '1px solid var(--border)',
+                            cursor: n.link ? 'pointer' : 'default',
+                            transition: 'background .15s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface2)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = n.leida ? 'transparent' : 'rgba(74,108,247,0.05)' }}
+                        >
+                          {/* Icono */}
+                          <div style={{
+                            width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                            background: `${NOTIF_COLORS[n.tipo] || '#7b9fff'}20`,
+                            border: `1px solid ${NOTIF_COLORS[n.tipo] || '#7b9fff'}40`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 16,
+                          }}>
+                            {NOTIF_ICONS[n.tipo] || '🔔'}
+                          </div>
+
+                          {/* Contenido */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: n.leida ? 400 : 600, lineHeight: 1.4, color: 'var(--text)' }}>
+                              {n.mensaje}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+                              {formatNotifTime(n.created_at)}
+                            </div>
+                          </div>
+
+                          {/* Punto no leída */}
+                          {!n.leida && (
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#7b9fff', flexShrink: 0, marginTop: 4 }} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
 

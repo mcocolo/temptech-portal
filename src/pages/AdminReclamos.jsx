@@ -1193,18 +1193,18 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     {/* Acciones */}
                     <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <Btn onClick={() => imprimirReclamo(item)} variant="ghost">🖨️ Imprimir</Btn>
-                      <Btn onClick={() => editandoId === item.id ? setEditandoId(null) : abrirEdicion(item)} variant="ghost">✏️ Editar</Btn>
-                      <Btn onClick={() => cambiarEstado(item, 'pendiente')} disabled={esCerrado}>Pendiente</Btn>
-                      <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Resolucion' })} disabled={!aprobadoSI} variant="primary">🚚 Resolución</Btn>
-                      <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Devolucion' })} disabled={!aprobadoSI} variant="orange">📦 Devolución</Btn>
-                      <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Service' })} disabled={esCerrado} variant="teal">🔧 Service</Btn>
-                      <Btn onClick={() => setNotificarServiceId(item.id)} disabled={esCerrado} variant="teal">📅 Notificar Service</Btn>
-                      <Btn onClick={() => marcarAprobado(item)} disabled={aprobadoSI} variant="success">✓ Aprobar</Btn>
-                      <Btn onClick={() => handleDesaprobar(item)} disabled={desaprobarBloqueado} variant="warn">Desaprobar</Btn>
-                      <Btn onClick={() => { setRechazoAbiertoId(item.id); setTextoRechazo(item.motivo_rechazo || DEFAULT_RECHAZO(item.tracking_id)); setNotaRechazo('') }} disabled={esCerrado} variant="danger">Rechazar</Btn>
-                      <Btn onClick={() => cerrarCaso(item)}>Cerrar</Btn>
+                      {isAdmin && <Btn onClick={() => editandoId === item.id ? setEditandoId(null) : abrirEdicion(item)} variant="ghost">✏️ Editar</Btn>}
+                      {isAdmin && <Btn onClick={() => cambiarEstado(item, 'pendiente')} disabled={esCerrado}>Pendiente</Btn>}
+                      {isAdmin && <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Resolucion' })} disabled={!aprobadoSI} variant="primary">🚚 Resolución</Btn>}
+                      {isAdmin && <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Devolucion' })} disabled={!aprobadoSI} variant="orange">📦 Devolución</Btn>}
+                      {isAdmin && <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Service' })} disabled={esCerrado} variant="teal">🔧 Service</Btn>}
+                      {isAdmin && <Btn onClick={() => setNotificarServiceId(item.id)} disabled={esCerrado} variant="teal">📅 Notificar Service</Btn>}
+                      {isAdmin && <Btn onClick={() => marcarAprobado(item)} disabled={aprobadoSI} variant="success">✓ Aprobar</Btn>}
+                      {isAdmin && <Btn onClick={() => handleDesaprobar(item)} disabled={desaprobarBloqueado} variant="warn">Desaprobar</Btn>}
+                      {isAdmin && <Btn onClick={() => { setRechazoAbiertoId(item.id); setTextoRechazo(item.motivo_rechazo || DEFAULT_RECHAZO(item.tracking_id)); setNotaRechazo('') }} disabled={esCerrado} variant="danger">Rechazar</Btn>}
+                      {isAdmin && <Btn onClick={() => cerrarCaso(item)}>Cerrar</Btn>}
                       <Btn onClick={() => setSupervisionAbierto(item)} variant="teal">🏭 Supervisión</Btn>
-                      <Btn onClick={() => eliminarReclamo(item)} variant="danger">🗑 Eliminar</Btn>
+                      {isAdmin && <Btn onClick={() => eliminarReclamo(item)} variant="danger">🗑 Eliminar</Btn>}
                     </div>
 
                     {/* Panel desaprobar */}
@@ -1264,8 +1264,8 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                       />
                     )}
 
-                    {/* Panel edición */}
-                    {editandoId === item.id && (
+                    {/* Panel edición — solo admin */}
+                    {isAdmin && editandoId === item.id && (
                       <div style={{ margin: '0 22px 18px', padding: 18, background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: T.radius }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff', marginBottom: 14 }}>✏️ Editar datos del reclamo</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
