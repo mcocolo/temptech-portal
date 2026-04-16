@@ -417,7 +417,7 @@ export default function AdminPedidos() {
     const nuevosArchivos = [...archivosActuales, publicUrl]
     const { error } = await supabase.from('pedidos').update({ pago_archivos: nuevosArchivos, pago_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', pedido.id)
     setSubiendoPago(null)
-    if (error) { toast.error('Error al guardar URL'); return }
+    if (error) { toast.error('Error al guardar: ' + error.message); console.error('subirPago error:', error); return }
     toast.success('Comprobante subido ✅')
     cargar()
   }
