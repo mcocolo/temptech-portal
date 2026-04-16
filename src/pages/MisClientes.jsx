@@ -142,20 +142,25 @@ export default function MisClientes() {
     // Generar contraseña aleatoria — el vendedor maneja al cliente, no necesita login
     const autoPass = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-4).toUpperCase()
 
-    const { data, error } = await supabase.rpc('crear_cliente_vendedor', {
-      p_email:        form.email.trim(),
-      p_password:     autoPass,
-      p_full_name:    form.full_name.trim(),
-      p_razon_social: form.razon_social.trim(),
-      p_cuit:         form.cuit.trim(),
-      p_telefono:     form.telefono.trim(),
-      p_localidad:    form.localidad.trim(),
-      p_provincia:    form.provincia,
-      p_vendedor_id:  user.id,
+    const resp = await fetch('/api/crear-cliente', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:        form.email.trim(),
+        password:     autoPass,
+        full_name:    form.full_name.trim(),
+        razon_social: form.razon_social.trim(),
+        cuit:         form.cuit.trim(),
+        telefono:     form.telefono.trim(),
+        localidad:    form.localidad.trim(),
+        provincia:    form.provincia,
+        vendedor_id:  user.id,
+      }),
     })
+    const result = await resp.json()
 
-    if (error) {
-      toast.error('Error al crear cliente: ' + error.message)
+    if (!resp.ok) {
+      toast.error('Error al crear cliente: ' + result.error)
     } else {
       toast.success('Cliente creado ✅')
       setModalNuevo(false)
