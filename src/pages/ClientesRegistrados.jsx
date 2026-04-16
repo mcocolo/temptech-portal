@@ -576,6 +576,23 @@ export default function ClientesRegistrados() {
   const [modalNuevoVendedor, setModalNuevoVendedor] = useState(false)
   const [nvForm, setNvForm] = useState({ email: '', password: '', full_name: '', razon_social: '', telefono: '', localidad: '', provincia: '', zona_cobertura: '' })
   const [creandoVendedor, setCreandoVendedor] = useState(false)
+  const [modalCambiarPass, setModalCambiarPass] = useState(null) // email del usuario
+  const [nuevaPass, setNuevaPass] = useState('')
+  const [cambiandoPass, setCambiandoPass] = useState(false)
+
+  async function cambiarPassword() {
+    if (!nuevaPass || nuevaPass.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
+    setCambiandoPass(true)
+    const res = await fetch('/api/resetear-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: modalCambiarPass, password: nuevaPass }),
+    })
+    const data = await res.json()
+    if (!res.ok) { toast.error('Error: ' + data.error) }
+    else { toast.success('Contraseña actualizada ✅'); setModalCambiarPass(null); setNuevaPass('') }
+    setCambiandoPass(false)
+  }
 
   async function crearVendedor() {
     if (!nvForm.email || !nvForm.password) { toast.error('Email y contraseña son obligatorios'); return }
@@ -723,6 +740,12 @@ export default function ClientesRegistrados() {
               <span style={{ color: '#7b9fff', fontWeight: 700 }}>{misClients.length}</span> <span style={{ color: 'var(--text3)' }}>clientes</span>
             </div>
             <button
+              onClick={() => { setModalCambiarPass(v.email); setNuevaPass('') }}
+              style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', color: '#3dd68c', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+            >
+              🔑 Cambiar contraseña
+            </button>
+            <button
               onClick={async () => {
                 const { error } = await supabase.auth.resetPasswordForEmail(v.email, { redirectTo: window.location.origin })
                 if (error) toast.error('Error: ' + error.message)
@@ -730,7 +753,7 @@ export default function ClientesRegistrados() {
               }}
               style={{ background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', color: '#7b9fff', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
             >
-              🔑 Resetear contraseña
+              📧 Resetear por email
             </button>
             <button
               onClick={() => { if (window.confirm(`¿Eliminar a ${v.full_name || v.email}?`)) { eliminarUsuario(v.id); setDetailVendedor(null) } }}
@@ -1052,6 +1075,33 @@ export default function ClientesRegistrados() {
             <button onClick={() => setModalNuevoVendedor(false)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', color: 'var(--text2)' }}>Cancelar</button>
             <button onClick={crearVendedor} disabled={creandoVendedor} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: creandoVendedor ? 0.6 : 1 }}>
               {creandoVendedor ? 'Creando...' : 'Crear vendedor'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Modal cambiar contraseña */}
+    {modalCambiarPass && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 28, width: 380, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>🔑 Cambiar contraseña</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)' }}>{modalCambiarPass}</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 6 }}>Nueva contraseña</div>
+            <input
+              type="text"
+              value={nuevaPass}
+              onChange={e => setNuevaPass(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              style={inputSt}
+              autoFocus
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setModalCambiarPass(null); setNuevaPass('') }} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 16px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+            <button onClick={cambiarPassword} disabled={cambiandoPass} style={{ background: 'var(--brand-gradient)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font)', opacity: cambiandoPass ? 0.6 : 1 }}>
+              {cambiandoPass ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </div>

@@ -11,15 +11,17 @@ export default async function handler(req, res) {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email y password requeridos' })
 
-  // Buscar usuario
-  const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-  if (listError) return res.status(400).json({ error: listError.message })
+  // Buscar usuario por email
+  const { data, error: searchError } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .single()
 
-  const user = users.find(u => u.email === email)
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
+  if (searchError || !data) return res.status(404).json({ error: 'Usuario no encontrado en profiles' })
 
   // Actualizar contraseña
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, { password })
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, { password })
   if (error) return res.status(400).json({ error: error.message })
 
   return res.status(200).json({ ok: true })
