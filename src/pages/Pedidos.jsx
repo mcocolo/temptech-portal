@@ -226,10 +226,21 @@ export default function Pedidos() {
     const { error: uploadError } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
     if (uploadError) { toast.error('Error al subir: ' + uploadError.message); setSubiendoPago(null); return }
     const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
-    const { error } = await supabase.from('pedidos').update({ pago_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    const archivosActuales = Array.isArray(pedido.pago_archivos) ? pedido.pago_archivos : (pedido.pago_url ? [pedido.pago_url] : [])
+    const nuevosArchivos = [...archivosActuales, publicUrl]
+    const { error } = await supabase.from('pedidos').update({ pago_archivos: nuevosArchivos, pago_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', pedido.id)
     setSubiendoPago(null)
     if (error) { toast.error('Error al guardar'); return }
     toast.success('Comprobante subido ✅')
+    cargarHistorial()
+  }
+
+  async function eliminarPago(pedido, url) {
+    const archivosActuales = Array.isArray(pedido.pago_archivos) ? pedido.pago_archivos : (pedido.pago_url ? [pedido.pago_url] : [])
+    const nuevosArchivos = archivosActuales.filter(u => u !== url)
+    const { error } = await supabase.from('pedidos').update({ pago_archivos: nuevosArchivos, pago_url: nuevosArchivos[nuevosArchivos.length - 1] || null, updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    if (error) { toast.error('Error al eliminar'); return }
+    toast.success('Comprobante eliminado')
     cargarHistorial()
   }
 
@@ -735,24 +746,29 @@ export default function Pedidos() {
                   {/* Comprobante de pago */}
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(61,214,140,0.15)' }}>
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Comprobante de pago</div>
-                    {p.pago_url ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <a href={p.pago_url} target="_blank" rel="noreferrer"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#3dd68c', textDecoration: 'none' }}>
-                          💸 Ver comprobante
-                        </a>
-                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#7b9fff', cursor: 'pointer' }}>
-                          🔄 Reemplazar
-                          <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => subirPago(p, e.target.files[0])} />
-                        </label>
-                        {subiendoPago === p.id && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Subiendo...</span>}
-                      </div>
-                    ) : (
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer' }}>
-                        {subiendoPago === p.id ? '⏳ Subiendo...' : '💸 Adjuntar comprobante'}
-                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => subirPago(p, e.target.files[0])} />
-                      </label>
-                    )}
+                    {(() => {
+                      const archivos = Array.isArray(p.pago_archivos) && p.pago_archivos.length > 0
+                        ? p.pago_archivos
+                        : p.pago_url ? [p.pago_url] : []
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {archivos.map((url, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <a href={url} target="_blank" rel="noreferrer"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#3dd68c', textDecoration: 'none' }}>
+                                💸 Comprobante {archivos.length > 1 ? i + 1 : ''}
+                              </a>
+                              <button onClick={() => eliminarPago(p, url)}
+                                style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>✕</button>
+                            </div>
+                          ))}
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', marginTop: archivos.length ? 4 : 0 }}>
+                            {subiendoPago === p.id ? '⏳ Subiendo...' : '+ Agregar comprobante'}
+                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => subirPago(p, e.target.files[0])} />
+                          </label>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
