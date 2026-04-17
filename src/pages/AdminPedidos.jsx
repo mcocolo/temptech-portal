@@ -784,7 +784,7 @@ export default function AdminPedidos() {
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['todos', 'pendiente', 'aprobado', 'modificado', 'rechazado', 'finalizado', 'entregado'].map(f => (
+          {['todos', 'pendiente', 'aprobado', 'entregado', 'finalizado'].map(f => (
             <button key={f} onClick={() => setFiltro(f)} style={{
               padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
               background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',
