@@ -1229,7 +1229,7 @@ export default function AdminPedidos() {
                           ✓ Finalizado
                         </button>
                       )}
-                      {pedido.estado === 'finalizado' && (
+                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado' || pedido.estado === 'finalizado') && (
                         <button
                           onClick={() => entregarPedido(pedido)}
                           style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
