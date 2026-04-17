@@ -154,7 +154,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         Object.keys(desc).forEach(k => { if (desc[k] === null) delete desc[k] })
         const dirsAlt = (editForm.dirs_alt || []).filter(d => d.direccion.trim())
         await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt }).eq('id', u.id)
-        if (cl?.id) await supabase.from('clientes').update({ direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
+        if (cl?.id) await supabase.from('clientes').update({ direccion: editForm.direccion, localidad: editForm.localidad, provincia: editForm.provincia, direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
       } else {
         await supabase.from('profiles').update({ full_name: editForm.full_name, email: editForm.email, telefono: editForm.telefono }).eq('id', u.id)
         if (cl?.id) await supabase.from('clientes').update({ full_name: editForm.full_name, email: editForm.email, telefono: editForm.telefono, direccion: editForm.direccion, localidad: editForm.localidad, provincia: editForm.provincia, codigo_postal: editForm.codigo_postal, direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
@@ -357,9 +357,9 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                 { label: 'Email',               val: u.email || cl?.email },
                 { label: 'Teléfono',            val: u.telefono || cl?.telefono },
                 { label: 'CUIT',                val: cl?.cuit },
-                { label: 'Dirección',           val: cl?.direccion },
-                { label: 'Localidad',           val: cl?.localidad },
-                { label: 'Provincia',           val: cl?.provincia },
+                { label: 'Dirección',           val: cl?.direccion || '—' },
+                { label: 'Localidad',           val: cl?.localidad || '—' },
+                { label: 'Provincia',           val: cl?.provincia || '—' },
                 { label: 'Desc. Calefones/Calderas', val: u.descuentos?.calefones_calderas != null ? `${u.descuentos.calefones_calderas}%` : null },
                 { label: 'Desc. Paneles',       val: u.descuentos?.paneles_calefactores != null ? `${u.descuentos.paneles_calefactores}%` : null },
                 { label: 'Desc. Anafes',        val: u.descuentos?.anafes != null ? `${u.descuentos.anafes}%` : null },
