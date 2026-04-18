@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
-  ShoppingBag, Wrench, Check
+  ShoppingBag, Wrench, Check, Ruler
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -22,7 +22,8 @@ const NAV = [
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
   { label: 'Documentación',     icon: ClipboardList,   path: '/documentacion',     isDistributor: true },
-  { label: 'Contenido Digital', icon: Package,         path: '/contenido-digital', isDistributor: true },
+  { label: 'Contenido Digital',          icon: Package,      path: '/contenido-digital',          isDistributor: true },
+  { label: 'Especificaciones Técnicas',  icon: Ruler,        path: '/especificaciones-tecnicas',   isDistributor: true },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
@@ -54,6 +55,7 @@ const NAV_ADMIN2 = [
   { section: 'Recursos' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+  { label: 'Especificaciones Técnicas', icon: Ruler,   path: '/especificaciones-tecnicas' },
 ]
 
 // Nav para vendedor
@@ -69,6 +71,7 @@ const NAV_VENDEDOR = [
   { label: 'Lista de Precios',  icon: Tags,            path: '/admin-precios' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+  { label: 'Especificaciones Técnicas', icon: Ruler,   path: '/especificaciones-tecnicas' },
 ]
 
 const NOTIF_ICONS = { pedido: '🛒', reclamo: '🔧', foro: '💬', preventa: '📦' }
