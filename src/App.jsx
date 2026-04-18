@@ -24,6 +24,7 @@ import ContenidoDigital from '@/pages/ContenidoDigital'
 import MisClientes from '@/pages/MisClientes'
 import Documentacion from '@/pages/Documentacion'
 import EspecificacionesTecnicas from '@/pages/EspecificacionesTecnicas'
+import IngresoEgresoPT from '@/pages/IngresoEgresoPT'
 
 
 
@@ -72,6 +73,7 @@ function AppRoutes() {
               <Route path="/mis-clientes"     element={<MisClientes />} />
               <Route path="/documentacion"               element={<Documentacion />} />
               <Route path="/especificaciones-tecnicas"  element={<EspecificacionesTecnicas />} />
+              <Route path="/ingreso-egreso-pt"          element={<IngresoEgresoPT />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>

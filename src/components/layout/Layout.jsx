@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
-  ShoppingBag, Wrench, Check, Ruler
+  ShoppingBag, Wrench, Check, Ruler, BarChart2
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -23,7 +23,7 @@ const NAV = [
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
   { label: 'Documentación',     icon: ClipboardList,   path: '/documentacion',     isDistributor: true },
   { label: 'Contenido Digital',          icon: Package,      path: '/contenido-digital',          isDistributor: true },
-  { label: 'Especificaciones Técnicas',  icon: Ruler,        path: '/especificaciones-tecnicas',   isDistributor: true },
+  { label: 'Especificaciones Técnicas',  icon: Ruler,        path: '/especificaciones-tecnicas' },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
@@ -37,12 +37,14 @@ const ADMIN_NAV = [
   { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
   { label: 'Pedidos', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
   { label: 'Lista de Precios', icon: Tags, path: '/admin-precios', isAdmin: true },
-  { label: 'Preventas', icon: Package, path: '/admin-preventas', isAdmin: true },
+  { label: 'Preventas',           icon: Package,    path: '/admin-preventas',    isAdmin: true },
+  { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },
 ]
 
 const ADMIN2_NAV = [
   { section: 'Gestión' },
-  { label: 'Service / Garantía', icon: AlertTriangle, path: '/reclamos', isAdmin: true },
+  { label: 'Service / Garantía',  icon: AlertTriangle, path: '/reclamos',          isAdmin: true },
+  { label: 'Ingreso / Egreso PT', icon: BarChart2,     path: '/ingreso-egreso-pt', isAdmin: true },
 ]
 
 // Nav base para admin2
