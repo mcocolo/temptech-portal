@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui'
-import { ArrowDownCircle, ArrowUpCircle, Package, History } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -68,7 +68,7 @@ function formatFecha(d) {
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }
 
 export default function IngresoEgresoPT() {
-  const { user, profile } = useAuth()
+  const { user, profile, isAdmin, isAdmin2 } = useAuth()
   const [view, setView]         = useState('stock')   // 'stock' | 'historial'
   const [stock, setStock]       = useState({})         // { [codigo]: { stock_inicial, stock_actual } }
   const [movs, setMovs]         = useState([])
@@ -83,13 +83,94 @@ export default function IngresoEgresoPT() {
   const [eObs, setEObs]                 = useState('')
   const [guardando, setGuardando]       = useState(false)
 
-  // Modal stock inicial
+  // Modal ingreso
+  const [modalIngreso, setModalIngreso]   = useState(false)
+  const [iProducto, setIProducto]         = useState(null)
+  const [iCantidad, setICantidad]         = useState('')
+  const [iObs, setIObs]                   = useState('')
+  const [guardandoIngreso, setGuardandoIngreso] = useState(false)
+
+  // Tab pedidos
+  const [pedidos, setPedidos]               = useState([])
+  const [loadingPedidos, setLoadingPedidos] = useState(false)
+  const [busquedaPed, setBusquedaPed]       = useState('')
+  const [modalPedido, setModalPedido]       = useState(false)
+  const [pedidoSel, setPedidoSel]           = useState(null)
+  const [pNroRemito, setPNroRemito]         = useState('')
+  const [pFotoRemito, setPFotoRemito]       = useState(null)
+  const [confirmandoPed, setConfirmandoPed] = useState(false)
+
+  // Modal stock inicial (solo admin)
   const [modalStock, setModalStock]     = useState(false)
   const [sProducto, setSProducto]       = useState(null)
   const [sCantidad, setSCantidad]       = useState('')
   const [guardandoStock, setGuardandoStock] = useState(false)
 
   useEffect(() => { cargar() }, [])
+  useEffect(() => { if (view === 'pedidos') cargarPedidos() }, [view])
+
+  async function cargarPedidos() {
+    setLoadingPedidos(true)
+    const { data } = await supabase
+      .from('pedidos')
+      .select('*, profiles(full_name, razon_social, email)')
+      .eq('estado', 'aprobado')
+      .order('created_at', { ascending: false })
+    setPedidos(data || [])
+    setLoadingPedidos(false)
+  }
+
+  async function confirmarEgresoPedido() {
+    if (!pedidoSel) return
+    if (!pNroRemito.trim()) return toast.error('Ingresá el número de remito')
+    setConfirmandoPed(true)
+
+    let remitoUrl = null
+    if (pFotoRemito) {
+      const ext = pFotoRemito.name.split('.').pop()
+      const path = `remitos/${pedidoSel.id}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('facturas').upload(path, pFotoRemito, { upsert: true })
+      if (!upErr) {
+        const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+        remitoUrl = publicUrl
+      }
+    }
+
+    // Actualizar pedido con remito y cambiar estado a finalizado
+    await supabase.from('pedidos').update({
+      nro_remito: pNroRemito.trim(),
+      ...(remitoUrl ? { remito_url: remitoUrl } : {}),
+      estado: 'finalizado',
+      updated_at: new Date().toISOString(),
+    }).eq('id', pedidoSel.id)
+
+    // Descontar stock por cada item del pedido
+    const items = Array.isArray(pedidoSel.items) ? pedidoSel.items : []
+    for (const item of items) {
+      if (!item.codigo || !item.cantidad) continue
+      const actual = stock[item.codigo]?.stock_actual ?? 0
+      const nuevo = Math.max(0, actual - item.cantidad)
+      await supabase.from('stock_pt').upsert({
+        codigo: item.codigo,
+        nombre: item.nombre || '',
+        modelo: item.modelo || '',
+        categoria: item.categoria || '',
+        stock_actual: nuevo,
+        stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
+      }, { onConflict: 'codigo' })
+      await supabase.from('movimientos_pt').insert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
+        observacion: `Pedido #${pedidoSel.id?.slice(0,8).toUpperCase()} · Remito ${pNroRemito}`,
+        usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+      })
+    }
+
+    toast.success('Egreso registrado y pedido finalizado ✅')
+    setConfirmandoPed(false)
+    setModalPedido(false); setPedidoSel(null); setPNroRemito(''); setPFotoRemito(null)
+    cargar(); cargarPedidos()
+  }
 
   async function cargar() {
     setLoading(true)
@@ -102,6 +183,31 @@ export default function IngresoEgresoPT() {
     setStock(map)
     setMovs(movsData || [])
     setLoading(false)
+  }
+
+  async function guardarIngreso() {
+    if (!iProducto) return toast.error('Seleccioná un producto')
+    const cant = parseInt(iCantidad)
+    if (!cant || cant <= 0) return toast.error('Ingresá una cantidad válida')
+    setGuardandoIngreso(true)
+    const actual = stock[iProducto.codigo]?.stock_actual ?? 0
+    const nuevoStock = actual + cant
+    const { error: e1 } = await supabase.from('stock_pt').upsert({
+      codigo: iProducto.codigo, nombre: iProducto.nombre, modelo: iProducto.modelo, categoria: iProducto.categoria,
+      stock_actual: nuevoStock,
+      stock_inicial: stock[iProducto.codigo]?.stock_inicial ?? 0,
+    }, { onConflict: 'codigo' })
+    if (e1) { toast.error('Error al actualizar stock'); setGuardandoIngreso(false); return }
+    await supabase.from('movimientos_pt').insert({
+      codigo: iProducto.codigo, nombre: iProducto.nombre, modelo: iProducto.modelo, categoria: iProducto.categoria,
+      tipo: 'ingreso', cantidad: cant, canal: 'Ingreso manual',
+      observacion: iObs.trim() || null,
+      usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+    })
+    toast.success('Ingreso registrado ✅')
+    setGuardandoIngreso(false)
+    setModalIngreso(false); setIProducto(null); setICantidad(''); setIObs('')
+    cargar()
   }
 
   async function guardarEgreso() {
@@ -213,7 +319,7 @@ export default function IngresoEgresoPT() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        {[{ v: 'stock', icon: <Package size={13} />, label: 'Stock' }, { v: 'historial', icon: <History size={13} />, label: 'Historial' }].map(t => (
+        {[{ v: 'stock', icon: <Package size={13} />, label: 'Stock' }, { v: 'pedidos', icon: <ShoppingBag size={13} />, label: 'Egresos por Pedido' }, { v: 'historial', icon: <History size={13} />, label: 'Historial' }].map(t => (
           <button key={t.v} onClick={() => setView(t.v)} style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
             background: view === t.v ? 'rgba(74,108,247,0.15)' : 'var(--surface)', color: view === t.v ? '#7b9fff' : 'var(--text3)',
@@ -224,6 +330,43 @@ export default function IngresoEgresoPT() {
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><Spinner size={28} /></div>
+      ) : view === 'pedidos' ? (
+        <div>
+          <input value={busquedaPed} onChange={e => setBusquedaPed(e.target.value)} placeholder="🔍 Buscar por distribuidor o ID..." style={{ ...inputSt, marginBottom: 16, maxWidth: 400 }} />
+          {loadingPedidos ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>
+          ) : pedidos.filter(p => {
+            const q = busquedaPed.toLowerCase()
+            return !q || p.profiles?.full_name?.toLowerCase().includes(q) || p.profiles?.razon_social?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q)
+          }).length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay pedidos aprobados pendientes de egreso</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pedidos.filter(p => {
+                const q = busquedaPed.toLowerCase()
+                return !q || p.profiles?.full_name?.toLowerCase().includes(q) || p.profiles?.razon_social?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q)
+              }).map(ped => (
+                <div key={ped.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace' }}>#{ped.id?.slice(0,8).toUpperCase()}</span>
+                      <span style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>APROBADO</span>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{ped.profiles?.razon_social || ped.profiles?.full_name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                      {(Array.isArray(ped.items) ? ped.items : []).map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(ped.created_at)}</div>
+                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(ped.nro_remito || ''); setPFotoRemito(null); setModalPedido(true) }}
+                    style={{ background: 'rgba(74,108,247,0.12)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                    📋 Registrar egreso
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : view === 'stock' ? (
         <>
           {/* Filtro categoría */}
@@ -279,9 +422,15 @@ export default function IngresoEgresoPT() {
                             </span>
                           </td>
                           <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                              <button onClick={() => { setSProducto({ ...p, categoria: cat.categoria }); setSCantidad(s?.stock_inicial ? String(s.stock_inicial) : ''); setModalStock(true) }}
-                                title="Cargar stock inicial"
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+                              {isAdmin && (
+                                <button onClick={() => { setSProducto({ ...p, categoria: cat.categoria }); setSCantidad(s?.stock_inicial ? String(s.stock_inicial) : ''); setModalStock(true) }}
+                                  title="Editar stock inicial"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#7b9fff', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                  📋 Stock Inicial
+                                </button>
+                              )}
+                              <button onClick={() => { setIProducto({ ...p, categoria: cat.categoria }); setICantidad(''); setIObs(''); setModalIngreso(true) }}
                                 style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                                 <ArrowDownCircle size={12} /> Ingreso
                               </button>
@@ -342,6 +491,122 @@ export default function IngresoEgresoPT() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* MODAL EGRESO POR PEDIDO */}
+      {modalPedido && pedidoSel && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>📋 Registrar egreso — Pedido #{pedidoSel.id?.slice(0,8).toUpperCase()}</div>
+              <button onClick={() => setModalPedido(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Distribuidor */}
+              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Distribuidor</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name}</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)' }}>{pedidoSel.profiles?.email}</div>
+              </div>
+
+              {/* Items del pedido — SIN precios para Admin2 */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>Productos del pedido</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(Array.isArray(pedidoSel.items) ? pedidoSel.items : []).filter(it => it.cantidad > 0).map((it, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
+                      <div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace', marginRight: 8 }}>{it.codigo}</span>
+                        <span style={{ fontSize: 13 }}>{it.nombre} {it.modelo}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>×{it.cantidad}</span>
+                        {isAdmin && it.precio_unitario > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>${it.precio_unitario?.toLocaleString('es-AR')}</span>
+                        )}
+                        <span style={{ fontSize: 11, background: stock[it.codigo]?.stock_actual >= it.cantidad ? 'rgba(61,214,140,0.12)' : 'rgba(255,85,119,0.12)', color: stock[it.codigo]?.stock_actual >= it.cantidad ? '#3dd68c' : '#ff5577', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                          Stock: {stock[it.codigo]?.stock_actual ?? '—'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nro remito */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Número de remito *</label>
+                <input value={pNroRemito} onChange={e => setPNroRemito(e.target.value)} placeholder="Ej: 0001-00001234" style={inputSt} />
+              </div>
+
+              {/* Foto remito */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Foto del remito (opcional)</label>
+                {pFotoRemito ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: '#3dd68c' }}>✅ {pFotoRemito.name}</span>
+                    <button onClick={() => setPFotoRemito(null)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18 }}>×</button>
+                  </div>
+                ) : (
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+                    <Upload size={14} /> Adjuntar foto / PDF
+                    <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setPFotoRemito(e.target.files[0]); e.target.value = '' }} />
+                  </label>
+                )}
+              </div>
+
+              <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#a78bfa' }}>
+                👤 Registrado por: <strong>{profile?.full_name || user?.email}</strong>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={confirmarEgresoPedido} disabled={confirmandoPed} style={{ flex: 1, background: '#7b9fff', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: confirmandoPed ? 'not-allowed' : 'pointer', opacity: confirmandoPed ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                  {confirmandoPed ? '⏳ Procesando...' : '✅ Confirmar egreso y finalizar pedido'}
+                </button>
+                <button onClick={() => setModalPedido(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INGRESO */}
+      {modalIngreso && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 420 }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#3dd68c' }}>↓ Registrar Ingreso PT</div>
+              <button onClick={() => setModalIngreso(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {iProducto && (
+                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{iProducto.codigo} — {iProducto.nombre}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>{iProducto.modelo}</div>
+                  <div style={{ fontSize: 12, marginTop: 4, color: 'var(--text3)' }}>Stock actual: <strong style={{ color: '#3dd68c' }}>{stock[iProducto.codigo]?.stock_actual ?? 0}</strong></div>
+                </div>
+              )}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Cantidad *</label>
+                <input type="number" min="1" value={iCantidad} onChange={e => setICantidad(e.target.value)} placeholder="Ej: 50" style={inputSt} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observación (opcional)</label>
+                <textarea value={iObs} onChange={e => setIObs(e.target.value)} rows={2} placeholder="Ej: Remito 0001-00001234..." style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
+              </div>
+              <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#a78bfa' }}>
+                👤 Registrado por: <strong>{profile?.full_name || user?.email}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={guardarIngreso} disabled={guardandoIngreso} style={{ flex: 1, background: '#3dd68c', color: '#0a0e1a', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: guardandoIngreso ? 'not-allowed' : 'pointer', opacity: guardandoIngreso ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                  {guardandoIngreso ? '⏳ Guardando...' : '↓ Confirmar ingreso'}
+                </button>
+                <button onClick={() => setModalIngreso(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
