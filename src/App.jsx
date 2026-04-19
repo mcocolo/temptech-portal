@@ -25,6 +25,7 @@ import MisClientes from '@/pages/MisClientes'
 import Documentacion from '@/pages/Documentacion'
 import EspecificacionesTecnicas from '@/pages/EspecificacionesTecnicas'
 import IngresoEgresoPT from '@/pages/IngresoEgresoPT'
+import PedidosCanal from '@/pages/PedidosCanal'
 
 
 
@@ -74,6 +75,9 @@ function AppRoutes() {
               <Route path="/documentacion"               element={<Documentacion />} />
               <Route path="/especificaciones-tecnicas"  element={<EspecificacionesTecnicas />} />
               <Route path="/ingreso-egreso-pt"          element={<IngresoEgresoPT />} />
+              <Route path="/pedidos-meli"              element={<PedidosCanal />} />
+              <Route path="/pedidos-pagina"            element={<PedidosCanal />} />
+              <Route path="/pedidos-vo"                element={<PedidosCanal />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>

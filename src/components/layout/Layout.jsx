@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
-  ShoppingBag, Wrench, Check, Ruler, BarChart2
+  ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -35,7 +35,10 @@ const ADMIN_NAV = [
   { label: 'Panel Admin', icon: Shield, path: '/admin', isAdmin: true },
   { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
   { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
-  { label: 'Pedidos', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
+  { label: 'Pedidos Distribuidores', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
+  { label: 'Pedidos Meli',    icon: ShoppingBag, path: '/pedidos-meli',   isAdmin: true },
+  { label: 'Pedidos Página',  icon: Globe,       path: '/pedidos-pagina', isAdmin: true },
+  { label: 'Pedidos VO',      icon: Package,     path: '/pedidos-vo',     isAdmin: true },
   { label: 'Lista de Precios', icon: Tags, path: '/admin-precios', isAdmin: true },
   { label: 'Preventas',           icon: Package,    path: '/admin-preventas',    isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },

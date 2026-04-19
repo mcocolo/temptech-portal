@@ -98,7 +98,7 @@ export default function IngresoEgresoPT() {
   const [pedidoSel, setPedidoSel]           = useState(null)
   const [pItems, setPItems]                 = useState([])  // items editables
   const [pNroRemito, setPNroRemito]         = useState('')
-  const [pFotoRemito, setPFotoRemito]       = useState(null)
+  const [pFotosRemito, setPFotosRemito]     = useState([])
   const [confirmandoPed, setConfirmandoPed] = useState(false)
 
   // Modal stock inicial (solo admin)
@@ -107,8 +107,24 @@ export default function IngresoEgresoPT() {
   const [sCantidad, setSCantidad]       = useState('')
   const [guardandoStock, setGuardandoStock] = useState(false)
 
+  // Tabs egreso canal (meli/pagina/vo)
+  const [ventas, setVentas]               = useState([])
+  const [loadingVentas, setLoadingVentas] = useState(false)
+  const [busquedaVenta, setBusquedaVenta] = useState('')
+  const [modalVenta, setModalVenta]       = useState(false)
+  const [ventaSel, setVentaSel]           = useState(null)
+  const [vItems, setVItems]               = useState([])
+  const [vNroRemito, setVNroRemito]       = useState('')
+  const [confirmandoVenta, setConfirmandoVenta] = useState(false)
+
+  const CANAL_VIEWS = ['egreso-meli', 'egreso-pagina', 'egreso-vo']
+  const CANAL_LABELS = { 'egreso-meli': 'Mercado Libre', 'egreso-pagina': 'Página Web', 'egreso-vo': 'Venta VO' }
+  const CANAL_KEYS   = { 'egreso-meli': 'meli', 'egreso-pagina': 'pagina', 'egreso-vo': 'vo' }
+  const CANAL_COLORS = { 'egreso-meli': '#ffe600', 'egreso-pagina': '#7b9fff', 'egreso-vo': '#a78bfa' }
+
   useEffect(() => { cargar() }, [])
   useEffect(() => { if (view === 'pedidos') cargarPedidos() }, [view])
+  useEffect(() => { if (CANAL_VIEWS.includes(view)) cargarVentas(CANAL_KEYS[view]) }, [view])
 
   async function cargarPedidos() {
     setLoadingPedidos(true)
@@ -121,21 +137,69 @@ export default function IngresoEgresoPT() {
     setLoadingPedidos(false)
   }
 
+  async function cargarVentas(canal) {
+    setLoadingVentas(true)
+    const { data } = await supabase
+      .from('ventas')
+      .select('*')
+      .eq('canal', canal)
+      .eq('stock_descontado', false)
+      .neq('estado', 'cancelado')
+      .order('created_at', { ascending: false })
+    setVentas(data || [])
+    setLoadingVentas(false)
+  }
+
+  async function confirmarEgresoVenta() {
+    if (!ventaSel) return
+    setConfirmandoVenta(true)
+
+    // Descontar stock por items de la venta
+    for (const item of vItems) {
+      if (!item.codigo || !item.cantidad) continue
+      const actual = stock[item.codigo]?.stock_actual ?? 0
+      const nuevo = Math.max(0, actual - item.cantidad)
+      await supabase.from('stock_pt').upsert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        stock_actual: nuevo, stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
+      }, { onConflict: 'codigo' })
+      await supabase.from('movimientos_pt').insert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        tipo: 'egreso', cantidad: item.cantidad, canal: CANAL_LABELS[view] || ventaSel.canal,
+        observacion: `Venta ${ventaSel.canal.toUpperCase()} ${ventaSel.nro_orden ? '· ' + ventaSel.nro_orden : ''} · ${ventaSel.cliente_nombre}${vNroRemito ? ' · Remito ' + vNroRemito : ''}`,
+        usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+      })
+    }
+
+    await supabase.from('ventas').update({
+      stock_descontado: true,
+      ...(vNroRemito.trim() ? { nro_remito: vNroRemito.trim() } : {}),
+      estado: 'enviado',
+      updated_at: new Date().toISOString(),
+    }).eq('id', ventaSel.id)
+
+    toast.success('✅ Egreso registrado — venta marcada como Enviada')
+    setConfirmandoVenta(false)
+    setModalVenta(false); setVentaSel(null); setVItems([]); setVNroRemito('')
+    cargar(); cargarVentas(CANAL_KEYS[view])
+  }
+
   async function confirmarEgresoPedido() {
     if (!pedidoSel) return
     if (!pNroRemito.trim()) return toast.error('Ingresá el número de remito')
     setConfirmandoPed(true)
 
-    let remitoUrl = null
-    if (pFotoRemito) {
-      const ext = pFotoRemito.name.split('.').pop()
-      const path = `remitos/${pedidoSel.id}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('facturas').upload(path, pFotoRemito, { upsert: true })
+    const remitoUrls = []
+    for (const file of pFotosRemito) {
+      const ext = file.name.split('.').pop()
+      const path = `remitos/${pedidoSel.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: upErr } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
       if (!upErr) {
         const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
-        remitoUrl = publicUrl
+        remitoUrls.push(publicUrl)
       }
     }
+    const remitoUrl = remitoUrls[0] || null
 
     // Calcular saldo pendiente después de esta entrega
     const originalPending = pedidoSel.items_pendientes?.length > 0
@@ -151,7 +215,7 @@ export default function IngresoEgresoPT() {
 
     await supabase.from('pedidos').update({
       nro_remito: pNroRemito.trim(),
-      ...(remitoUrl ? { remito_url: remitoUrl } : {}),
+      ...(remitoUrls.length > 0 ? { remito_url: remitoUrl, remito_urls: remitoUrls } : {}),
       estado: isComplete ? 'entregado' : 'aprobado',
       items_pendientes: newPending,
       updated_at: new Date().toISOString(),
@@ -180,7 +244,7 @@ export default function IngresoEgresoPT() {
 
     toast.success(isComplete ? '✅ Entrega completa — Pedido marcado como Entregado' : '✅ Entrega parcial registrada — saldo pendiente guardado')
     setConfirmandoPed(false)
-    setModalPedido(false); setPedidoSel(null); setPNroRemito(''); setPFotoRemito(null); setPItems([])
+    setModalPedido(false); setPedidoSel(null); setPNroRemito(''); setPFotosRemito([]); setPItems([])
     cargar(); cargarPedidos()
   }
 
@@ -330,14 +394,26 @@ export default function IngresoEgresoPT() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        {[{ v: 'stock', icon: <Package size={13} />, label: 'Stock' }, { v: 'pedidos', icon: <ShoppingBag size={13} />, label: 'Egresos por Pedido' }, { v: 'historial', icon: <History size={13} />, label: 'Historial' }].map(t => (
-          <button key={t.v} onClick={() => setView(t.v)} style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
-            background: view === t.v ? 'rgba(74,108,247,0.15)' : 'var(--surface)', color: view === t.v ? '#7b9fff' : 'var(--text3)',
-            border: view === t.v ? '1px solid rgba(74,108,247,0.4)' : '1px solid var(--border)',
-          }}>{t.icon} {t.label}</button>
-        ))}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { v: 'stock',         icon: <Package size={13} />,     label: 'Stock' },
+          { v: 'pedidos',       icon: <ShoppingBag size={13} />, label: 'Egresos por Pedido' },
+          { v: 'egreso-meli',   icon: <ArrowUpCircle size={13} />, label: 'Egreso Meli',   color: '#ffe600' },
+          { v: 'egreso-pagina', icon: <ArrowUpCircle size={13} />, label: 'Egreso Página', color: '#7b9fff' },
+          { v: 'egreso-vo',     icon: <ArrowUpCircle size={13} />, label: 'Egreso VO',     color: '#a78bfa' },
+          { v: 'historial',     icon: <History size={13} />,     label: 'Historial' },
+        ].map(t => {
+          const isActive = view === t.v
+          const col = t.color || '#7b9fff'
+          return (
+            <button key={t.v} onClick={() => setView(t.v)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+              background: isActive ? `${col}22` : 'var(--surface)',
+              color: isActive ? col : 'var(--text3)',
+              border: isActive ? `1px solid ${col}66` : '1px solid var(--border)',
+            }}>{t.icon} {t.label}</button>
+          )
+        })}
       </div>
 
       {loading ? (
@@ -376,7 +452,7 @@ export default function IngresoEgresoPT() {
                     )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(ped.created_at)}</div>
-                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(''); setPFotoRemito(null); const pending = ped.items_pendientes?.length > 0 ? ped.items_pendientes : (ped.items || []); setPItems(pending.map(it => ({ ...it }))); setModalPedido(true) }}
+                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(''); setPFotosRemito([]); const pending = ped.items_pendientes?.length > 0 ? ped.items_pendientes : (ped.items || []); setPItems(pending.map(it => ({ ...it }))); setModalPedido(true) }}
                     style={{ background: 'rgba(74,108,247,0.12)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
                     📋 Registrar egreso
                   </button>
@@ -384,6 +460,53 @@ export default function IngresoEgresoPT() {
               ))}
             </div>
           )}
+        </div>
+      ) : CANAL_VIEWS.includes(view) ? (
+        /* EGRESO CANAL (MELI / PAGINA / VO) */
+        <div>
+          {(() => {
+            const canalColor = CANAL_COLORS[view]
+            const canalLabel = CANAL_LABELS[view]
+            const filtradas = ventas.filter(v => {
+              if (!busquedaVenta) return true
+              const q = busquedaVenta.toLowerCase()
+              return v.cliente_nombre?.toLowerCase().includes(q) || v.nro_orden?.toLowerCase().includes(q)
+            })
+            return (
+              <>
+                <input value={busquedaVenta} onChange={e => setBusquedaVenta(e.target.value)} placeholder={`🔍 Buscar por cliente o N° de orden ${canalLabel}...`} style={{ ...inputSt, marginBottom: 16, maxWidth: 420 }} />
+                {loadingVentas ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>
+                ) : filtradas.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay ventas {canalLabel} pendientes de egreso</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {filtradas.map(v => (
+                      <div key={v.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: canalColor, fontFamily: 'monospace' }}>{v.nro_orden || `#${v.id?.slice(0,8).toUpperCase()}`}</span>
+                            <span style={{ background: `${canalColor}22`, color: canalColor, fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20, border: `1px solid ${canalColor}55` }}>{canalLabel.toUpperCase()}</span>
+                          </div>
+                          <div style={{ fontSize: 14, fontWeight: 700 }}>{v.cliente_nombre}</div>
+                          {v.cliente_email && <div style={{ fontSize: 12, color: 'var(--text3)' }}>{v.cliente_email}</div>}
+                          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                            {(Array.isArray(v.items) ? v.items : []).map(it => `${it.codigo || ''} ×${it.cantidad}`).join(' · ')}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(v.created_at)}</div>
+                        <button
+                          onClick={() => { setVentaSel(v); setVItems((v.items || []).map(it => ({ ...it }))); setVNroRemito(''); setModalVenta(true) }}
+                          style={{ background: `${canalColor}22`, color: canalColor, border: `1px solid ${canalColor}55`, borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                          ↑ Registrar egreso
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       ) : view === 'stock' ? (
         <>
@@ -570,20 +693,23 @@ export default function IngresoEgresoPT() {
                 <input value={pNroRemito} onChange={e => setPNroRemito(e.target.value)} placeholder="Ej: 0001-00001234" style={inputSt} />
               </div>
 
-              {/* Foto remito */}
+              {/* Fotos remito — múltiples */}
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Foto del remito (opcional)</label>
-                {pFotoRemito ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, color: '#3dd68c' }}>✅ {pFotoRemito.name}</span>
-                    <button onClick={() => setPFotoRemito(null)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18 }}>×</button>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Fotos / PDFs del remito (opcional)</label>
+                {pFotosRemito.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                    {pFotosRemito.map((f, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px' }}>
+                        <span style={{ fontSize: 13, color: '#3dd68c', flex: 1 }}>✅ {f.name}</span>
+                        <button onClick={() => setPFotosRemito(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
-                    <Upload size={14} /> Adjuntar foto / PDF
-                    <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setPFotoRemito(e.target.files[0]); e.target.value = '' }} />
-                  </label>
                 )}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+                  <Upload size={14} /> Adjuntar foto / PDF
+                  <input type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) setPFotosRemito(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
+                </label>
               </div>
 
               <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#a78bfa' }}>
@@ -687,6 +813,70 @@ export default function IngresoEgresoPT() {
                   {guardando ? '⏳ Guardando...' : '↑ Confirmar egreso'}
                 </button>
                 <button onClick={() => setModalEgreso(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EGRESO CANAL (MELI / PAGINA / VO) */}
+      {modalVenta && ventaSel && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>↑ Registrar egreso — {CANAL_LABELS[view]}</div>
+              <button onClick={() => setModalVenta(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Cliente */}
+              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Cliente</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{ventaSel.cliente_nombre}</div>
+                {ventaSel.nro_orden && <div style={{ fontSize: 12, color: CANAL_COLORS[view], fontWeight: 700 }}>Orden: {ventaSel.nro_orden}</div>}
+                {ventaSel.cliente_email && <div style={{ fontSize: 12, color: 'var(--text3)' }}>{ventaSel.cliente_email}</div>}
+              </div>
+
+              {/* Items editables */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>Productos</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {vItems.map((it, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        {it.codigo && <span style={{ fontSize: 11, fontWeight: 700, color: CANAL_COLORS[view], fontFamily: 'monospace', marginRight: 8 }}>{it.codigo}</span>}
+                        <span style={{ fontSize: 13 }}>{it.nombre}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, background: stock[it.codigo]?.stock_actual >= it.cantidad ? 'rgba(61,214,140,0.12)' : 'rgba(255,85,119,0.12)', color: stock[it.codigo]?.stock_actual >= it.cantidad ? '#3dd68c' : '#ff5577', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                          Stock: {stock[it.codigo]?.stock_actual ?? '—'}
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <input type="number" min="0" max={it.cantidad} value={it.cantidad}
+                            onChange={e => { const val = Math.min(parseInt(e.target.value)||0, it.cantidad); setVItems(prev => prev.map((p,j) => j===i ? {...p,cantidad:val} : p)) }}
+                            style={{ width: 64, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--font)' }} />
+                          <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>de {it.cantidad}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nro remito opcional */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Número de remito (opcional)</label>
+                <input value={vNroRemito} onChange={e => setVNroRemito(e.target.value)} placeholder="Ej: 0001-00001234" style={inputSt} />
+              </div>
+
+              <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#a78bfa' }}>
+                👤 Registrado por: <strong>{profile?.full_name || user?.email}</strong>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={confirmarEgresoVenta} disabled={confirmandoVenta} style={{ flex: 1, background: CANAL_COLORS[view], color: view === 'egreso-meli' ? '#000' : '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: confirmandoVenta ? 'not-allowed' : 'pointer', opacity: confirmandoVenta ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                  {confirmandoVenta ? '⏳ Procesando...' : '↑ Confirmar egreso'}
+                </button>
+                <button onClick={() => setModalVenta(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
