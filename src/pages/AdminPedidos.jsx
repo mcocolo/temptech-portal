@@ -1013,6 +1013,19 @@ export default function AdminPedidos() {
                     </div>
                   )}
 
+                  {/* Saldo pendiente de entrega */}
+                  {!isEdit && Array.isArray(pedido.items_pendientes) && pedido.items_pendientes.length > 0 && (
+                    <div style={{ marginBottom: 12, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 'var(--radius)', padding: '10px 14px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#fb923c', textTransform: 'uppercase', marginBottom: 6 }}>⏳ Saldo pendiente de entrega</div>
+                      {pedido.items_pendientes.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: i < pedido.items_pendientes.length - 1 ? '1px solid rgba(251,146,60,0.15)' : 'none' }}>
+                          <span style={{ color: 'var(--text2)' }}>{item.nombre} {item.modelo} <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--text3)' }}>#{item.codigo}</span></span>
+                          <span style={{ fontWeight: 700, color: '#fb923c' }}>×{item.cantidad}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Notas distribuidor */}
                   {pedido.notas && !isEdit && (
                     <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text3)' }}>

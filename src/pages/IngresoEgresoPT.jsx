@@ -96,6 +96,7 @@ export default function IngresoEgresoPT() {
   const [busquedaPed, setBusquedaPed]       = useState('')
   const [modalPedido, setModalPedido]       = useState(false)
   const [pedidoSel, setPedidoSel]           = useState(null)
+  const [pItems, setPItems]                 = useState([])  // items editables
   const [pNroRemito, setPNroRemito]         = useState('')
   const [pFotoRemito, setPFotoRemito]       = useState(null)
   const [confirmandoPed, setConfirmandoPed] = useState(false)
@@ -136,17 +137,28 @@ export default function IngresoEgresoPT() {
       }
     }
 
-    // Actualizar pedido con remito y cambiar estado a finalizado
+    // Calcular saldo pendiente después de esta entrega
+    const originalPending = pedidoSel.items_pendientes?.length > 0
+      ? pedidoSel.items_pendientes
+      : (pedidoSel.items || [])
+    const newPending = originalPending
+      .map(orig => {
+        const entregado = pItems.find(p => p.codigo === orig.codigo)?.cantidad ?? 0
+        return { ...orig, cantidad: Math.max(0, orig.cantidad - entregado) }
+      })
+      .filter(p => p.cantidad > 0)
+    const isComplete = newPending.length === 0
+
     await supabase.from('pedidos').update({
       nro_remito: pNroRemito.trim(),
       ...(remitoUrl ? { remito_url: remitoUrl } : {}),
-      estado: 'finalizado',
+      estado: isComplete ? 'entregado' : 'aprobado',
+      items_pendientes: newPending,
       updated_at: new Date().toISOString(),
     }).eq('id', pedidoSel.id)
 
-    // Descontar stock por cada item del pedido
-    const items = Array.isArray(pedidoSel.items) ? pedidoSel.items : []
-    for (const item of items) {
+    // Descontar stock por las cantidades efectivamente entregadas
+    for (const item of pItems) {
       if (!item.codigo || !item.cantidad) continue
       const actual = stock[item.codigo]?.stock_actual ?? 0
       const nuevo = Math.max(0, actual - item.cantidad)
@@ -166,9 +178,9 @@ export default function IngresoEgresoPT() {
       })
     }
 
-    toast.success('Egreso registrado y pedido finalizado ✅')
+    toast.success(isComplete ? '✅ Entrega completa — Pedido marcado como Entregado' : '✅ Entrega parcial registrada — saldo pendiente guardado')
     setConfirmandoPed(false)
-    setModalPedido(false); setPedidoSel(null); setPNroRemito(''); setPFotoRemito(null)
+    setModalPedido(false); setPedidoSel(null); setPNroRemito(''); setPFotoRemito(null); setPItems([])
     cargar(); cargarPedidos()
   }
 
@@ -356,9 +368,15 @@ export default function IngresoEgresoPT() {
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
                       {(Array.isArray(ped.items) ? ped.items : []).map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}
                     </div>
+                    {Array.isArray(ped.items_pendientes) && ped.items_pendientes.length > 0 && (
+                      <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(251,146,60,0.15)', color: '#fb923c', padding: '2px 8px', borderRadius: 10 }}>ENTREGA PARCIAL</span>
+                        <span style={{ fontSize: 11, color: '#fb923c' }}>Pendiente: {ped.items_pendientes.map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}</span>
+                      </div>
+                    )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(ped.created_at)}</div>
-                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(ped.nro_remito || ''); setPFotoRemito(null); setModalPedido(true) }}
+                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(''); setPFotoRemito(null); const pending = ped.items_pendientes?.length > 0 ? ped.items_pendientes : (ped.items || []); setPItems(pending.map(it => ({ ...it }))); setModalPedido(true) }}
                     style={{ background: 'rgba(74,108,247,0.12)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
                     📋 Registrar egreso
                   </button>
@@ -511,24 +529,35 @@ export default function IngresoEgresoPT() {
                 <div style={{ fontSize: 12, color: 'var(--text3)' }}>{pedidoSel.profiles?.email}</div>
               </div>
 
-              {/* Items del pedido — SIN precios para Admin2 */}
+              {/* Items del pedido — editables, SIN precios para Admin2 */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>Productos del pedido</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {(Array.isArray(pedidoSel.items) ? pedidoSel.items : []).filter(it => it.cantidad > 0).map((it, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
-                      <div>
+                  {pItems.map((it, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: 160 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace', marginRight: 8 }}>{it.codigo}</span>
                         <span style={{ fontSize: 13 }}>{it.nombre} {it.modelo}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>×{it.cantidad}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {isAdmin && it.precio_unitario > 0 && (
                           <span style={{ fontSize: 11, color: 'var(--text3)' }}>${it.precio_unitario?.toLocaleString('es-AR')}</span>
                         )}
                         <span style={{ fontSize: 11, background: stock[it.codigo]?.stock_actual >= it.cantidad ? 'rgba(61,214,140,0.12)' : 'rgba(255,85,119,0.12)', color: stock[it.codigo]?.stock_actual >= it.cantidad ? '#3dd68c' : '#ff5577', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
                           Stock: {stock[it.codigo]?.stock_actual ?? '—'}
                         </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <input
+                            type="number" min="0" max={it.cantidad}
+                            value={it.cantidad}
+                            onChange={e => {
+                              const val = Math.min(parseInt(e.target.value) || 0, it.cantidad)
+                              setPItems(prev => prev.map((p, j) => j === i ? { ...p, cantidad: val } : p))
+                            }}
+                            style={{ width: 64, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--font)' }}
+                          />
+                          <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>de {it.cantidad}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
