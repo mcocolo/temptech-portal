@@ -47,6 +47,7 @@ const ADMIN_NAV = [
 const ADMIN2_NAV = [
   { section: 'Gestión' },
   { label: 'Service / Garantía',  icon: AlertTriangle, path: '/reclamos',          isAdmin: true },
+  { label: 'Pedidos Meli',        icon: ShoppingBag,   path: '/pedidos-meli',      isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,     path: '/ingreso-egreso-pt', isAdmin: true },
 ]
 
