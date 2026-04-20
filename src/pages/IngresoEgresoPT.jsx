@@ -134,6 +134,7 @@ export default function IngresoEgresoPT() {
       .from('pedidos')
       .select('*, profiles(full_name, razon_social, email)')
       .eq('estado', 'aprobado')
+      .is('nro_remito', null)
       .order('created_at', { ascending: false })
     setPedidos(data || [])
     setLoadingPedidos(false)
