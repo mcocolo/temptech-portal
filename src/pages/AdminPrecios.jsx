@@ -61,6 +61,9 @@ export default function AdminPrecios() {
   const [subiendo, setSubiendo] = useState(false)
   const [editando, setEditando] = useState(null) // { codigo, precio }
   const [precioEdit, setPrecioEdit] = useState('')
+  const [modalNuevo, setModalNuevo] = useState(false)
+  const [nuevoForm, setNuevoForm] = useState({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores' })
+  const [guardandoNuevo, setGuardandoNuevo] = useState(false)
   const fileRef = useRef()
 
   useEffect(() => { if (isAdmin || isVendedor) cargar() }, [isAdmin, isVendedor])
@@ -126,6 +129,25 @@ export default function AdminPrecios() {
     cargar()
   }
 
+  async function guardarNuevoProducto() {
+    const { codigo, nombre, modelo, precio, categoria } = nuevoForm
+    if (!codigo.trim()) return toast.error('Ingresá el código')
+    if (!nombre.trim()) return toast.error('Ingresá el nombre')
+    const precioNum = parseFloat(precio.replace(',', '.'))
+    if (isNaN(precioNum) || precioNum <= 0) return toast.error('Precio inválido')
+    setGuardandoNuevo(true)
+    const { error } = await supabase.from('precios').upsert(
+      [{ codigo: codigo.trim().toUpperCase(), nombre: nombre.trim(), modelo: modelo.trim(), precio: precioNum, categoria, updated_at: new Date().toISOString() }],
+      { onConflict: 'codigo' }
+    )
+    setGuardandoNuevo(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Producto agregado ✅')
+    setModalNuevo(false)
+    setNuevoForm({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores' })
+    cargar()
+  }
+
   const preciosFiltrados = filtroCat === 'todos' ? precios : precios.filter(p => p.categoria === filtroCat)
 
   if (!isAdmin && !isVendedor) return null
@@ -147,6 +169,12 @@ export default function AdminPrecios() {
           </button>
           {isAdmin && (
             <>
+              <button
+                onClick={() => setModalNuevo(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}
+              >
+                + Agregar producto
+              </button>
               <button
                 onClick={() => fileRef.current?.click()}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--brand-gradient)', border: 'none', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font)' }}
@@ -331,6 +359,58 @@ export default function AdminPrecios() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL AGREGAR PRODUCTO */}
+      {modalNuevo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 460 }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>+ Agregar producto</div>
+              <button onClick={() => setModalNuevo(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                { key: 'codigo',   label: 'Código *',   placeholder: 'Ej: F1400MB' },
+                { key: 'nombre',   label: 'Nombre *',   placeholder: 'Ej: Panel Calefactor Firenze' },
+                { key: 'modelo',   label: 'Modelo',     placeholder: 'Ej: 1400w Madera Blanca' },
+                { key: 'precio',   label: 'Precio * (sin IVA)', placeholder: 'Ej: 78990' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{f.label}</label>
+                  <input
+                    value={nuevoForm[f.key]}
+                    onChange={e => setNuevoForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Categoría *</label>
+                <select
+                  value={nuevoForm.categoria}
+                  onChange={e => setNuevoForm(prev => ({ ...prev, categoria: e.target.value }))}
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }}
+                >
+                  {Object.entries(CATEGORIAS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button onClick={guardarNuevoProducto} disabled={guardandoNuevo}
+                  style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: guardandoNuevo ? 'not-allowed' : 'pointer', opacity: guardandoNuevo ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                  {guardandoNuevo ? 'Guardando...' : '✓ Guardar producto'}
+                </button>
+                <button onClick={() => setModalNuevo(false)}
+                  style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

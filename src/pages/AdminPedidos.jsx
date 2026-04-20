@@ -562,6 +562,85 @@ export default function AdminPedidos() {
     cargar()
   }
 
+  function imprimirPedido(pedido) {
+    const dist = pedido.profiles
+    const fecha = new Date(pedido.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+    const items = (pedido.items || []).map(it =>
+      `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:12px;color:#4b5563">${it.codigo || ''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${it.nombre} ${it.modelo || ''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:center;font-weight:700">${it.cantidad}</td>
+      </tr>`
+    ).join('')
+    const pendientes = Array.isArray(pedido.items_pendientes) && pedido.items_pendientes.length > 0
+      ? `<div style="margin-top:16px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px">
+          <div style="font-size:11px;font-weight:700;color:#c2410c;text-transform:uppercase;margin-bottom:6px">⏳ Saldo pendiente de entrega</div>
+          ${pedido.items_pendientes.map(it => `<div style="font-size:12px;color:#7c2d12">${it.nombre} ${it.modelo} <b>#${it.codigo}</b> — ×${it.cantidad}</div>`).join('')}
+        </div>` : ''
+    const notaDist  = pedido.notas       ? `<p style="margin:0;font-size:12px"><b>Nota del distribuidor:</b> ${pedido.notas}</p>` : ''
+    const notaAdmin = pedido.notas_admin ? `<p style="margin:0;font-size:12px"><b>Nota TEMPTECH:</b> ${pedido.notas_admin}</p>` : ''
+    const fechaEnt  = pedido.fecha_entrega ? `<p style="margin:0;font-size:12px"><b>Fecha de entrega estimada:</b> ${formatFecha(pedido.fecha_entrega)}</p>` : ''
+    const remito    = pedido.nro_remito  ? `<p style="margin:0;font-size:12px"><b>N° Remito:</b> ${pedido.nro_remito}</p>` : ''
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+      <title>Pedido #${pedido.id.slice(0,8).toUpperCase()}</title>
+      <style>
+        body { font-family: Arial, sans-serif; color: #111; margin: 0; padding: 32px; font-size: 13px; }
+        h1 { font-size: 20px; margin: 0 0 4px; }
+        .sub { font-size: 12px; color: #6b7280; margin: 0 0 24px; }
+        .section { margin-bottom: 20px; }
+        .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #9ca3af; margin-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th { padding: 8px 12px; background: #f3f4f6; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #6b7280; text-align: left; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #166534; }
+        .info-box { padding: 12px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; }
+        @media print { body { padding: 16px; } }
+      </style>
+    </head><body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:2px solid #e5e7eb;padding-bottom:16px">
+        <div>
+          <h1>Pedido <span style="font-family:monospace">#${pedido.id.slice(0,8).toUpperCase()}</span></h1>
+          <p class="sub">Emitido el ${fecha}</p>
+        </div>
+        <div>
+          <span class="badge">APROBADO</span>
+          ${pedido.nro_remito ? `<div style="margin-top:6px;font-size:12px;color:#374151">Remito: <b>${pedido.nro_remito}</b></div>` : ''}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Distribuidor</div>
+        <div class="info-box">
+          <div style="font-size:14px;font-weight:700">${dist?.razon_social || dist?.full_name || '—'}</div>
+          <div style="color:#6b7280">${dist?.email || ''}</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Detalle del pedido</div>
+        <table>
+          <thead><tr>
+            <th>Código</th><th>Producto</th><th style="text-align:center">Cantidad</th>
+          </tr></thead>
+          <tbody>${items}</tbody>
+        </table>
+        ${pendientes}
+      </div>
+
+      ${notaDist || notaAdmin || fechaEnt || remito ? `<div class="section info-box">${fechaEnt}${notaDist}${notaAdmin}${remito}</div>` : ''}
+
+      <div style="margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">
+        TEMPTECH · Portal de Clientes · mi.temptech.com.ar
+      </div>
+    </body></html>`
+
+    const w = window.open('', '_blank', 'width=800,height=600')
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    setTimeout(() => { w.print() }, 300)
+  }
+
   const pedidosFiltrados = pedidos.filter(p => {
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
@@ -1300,6 +1379,15 @@ export default function AdminPedidos() {
                     </>
                   )}
                 </div>}
+                {isAdmin2 && (
+                  <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+                    <button
+                      onClick={() => imprimirPedido(pedido)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      🖨️ Imprimir pedido
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
