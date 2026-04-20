@@ -33,6 +33,7 @@ const CATALOGO = [
       { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim',         modelo: '500w',                           precio: 56135.91,  imagen: `${IMG}C500STV1.png` },
       { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim',         modelo: '500w Toallero Simple',           precio: 67364.22,  imagen: `${IMG}C500STV1TS.png` },
       { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim',         modelo: '500w Toallero Doble',            precio: 72978.37,  imagen: `${IMG}C500STV1TD.png` },
+      { codigo: 'C500STV1MB',   nombre: 'Panel Calefactor Slim',         modelo: '500w Madera Blanca',             precio: 0,         imagen: `${IMG}C500STV1MB.png` },
       { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze',      modelo: '1400w Blanco',                   precio: 78592.53,  imagen: `${IMG}Firenze%20BL%201.png` },
       { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze',      modelo: '1400w Madera Veteada',           precio: 78592.53,  imagen: `${IMG}F1400MV.png` },
       { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze',      modelo: '1400w Piedra Azteca',            precio: 78592.53,  imagen: `${IMG}F1400PA.png` },

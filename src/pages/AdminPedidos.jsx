@@ -34,6 +34,7 @@ const CATALOGO_ADMIN = [
       { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim',          modelo: '500w',                            precio: 56135.91 },
       { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim',          modelo: '500w Toallero Simple',            precio: 67364.22 },
       { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim',          modelo: '500w Toallero Doble',             precio: 72978.37 },
+      { codigo: 'C500STV1MB',   nombre: 'Panel Calefactor Slim',          modelo: '500w Madera Blanca',              precio: 0 },
       { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Blanco',                    precio: 78592.53 },
       { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Madera Veteada',            precio: 78592.53 },
       { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Piedra Azteca',             precio: 78592.53 },
@@ -68,12 +69,13 @@ function formatFecha(dateStr) {
 }
 
 const STATUS_CONFIG = {
-  pendiente:   { label: 'Pendiente',   color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
-  aprobado:    { label: 'Aprobado',    color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
-  modificado:  { label: 'Modificado',  color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
-  rechazado:   { label: 'Rechazado',   color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
-  finalizado:  { label: 'Finalizado',  color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' },
-  entregado:   { label: 'Entregado',   color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
+  pendiente:        { label: 'Pendiente',        color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
+  aprobado:         { label: 'Aprobado',         color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
+  modificado:       { label: 'Modificado',       color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
+  rechazado:        { label: 'Rechazado',        color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
+  finalizado:       { label: 'Finalizado',       color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' },
+  entregado:        { label: 'Entregado',        color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
+  pendiente_pago:   { label: 'Pendiente Pago',   color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
 }
 
 export default function AdminPedidos() {
@@ -127,7 +129,8 @@ export default function AdminPedidos() {
       .from('pedidos')
       .select('*, profiles(full_name, email, razon_social)')
       .order('created_at', { ascending: false })
-    if (filtro !== 'todos') q = q.eq('estado', filtro)
+    if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
+    else if (filtro !== 'todos') q = q.eq('estado', filtro)
 
     if (isVendedor && user) {
       // Solo pedidos de clientes de este vendedor
@@ -142,7 +145,12 @@ export default function AdminPedidos() {
 
     const { data, error } = await q
     if (error) toast.error('Error al cargar pedidos')
-    else setPedidos(data || [])
+    else {
+      const result = data || []
+      setPedidos(filtro === 'pendiente_pago'
+        ? result.filter(p => p.tipo !== 'preventa' && !p.pago_archivos?.length)
+        : result)
+    }
     setLoading(false)
   }
 
@@ -784,7 +792,7 @@ export default function AdminPedidos() {
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['todos', 'pendiente', 'aprobado', 'entregado', 'finalizado'].map(f => (
+          {['todos', 'pendiente', 'aprobado', 'pendiente_pago', 'entregado', 'finalizado'].map(f => (
             <button key={f} onClick={() => setFiltro(f)} style={{
               padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
               background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',

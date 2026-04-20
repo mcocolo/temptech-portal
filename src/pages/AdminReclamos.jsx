@@ -124,7 +124,7 @@ function esFirenze(producto) {
   return typeof producto === 'string' && producto.toLowerCase().includes('firenze')
 }
 
-function SupervisionFabrica({ item, onClose, onGuardar }) {
+function SupervisionFabrica({ item, onClose, onGuardar, usuarioNombre, usuarioId }) {
   const productoReclamo = (item.modelo && item.modelo !== item.producto) ? `${item.producto} ${item.modelo}` : item.producto || ''
   const sv = item.supervision_fabrica || {}
   const [coincide, setCoincide] = useState(sv.coincide_producto ?? null)
@@ -185,6 +185,8 @@ function SupervisionFabrica({ item, onClose, onGuardar }) {
     }
     const supervision = {
       fecha: new Date().toISOString(),
+      usuario_id: usuarioId || null,
+      usuario_nombre: usuarioNombre || null,
       coincide_producto: coincide,
       producto_real: coincide === false ? productoReal : null,
       roto, golpeado, funciona,
@@ -553,7 +555,7 @@ export default function AdminReclamos() {
   const [supervisionAbierto, setSupervisionAbierto] = useState(null)  // item abierto para cargar
   const [supervisionVer, setSupervisionVer] = useState(null)           // item para ver resultado
 
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, user, profile } = useAuth()
 
   const datosFiltrados = datos.filter(item => {
     if (!busquedaTracking) return true
@@ -1328,6 +1330,8 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
           item={supervisionAbierto}
           onClose={() => setSupervisionAbierto(null)}
           onGuardar={(data) => guardarSupervision(supervisionAbierto, data)}
+          usuarioNombre={profile?.full_name || user?.email}
+          usuarioId={user?.id}
         />
       )}
 
@@ -1347,6 +1351,12 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                 <button onClick={() => setSupervisionVer(null)} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
               </div>
               <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {sv.usuario_nombre && (
+                  <div style={{ padding: '8px 14px', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: T.radius, fontSize: 12, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    👤 Supervisado por: <strong>{sv.usuario_nombre}</strong>
+                    {sv.fecha && <span style={{ color: T.text3, marginLeft: 4 }}>· {formatearFecha(sv.fecha)}</span>}
+                  </div>
+                )}
                 <div style={{ padding: '10px 14px', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.25)', borderRadius: T.radius, fontSize: 13, color: T.blue }}>
                   <span style={{ fontWeight: 600 }}>Producto del reclamo: </span>{productoReclamo || '—'}
                 </div>
