@@ -109,6 +109,12 @@ export default function IngresoEgresoPT() {
   const [guardandoStock, setGuardandoStock] = useState(false)
 
   // Tabs egreso canal (meli/pagina/vo)
+  // Modal producción
+  const [modalProd, setModalProd]           = useState(false)
+  const [prodFecha, setProdFecha]           = useState(() => new Date().toISOString().split('T')[0])
+  const [prodItems, setProdItems]           = useState([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }])
+  const [guardandoProd, setGuardandoProd]   = useState(false)
+
   const [ventas, setVentas]               = useState([])
   const [ventaDetalle, setVentaDetalle]   = useState(null)
   const [loadingVentas, setLoadingVentas] = useState(false)
@@ -381,7 +387,44 @@ export default function IngresoEgresoPT() {
     cargar()
   }
 
-  const todosProductos = CATALOGO.flatMap(c => c.productos.map(p => ({ ...p, categoria: c.categoria, catLabel: c.label, catEmoji: c.emoji })))
+  function prodSelectProducto(idx, codigo) {
+    const prod = todosProductosFlat.find(p => p.codigo === codigo)
+    setProdItems(prev => prev.map((it, i) => i !== idx ? it : prod
+      ? { codigo: prod.codigo, nombre: prod.nombre, modelo: prod.modelo, categoria: prod.categoria, cantidad: it.cantidad || 1 }
+      : { ...it, codigo, nombre: '', modelo: '', categoria: '' }
+    ))
+  }
+
+  async function guardarProduccion() {
+    const validos = prodItems.filter(it => it.codigo && parseInt(it.cantidad) > 0)
+    if (!validos.length) return toast.error('Agregá al menos un producto con cantidad')
+    setGuardandoProd(true)
+    const obs = `Ingreso de producción — ${prodFecha}`
+    for (const item of validos) {
+      const actual = stock[item.codigo]?.stock_actual ?? 0
+      const nuevo = actual + parseInt(item.cantidad)
+      await supabase.from('stock_pt').upsert({
+        codigo: item.codigo, nombre: item.nombre, modelo: item.modelo, categoria: item.categoria,
+        stock_actual: nuevo,
+        stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
+      }, { onConflict: 'codigo' })
+      await supabase.from('movimientos_pt').insert({
+        codigo: item.codigo, nombre: item.nombre, modelo: item.modelo, categoria: item.categoria,
+        tipo: 'ingreso', cantidad: parseInt(item.cantidad),
+        canal: 'Producción', observacion: obs,
+        usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+      })
+    }
+    toast.success(`✅ Producción registrada: ${validos.length} producto${validos.length > 1 ? 's' : ''}`)
+    setGuardandoProd(false)
+    setModalProd(false)
+    setProdFecha(new Date().toISOString().split('T')[0])
+    setProdItems([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }])
+    cargar()
+  }
+
+  const todosProductosFlat = CATALOGO.flatMap(c => c.productos.map(p => ({ ...p, categoria: c.categoria, catLabel: c.label, catEmoji: c.emoji })))
+  const todosProductos = todosProductosFlat
   const filtrados = catFilter ? CATALOGO.filter(c => c.categoria === catFilter) : CATALOGO
 
   const totalProductos = todosProductos.length
@@ -391,9 +434,16 @@ export default function IngresoEgresoPT() {
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Ingreso / Egreso PT</h1>
-        <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Control de stock de Producto Terminado</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Ingreso / Egreso PT</h1>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Control de stock de Producto Terminado</p>
+        </div>
+        <button
+          onClick={() => { setModalProd(true); setProdFecha(new Date().toISOString().split('T')[0]); setProdItems([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }]) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#3dd68c,#2ab573)', color: '#0a1a12', border: 'none', borderRadius: 'var(--radius)', padding: '11px 22px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font)', boxShadow: '0 4px 16px rgba(61,214,140,0.3)' }}>
+          🏭 Ingresar Producción
+        </button>
       </div>
 
       {/* Stats */}
@@ -1115,6 +1165,118 @@ export default function IngresoEgresoPT() {
                   {guardandoStock ? '⏳ Guardando...' : '↓ Confirmar ingreso'}
                 </button>
                 <button onClick={() => setModalStock(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INGRESAR PRODUCCIÓN */}
+      {modalProd && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto' }}>
+            {/* Header */}
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#3dd68c' }}>🏭 Ingresar Producción</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Registrá los productos fabricados hoy — se suma al stock automáticamente</div>
+              </div>
+              <button onClick={() => setModalProd(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Fecha */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Fecha de producción *</label>
+                <input
+                  type="date"
+                  value={prodFecha}
+                  onChange={e => setProdFecha(e.target.value)}
+                  style={{ ...inputSt, maxWidth: 200 }}
+                />
+              </div>
+
+              {/* Filas de producto */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 10 }}>Productos fabricados</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {prodItems.map((it, idx) => {
+                    const stockActual = it.codigo ? (stock[it.codigo]?.stock_actual ?? 0) : null
+                    const catInfo = it.categoria ? CAT_COLORS[it.categoria] : null
+                    return (
+                      <div key={idx} style={{ background: 'var(--surface2)', border: `1px solid ${catInfo ? catInfo.border : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', minWidth: 20 }}>{idx + 1}.</span>
+                          <select
+                            value={it.codigo}
+                            onChange={e => prodSelectProducto(idx, e.target.value)}
+                            style={{ ...inputSt, flex: 1 }}
+                          >
+                            <option value="">— Seleccioná producto —</option>
+                            {CATALOGO.map(cat => (
+                              <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
+                                {cat.productos.map(p => (
+                                  <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre} {p.modelo}</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          {prodItems.length > 1 && (
+                            <button
+                              onClick={() => setProdItems(prev => prev.filter((_, i) => i !== idx))}
+                              style={{ background: 'rgba(255,85,119,0.12)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, color: '#ff5577', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '4px 8px', fontFamily: 'var(--font)' }}>
+                              ×
+                            </button>
+                          )}
+                        </div>
+
+                        {it.codigo && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                            {catInfo && (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: catInfo.color, background: catInfo.bg, border: `1px solid ${catInfo.border}`, borderRadius: 5, padding: '2px 8px', fontFamily: 'monospace' }}>{it.codigo}</span>
+                            )}
+                            <span style={{ fontSize: 12, color: 'var(--text2)' }}>{it.nombre} — {it.modelo}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 'auto' }}>
+                              Stock actual: <strong style={{ color: typeof stockActual === 'number' && stockActual > 0 ? '#3dd68c' : '#ff5577' }}>{stockActual ?? '—'}</strong>
+                            </span>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Cantidad fabricada *</label>
+                          <input
+                            type="number" min="1"
+                            value={it.cantidad}
+                            onChange={e => setProdItems(prev => prev.map((p, i) => i !== idx ? p : { ...p, cantidad: parseInt(e.target.value) || 1 }))}
+                            style={{ ...inputSt, maxWidth: 100, textAlign: 'center', fontWeight: 700, fontSize: 15 }}
+                          />
+                          {it.codigo && stockActual !== null && (
+                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                              → Nuevo stock: <strong style={{ color: '#3dd68c' }}>{stockActual + (parseInt(it.cantidad) || 0)}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setProdItems(prev => [...prev, { codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }])}
+                  style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  + Agregar otro producto
+                </button>
+              </div>
+
+              <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#a78bfa' }}>
+                👤 Registrado por: <strong>{profile?.full_name || user?.email}</strong>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={guardarProduccion} disabled={guardandoProd} style={{ flex: 1, background: 'linear-gradient(135deg,#3dd68c,#2ab573)', color: '#0a1a12', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 800, cursor: guardandoProd ? 'not-allowed' : 'pointer', opacity: guardandoProd ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                  {guardandoProd ? '⏳ Registrando...' : '🏭 Confirmar Producción'}
+                </button>
+                <button onClick={() => setModalProd(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
