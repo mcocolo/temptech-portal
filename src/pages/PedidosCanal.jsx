@@ -338,6 +338,10 @@ export default function PedidosCanal() {
   const [fItems, setFItems]       = useState([emptyItem()])
   const [fObs, setFObs]           = useState('')
   const [fEstado, setFEstado]     = useState('pendiente')
+  const [fTipoEnvio, setFTipoEnvio]               = useState('')
+  const [fEnvioEtiquetas, setFEnvioEtiquetas]     = useState([]) // correo: { file?, url?, productos:[{codigo,nombre}] }[]
+  const [fEnvioItems, setFEnvioItems]             = useState([{ codigo: '', nombre: '', cantidad: 1 }]) // logistica/retiro
+  const [fEnvioRetiroPersona, setFEnvioRetiroPersona] = useState('')
 
   useEffect(() => { setBusqueda(''); setFiltro('todos'); cargar() }, [canal])
 
@@ -348,8 +352,17 @@ export default function PedidosCanal() {
     setLoading(false)
   }
 
-  function abrirNueva() { setEditando(null); setFNroOrden(''); setFNombre(''); setFEmail(''); setFTel(''); setFItems([emptyItem()]); setFObs(''); setFEstado('pendiente'); setModal(true) }
-  function abrirEditar(v) { setEditando(v); setFNroOrden(v.nro_orden||''); setFNombre(v.cliente_nombre||''); setFEmail(v.cliente_email||''); setFTel(v.cliente_telefono||''); setFItems(v.items?.length ? v.items.map(i=>({...i})) : [emptyItem()]); setFObs(v.observaciones||''); setFEstado(v.estado||'pendiente'); setModal(true) }
+  function resetEnvio() { setFTipoEnvio(''); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona('') }
+  function abrirNueva() { setEditando(null); setFNroOrden(''); setFNombre(''); setFEmail(''); setFTel(''); setFItems([emptyItem()]); setFObs(''); setFEstado('pendiente'); resetEnvio(); setModal(true) }
+  function abrirEditar(v) {
+    setEditando(v); setFNroOrden(v.nro_orden||''); setFNombre(v.cliente_nombre||''); setFEmail(v.cliente_email||''); setFTel(v.cliente_telefono||'')
+    setFItems(v.items?.length ? v.items.map(i=>({...i})) : [emptyItem()]); setFObs(v.observaciones||''); setFEstado(v.estado||'pendiente')
+    setFTipoEnvio(v.tipo_envio||'')
+    setFEnvioEtiquetas((v.envio_etiquetas||[]).map(e => typeof e === 'object' && e.url ? { url: e.url, productos: e.productos||[] } : { url: e, productos: [] }))
+    setFEnvioItems(v.tipo_envio && v.tipo_envio !== 'correo' && v.envio_etiquetas?.length ? v.envio_etiquetas : [{ codigo: '', nombre: '', cantidad: 1 }])
+    setFEnvioRetiroPersona(v.envio_retiro_persona||'')
+    setModal(true)
+  }
 
   function calcTotal() { return fItems.reduce((s, it) => s + (parseFloat(it.precio_unitario)||0) * (parseInt(it.cantidad)||0), 0) }
 
@@ -366,7 +379,36 @@ export default function PedidosCanal() {
     const itemsValidos = fItems.filter(it => it.codigo || it.nombre)
     if (!itemsValidos.length) return toast.error('Agregá al menos un producto')
     setGuardando(true)
-    const payload = { canal, nro_orden: fNroOrden.trim()||null, cliente_nombre: fNombre.trim(), cliente_email: fEmail.trim()||null, cliente_telefono: fTel.trim()||null, items: itemsValidos, total: calcTotal(), estado: fEstado, observaciones: fObs.trim()||null, usuario_id: user.id, updated_at: new Date().toISOString() }
+
+    // Procesar envío
+    let envioEtiquetasFinal = []
+    if (fTipoEnvio === 'correo') {
+      for (const et of fEnvioEtiquetas) {
+        if (et.file) {
+          const ext = et.file.name.split('.').pop()
+          const path = `envio-etiquetas/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+          const { error } = await supabase.storage.from('facturas').upload(path, et.file, { upsert: true })
+          if (!error) {
+            const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+            envioEtiquetasFinal.push({ url: publicUrl, productos: et.productos || [] })
+          }
+        } else if (et.url) {
+          envioEtiquetasFinal.push({ url: et.url, productos: et.productos || [] })
+        }
+      }
+    } else if (fTipoEnvio === 'logistica' || fTipoEnvio === 'retiro') {
+      envioEtiquetasFinal = fEnvioItems.filter(it => it.codigo || it.nombre)
+    }
+
+    const payload = {
+      canal, nro_orden: fNroOrden.trim()||null,
+      cliente_nombre: fNombre.trim(), cliente_email: fEmail.trim()||null, cliente_telefono: fTel.trim()||null,
+      items: itemsValidos, total: calcTotal(), estado: fEstado, observaciones: fObs.trim()||null,
+      tipo_envio: fTipoEnvio || null,
+      envio_etiquetas: envioEtiquetasFinal,
+      envio_retiro_persona: fTipoEnvio === 'retiro' ? (fEnvioRetiroPersona.trim() || null) : null,
+      usuario_id: user.id, updated_at: new Date().toISOString(),
+    }
     const { error } = editando
       ? await supabase.from('ventas').update(payload).eq('id', editando.id)
       : await supabase.from('ventas').insert(payload)
@@ -482,6 +524,48 @@ export default function PedidosCanal() {
                   </div>
                 )}
                 {v.observaciones && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>💬 {v.observaciones}</div>}
+                {/* Envío */}
+                {v.tipo_envio && (() => {
+                  const ENVIO_LABELS = { correo: '📬 Correo Argentino / Andreani', logistica: '🚛 Logística', retiro: '🏭 Retiro en Fábrica' }
+                  const etiquetas = v.envio_etiquetas || []
+                  return (
+                    <div style={{ marginBottom: 10, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: cc.color, marginBottom: 8 }}>{ENVIO_LABELS[v.tipo_envio]}</div>
+                      {v.tipo_envio === 'retiro' && v.envio_retiro_persona && (
+                        <div style={{ fontSize: 12, marginBottom: 6 }}>👤 Retira: <strong>{v.envio_retiro_persona}</strong></div>
+                      )}
+                      {v.tipo_envio === 'correo' && etiquetas.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {etiquetas.map((et, i) => {
+                            const url = typeof et === 'string' ? et : et.url
+                            const prods = typeof et === 'object' ? (et.productos || []) : []
+                            return (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <a href={url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: cc.color, textDecoration: 'none', background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 6, padding: '3px 10px', fontWeight: 700 }}>
+                                  <FileText size={11} /> Etiqueta {i + 1}
+                                </a>
+                                {prods.map((p, pi) => (
+                                  <span key={pi} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 7px' }}>
+                                    {p.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{p.codigo}</span>}{p.nombre}
+                                  </span>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {(v.tipo_envio === 'logistica' || v.tipo_envio === 'retiro') && etiquetas.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {etiquetas.map((it, i) => (
+                            <span key={i} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
+                              {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}{it.nombre} ×{it.cantidad}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                   {Object.entries(ESTADO_CONFIG).filter(([k]) => k !== v.estado).map(([k, ecf]) => (
                     <button key={k} onClick={() => cambiarEstado(v.id, k)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: ecf.bg, color: ecf.color, border: `1px solid ${ecf.border}`, fontWeight: 600 }}>→ {ecf.label}</button>
@@ -557,6 +641,109 @@ export default function PedidosCanal() {
                 </div>
                 <div style={{ marginTop: 8, textAlign: 'right', fontSize: 15, fontWeight: 800, color: cc.color }}>Total: {formatPrecio(calcTotal())}</div>
               </div>
+              {/* Tipo de envío */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: cc.color, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>🚚 Tipo de envío</label>
+                <select value={fTipoEnvio} onChange={e => { setFTipoEnvio(e.target.value); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona('') }} style={inputSt}>
+                  <option value="">Sin especificar</option>
+                  <option value="correo">📬 Correo Argentino / Andreani</option>
+                  <option value="logistica">🚛 Logística</option>
+                  <option value="retiro">🏭 Retiro en Fábrica</option>
+                </select>
+              </div>
+
+              {/* CORREO: etiquetas PDF + productos por etiqueta */}
+              {fTipoEnvio === 'correo' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Etiquetas de envío</label>
+                    <button onClick={() => setFEnvioEtiquetas(prev => [...prev, { file: null, productos: [] }])} style={{ fontSize: 11, padding: '3px 12px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px solid ${cc.border}`, fontWeight: 700 }}>+ Agregar etiqueta</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {fEnvioEtiquetas.map((et, i) => (
+                      <div key={i} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: cc.color }}>Etiqueta {i + 1}</span>
+                          {et.url && <a href={et.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: cc.color, textDecoration: 'none' }}>📄 Ver PDF</a>}
+                          {!et.file && !et.url && (
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, color: 'var(--text2)' }}>
+                              <Upload size={12} /> Subir PDF
+                              <input type="file" accept=".pdf,image/*" style={{ display: 'none' }}
+                                onChange={e => { if (e.target.files?.[0]) { const f = e.target.files[0]; setFEnvioEtiquetas(prev => prev.map((x, j) => j === i ? { ...x, file: f } : x)); e.target.value = '' } }} />
+                            </label>
+                          )}
+                          {et.file && <span style={{ fontSize: 11, color: '#3dd68c' }}>✅ {et.file.name}</span>}
+                          <button onClick={() => setFEnvioEtiquetas(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18, marginLeft: 'auto', lineHeight: 1 }}>×</button>
+                        </div>
+                        {/* Productos en esta etiqueta */}
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Productos en esta etiqueta:</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {fItems.filter(it => it.codigo || it.nombre).map((it, pi) => {
+                            const checked = (et.productos || []).some(p => p.codigo === it.codigo && p.nombre === it.nombre)
+                            return (
+                              <label key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, padding: '3px 0' }}>
+                                <input type="checkbox" checked={checked} onChange={e => {
+                                  setFEnvioEtiquetas(prev => prev.map((x, j) => {
+                                    if (j !== i) return x
+                                    const prods = e.target.checked
+                                      ? [...(x.productos || []), { codigo: it.codigo, nombre: it.nombre }]
+                                      : (x.productos || []).filter(p => !(p.codigo === it.codigo && p.nombre === it.nombre))
+                                    return { ...x, productos: prods }
+                                  }))
+                                }} style={{ accentColor: cc.color }} />
+                                {it.codigo && <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color }}>{it.codigo}</span>}
+                                <span>{it.nombre}</span>
+                                <span style={{ color: 'var(--text3)' }}>×{it.cantidad}</span>
+                              </label>
+                            )
+                          })}
+                          {fItems.filter(it => it.codigo || it.nombre).length === 0 && (
+                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>Agregá productos al pedido primero</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {fEnvioEtiquetas.length === 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '12px 0' }}>Hacé clic en "+ Agregar etiqueta" para cargar las etiquetas de envío</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* LOGÍSTICA: items que salen */}
+              {(fTipoEnvio === 'logistica' || fTipoEnvio === 'retiro') && (
+                <div>
+                  {fTipoEnvio === 'retiro' && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nombre y apellido del que retira *</label>
+                      <input value={fEnvioRetiroPersona} onChange={e => setFEnvioRetiroPersona(e.target.value)} placeholder="Ej: Juan Pérez" style={inputSt} />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Items que {fTipoEnvio === 'logistica' ? 'salen por logística' : 'se retiran'}</label>
+                    <button onClick={() => setFEnvioItems(prev => [...prev, { codigo: '', nombre: '', cantidad: 1 }])} style={{ fontSize: 11, padding: '3px 12px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px solid ${cc.border}`, fontWeight: 700 }}>+ Agregar</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {fEnvioItems.map((it, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px auto', gap: 6, alignItems: 'center' }}>
+                        <select value={it.codigo} onChange={e => {
+                          const prod = CATALOGO_PRODUCTOS.find(p => p.codigo === e.target.value)
+                          setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: prod?.nombre || x.nombre } : x))
+                        }} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
+                          <option value="">Código...</option>
+                          {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                        </select>
+                        <input value={it.nombre} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))} placeholder="Descripción" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
+                        <input type="number" min="1" value={it.cantidad} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
+                        {fEnvioItems.length > 1
+                          ? <button onClick={() => setFEnvioItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px' }}>×</button>
+                          : <span />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observaciones</label>
                 <textarea value={fObs} onChange={e => setFObs(e.target.value)} rows={2} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
