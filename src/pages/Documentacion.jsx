@@ -218,10 +218,10 @@ export default function Documentacion() {
         {isAdmin && <Button onClick={openAdd}><Plus size={14} /> Agregar documento</Button>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="sidebar-layout" style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: 24, alignItems: 'start' }}>
 
         {/* SIDEBAR */}
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 12px', position: 'sticky', top: 88 }}>
+        <div className="sidebar-sticky" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 12px', position: 'sticky', top: 88 }}>
           <div onClick={() => { setSelParent(null); setSelMid(null); setSelLeaf(null) }} style={{
             padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13, marginBottom: 4,
             background: !selParent ? 'rgba(255,255,255,0.07)' : 'transparent',

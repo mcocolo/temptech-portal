@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui'
-import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload, FileText, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -110,6 +110,7 @@ export default function IngresoEgresoPT() {
 
   // Tabs egreso canal (meli/pagina/vo)
   const [ventas, setVentas]               = useState([])
+  const [ventaDetalle, setVentaDetalle]   = useState(null)
   const [loadingVentas, setLoadingVentas] = useState(false)
   const [busquedaVenta, setBusquedaVenta] = useState('')
   const [modalVenta, setModalVenta]       = useState(false)
@@ -502,24 +503,64 @@ export default function IngresoEgresoPT() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {filtradas.map(v => (
-                      <div key={v.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                        <div style={{ flex: 1, minWidth: 200 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: canalColor, fontFamily: 'monospace' }}>{v.nro_orden || `#${v.id?.slice(0,8).toUpperCase()}`}</span>
-                            <span style={{ background: `${canalColor}22`, color: canalColor, fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20, border: `1px solid ${canalColor}55` }}>{canalLabel.toUpperCase()}</span>
+                      <div key={v.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px' }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+                          <div style={{ flex: 1, minWidth: 180 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: canalColor, fontFamily: 'monospace' }}>{v.nro_orden || `#${v.id?.slice(0,8).toUpperCase()}`}</span>
+                              <span style={{ background: `${canalColor}22`, color: canalColor, fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20, border: `1px solid ${canalColor}55` }}>{canalLabel.toUpperCase()}</span>
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700 }}>{v.cliente_nombre}</div>
+                            {v.cliente_email && <div style={{ fontSize: 12, color: 'var(--text3)' }}>{v.cliente_email}</div>}
+                            {v.cliente_telefono && <div style={{ fontSize: 12, color: 'var(--text3)' }}>{v.cliente_telefono}</div>}
+                            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
+                              {(Array.isArray(v.items) ? v.items : []).map(it => `${it.codigo || ''} ×${it.cantidad}`).join(' · ')}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 14, fontWeight: 700 }}>{v.cliente_nombre}</div>
-                          {v.cliente_email && <div style={{ fontSize: 12, color: 'var(--text3)' }}>{v.cliente_email}</div>}
-                          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-                            {(Array.isArray(v.items) ? v.items : []).map(it => `${it.codigo || ''} ×${it.cantidad}`).join(' · ')}
-                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{formatFecha(v.created_at)}</div>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(v.created_at)}</div>
-                        <button
-                          onClick={() => { setVentaSel(v); setVItems((v.items || []).map(it => ({ ...it }))); setVNroRemito(''); setModalVenta(true) }}
-                          style={{ background: `${canalColor}22`, color: canalColor, border: `1px solid ${canalColor}55`, borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
-                          ↑ Registrar egreso
-                        </button>
+
+                        {/* Etiquetas de envío */}
+                        {Array.isArray(v.envio_etiquetas) && v.envio_etiquetas.length > 0 && v.tipo_envio === 'correo' && (
+                          <div style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 6 }}>Etiquetas de envío</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {v.envio_etiquetas.map((et, i) => {
+                                const url = typeof et === 'string' ? et : et?.url
+                                if (!url) return null
+                                return (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `${canalColor}12`, border: `1px solid ${canalColor}44`, borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: canalColor, textDecoration: 'none' }}>
+                                    <FileText size={12} /> Etiqueta {v.envio_etiquetas.length > 1 ? i + 1 : ''} — Imprimir
+                                  </a>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Envío logística / retiro */}
+                        {v.tipo_envio && v.tipo_envio !== 'correo' && (
+                          <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text3)' }}>
+                            🚛 Envío: <strong style={{ color: 'var(--text2)' }}>{v.tipo_envio === 'logistica' ? 'Logística' : 'Retiro en fábrica'}</strong>
+                            {v.envio_retiro_persona && <span> — {v.envio_retiro_persona}</span>}
+                          </div>
+                        )}
+
+                        {/* Acciones */}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                          <button
+                            onClick={() => setVentaDetalle({ ...v, _canalView: view })}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                            <Info size={13} /> Ver detalles
+                          </button>
+                          <button
+                            onClick={() => { setVentaSel(v); setVItems((v.items || []).map(it => ({ ...it }))); setVNroRemito(''); setModalVenta(true) }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `${canalColor}22`, color: canalColor, border: `1px solid ${canalColor}55`, borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                            <ArrowUpCircle size={13} /> Registrar egreso
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -551,15 +592,7 @@ export default function IngresoEgresoPT() {
                   <span style={{ fontSize: 18 }}>{cat.emoji}</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: cc.color }}>{cat.label}</span>
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Código', 'Producto', 'Modelo', 'Stock Inicial', 'Stock Actual', 'Acciones'].map(h => (
-                        <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Acciones' ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {cat.productos.map((p, i) => {
                       const s = stock[p.codigo]
                       const actual = s?.stock_actual ?? '—'
@@ -567,46 +600,53 @@ export default function IngresoEgresoPT() {
                       const bajo = typeof actual === 'number' && actual <= 5 && actual > 0
                       const agotado = typeof actual === 'number' && actual === 0 && s
                       return (
-                        <tr key={p.codigo} style={{ borderBottom: i < cat.productos.length - 1 ? '1px solid var(--border)' : 'none', background: agotado ? 'rgba(255,85,119,0.04)' : bajo ? 'rgba(255,165,0,0.04)' : 'transparent' }}>
-                          <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 700, color: cc.color, fontFamily: 'monospace' }}>{p.codigo}</td>
-                          <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>{p.nombre}</td>
-                          <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text3)' }}>{p.modelo}</td>
-                          <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text2)' }}>{inicial}</td>
-                          <td style={{ padding: '12px 16px' }}>
-                            <span style={{
-                              fontWeight: 700, fontSize: 15,
-                              color: agotado ? '#ff5577' : bajo ? '#fb923c' : typeof actual === 'number' ? '#3dd68c' : 'var(--text3)'
-                            }}>
-                              {actual}
-                              {agotado && <span style={{ fontSize: 10, marginLeft: 6, background: 'rgba(255,85,119,0.15)', color: '#ff5577', padding: '1px 6px', borderRadius: 10 }}>AGOTADO</span>}
-                              {bajo && <span style={{ fontSize: 10, marginLeft: 6, background: 'rgba(251,146,60,0.15)', color: '#fb923c', padding: '1px 6px', borderRadius: 10 }}>BAJO</span>}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
-                              {isAdmin && (
-                                <button onClick={() => { setSProducto({ ...p, categoria: cat.categoria }); setSCantidad(s?.stock_inicial ? String(s.stock_inicial) : ''); setModalStock(true) }}
-                                  title="Editar stock inicial"
-                                  style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#7b9fff', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                                  📋 Stock Inicial
-                                </button>
-                              )}
-                              <button onClick={() => { setIProducto({ ...p, categoria: cat.categoria }); setICantidad(''); setIObs(''); setModalIngreso(true) }}
-                                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                                <ArrowDownCircle size={12} /> Ingreso
-                              </button>
-                              <button onClick={() => { setEProducto({ ...p, categoria: cat.categoria }); setECantidad(''); setEObs(''); setECanal('Distribuidor'); setModalEgreso(true) }}
-                                title="Registrar egreso"
-                                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                                <ArrowUpCircle size={12} /> Egreso
-                              </button>
+                        <div key={p.codigo} style={{
+                          borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                          padding: '12px 16px',
+                          background: agotado ? 'rgba(255,85,119,0.04)' : bajo ? 'rgba(255,165,0,0.04)' : 'transparent',
+                          display: 'flex', flexDirection: 'column', gap: 8,
+                        }}>
+                          {/* Fila superior: código + nombre + stocks */}
+                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: cc.color, fontFamily: 'monospace', background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 5, padding: '2px 7px' }}>{p.codigo}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{p.nombre}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text3)' }}>{p.modelo}</span>
+                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 1 }}>Inicial</div>
+                                <div style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 600 }}>{inicial}</div>
+                              </div>
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 1 }}>Actual</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontWeight: 800, fontSize: 16, color: agotado ? '#ff5577' : bajo ? '#fb923c' : typeof actual === 'number' ? '#3dd68c' : 'var(--text3)' }}>{actual}</span>
+                                  {agotado && <span style={{ fontSize: 9, background: 'rgba(255,85,119,0.15)', color: '#ff5577', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>AGOTADO</span>}
+                                  {bajo && <span style={{ fontSize: 9, background: 'rgba(251,146,60,0.15)', color: '#fb923c', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>BAJO</span>}
+                                </div>
+                              </div>
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+                          {/* Acciones */}
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {isAdmin && (
+                              <button onClick={() => { setSProducto({ ...p, categoria: cat.categoria }); setSCantidad(s?.stock_inicial ? String(s.stock_inicial) : ''); setModalStock(true) }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#7b9fff', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                📋 Stock Inicial
+                              </button>
+                            )}
+                            <button onClick={() => { setIProducto({ ...p, categoria: cat.categoria }); setICantidad(''); setIObs(''); setModalIngreso(true) }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              <ArrowDownCircle size={12} /> Ingreso
+                            </button>
+                            <button onClick={() => { setEProducto({ ...p, categoria: cat.categoria }); setECantidad(''); setEObs(''); setECanal('Distribuidor'); setModalEgreso(true) }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              <ArrowUpCircle size={12} /> Egreso
+                            </button>
+                          </div>
+                        </div>
                       )
                     })}
-                  </tbody>
-                </table>
+                </div>
               </div>
             )
           })}
@@ -746,6 +786,126 @@ export default function IngresoEgresoPT() {
           </div>
         </div>
       )}
+
+      {/* MODAL DETALLE VENTA (Página / VO) */}
+      {ventaDetalle && (() => {
+        const vc = CANAL_COLORS[ventaDetalle._canalView] || '#7b9fff'
+        const vl = CANAL_LABELS[ventaDetalle._canalView] || ''
+        const etiquetas = Array.isArray(ventaDetalle.envio_etiquetas) && ventaDetalle.tipo_envio === 'correo'
+          ? ventaDetalle.envio_etiquetas : []
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
+              {/* Header */}
+              <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700 }}>📋 Detalle — {vl}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontFamily: 'monospace' }}>{ventaDetalle.nro_orden || `#${ventaDetalle.id?.slice(0,8).toUpperCase()}`}</div>
+                </div>
+                <button onClick={() => setVentaDetalle(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+              </div>
+
+              <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Cliente */}
+                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Cliente</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{ventaDetalle.cliente_nombre}</div>
+                  {ventaDetalle.cliente_email && <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>{ventaDetalle.cliente_email}</div>}
+                  {ventaDetalle.cliente_telefono && <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>📞 {ventaDetalle.cliente_telefono}</div>}
+                  {ventaDetalle.nro_orden && <div style={{ fontSize: 13, color: vc, fontWeight: 600, marginTop: 4 }}>Orden: {ventaDetalle.nro_orden}</div>}
+                </div>
+
+                {/* Productos */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Productos</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {(ventaDetalle.items || []).map((it, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', gap: 8, flexWrap: 'wrap' }}>
+                        <div>
+                          {it.codigo && <span style={{ fontSize: 11, fontWeight: 700, color: vc, fontFamily: 'monospace', marginRight: 8 }}>{it.codigo}</span>}
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>{it.nombre}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700 }}>×{it.cantidad}</span>
+                          {it.precio_unitario > 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>${Number(it.precio_unitario).toLocaleString('es-AR')}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {ventaDetalle.total > 0 && (
+                    <div style={{ textAlign: 'right', marginTop: 8, fontSize: 14, fontWeight: 800, color: vc }}>
+                      Total: ${Number(ventaDetalle.total).toLocaleString('es-AR')}
+                    </div>
+                  )}
+                </div>
+
+                {/* Envío */}
+                {ventaDetalle.tipo_envio && (
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Envío</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                      {ventaDetalle.tipo_envio === 'correo' ? '📬 Correo Argentino / Andreani' : ventaDetalle.tipo_envio === 'logistica' ? '🚛 Logística' : '🏭 Retiro en Fábrica'}
+                      {ventaDetalle.envio_retiro_persona && <span style={{ color: 'var(--text3)', fontWeight: 400 }}> — {ventaDetalle.envio_retiro_persona}</span>}
+                    </div>
+
+                    {/* Etiquetas correo */}
+                    {etiquetas.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 6 }}>Etiquetas de envío</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {etiquetas.map((et, i) => {
+                            const url = typeof et === 'string' ? et : et?.url
+                            const prods = typeof et === 'object' ? (et?.productos || []) : []
+                            if (!url) return null
+                            return (
+                              <div key={i} style={{ background: `${vc}0f`, border: `1px solid ${vc}44`, borderRadius: 8, padding: '8px 12px' }}>
+                                <a href={url} target="_blank" rel="noreferrer"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: vc, textDecoration: 'none' }}>
+                                  <FileText size={14} /> Etiqueta {etiquetas.length > 1 ? i + 1 : ''} — Descargar / Imprimir
+                                </a>
+                                {prods.length > 0 && (
+                                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                                    {prods.map(p => `${p.codigo || ''} ${p.nombre || ''}`).filter(Boolean).join(' · ')}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Productos logística */}
+                    {ventaDetalle.tipo_envio !== 'correo' && Array.isArray(ventaDetalle.envio_etiquetas) && ventaDetalle.envio_etiquetas.length > 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                        {ventaDetalle.envio_etiquetas.map(it => `${it.codigo || ''} ×${it.cantidad}`).filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Observaciones */}
+                {ventaDetalle.observaciones && (
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: 13, color: 'var(--text2)' }}>
+                    <span style={{ color: 'var(--text3)', fontWeight: 600 }}>Observaciones: </span>{ventaDetalle.observaciones}
+                  </div>
+                )}
+
+                {/* Remito si ya fue registrado */}
+                {ventaDetalle.nro_remito && (
+                  <div style={{ background: 'rgba(61,214,140,0.08)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: 13 }}>
+                    <span style={{ color: '#3dd68c', fontWeight: 700 }}>✅ Egreso registrado — Remito: </span>{ventaDetalle.nro_remito}
+                  </div>
+                )}
+
+                <button onClick={() => setVentaDetalle(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* MODAL INGRESO */}
       {modalIngreso && (

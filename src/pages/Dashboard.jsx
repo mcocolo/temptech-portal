@@ -89,7 +89,7 @@ export default function Dashboard() {
         <StatCard label="Tiempo Respuesta"   value="< 4h" icon={Clock} color="blue" delta="Promedio del equipo" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
+      <div className="dash-main-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
         {/* Recent posts */}
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>

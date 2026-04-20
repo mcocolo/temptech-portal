@@ -60,7 +60,7 @@ function InfoRow({ label, value, highlight }) {
   if (!value && value !== 0) return null
   return (
     <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
-      <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>{label}</span>
+      <span className="ar-info-lbl" style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>{label}</span>
       <span style={{ color: highlight || T.text2, fontWeight: highlight ? 700 : 400 }}>{value}</span>
     </div>
   )
@@ -943,18 +943,37 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
   return (
     <div style={{ minHeight: '100vh', background: T.bg, fontFamily: T.font }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-      <style>{`* { box-sizing: border-box; } select option { background: ${T.surface2}; color: ${T.text}; } input::placeholder { color: ${T.text3}; } input[type="date"] { color-scheme: dark; }`}</style>
+      <style>{`
+        * { box-sizing: border-box; }
+        select option { background: ${T.surface2}; color: ${T.text}; }
+        input::placeholder, textarea::placeholder { color: ${T.text3}; }
+        input[type="date"] { color-scheme: dark; }
+        @media (max-width: 600px) {
+          .ar-header   { padding: 0 14px !important; }
+          .ar-wrap     { padding: 16px 14px !important; }
+          .ar-filtros  { flex-direction: column !important; align-items: stretch !important; }
+          .ar-card-hdr { padding: 12px 14px !important; flex-direction: column !important; align-items: flex-start !important; }
+          .ar-card-hdr-inner { flex-wrap: wrap !important; }
+          .ar-body     { padding: 14px !important; }
+          .ar-notes    { margin: 0 14px 14px !important; }
+          .ar-nota-row { flex-direction: column !important; align-items: stretch !important; }
+          .ar-nota-row button { width: 100% !important; }
+          .ar-actions  { padding: 12px 14px !important; flex-wrap: wrap !important; }
+          .ar-cf-panel { margin: 0 14px 14px !important; }
+          .ar-info-lbl { min-width: 100px !important; }
+        }
+      `}</style>
 
       {/* Topbar */}
-      <header style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
+      <header className="ar-header" style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700, color: T.text }}>Panel Admin — Gestión de Reclamos</span>
         </div>
       </header>
 
-      <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
+      <div className="ar-wrap" style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
         {/* Filtros */}
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radiusLg, padding: '18px 22px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div className="ar-filtros" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radiusLg, padding: '18px 22px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <label style={{ fontSize: 12, color: T.text3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Estado</label>
             <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={{ ...inputStyle, width: 'auto' }}>
@@ -1002,8 +1021,8 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
 
                   <div style={{ position: 'relative', zIndex: 1 }}>
                     {/* Header */}
-                    <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div className="ar-card-hdr" style={{ padding: '16px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                      <div className="ar-card-hdr-inner" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '4px 10px', borderRadius: 6 }}>{item.tracking_id || `#${item.id}`}</span>
                         <Badge estado={item.estado} aprobado={item.aprobado} />
                       </div>
@@ -1011,7 +1030,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     </div>
 
                     {/* Body */}
-                    <div style={{ padding: '18px 22px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0 32px' }}>
+                    <div className="ar-body" style={{ padding: '18px 22px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0 32px' }}>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: T.text3, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 10 }}>Cliente</div>
                         <InfoRow label="Nombre" value={item.nombre_apellido || item.nombre} />
@@ -1048,7 +1067,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         <InfoRow label="Fecha compra" value={formatearFecha(item.fecha_compra)} />
                         {/* Supervisión fábrica */}
                         <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
-                          <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Supervisión fábrica</span>
+                          <span className="ar-info-lbl" style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Supervisión fábrica</span>
                           {item.supervision_fabrica ? (
                             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ color: T.green, fontWeight: 700 }}>✓ Completada</span>
@@ -1083,7 +1102,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         })()}
                         {(item.fecha_envio || item.fecha_resolucion) && <InfoRow label="Fecha de envío" value={formatearFecha(item.fecha_envio || item.fecha_resolucion)} />}
                         <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5, alignItems: 'center' }}>
-                          <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Supervisión fábrica</span>
+                          <span className="ar-info-lbl" style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Supervisión fábrica</span>
                           {item.supervision_fabrica ? (
                             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ color: T.green, fontWeight: 700 }}>SÍ</span>
@@ -1100,7 +1119,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     </div>
 
                     {/* Notas y archivos */}
-                    <div style={{ margin: '0 22px 16px', padding: 14, background: T.surface2, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
+                    <div className="ar-notes" style={{ margin: '0 22px 16px', padding: 14, background: T.surface2, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
                         {item.motivo_rechazo && <div style={{ fontSize: 13, color: T.red, marginBottom: 8 }}><strong>Motivo rechazo:</strong> {item.motivo_rechazo}</div>}
                         {item.empresa_envio && <InfoRow label="Empresa envío" value={item.empresa_envio} />}
                         {item.codigo_seguimiento && <InfoRow label="Código seguimiento" value={item.codigo_seguimiento} />}
@@ -1109,7 +1128,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         {item.notas && <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line', marginTop: 8, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>{item.notas}</div>}
 
                         {/* Nota manual */}
-                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                        <div className="ar-nota-row" style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                           <textarea
                             value={notasInput[item.id] || ''}
                             onChange={e => setNotasInput(prev => ({ ...prev, [item.id]: e.target.value }))}

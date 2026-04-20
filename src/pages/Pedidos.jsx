@@ -297,7 +297,7 @@ export default function Pedidos() {
       </div>
 
       {tab === 'nuevo' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
+        <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
           {/* Catálogo */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {CATALOGO.map(cat => {
@@ -570,7 +570,7 @@ export default function Pedidos() {
             </div>
           ) : (
             // Formulario de retiro
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
+            <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                   <button

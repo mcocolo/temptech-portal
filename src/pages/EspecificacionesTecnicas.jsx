@@ -153,10 +153,10 @@ export default function EspecificacionesTecnicas() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="sidebar-layout" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 24, alignItems: 'start' }}>
 
         {/* SIDEBAR */}
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 10px', position: 'sticky', top: 88 }}>
+        <div className="sidebar-sticky" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 10px', position: 'sticky', top: 88 }}>
           <div onClick={() => { setSelCat(null); setSelSub(null) }} style={{
             padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13, marginBottom: 6,
             background: !selCat ? 'rgba(255,255,255,0.07)' : 'transparent',

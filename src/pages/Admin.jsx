@@ -112,7 +112,7 @@ export default function Admin() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="admin-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Consultas Abiertas', val: stats.openPosts,    icon: MessageSquare, color: 'var(--accent)' },
           { label: 'Reclamos Activos',  val: stats.openReclamos, icon: AlertTriangle,  color: 'var(--red)' },

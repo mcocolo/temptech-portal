@@ -580,7 +580,7 @@ export default function AdminPedidos() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24, alignItems: 'start' }}>
+        <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24, alignItems: 'start' }}>
           {/* Izquierda: distribuidor + catálogo */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Selector de distribuidor */}

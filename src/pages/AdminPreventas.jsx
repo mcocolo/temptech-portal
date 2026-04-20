@@ -363,7 +363,7 @@ export default function AdminPreventas() {
 
       {/* ── FORM NUEVA PREVENTA ── */}
       {tab === 'nueva' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24, alignItems: 'start' }}>
+        <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24, alignItems: 'start' }}>
           {/* Izquierda: catálogo */}
           <div>
             {/* Distribuidor + fechas */}

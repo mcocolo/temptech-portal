@@ -52,7 +52,7 @@ function InfoRow({ label, value }) {
   if (!value && value !== 0) return null
   return (
     <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
-      <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>{label}</span>
+      <span className="rc-info-lbl" style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>{label}</span>
       <span style={{ color: T.text2 }}>{value}</span>
     </div>
   )
@@ -128,16 +128,33 @@ export default function Admin2Reclamos() {
   return (
     <div style={{ minHeight: '100vh', background: T.bg, fontFamily: T.font }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-      <style>{`* { box-sizing: border-box; } input::placeholder { color: ${T.text3}; }`}</style>
+      <style>{`
+        * { box-sizing: border-box; }
+        input::placeholder, textarea::placeholder { color: ${T.text3}; }
+        @media (max-width: 600px) {
+          .rc-header   { padding: 0 14px !important; }
+          .rc-wrap     { padding: 16px 14px !important; }
+          .rc-search   { flex-direction: column !important; }
+          .rc-card-hdr { padding: 12px 14px !important; flex-direction: column !important; align-items: flex-start !important; }
+          .rc-card-hdr-inner { flex-wrap: wrap !important; }
+          .rc-body     { padding: 14px 14px !important; }
+          .rc-notes    { margin: 0 14px 14px !important; }
+          .rc-nota-row { flex-direction: column !important; align-items: stretch !important; }
+          .rc-nota-row button { width: 100% !important; }
+          .rc-actions  { padding: 12px 14px !important; }
+          .rc-cf-panel { margin: 0 14px 14px !important; }
+          .rc-info-lbl { min-width: 100px !important; }
+        }
+      `}</style>
 
       {/* Topbar */}
-      <header style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '0 32px', height: 56, display: 'flex', alignItems: 'center' }}>
+      <header className="rc-header" style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '0 32px', height: 56, display: 'flex', alignItems: 'center' }}>
         <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700, color: T.text }}>Panel Control Físico — Reclamos</span>
       </header>
 
-      <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
+      <div className="rc-wrap" style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
         {/* Buscador */}
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radiusLg, padding: '18px 22px', marginBottom: 24, display: 'flex', gap: 10 }}>
+        <div className="rc-search" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radiusLg, padding: '18px 22px', marginBottom: 24, display: 'flex', gap: 10 }}>
           <input
             type="text"
             placeholder="🔍 Buscar por número de tracking..."
@@ -170,8 +187,8 @@ export default function Admin2Reclamos() {
             {datos.map(item => (
               <div key={item.id} style={{ background: T.surface, border: `1px solid ${item.control_fisico === 'SI' ? T.orange + '50' : T.border}`, borderRadius: T.radiusLg, overflow: 'hidden' }}>
                 {/* Header */}
-                <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="rc-card-hdr" style={{ padding: '16px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                  <div className="rc-card-hdr-inner" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '4px 10px', borderRadius: 6 }}>{item.tracking_id || `#${item.id}`}</span>
                     <Badge estado={item.estado} aprobado={item.aprobado} controlFisico={item.control_fisico} />
                   </div>
@@ -179,7 +196,7 @@ export default function Admin2Reclamos() {
                 </div>
 
                 {/* Body */}
-                <div style={{ padding: '18px 22px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0 32px' }}>
+                <div className="rc-body" style={{ padding: '18px 22px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0 32px' }}>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: T.text3, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 10 }}>Cliente</div>
                     <InfoRow label="Nombre" value={item.nombre_apellido || item.nombre} />
@@ -197,13 +214,13 @@ export default function Admin2Reclamos() {
                 </div>
 
                 {/* Notas */}
-                <div style={{ margin: '0 22px 16px', padding: 14, background: T.surface2, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
+                <div className="rc-notes" style={{ margin: '0 22px 16px', padding: 14, background: T.surface2, borderRadius: T.radius, border: `1px solid ${T.border}` }}>
                   {item.notas && (
                     <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line', marginBottom: 10 }}>{item.notas}</div>
                   )}
 
                   {/* Nota manual */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', borderTop: item.notas ? `1px solid ${T.border}` : 'none', paddingTop: item.notas ? 10 : 0 }}>
+                  <div className="rc-nota-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-end', borderTop: item.notas ? `1px solid ${T.border}` : 'none', paddingTop: item.notas ? 10 : 0 }}>
                     <textarea
                       value={notasInput[item.id] || ''}
                       onChange={e => setNotasInput(prev => ({ ...prev, [item.id]: e.target.value }))}
@@ -216,7 +233,7 @@ export default function Admin2Reclamos() {
                 </div>
 
                 {/* Acción Control Físico */}
-                <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="rc-actions" style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Btn
                     variant="orange"
                     disabled={item.control_fisico === 'SI'}
@@ -228,7 +245,7 @@ export default function Admin2Reclamos() {
 
                 {/* Panel Control Físico */}
                 {controlFisicoAbiertoId === item.id && (
-                  <div style={{ margin: '0 22px 18px', padding: 16, background: 'rgba(251,146,60,0.08)', border: `1px solid rgba(251,146,60,0.3)`, borderRadius: T.radius }}>
+                  <div className="rc-cf-panel" style={{ margin: '0 22px 18px', padding: 16, background: 'rgba(251,146,60,0.08)', border: `1px solid rgba(251,146,60,0.3)`, borderRadius: T.radius }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: T.orange, marginBottom: 12 }}>📦 Confirmar Control Físico</div>
                     <div style={{ marginBottom: 12 }}>
                       <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Nota (opcional)</label>

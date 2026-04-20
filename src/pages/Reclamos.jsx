@@ -410,7 +410,7 @@ export default function Reclamos() {
         </div>
 
         {/* Info grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 20, padding: '16px', background: 'var(--surface2)', borderRadius: 10 }}>
+        <div className="rec-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 20, padding: '16px', background: 'var(--surface2)', borderRadius: 10 }}>
           {[
             { label: 'Motivo', val: selected.motivo },
             { label: 'Canal de compra', val: selected.canal },

@@ -853,7 +853,7 @@ export default function ClientesRegistrados() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+      <div className="cr-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
         {[
           { label: 'Clientes',       val: clientes.length,      color: '#7b9fff', bg: 'rgba(110,181,255,0.08)' },
           { label: 'Distribuidores', val: distribuidores.length, color: '#ffd166', bg: 'rgba(255,209,102,0.08)' },

@@ -239,7 +239,7 @@ function MeliModal({ cc, editando, onClose, onSaved, user }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {fItems.map((it, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 72px auto', gap: 6, alignItems: 'center' }}>
+                <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '140px 1fr 72px auto', gap: 6, alignItems: 'center' }}>
                   <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                     <option value="">Código...</option>
                     {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
@@ -627,7 +627,7 @@ export default function PedidosCanal() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {fItems.map((it, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
+                    <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
                       <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                         <option value="">Código...</option>
                         {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
