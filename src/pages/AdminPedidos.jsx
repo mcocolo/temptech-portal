@@ -1242,7 +1242,7 @@ export default function AdminPedidos() {
                       <button onClick={() => abrirActualizacionPrecios(pedido)} style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         💲 Actualizar precios
                       </button>
-                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
+                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado' || pedido.estado === 'entregado') && (
                         <button
                           onClick={() => finalizarPedido(pedido)}
                           style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
