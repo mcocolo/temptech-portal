@@ -228,13 +228,17 @@ export default function IngresoEgresoPT() {
       .filter(p => p.cantidad > 0)
     const isComplete = newPending.length === 0
 
-    await supabase.from('pedidos').update({
+    // Actualizar estado y remito (separado de items_pendientes por si la columna no existe aún)
+    const { error: errEstado } = await supabase.from('pedidos').update({
       nro_remito: pNroRemito.trim(),
       ...(remitoUrls.length > 0 ? { remito_url: remitoUrl, remito_urls: remitoUrls } : {}),
       estado: isComplete ? 'entregado' : 'aprobado',
-      items_pendientes: newPending,
       updated_at: new Date().toISOString(),
     }).eq('id', pedidoSel.id)
+    if (errEstado) { toast.error('Error al actualizar pedido: ' + errEstado.message); setConfirmandoPed(false); return }
+
+    // Guardar saldo pendiente (requiere columna items_pendientes)
+    await supabase.from('pedidos').update({ items_pendientes: newPending }).eq('id', pedidoSel.id)
 
     // Descontar stock por las cantidades efectivamente entregadas
     for (const item of pItems) {
