@@ -118,7 +118,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         desc_calefones_calderas:   desc.calefones_calderas   ?? '',
         desc_paneles_calefactores: desc.paneles_calefactores ?? '',
         desc_anafes:               desc.anafes               ?? '',
-        direccion_entrega:         cl?.direccion_entrega || '',
+        direccion:                 cl?.direccion || cl?.direccion_entrega || '',
         horario_entrega:           cl?.horario_entrega   || '',
         persona_contacto:          cl?.persona_contacto  || '',
         dirs_alt: (u.direcciones_entrega || [{},{},{}]).slice(0,3).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'' })),
@@ -154,7 +154,15 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         Object.keys(desc).forEach(k => { if (desc[k] === null) delete desc[k] })
         const dirsAlt = (editForm.dirs_alt || []).filter(d => d.direccion.trim())
         await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt }).eq('id', u.id)
-        if (cl?.id) await supabase.from('clientes').update({ direccion: editForm.direccion, localidad: editForm.localidad, provincia: editForm.provincia, direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
+        if (cl?.id) {
+          const { error: errCl } = await supabase.from('clientes').update({
+            direccion: editForm.direccion || null,
+            direccion_entrega: editForm.direccion || null,
+            horario_entrega: editForm.horario_entrega || null,
+            persona_contacto: editForm.persona_contacto || null,
+          }).eq('id', cl.id)
+          if (errCl) { toast.error('Error al guardar dirección: ' + errCl.message); setSaving(false); return }
+        }
       } else {
         await supabase.from('profiles').update({ full_name: editForm.full_name, email: editForm.email, telefono: editForm.telefono }).eq('id', u.id)
         if (cl?.id) await supabase.from('clientes').update({ full_name: editForm.full_name, email: editForm.email, telefono: editForm.telefono, direccion: editForm.direccion, localidad: editForm.localidad, provincia: editForm.provincia, codigo_postal: editForm.codigo_postal, direccion_entrega: editForm.direccion_entrega, horario_entrega: editForm.horario_entrega, persona_contacto: editForm.persona_contacto }).eq('id', cl.id)
@@ -288,7 +296,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 10 }}>📍 Datos de entrega</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                    <LI label="Dirección principal"><input value={editForm.direccion_entrega} onChange={e => setEF('direccion_entrega', e.target.value)} style={inputSt} /></LI>
+                    <LI label="Dirección principal"><input value={editForm.direccion} onChange={e => setEF('direccion', e.target.value)} style={inputSt} /></LI>
                     <LI label="Horario de entrega"><input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} /></LI>
                     <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
                   </div>
