@@ -34,8 +34,9 @@ const CATALOGO_ADMIN = [
       { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim',          modelo: '500w',                            precio: 56135.91 },
       { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim',          modelo: '500w Toallero Simple',            precio: 67364.22 },
       { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim',          modelo: '500w Toallero Doble',             precio: 72978.37 },
-      { codigo: 'C500STV1MB',   nombre: 'Panel Calefactor Slim',          modelo: '500w Madera Blanca',              precio: 0 },
+      { codigo: 'C500STV1MB',   nombre: 'Panel Calefactor Slim',          modelo: '500w Madera Blanca',              precio: 59430 },
       { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Blanco',                    precio: 78592.53 },
+      { codigo: 'F1400MB',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Madera Blanca',             precio: 78990 },
       { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Madera Veteada',            precio: 78592.53 },
       { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Piedra Azteca',             precio: 78592.53 },
       { codigo: 'F1400PR',      nombre: 'Panel Calefactor Firenze',       modelo: '1400w Piedra Romana',             precio: 78592.53 },
@@ -79,7 +80,7 @@ const STATUS_CONFIG = {
 }
 
 export default function AdminPedidos() {
-  const { isAdmin, isVendedor, user } = useAuth()
+  const { isAdmin, isAdmin2, isVendedor, user } = useAuth()
   const [vista, setVista] = useState('lista')          // 'lista' | 'nuevo'
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -120,17 +121,18 @@ export default function AdminPedidos() {
   useEffect(() => {
     if (isAdmin) { cargar(); cargarDistribuidores(); cargarCatalogo() }
     else if (isVendedor && user) { cargar(); cargarDistribuidoresVendedor(); cargarCatalogo() }
-  }, [isAdmin, isVendedor, filtro, user])
+    else if (isAdmin2) { cargar() }
+  }, [isAdmin, isAdmin2, isVendedor, filtro, user])
 
   // Realtime: recargar cuando un distribuidor actualiza su pedido (ej: sube comprobante)
   useEffect(() => {
-    if (!isAdmin && !isVendedor) return
+    if (!isAdmin && !isVendedor && !isAdmin2) return
     const channel = supabase
       .channel('pedidos-updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, () => { cargar() })
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [isAdmin, isVendedor])
+  }, [isAdmin, isAdmin2, isVendedor])
 
 
   async function cargar() {
@@ -139,7 +141,8 @@ export default function AdminPedidos() {
       .from('pedidos')
       .select('*, profiles(full_name, email, razon_social)')
       .order('created_at', { ascending: false })
-    if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
+    if (isAdmin2) { q = q.eq('estado', 'aprobado') }
+    else if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
     else if (filtro !== 'todos') q = q.eq('estado', filtro)
 
     if (isVendedor && user) {
@@ -568,7 +571,7 @@ export default function AdminPedidos() {
     return nombre.includes(q) || email.includes(q) || id.includes(q)
   })
 
-  if (!isAdmin && !isVendedor) return null
+  if (!isAdmin && !isVendedor && !isAdmin2) return null
 
   // ── Vista: Nuevo pedido ──────────────────────────────────────────────────────
   if (vista === 'nuevo') {
@@ -797,27 +800,31 @@ export default function AdminPedidos() {
             title="Actualizar pedidos">
             🔄
           </button>
-          <button onClick={() => setVista('nuevo')}
-            style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-            + Nuevo pedido
-          </button>
+          {!isAdmin2 && (
+            <button onClick={() => setVista('nuevo')}
+              style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              + Nuevo pedido
+            </button>
+          )}
         </div>
       </div>
 
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['todos', 'pendiente', 'aprobado', 'pendiente_pago', 'entregado', 'finalizado'].map(f => (
-            <button key={f} onClick={() => setFiltro(f)} style={{
-              padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
-              background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',
-              color: filtro === f ? (STATUS_CONFIG[f]?.color || 'var(--text)') : 'var(--text3)',
-              border: filtro === f ? `1px solid ${STATUS_CONFIG[f]?.border || 'var(--border)'}` : '1px solid var(--border)',
-            }}>
-              {f === 'todos' ? 'Todos' : STATUS_CONFIG[f]?.label}
-            </button>
-          ))}
-        </div>
+        {!isAdmin2 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {['todos', 'pendiente', 'aprobado', 'pendiente_pago', 'entregado', 'finalizado'].map(f => (
+              <button key={f} onClick={() => setFiltro(f)} style={{
+                padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+                background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',
+                color: filtro === f ? (STATUS_CONFIG[f]?.color || 'var(--text)') : 'var(--text3)',
+                border: filtro === f ? `1px solid ${STATUS_CONFIG[f]?.border || 'var(--border)'}` : '1px solid var(--border)',
+              }}>
+                {f === 'todos' ? 'Todos' : STATUS_CONFIG[f]?.label}
+              </button>
+            ))}
+          </div>
+        )}
         <input
           type="text"
           placeholder="🔍 Buscar distribuidor o ID..."
@@ -858,7 +865,7 @@ export default function AdminPedidos() {
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    {pedido.tipo !== 'preventa' && (
+                    {pedido.tipo !== 'preventa' && !isAdmin2 && (
                       <span style={{ fontWeight: 800, fontSize: 15, color: '#7b9fff' }}>{formatPrecio(isEdit ? totalEdit : pedido.total)}</span>
                     )}
                     <span style={{ fontSize: 12, color: 'var(--text3)' }}>{new Date(pedido.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
@@ -1012,12 +1019,18 @@ export default function AdminPedidos() {
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                            <span style={{ color: 'var(--text3)' }}>x{item.cantidad} · {formatPrecio(item.precio_unitario)}</span>
-                            <span style={{ fontWeight: 700 }}>{formatPrecio(item.subtotal)}</span>
+                            {isAdmin2 ? (
+                              <span style={{ fontWeight: 700, color: 'var(--text2)' }}>x{item.cantidad}</span>
+                            ) : (
+                              <>
+                                <span style={{ color: 'var(--text3)' }}>x{item.cantidad} · {formatPrecio(item.precio_unitario)}</span>
+                                <span style={{ fontWeight: 700 }}>{formatPrecio(item.subtotal)}</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
-                      {pedido.incluir_iva && pedido.iva_monto > 0 && (
+                      {!isAdmin2 && pedido.incluir_iva && pedido.iva_monto > 0 && (
                         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)' }}>
                             <span>Subtotal neto</span>
@@ -1071,7 +1084,7 @@ export default function AdminPedidos() {
                   )}
 
                   {/* ── Datos internos ── */}
-                  {!isEdit && (
+                  {!isEdit && !isAdmin2 && (
                     <div style={{ marginTop: 12, padding: '12px 14px', background: 'rgba(255,209,102,0.04)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 'var(--radius)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: editingInternals === pedido.id ? 10 : 0 }}>
                         <span style={{ fontSize: 10, fontWeight: 700, color: '#ffd166', textTransform: 'uppercase', letterSpacing: '0.7px' }}>🔒 Datos internos</span>
@@ -1220,7 +1233,7 @@ export default function AdminPedidos() {
                 </div>
 
                 {/* Acciones */}
-                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {!isAdmin2 && <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {isEdit ? (
                     <>
                       {esActualizacionPrecios ? (
@@ -1286,7 +1299,7 @@ export default function AdminPedidos() {
                       )}
                     </>
                   )}
-                </div>
+                </div>}
               </div>
             )
           })}
