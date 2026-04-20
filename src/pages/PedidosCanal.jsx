@@ -375,9 +375,9 @@ export default function PedidosCanal() {
   }
 
   async function guardar() {
-    if (!fNombre.trim()) return toast.error('Ingresá el nombre del cliente')
+    if (canal !== 'pagina' && !fNombre.trim()) return toast.error('Ingresá el nombre del cliente')
     const itemsValidos = fItems.filter(it => it.codigo || it.nombre)
-    if (!itemsValidos.length) return toast.error('Agregá al menos un producto')
+    if (canal !== 'pagina' && !itemsValidos.length) return toast.error('Agregá al menos un producto')
     setGuardando(true)
 
     // Procesar envío
@@ -594,6 +594,7 @@ export default function PedidosCanal() {
               <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
             </div>
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {canal !== 'pagina' && (<>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° de orden</label>
@@ -641,6 +642,7 @@ export default function PedidosCanal() {
                 </div>
                 <div style={{ marginTop: 8, textAlign: 'right', fontSize: 15, fontWeight: 800, color: cc.color }}>Total: {formatPrecio(calcTotal())}</div>
               </div>
+              </>)}
               {/* Tipo de envío */}
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: cc.color, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>🚚 Tipo de envío</label>

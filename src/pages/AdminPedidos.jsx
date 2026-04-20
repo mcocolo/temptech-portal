@@ -122,6 +122,16 @@ export default function AdminPedidos() {
     else if (isVendedor && user) { cargar(); cargarDistribuidoresVendedor(); cargarCatalogo() }
   }, [isAdmin, isVendedor, filtro, user])
 
+  // Realtime: recargar cuando un distribuidor actualiza su pedido (ej: sube comprobante)
+  useEffect(() => {
+    if (!isAdmin && !isVendedor) return
+    const channel = supabase
+      .channel('pedidos-updates')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, () => { cargar() })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [isAdmin, isVendedor])
+
 
   async function cargar() {
     setLoading(true)
@@ -782,6 +792,11 @@ export default function AdminPedidos() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, color: 'var(--text3)' }}>
             {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''}
           </div>
+          <button onClick={cargar} disabled={loading}
+            style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1, fontFamily: 'var(--font)' }}
+            title="Actualizar pedidos">
+            🔄
+          </button>
           <button onClick={() => setVista('nuevo')}
             style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
             + Nuevo pedido
