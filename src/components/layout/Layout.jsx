@@ -46,7 +46,8 @@ const ADMIN_NAV = [
 
 const ADMIN2_NAV = [
   { section: 'Gestión' },
-  { label: 'Service / Garantía',  icon: AlertTriangle, path: '/reclamos',          isAdmin: true },
+  { label: 'Service / Garantía',  icon: AlertTriangle,  path: '/reclamos',          isAdmin: true },
+  { label: 'Pedidos Distribuidores', icon: ShoppingCart, path: '/admin-pedidos',   isAdmin: true },
   { label: 'Pedidos Meli',        icon: ShoppingBag,   path: '/pedidos-meli',      isAdmin: true },
   { label: 'Pedidos Página',      icon: Globe,         path: '/pedidos-pagina',    isAdmin: true },
   { label: 'Pedidos VO',          icon: Package,       path: '/pedidos-vo',        isAdmin: true },

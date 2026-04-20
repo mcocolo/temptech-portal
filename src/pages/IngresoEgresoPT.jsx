@@ -32,6 +32,7 @@ const CATALOGO = [
       { codigo: 'C500STV1TD',   nombre: 'Slim',          modelo: '500w Toallero Doble' },
       { codigo: 'C500STV1MB',   nombre: 'Slim',          modelo: '500w Madera Blanca' },
       { codigo: 'F1400BCO',     nombre: 'Firenze',       modelo: '1400w Blanco' },
+      { codigo: 'F1400MB',      nombre: 'Firenze',       modelo: '1400w Madera Blanca' },
       { codigo: 'F1400MV',      nombre: 'Firenze',       modelo: '1400w Madera Veteada' },
       { codigo: 'F1400PA',      nombre: 'Firenze',       modelo: '1400w Piedra Azteca' },
       { codigo: 'F1400PR',      nombre: 'Firenze',       modelo: '1400w Piedra Romana' },
