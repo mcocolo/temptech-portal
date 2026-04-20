@@ -89,13 +89,13 @@ export default function Layout({ children }) {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  // Notificaciones (solo admin)
+  // Notificaciones (admin + admin2)
   const [notifs, setNotifs]           = useState([])
   const [showNotifs, setShowNotifs]   = useState(false)
   const notifRef                      = useRef(null)
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!isAdmin && !isAdmin2) return
     cargarNotifs()
 
     const channel = supabase
@@ -373,7 +373,7 @@ export default function Layout({ children }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {isAdmin && (
+            {(isAdmin || isAdmin2) && (
               <div ref={notifRef} style={{ position: 'relative' }}>
                 {/* Botón campana */}
                 <button

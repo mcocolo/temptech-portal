@@ -297,7 +297,7 @@ function SupervisionFabrica({ item, onClose, onGuardar }) {
               </label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.surface3, border: `1px dashed ${T.border2}`, borderRadius: T.radius, padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: T.text2 }}>
                 📷 Tomar foto
-                <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+                <input type="file" accept="image/*" style={{ display: 'none' }}
                   onChange={e => { if (e.target.files?.length) setImagenes(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
               </label>
             </div>

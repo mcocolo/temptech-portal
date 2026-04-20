@@ -115,6 +115,7 @@ export default function IngresoEgresoPT() {
   const [ventaSel, setVentaSel]           = useState(null)
   const [vItems, setVItems]               = useState([])
   const [vNroRemito, setVNroRemito]       = useState('')
+  const [vArchivosRemito, setVArchivosRemito] = useState([])
   const [confirmandoVenta, setConfirmandoVenta] = useState(false)
 
   const CANAL_VIEWS = ['egreso-meli', 'egreso-pagina', 'egreso-vo']
@@ -171,16 +172,29 @@ export default function IngresoEgresoPT() {
       })
     }
 
+    // Subir archivos de remito
+    const remitoUrls = []
+    for (const file of vArchivosRemito) {
+      const ext = file.name.split('.').pop()
+      const path = `remitos-canal/${ventaSel.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: upErr } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+      if (!upErr) {
+        const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+        remitoUrls.push(publicUrl)
+      }
+    }
+
     await supabase.from('ventas').update({
       stock_descontado: true,
       ...(vNroRemito.trim() ? { nro_remito: vNroRemito.trim() } : {}),
+      ...(remitoUrls.length > 0 ? { remito_urls: remitoUrls } : {}),
       estado: 'enviado',
       updated_at: new Date().toISOString(),
     }).eq('id', ventaSel.id)
 
     toast.success('✅ Egreso registrado — venta marcada como Enviada')
     setConfirmandoVenta(false)
-    setModalVenta(false); setVentaSel(null); setVItems([]); setVNroRemito('')
+    setModalVenta(false); setVentaSel(null); setVItems([]); setVNroRemito(''); setVArchivosRemito([])
     cargar(); cargarVentas(CANAL_KEYS[view])
   }
 
@@ -862,10 +876,29 @@ export default function IngresoEgresoPT() {
                 </div>
               </div>
 
-              {/* Nro remito opcional */}
+              {/* Nro remito + archivos */}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Número de remito (opcional)</label>
                 <input value={vNroRemito} onChange={e => setVNroRemito(e.target.value)} placeholder="Ej: 0001-00001234" style={inputSt} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Adjuntar remito / fotos (opcional)</label>
+                {vArchivosRemito.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                    {vArchivosRemito.map((f, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px' }}>
+                        <span style={{ fontSize: 13, color: '#3dd68c', flex: 1 }}>✅ {f.name}</span>
+                        <button onClick={() => setVArchivosRemito(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+                  <Upload size={14} /> Adjuntar foto / PDF
+                  <input type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files?.length) setVArchivosRemito(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
+                </label>
               </div>
 
               <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#a78bfa' }}>
