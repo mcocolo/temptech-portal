@@ -73,7 +73,7 @@ const STATUS_PEDIDO = {
 }
 
 // ── Vista de perfil completo ──────────────────────────────────────────────────
-function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedor, onEliminar }) {
+function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedor, onEliminar, onSaved }) {
   const cl = u.clientes
   const [tab, setTab] = useState('datos')
   const [historial, setHistorial] = useState({ posts: [], reclamos: [], productos: [], pedidos: [] })
@@ -161,6 +161,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
       }
       toast.success('Guardado')
       setEditando(false)
+      onSaved?.()
     } catch (e) { toast.error(e.message) }
     setSaving(false)
   }
@@ -820,10 +821,19 @@ export default function ClientesRegistrados() {
     )
   }
 
+  async function recargarDetailUser() {
+    if (!detailUser?.id) return
+    const { data } = await supabase.from('profiles').select('*, clientes(*), vendedor_id').eq('id', detailUser.id).single()
+    if (data) {
+      setDetailUser(data)
+      setUsuarios(prev => prev.map(u => u.id === data.id ? data : u))
+    }
+  }
+
   // Mostrar perfil completo
   if (detailUser) {
     const isDistrib = detailUser.user_type === 'distributor' || detailUser.clientes?.user_type === 'distributor'
-    return <PerfilCliente u={detailUser} isDistrib={isDistrib} onBack={() => setDetailUser(null)} vendedores={vendedores} onAsignarVendedor={asignarVendedor} onEliminar={eliminarUsuario} />
+    return <PerfilCliente u={detailUser} isDistrib={isDistrib} onBack={() => setDetailUser(null)} vendedores={vendedores} onAsignarVendedor={asignarVendedor} onEliminar={eliminarUsuario} onSaved={recargarDetailUser} />
   }
 
   return (
