@@ -679,29 +679,27 @@ export default function PedidosCanal() {
                           <button onClick={() => setFEnvioEtiquetas(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18, marginLeft: 'auto', lineHeight: 1 }}>×</button>
                         </div>
                         {/* Productos en esta etiqueta */}
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Productos en esta etiqueta:</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {fItems.filter(it => it.codigo || it.nombre).map((it, pi) => {
-                            const checked = (et.productos || []).some(p => p.codigo === it.codigo && p.nombre === it.nombre)
-                            return (
-                              <label key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, padding: '3px 0' }}>
-                                <input type="checkbox" checked={checked} onChange={e => {
-                                  setFEnvioEtiquetas(prev => prev.map((x, j) => {
-                                    if (j !== i) return x
-                                    const prods = e.target.checked
-                                      ? [...(x.productos || []), { codigo: it.codigo, nombre: it.nombre }]
-                                      : (x.productos || []).filter(p => !(p.codigo === it.codigo && p.nombre === it.nombre))
-                                    return { ...x, productos: prods }
-                                  }))
-                                }} style={{ accentColor: cc.color }} />
-                                {it.codigo && <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color }}>{it.codigo}</span>}
-                                <span>{it.nombre}</span>
-                                <span style={{ color: 'var(--text3)' }}>×{it.cantidad}</span>
-                              </label>
-                            )
-                          })}
-                          {fItems.filter(it => it.codigo || it.nombre).length === 0 && (
-                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>Agregá productos al pedido primero</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' }}>Productos en esta etiqueta:</div>
+                          <button onClick={() => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: [...(x.productos || []), { codigo: '', nombre: '', cantidad: 1 }] }))} style={{ fontSize: 11, padding: '2px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px solid ${cc.border}`, fontWeight: 700 }}>+ Item</button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {(et.productos || []).map((prod, pi) => (
+                            <div key={pi} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 54px auto', gap: 6, alignItems: 'center' }}>
+                              <select value={prod.codigo} onChange={e => {
+                                const found = CATALOGO_PRODUCTOS.find(p => p.codigo === e.target.value)
+                                setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, codigo: e.target.value, nombre: found?.nombre || p.nombre }) }))
+                              }} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }}>
+                                <option value="">Código...</option>
+                                {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                              </select>
+                              <input value={prod.nombre} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, nombre: e.target.value }) }))} placeholder="Descripción" style={{ ...inputSt, padding: '6px 8px', fontSize: 11 }} />
+                              <input type="number" min="1" value={prod.cantidad} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, cantidad: e.target.value }) }))} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }} />
+                              {(et.productos || []).length > 1 ? <button onClick={() => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.filter((_, k) => k !== pi) }))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button> : <span />}
+                            </div>
+                          ))}
+                          {(et.productos || []).length === 0 && (
+                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>Usá "+ Item" para agregar productos a esta etiqueta</span>
                           )}
                         </div>
                       </div>
