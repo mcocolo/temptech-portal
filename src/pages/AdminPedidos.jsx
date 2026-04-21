@@ -1249,6 +1249,26 @@ export default function AdminPedidos() {
                             </div>
                           </div>
                         </div>
+                        {/* Archivos de remito adjuntados al confirmar egreso */}
+                        {(() => {
+                          const archivos = Array.isArray(pedido.remito_urls) && pedido.remito_urls.length > 0
+                            ? pedido.remito_urls
+                            : pedido.remito_url ? [pedido.remito_url] : []
+                          if (archivos.length === 0) return null
+                          return (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Archivos de remito</div>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {archivos.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none' }}>
+                                    📎 Remito {archivos.length > 1 ? i + 1 : ''}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })()}
                       )}
 
                       {/* Factura */}

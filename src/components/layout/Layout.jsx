@@ -7,7 +7,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -28,7 +28,8 @@ const NAV = [
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
-  { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos', isDistributor: true },
+  { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos',      isDistributor: true },
+  { label: 'Mis Devoluciones', icon: RotateCcw,       path: '/devoluciones', isDistributor: true },
 ]
 
 const ADMIN_NAV = [
@@ -37,6 +38,7 @@ const ADMIN_NAV = [
   { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
   { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
   { label: 'Pedidos Distribuidores', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
+  { label: 'Devoluciones',    icon: RotateCcw,   path: '/admin-devoluciones', isAdmin: true },
   { label: 'Pedidos Meli',    icon: ShoppingBag, path: '/pedidos-meli',   isAdmin: true },
   { label: 'Pedidos Página',  icon: Globe,       path: '/pedidos-pagina', isAdmin: true },
   { label: 'Pedidos VO',      icon: Package,     path: '/pedidos-vo',     isAdmin: true },
@@ -55,6 +57,7 @@ const ADMIN2_NAV = [
   { section: 'Gestión' },
   { label: 'Service / Garantía',  icon: AlertTriangle,  path: '/reclamos',          isAdmin: true },
   { label: 'Pedidos Distribuidores', icon: ShoppingCart, path: '/admin-pedidos',   isAdmin: true },
+  { label: 'Devoluciones',         icon: RotateCcw,    path: '/admin-devoluciones', isAdmin: true },
   { label: 'Pedidos Meli',        icon: ShoppingBag,   path: '/pedidos-meli',      isAdmin: true },
   { label: 'Pedidos Página',      icon: Globe,         path: '/pedidos-pagina',    isAdmin: true },
   { label: 'Pedidos VO',          icon: Package,       path: '/pedidos-vo',        isAdmin: true },

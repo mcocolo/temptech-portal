@@ -28,6 +28,8 @@ import IngresoEgresoPT from '@/pages/IngresoEgresoPT'
 import PedidosCanal from '@/pages/PedidosCanal'
 import LogisticaDiaria from '@/pages/LogisticaDiaria'
 import Insumos from '@/pages/Insumos'
+import AdminDevoluciones from '@/pages/AdminDevoluciones'
+import Devoluciones from '@/pages/Devoluciones'
 
 
 
@@ -78,6 +80,8 @@ function AppRoutes() {
               <Route path="/especificaciones-tecnicas"  element={<EspecificacionesTecnicas />} />
               <Route path="/ingreso-egreso-pt"          element={<IngresoEgresoPT />} />
               <Route path="/logistica"                  element={<LogisticaDiaria />} />
+              <Route path="/admin-devoluciones"             element={<AdminDevoluciones />} />
+              <Route path="/devoluciones"                  element={<Devoluciones />} />
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal />} />
