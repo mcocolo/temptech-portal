@@ -86,6 +86,7 @@ export default function AdminPedidos() {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
+  const [filtroFecha, setFiltroFecha] = useState('')
   const [editando, setEditando] = useState(null)
   const [itemsEdit, setItemsEdit] = useState([])
   const [notaAdmin, setNotaAdmin] = useState('')
@@ -137,10 +138,12 @@ export default function AdminPedidos() {
 
   async function cargar() {
     setLoading(true)
+    const hoy = new Date().toISOString().split('T')[0]
     let q = supabase
       .from('pedidos')
       .select('*, profiles(full_name, email, razon_social)')
-      .order('created_at', { ascending: false })
+      .gte('fecha_entrega', hoy)
+      .order('fecha_entrega', { ascending: true })
     if (isAdmin2) { q = q.eq('estado', 'aprobado') }
     else if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
     else if (filtro !== 'todos') q = q.eq('estado', filtro)
@@ -642,6 +645,7 @@ export default function AdminPedidos() {
   }
 
   const pedidosFiltrados = pedidos.filter(p => {
+    if (filtroFecha && p.fecha_entrega !== filtroFecha) return false
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
     const nombre = (p.profiles?.razon_social || p.profiles?.full_name || '').toLowerCase()
@@ -911,6 +915,20 @@ export default function AdminPedidos() {
           onChange={e => setBusqueda(e.target.value)}
           style={{ flex: 1, minWidth: 200, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
         />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            type="date"
+            value={filtroFecha}
+            onChange={e => setFiltroFecha(e.target.value)}
+            style={{ background: 'var(--surface2)', border: `1px solid ${filtroFecha ? 'rgba(74,108,247,0.5)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '7px 10px', color: filtroFecha ? 'var(--text)' : 'var(--text3)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', cursor: 'pointer' }}
+          />
+          {filtroFecha && (
+            <button onClick={() => setFiltroFecha('')} title="Limpiar filtro de fecha"
+              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
