@@ -139,12 +139,12 @@ export default function Devoluciones() {
               <div key={dev.id} style={{ background: 'var(--surface)', border: `1px solid ${isExp ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
                 <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', cursor: 'pointer' }} onClick={() => setExpandido(isExp ? null : dev.id)}>
                   <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 8px', borderRadius: 4 }}>
-                    #{dev.id.slice(0,8).toUpperCase()}
+                    #{String(dev.id).slice(0,8).toUpperCase()}
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)' }}>{tcfg.emoji} {tcfg.label}</span>
                   <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 'auto' }}>
-                    {formatDistanceToNow(new Date(dev.created_at), { addSuffix: true, locale: es })}
+                    {dev.created_at ? formatDistanceToNow(new Date(dev.created_at), { addSuffix: true, locale: es }) : '—'}
                   </span>
                 </div>
 

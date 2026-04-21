@@ -653,7 +653,7 @@ export default function AdminPedidos() {
   }
 
   const pedidosFiltrados = pedidos.filter(p => {
-    if (filtroFecha && p.fecha_entrega !== filtroFecha) return false
+    if (filtroFecha && p.fecha_entrega && p.fecha_entrega !== filtroFecha) return false
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
     const nombre = (p.profiles?.razon_social || p.profiles?.full_name || '').toLowerCase()
