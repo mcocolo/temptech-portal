@@ -115,6 +115,7 @@ export default function AdminPedidos() {
   const [npFecha, setNpFecha] = useState('')
   const [npIVA, setNpIVA] = useState(false)
   const [npEstado, setNpEstado] = useState('aprobado') // 'pendiente' | 'aprobado'
+  const [npAplicarDesc, setNpAplicarDesc] = useState(true)
   const [creando, setCreando] = useState(false)
 
   const IVA_PCT = 0.21
@@ -198,7 +199,7 @@ export default function AdminPedidos() {
   async function cargarDistribuidores() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, razon_social, email, descuentos_categoria')
+      .select('id, full_name, razon_social, email, descuentos')
       .eq('user_type', 'distributor')
       .order('razon_social')
     setDistribuidores(data || [])
@@ -207,16 +208,25 @@ export default function AdminPedidos() {
   async function cargarDistribuidoresVendedor() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, razon_social, email, descuentos_categoria')
+      .select('id, full_name, razon_social, email, descuentos')
       .eq('user_type', 'distributor')
       .eq('vendedor_id', user.id)
       .order('razon_social')
     setDistribuidores(data || [])
   }
 
+  function calcDescPct(descValue) {
+    if (!descValue || descValue === 0) return 0
+    if (Array.isArray(descValue)) {
+      const factor = descValue.reduce((f, d) => f * (1 - (parseFloat(d) || 0) / 100), 1)
+      return (1 - factor) * 100
+    }
+    return parseFloat(descValue) || 0
+  }
+
   function npAgregarProducto(prod) {
     const dist = distribuidores.find(d => d.id === npDistId)
-    const descPct = dist?.descuentos_categoria?.[prod.categoria] ?? 0
+    const descPct = npAplicarDesc ? calcDescPct(dist?.descuentos?.[prod.categoria]) : 0
     const precioUnit = prod.precio * (1 - descPct / 100)
     const idx = npItems.findIndex(i => i.codigo === prod.codigo)
     if (idx !== -1) {
@@ -256,9 +266,19 @@ export default function AdminPedidos() {
     setNpItems(prev => prev.filter((_, i) => i !== idx))
   }
 
+  function npToggleDescuento(aplicar) {
+    setNpAplicarDesc(aplicar)
+    const dist = distribuidores.find(d => d.id === npDistId)
+    setNpItems(prev => prev.map(item => {
+      const descPct = aplicar ? calcDescPct(dist?.descuentos?.[item.categoria]) : 0
+      const precioUnit = item.precio_base * (1 - descPct / 100)
+      return { ...item, descuento_pct: descPct, precio_unitario: precioUnit, subtotal: precioUnit * item.cantidad }
+    }))
+  }
+
   function npReset() {
     setNpDistId(''); setNpItems([]); setNpNotas(''); setNpFecha('')
-    setNpIVA(false); setNpEstado('aprobado')
+    setNpIVA(false); setNpEstado('aprobado'); setNpAplicarDesc(true)
   }
 
   async function crearPedido() {
@@ -698,7 +718,7 @@ export default function AdminPedidos() {
                   const dist = distribuidores.find(d => d.id === newId)
                   if (dist) {
                     setNpItems(prev => prev.map(item => {
-                      const descPct = dist.descuentos_categoria?.[item.categoria] ?? 0
+                      const descPct = npAplicarDesc ? calcDescPct(dist.descuentos?.[item.categoria]) : 0
                       const precioUnit = item.precio_base * (1 - descPct / 100)
                       return { ...item, descuento_pct: descPct, precio_unitario: precioUnit, subtotal: precioUnit * item.cantidad }
                     }))
@@ -711,6 +731,23 @@ export default function AdminPedidos() {
                   <option key={d.id} value={d.id}>{d.razon_social || d.full_name} — {d.email}</option>
                 ))}
               </select>
+              {npDistId && (() => {
+                const dist = distribuidores.find(d => d.id === npDistId)
+                const tieneDesc = dist?.descuentos && Object.values(dist.descuentos).some(v => v && v !== 0 && !(Array.isArray(v) && v.every(x => !x || x === 0)))
+                if (!tieneDesc) return null
+                return (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontSize: 13, userSelect: 'none' }}>
+                    <input type="checkbox" checked={npAplicarDesc} onChange={e => npToggleDescuento(e.target.checked)} style={{ accentColor: 'var(--brand-blue)', width: 15, height: 15 }} />
+                    <span style={{ fontWeight: 600 }}>Aplicar descuentos del distribuidor</span>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                      ({Object.entries(dist.descuentos || {}).filter(([,v]) => v && v !== 0).map(([k, v]) => {
+                        const pct = calcDescPct(v)
+                        return pct > 0 ? `${k.replace('calefones_calderas','Cal').replace('paneles_calefactores','Pan').replace('anafes','Ana')}: ${pct.toFixed(1)}%` : null
+                      }).filter(Boolean).join(' · ')})
+                    </span>
+                  </label>
+                )
+              })()}
             </div>
 
             {/* Catálogo */}

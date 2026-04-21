@@ -154,7 +154,7 @@ export default function IngresoEgresoPT() {
       .from('ventas')
       .select('*')
       .eq('canal', canal)
-      .eq('stock_descontado', false)
+      .or('stock_descontado.is.null,stock_descontado.eq.false')
       .neq('estado', 'cancelado')
       .order('created_at', { ascending: false })
     setVentas(data || [])
