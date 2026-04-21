@@ -40,6 +40,7 @@ export default function AdminDevoluciones() {
     const { data, error } = await supabase
       .from('devoluciones')
       .select('*, profiles(full_name, razon_social, email)')
+      .not('distribuidor_id', 'is', null)
       .order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar devoluciones')
     else setDevoluciones(data || [])

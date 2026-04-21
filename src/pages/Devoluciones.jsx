@@ -43,8 +43,8 @@ export default function Devoluciones() {
   async function cargar() {
     if (!user) return
     setLoading(true)
-    let q = supabase.from('devoluciones').select('*').order('created_at', { ascending: false })
-    if (!isAdmin) q = q.eq('distribuidor_id', user.id)
+    let q = supabase.from('devoluciones').select('*').not('distribuidor_id', 'is', null).order('created_at', { ascending: false })
+    if (!isAdmin && !isAdmin2) q = q.eq('distribuidor_id', user.id)
     const { data, error } = await q
     if (error) toast.error('Error al cargar')
     else setDevoluciones(data || [])
