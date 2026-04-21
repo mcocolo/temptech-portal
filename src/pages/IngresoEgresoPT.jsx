@@ -607,7 +607,25 @@ export default function IngresoEgresoPT() {
                             <Info size={13} /> Ver detalles
                           </button>
                           <button
-                            onClick={() => { setVentaSel(v); setVItems((v.items || []).map(it => ({ ...it }))); setVNroRemito(''); setModalVenta(true) }}
+                            onClick={() => {
+  setVentaSel(v)
+  let items = (v.items || []).filter(it => it.codigo || it.nombre)
+  if (items.length === 0 && Array.isArray(v.envio_etiquetas)) {
+    const map = {}
+    v.envio_etiquetas.forEach(et => {
+      const prods = typeof et === 'object' ? (et.productos || []) : []
+      prods.forEach(p => {
+        if (!p.codigo) return
+        if (map[p.codigo]) map[p.codigo].cantidad += parseInt(p.cantidad) || 1
+        else map[p.codigo] = { ...p, cantidad: parseInt(p.cantidad) || 1 }
+      })
+    })
+    items = Object.values(map)
+  }
+  setVItems(items.map(it => ({ ...it })))
+  setVNroRemito('')
+  setModalVenta(true)
+}}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `${canalColor}22`, color: canalColor, border: `1px solid ${canalColor}55`, borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
                             <ArrowUpCircle size={13} /> Registrar egreso
                           </button>
