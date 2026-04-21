@@ -138,11 +138,9 @@ export default function AdminPedidos() {
 
   async function cargar() {
     setLoading(true)
-    const hoy = new Date().toISOString().split('T')[0]
     let q = supabase
       .from('pedidos')
       .select('*, profiles(full_name, email, razon_social)')
-      .gte('fecha_entrega', hoy)
       .order('fecha_entrega', { ascending: true })
     if (isAdmin2) { q = q.eq('estado', 'aprobado') }
     else if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
