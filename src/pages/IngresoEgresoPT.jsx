@@ -71,7 +71,7 @@ const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px sol
 
 export default function IngresoEgresoPT() {
   const { user, profile, isAdmin, isAdmin2 } = useAuth()
-  const [view, setView]         = useState('stock')   // 'stock' | 'historial'
+  const [view, setView]         = useState('pedidos')  // 'stock' | 'historial'
   const [stock, setStock]       = useState({})         // { [codigo]: { stock_inicial, stock_actual } }
   const [movs, setMovs]         = useState([])
   const [loading, setLoading]   = useState(true)
@@ -120,6 +120,7 @@ export default function IngresoEgresoPT() {
   const [ventaDetalle, setVentaDetalle]   = useState(null)
   const [loadingVentas, setLoadingVentas] = useState(false)
   const [busquedaVenta, setBusquedaVenta] = useState('')
+  const [filtroEstadoVenta, setFiltroEstadoVenta] = useState('pendiente')
   const [modalVenta, setModalVenta]       = useState(false)
   const [ventaSel, setVentaSel]           = useState(null)
   const [vItems, setVItems]               = useState([])
@@ -156,6 +157,7 @@ export default function IngresoEgresoPT() {
       .eq('canal', canal)
       .or('stock_descontado.is.null,stock_descontado.eq.false')
       .neq('estado', 'cancelado')
+      .neq('estado', 'enviado')
       .order('created_at', { ascending: false })
     setVentas(data || [])
     setLoadingVentas(false)
@@ -225,10 +227,12 @@ export default function IngresoEgresoPT() {
       const ext = file.name.split('.').pop()
       const path = `remitos/${pedidoSel.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
       const { error: upErr } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
-      if (!upErr) {
-        const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
-        remitoUrls.push(publicUrl)
+      if (upErr) {
+        toast.error('Error al subir remito: ' + upErr.message)
+        setConfirmandoPed(false); return
       }
+      const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+      remitoUrls.push(publicUrl)
     }
     const remitoUrl = remitoUrls[0] || null
 
@@ -486,7 +490,7 @@ export default function IngresoEgresoPT() {
           const isActive = view === t.v
           const col = t.color || '#7b9fff'
           return (
-            <button key={t.v} onClick={() => setView(t.v)} style={{
+            <button key={t.v} onClick={() => { setView(t.v); setFiltroEstadoVenta('pendiente') }} style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
               background: isActive ? `${col}22` : 'var(--surface)',
               color: isActive ? col : 'var(--text3)',
@@ -548,12 +552,18 @@ export default function IngresoEgresoPT() {
             const canalColor = CANAL_COLORS[view]
             const canalLabel = CANAL_LABELS[view]
             const filtradas = ventas.filter(v => {
+              if (filtroEstadoVenta !== 'todos' && v.estado !== filtroEstadoVenta) return false
               if (!busquedaVenta) return true
               const q = busquedaVenta.toLowerCase()
               return v.cliente_nombre?.toLowerCase().includes(q) || v.nro_orden?.toLowerCase().includes(q)
             })
             return (
               <>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {[{ k: 'pendiente', label: 'Pendiente' }, { k: 'preparando', label: 'Preparando' }, { k: 'todos', label: 'Todos' }].map(f => (
+                    <button key={f.k} onClick={() => setFiltroEstadoVenta(f.k)} style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', border: filtroEstadoVenta === f.k ? `1px solid ${canalColor}` : '1px solid var(--border)', background: filtroEstadoVenta === f.k ? `${canalColor}22` : 'var(--surface)', color: filtroEstadoVenta === f.k ? canalColor : 'var(--text3)' }}>{f.label}</button>
+                  ))}
+                </div>
                 <input value={busquedaVenta} onChange={e => setBusquedaVenta(e.target.value)} placeholder={`🔍 Buscar por cliente o N° de orden ${canalLabel}...`} style={{ ...inputSt, marginBottom: 16, maxWidth: 420 }} />
                 {loadingVentas ? (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>

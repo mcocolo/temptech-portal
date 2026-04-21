@@ -103,6 +103,7 @@ export default function AdminPedidos() {
   const [guardandoInternals, setGuardandoInternals] = useState(false)
   const [subiendoFactura, setSubiendoFactura] = useState(null)  // pedido.id
   const [subiendoPago, setSubiendoPago] = useState(null)  // pedido.id
+  const [subiendoRemito, setSubiendoRemito] = useState(null)  // pedido.id
 
   // Catálogo desde DB
   const [catalogoDB, setCatalogoDB] = useState([])
@@ -462,6 +463,28 @@ export default function AdminPedidos() {
     const { error } = await supabase.from('pedidos').update({ factura_url: null, updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error al eliminar'); return }
     toast.success('Factura eliminada')
+    cargar()
+  }
+
+  async function subirRemitoMultiple(pedido, files) {
+    if (!files || files.length === 0) return
+    setSubiendoRemito(pedido.id)
+    const actuales = Array.isArray(pedido.remito_urls) && pedido.remito_urls.length > 0 ? pedido.remito_urls : pedido.remito_url ? [pedido.remito_url] : []
+    const nuevasUrls = []
+    for (const file of Array.from(files)) {
+      const ext = file.name.split('.').pop()
+      const path = `remitos/${pedido.id}/remito_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+      if (error) { toast.error('Error al subir ' + file.name); continue }
+      const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+      nuevasUrls.push(publicUrl)
+    }
+    if (nuevasUrls.length === 0) { setSubiendoRemito(null); return }
+    const todas = [...actuales, ...nuevasUrls]
+    const { error } = await supabase.from('pedidos').update({ remito_urls: todas, remito_url: todas[0], updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    setSubiendoRemito(null)
+    if (error) { toast.error('Error al guardar'); return }
+    toast.success('Remito subido ✅')
     cargar()
   }
 
