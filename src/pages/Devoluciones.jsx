@@ -22,12 +22,13 @@ const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px sol
 const emptyItem = () => ({ codigo: '', nombre: '', modelo: '', cantidad: 1, motivo: '' })
 
 export default function Devoluciones() {
-  const { user, profile, isDistributor, isAdmin, isVendedor } = useAuth()
+  const { user, profile, isDistributor, isAdmin, isAdmin2, isVendedor } = useAuth()
   const [devoluciones, setDevoluciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [catalogo, setCatalogo] = useState([])
   const [expandido, setExpandido] = useState(null)
+  const [distribuidores, setDistribuidores] = useState([])
 
   // Form
   const [tipo, setTipo] = useState('falla')
@@ -35,8 +36,9 @@ export default function Devoluciones() {
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState([emptyItem()])
   const [creando, setCreando] = useState(false)
+  const [distId, setDistId] = useState('')
 
-  useEffect(() => { cargar(); cargarCatalogo() }, [user])
+  useEffect(() => { cargar(); cargarCatalogo(); if (isAdmin || isAdmin2) cargarDistribuidores() }, [user])
 
   async function cargar() {
     if (!user) return
@@ -47,6 +49,11 @@ export default function Devoluciones() {
     if (error) toast.error('Error al cargar')
     else setDevoluciones(data || [])
     setLoading(false)
+  }
+
+  async function cargarDistribuidores() {
+    const { data } = await supabase.from('profiles').select('id, full_name, razon_social, email').eq('user_type', 'distributor').order('razon_social')
+    setDistribuidores(data || [])
   }
 
   async function cargarCatalogo() {
@@ -71,9 +78,10 @@ export default function Devoluciones() {
   async function crear() {
     const validItems = items.filter(i => i.codigo && i.cantidad > 0)
     if (validItems.length === 0) return toast.error('Agregá al menos un producto')
+    if ((isAdmin || isAdmin2) && !distId) return toast.error('Seleccioná un distribuidor')
     setCreando(true)
     const { error } = await supabase.from('devoluciones').insert({
-      distribuidor_id: user.id,
+      distribuidor_id: (isAdmin || isAdmin2) ? distId : user.id,
       estado: 'pendiente',
       tipo,
       items: validItems,
@@ -84,7 +92,7 @@ export default function Devoluciones() {
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('✅ Orden de devolución enviada')
     setModal(false)
-    setTipo('falla'); setReferencia(''); setNotas(''); setItems([emptyItem()])
+    setTipo('falla'); setReferencia(''); setNotas(''); setItems([emptyItem()]); setDistId('')
     cargar()
 
     // Notificación para admin
@@ -185,6 +193,19 @@ export default function Devoluciones() {
             </div>
 
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Distribuidor (solo admin) */}
+              {(isAdmin || isAdmin2) && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Distribuidor *</label>
+                  <select value={distId} onChange={e => setDistId(e.target.value)} style={inputSt}>
+                    <option value="">— Seleccioná distribuidor —</option>
+                    {distribuidores.map(d => (
+                      <option key={d.id} value={d.id}>{d.razon_social || d.full_name} — {d.email}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Tipo */}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Motivo de devolución *</label>
