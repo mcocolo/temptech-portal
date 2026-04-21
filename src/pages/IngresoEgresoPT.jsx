@@ -176,9 +176,16 @@ export default function IngresoEgresoPT() {
       }, { onConflict: 'codigo' })
       await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
-        tipo: 'egreso', cantidad: item.cantidad, canal: CANAL_LABELS[view] || ventaSel.canal,
+        tipo: 'egreso', cantidad: item.cantidad, canal: (() => {
+          const base = CANAL_LABELS[view] || ventaSel.canal
+          if (ventaSel.tipo_envio === 'correo') return `${base} · Correo/Andreani`
+          if (ventaSel.tipo_envio === 'logistica') return `${base} · Logística`
+          if (ventaSel.tipo_envio === 'retiro') return `${base} · Retiro Fábrica`
+          return base
+        })(),
         observacion: `Venta ${ventaSel.canal.toUpperCase()} ${ventaSel.nro_orden ? '· ' + ventaSel.nro_orden : ''} · ${ventaSel.cliente_nombre}${vNroRemito ? ' · Remito ' + vNroRemito : ''}`,
         usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+        referencia_nombre: ventaSel.cliente_nombre || null,
       })
     }
 
@@ -267,6 +274,7 @@ export default function IngresoEgresoPT() {
         tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
         observacion: `Pedido #${pedidoSel.id?.slice(0,8).toUpperCase()} · ${pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || ''}${pNroRemito ? ' · Remito ' + pNroRemito : ''}`,
         usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+        referencia_nombre: pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || null,
       })
     }
 
@@ -726,7 +734,7 @@ export default function IngresoEgresoPT() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['Tipo', 'Código', 'Producto / Modelo', 'Cantidad', 'Canal', 'Operador', 'Observación', 'Fecha'].map(h => (
+                {['Tipo', 'Código', 'Producto / Modelo', 'Cantidad', 'Canal', 'Distribuidor / Cliente', 'Operador', 'Observación', 'Fecha'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -753,6 +761,7 @@ export default function IngresoEgresoPT() {
                       {isEgreso ? '-' : '+'}{m.cantidad}
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{m.canal}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: '#ffd166' }}>{m.referencia_nombre || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: '#a78bfa' }}>{m.usuario_nombre}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text3)', maxWidth: 180 }}>{m.observacion || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
