@@ -1238,33 +1238,35 @@ export default function AdminPedidos() {
                           </div>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8 }}>
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>N° Remito</div>
-                            <div style={{ fontSize: 13, fontFamily: 'monospace', color: pedido.nro_remito ? 'var(--text)' : 'var(--text3)' }}>
-                              {pedido.nro_remito || '—'}
+                        <>
+                          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>N° Remito</div>
+                              <div style={{ fontSize: 13, fontFamily: 'monospace', color: pedido.nro_remito ? 'var(--text)' : 'var(--text3)' }}>
+                                {pedido.nro_remito || '—'}
+                              </div>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Notas internas</div>
+                              <div style={{ fontSize: 12, color: pedido.notas_internas ? 'var(--text2)' : 'var(--text3)' }}>
+                                {pedido.notas_internas || '—'}
+                              </div>
                             </div>
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Notas internas</div>
-                            <div style={{ fontSize: 12, color: pedido.notas_internas ? 'var(--text2)' : 'var(--text3)' }}>
-                              {pedido.notas_internas || '—'}
+                          {archivosRemito.length > 0 && (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Archivos de remito</div>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {archivosRemito.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none' }}>
+                                    📎 Remito {archivosRemito.length > 1 ? i + 1 : ''}
+                                  </a>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                        {archivosRemito.length > 0 && (
-                          <div style={{ marginTop: 10 }}>
-                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Archivos de remito</div>
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {archivosRemito.map((url, i) => (
-                                <a key={i} href={url} target="_blank" rel="noreferrer"
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none' }}>
-                                  📎 Remito {archivosRemito.length > 1 ? i + 1 : ''}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                          )}
+                        </>
                       )}
 
                       {/* Factura */}
