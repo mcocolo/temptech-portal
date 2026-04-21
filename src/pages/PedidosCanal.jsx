@@ -193,6 +193,7 @@ function MeliModal({ cc, editando, onClose, onSaved, user }) {
       etiquetas_urls: [...etiquetasExist, ...nuevasUrls],
       usuario_id: user.id,
       updated_at: new Date().toISOString(),
+      ...(!editando && { stock_descontado: false }),
     }
 
     if (editando) {
@@ -409,6 +410,7 @@ export default function PedidosCanal() {
       envio_etiquetas: envioEtiquetasFinal,
       envio_retiro_persona: fTipoEnvio === 'retiro' ? (fEnvioRetiroPersona.trim() || null) : null,
       usuario_id: user.id, updated_at: new Date().toISOString(),
+      ...(!editando && { stock_descontado: false }),
     }
     const { error } = editando
       ? await supabase.from('ventas').update(payload).eq('id', editando.id)
@@ -547,7 +549,7 @@ export default function PedidosCanal() {
                                 </a>
                                 {prods.map((p, pi) => (
                                   <span key={pi} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 7px' }}>
-                                    {p.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{p.codigo}</span>}{p.nombre}
+                                    {p.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{p.codigo}</span>}{p.nombre}{p.cantidad > 1 ? <span style={{ color: cc.color, fontWeight: 700, marginLeft: 4 }}>×{p.cantidad}</span> : ''}
                                   </span>
                                 ))}
                               </div>

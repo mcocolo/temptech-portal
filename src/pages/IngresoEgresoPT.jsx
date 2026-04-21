@@ -265,7 +265,7 @@ export default function IngresoEgresoPT() {
       await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
-        observacion: `Pedido #${pedidoSel.id?.slice(0,8).toUpperCase()} · Remito ${pNroRemito}`,
+        observacion: `Pedido #${pedidoSel.id?.slice(0,8).toUpperCase()} · ${pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || ''}${pNroRemito ? ' · Remito ' + pNroRemito : ''}`,
         usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
       })
     }
@@ -737,7 +737,9 @@ export default function IngresoEgresoPT() {
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{m.canal}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: '#a78bfa' }}>{m.usuario_nombre}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text3)', maxWidth: 180 }}>{m.observacion || '—'}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{formatFecha(m.created_at)}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                      {m.created_at ? new Date(m.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </td>
                   </tr>
                 )
               })}
