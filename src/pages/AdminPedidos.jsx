@@ -952,6 +952,9 @@ export default function AdminPedidos() {
             const totalNetoEdit = itemsEdit.reduce((s, i) => s + i.subtotal, 0)
             const ivaEdit = incluirIVAEdit ? totalNetoEdit * IVA_PCT : 0
             const totalEdit = totalNetoEdit + ivaEdit
+            const archivosRemito = Array.isArray(pedido.remito_urls) && pedido.remito_urls.length > 0
+              ? pedido.remito_urls
+              : pedido.remito_url ? [pedido.remito_url] : []
 
             return (
               <div key={pedido.id} style={{ background: 'var(--surface)', border: `1px solid ${isEdit ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
@@ -1249,21 +1252,14 @@ export default function AdminPedidos() {
                             </div>
                           </div>
                         </div>
-                        {/* Archivos de remito adjuntados al confirmar egreso */}
-                        {(Array.isArray(pedido.remito_urls) && pedido.remito_urls.length > 0
-                          ? pedido.remito_urls
-                          : pedido.remito_url ? [pedido.remito_url] : []
-                        ).length > 0 && (
+                        {archivosRemito.length > 0 && (
                           <div style={{ marginTop: 10 }}>
                             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Archivos de remito</div>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {(Array.isArray(pedido.remito_urls) && pedido.remito_urls.length > 0
-                                ? pedido.remito_urls
-                                : pedido.remito_url ? [pedido.remito_url] : []
-                              ).map((url, i, arr) => (
+                              {archivosRemito.map((url, i) => (
                                 <a key={i} href={url} target="_blank" rel="noreferrer"
                                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none' }}>
-                                  📎 Remito {arr.length > 1 ? i + 1 : ''}
+                                  📎 Remito {archivosRemito.length > 1 ? i + 1 : ''}
                                 </a>
                               ))}
                             </div>
