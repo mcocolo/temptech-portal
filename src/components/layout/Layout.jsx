@@ -111,7 +111,7 @@ export default function Layout({ children }) {
       .subscribe()
 
     return () => supabase.removeChannel(channel)
-  }, [isAdmin])
+  }, [isAdmin, isAdmin2])
 
   // Cerrar popup al hacer click afuera
   useEffect(() => {

@@ -62,7 +62,7 @@ export default function AdminPrecios() {
   const [editando, setEditando] = useState(null) // { codigo, precio }
   const [precioEdit, setPrecioEdit] = useState('')
   const [modalNuevo, setModalNuevo] = useState(false)
-  const [nuevoForm, setNuevoForm] = useState({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores' })
+  const [nuevoForm, setNuevoForm] = useState({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores', ean: '' })
   const [guardandoNuevo, setGuardandoNuevo] = useState(false)
   const fileRef = useRef()
 
@@ -137,14 +137,14 @@ export default function AdminPrecios() {
     if (isNaN(precioNum) || precioNum <= 0) return toast.error('Precio inválido')
     setGuardandoNuevo(true)
     const { error } = await supabase.from('precios').upsert(
-      [{ codigo: codigo.trim().toUpperCase(), nombre: nombre.trim(), modelo: modelo.trim(), precio: precioNum, categoria, updated_at: new Date().toISOString() }],
+      [{ codigo: codigo.trim().toUpperCase(), nombre: nombre.trim(), modelo: modelo.trim(), precio: precioNum, categoria, ean: nuevoForm.ean.trim() || null, updated_at: new Date().toISOString() }],
       { onConflict: 'codigo' }
     )
     setGuardandoNuevo(false)
     if (error) { toast.error('Error al guardar: ' + error.message); return }
     toast.success('Producto agregado ✅')
     setModalNuevo(false)
-    setNuevoForm({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores' })
+    setNuevoForm({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores', ean: '' })
     cargar()
   }
 
@@ -298,7 +298,7 @@ export default function AdminPrecios() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--surface2)' }}>
-                  {['Código', 'Nombre', 'Modelo', 'Categoría', 'Precio', 'Actualizado', ...(isAdmin ? [''] : [])].map(h => (
+                  {['Código', 'EAN', 'Nombre', 'Modelo', 'Categoría', 'Precio', 'Actualizado', ...(isAdmin ? [''] : [])].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--text3)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -307,6 +307,7 @@ export default function AdminPrecios() {
                 {preciosFiltrados.map((p, i) => (
                   <tr key={p.codigo} style={{ borderBottom: i < preciosFiltrados.length - 1 ? '1px solid var(--border)' : 'none', background: editando === p.codigo ? 'rgba(74,108,247,0.04)' : 'transparent' }}>
                     <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: 12, color: '#7b9fff' }}>{p.codigo}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>{p.ean || '—'}</td>
                     <td style={{ padding: '10px 16px', fontWeight: 600 }}>{p.nombre}</td>
                     <td style={{ padding: '10px 16px', color: 'var(--text3)', fontSize: 12 }}>{p.modelo}</td>
                     <td style={{ padding: '10px 16px' }}>
@@ -374,6 +375,7 @@ export default function AdminPrecios() {
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[
                 { key: 'codigo',   label: 'Código *',   placeholder: 'Ej: F1400MB' },
+                { key: 'ean',      label: 'EAN / Barcode', placeholder: 'Ej: 0610985267062' },
                 { key: 'nombre',   label: 'Nombre *',   placeholder: 'Ej: Panel Calefactor Firenze' },
                 { key: 'modelo',   label: 'Modelo',     placeholder: 'Ej: 1400w Madera Blanca' },
                 { key: 'precio',   label: 'Precio * (sin IVA)', placeholder: 'Ej: 78990' },
