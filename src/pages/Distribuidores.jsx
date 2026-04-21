@@ -116,6 +116,10 @@ function formatDescuento(val) {
   return `${val}%`
 }
 
+const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
+
+const emptyNuevo = () => ({ email: '', full_name: '', razon_social: '', cuit: '', telefono: '', localidad: '', provincia: '' })
+
 export default function Distribuidores() {
   const { isAdmin, isAdmin2 } = useAuth()
   const [distribuidores, setDistribuidores] = useState([])
@@ -124,6 +128,9 @@ export default function Distribuidores() {
   const [descuentos, setDescuentos] = useState({})  // { key: [d1, d2, d3] }
   const [guardando, setGuardando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  const [modalNuevo, setModalNuevo] = useState(false)
+  const [nuevo, setNuevo] = useState(emptyNuevo())
+  const [invitando, setInvitando] = useState(false)
 
   useEffect(() => { if (isAdmin) cargar() }, [isAdmin])
 
@@ -145,6 +152,27 @@ export default function Distribuidores() {
   }
 
   function cerrarEdicion() { setEditando(null); setDescuentos({}) }
+
+  async function invitarDistribuidor() {
+    if (!nuevo.email.trim()) { toast.error('El email es requerido'); return }
+    setInvitando(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-distributor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify(nuevo),
+    })
+    const result = await res.json()
+    if (result.error) {
+      toast.error('Error: ' + result.error)
+    } else {
+      toast.success('Invitación enviada ✅')
+      setModalNuevo(false)
+      setNuevo(emptyNuevo())
+      cargar()
+    }
+    setInvitando(false)
+  }
 
   async function guardarDescuentos(distId) {
     setGuardando(true)
@@ -175,8 +203,15 @@ export default function Distribuidores() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Distribuidores</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Gestioná los descuentos por categoría de cada distribuidor</p>
         </div>
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, color: 'var(--text3)' }}>
-          {filtrados.length} distribuidor{filtrados.length !== 1 ? 'es' : ''}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, color: 'var(--text3)' }}>
+            {filtrados.length} distribuidor{filtrados.length !== 1 ? 'es' : ''}
+          </div>
+          {isAdmin && (
+            <button onClick={() => setModalNuevo(true)} style={{ background: 'rgba(74,108,247,0.12)', border: '1px solid rgba(74,108,247,0.35)', color: '#7b9fff', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              + Nuevo distribuidor
+            </button>
+          )}
         </div>
       </div>
 
@@ -276,6 +311,62 @@ export default function Distribuidores() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal nuevo distribuidor */}
+      {modalNuevo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 28, width: '100%', maxWidth: 480 }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Nuevo distribuidor</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email *</div>
+                <input type="email" value={nuevo.email} onChange={e => setNuevo(p => ({ ...p, email: e.target.value }))} placeholder="distribuidor@empresa.com" style={inputSt} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Nombre</div>
+                  <input value={nuevo.full_name} onChange={e => setNuevo(p => ({ ...p, full_name: e.target.value }))} placeholder="Nombre completo" style={inputSt} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Razón social</div>
+                  <input value={nuevo.razon_social} onChange={e => setNuevo(p => ({ ...p, razon_social: e.target.value }))} placeholder="Empresa S.A." style={inputSt} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>CUIT</div>
+                  <input value={nuevo.cuit} onChange={e => setNuevo(p => ({ ...p, cuit: e.target.value }))} placeholder="20-12345678-9" style={inputSt} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Teléfono</div>
+                  <input value={nuevo.telefono} onChange={e => setNuevo(p => ({ ...p, telefono: e.target.value }))} placeholder="+54 11 1234-5678" style={inputSt} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Localidad</div>
+                  <input value={nuevo.localidad} onChange={e => setNuevo(p => ({ ...p, localidad: e.target.value }))} placeholder="Buenos Aires" style={inputSt} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Provincia</div>
+                  <input value={nuevo.provincia} onChange={e => setNuevo(p => ({ ...p, provincia: e.target.value }))} placeholder="CABA" style={inputSt} />
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', background: 'rgba(74,108,247,0.07)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
+                Se enviará un email de invitación para que el distribuidor active su cuenta y configure su contraseña.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={invitarDistribuidor} disabled={invitando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: invitando ? 'not-allowed' : 'pointer', opacity: invitando ? 0.6 : 1, fontFamily: 'var(--font)' }}>
+                {invitando ? 'Enviando...' : 'Enviar invitación'}
+              </button>
+              <button onClick={() => { setModalNuevo(false); setNuevo(emptyNuevo()) }} style={{ background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
