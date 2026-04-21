@@ -27,6 +27,7 @@ import EspecificacionesTecnicas from '@/pages/EspecificacionesTecnicas'
 import IngresoEgresoPT from '@/pages/IngresoEgresoPT'
 import PedidosCanal from '@/pages/PedidosCanal'
 import LogisticaDiaria from '@/pages/LogisticaDiaria'
+import Insumos from '@/pages/Insumos'
 
 
 
@@ -77,6 +78,8 @@ function AppRoutes() {
               <Route path="/especificaciones-tecnicas"  element={<EspecificacionesTecnicas />} />
               <Route path="/ingreso-egreso-pt"          element={<IngresoEgresoPT />} />
               <Route path="/logistica"                  element={<LogisticaDiaria />} />
+              <Route path="/produccion/insumos-directos"   element={<Insumos />} />
+              <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal />} />
               <Route path="/pedidos-pagina"            element={<PedidosCanal />} />
               <Route path="/pedidos-vo"                element={<PedidosCanal />} />

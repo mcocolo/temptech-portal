@@ -6,7 +6,8 @@ import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
-  ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck
+  ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
+  Factory, ChevronDown, ChevronRight, Layers, Box
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -43,6 +44,11 @@ const ADMIN_NAV = [
   { label: 'Preventas',           icon: Package,    path: '/admin-preventas',    isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,      path: '/logistica',          isAdmin: true },
+  { section: 'Producción' },
+  { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
+    { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
+    { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
+  ]},
 ]
 
 const ADMIN2_NAV = [
@@ -54,6 +60,11 @@ const ADMIN2_NAV = [
   { label: 'Pedidos VO',          icon: Package,       path: '/pedidos-vo',        isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,     path: '/ingreso-egreso-pt', isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,         path: '/logistica',         isAdmin: true },
+  { section: 'Producción' },
+  { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
+    { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
+    { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
+  ]},
 ]
 
 // Nav base para admin2
@@ -90,6 +101,7 @@ const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', p
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [openSubmenus, setOpenSubmenus] = useState({ produccion: true })
   const { profile, signOut, isAdmin, isAdmin2, isVendedor, isDistributor } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
@@ -238,6 +250,58 @@ export default function Layout({ children }) {
                 padding: '14px 20px 5px',
               }}>{item.section}</div>
             )
+
+            // Submenu parent
+            if (item.children) {
+              const Icon = item.icon
+              const isOpen = openSubmenus[item.submenu]
+              const anyActive = item.children.some(c => location.pathname === c.path)
+              return (
+                <div key={item.submenu}>
+                  <div
+                    onClick={() => setOpenSubmenus(prev => ({ ...prev, [item.submenu]: !prev[item.submenu] }))}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 20px', cursor: 'pointer',
+                      borderLeft: `3px solid ${anyActive ? 'var(--brand-blue)' : 'transparent'}`,
+                      background: anyActive ? 'rgba(74,108,247,0.08)' : 'transparent',
+                      color: anyActive ? '#7b9fff' : 'var(--text2)',
+                      fontWeight: anyActive ? 600 : 400, fontSize: 13, transition: 'all .15s',
+                    }}
+                    onMouseEnter={e => { if (!anyActive) { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--text)' } }}
+                    onMouseLeave={e => { if (!anyActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)' } }}
+                  >
+                    <Icon size={15} />
+                    <span style={{ flex: 1 }}>{item.label}</span>
+                    {item.isAdmin && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brand-gradient)', flexShrink: 0 }} />}
+                    {isOpen ? <ChevronDown size={12} style={{ marginLeft: 2, opacity: 0.5 }} /> : <ChevronRight size={12} style={{ marginLeft: 2, opacity: 0.5 }} />}
+                  </div>
+                  {isOpen && item.children.map(child => {
+                    const CIcon = child.icon
+                    const cActive = location.pathname === child.path
+                    return (
+                      <div
+                        key={child.path}
+                        onClick={() => handleNav(child.path)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '8px 20px 8px 36px', cursor: 'pointer',
+                          borderLeft: `3px solid ${cActive ? 'var(--brand-blue)' : 'transparent'}`,
+                          background: cActive ? 'rgba(74,108,247,0.1)' : 'transparent',
+                          color: cActive ? '#7b9fff' : 'var(--text3)',
+                          fontWeight: cActive ? 600 : 400, fontSize: 12, transition: 'all .15s',
+                        }}
+                        onMouseEnter={e => { if (!cActive) { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--text)' } }}
+                        onMouseLeave={e => { if (!cActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text3)' } }}
+                      >
+                        <CIcon size={13} />
+                        <span>{child.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            }
 
             const active = location.pathname === item.path
             const Icon   = item.icon
