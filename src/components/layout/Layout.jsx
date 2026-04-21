@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
-  ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe
+  ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -42,6 +42,7 @@ const ADMIN_NAV = [
   { label: 'Lista de Precios', icon: Tags, path: '/admin-precios', isAdmin: true },
   { label: 'Preventas',           icon: Package,    path: '/admin-preventas',    isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },
+  { label: 'Logística Diaria',   icon: Truck,      path: '/logistica',          isAdmin: true },
 ]
 
 const ADMIN2_NAV = [
@@ -52,6 +53,7 @@ const ADMIN2_NAV = [
   { label: 'Pedidos Página',      icon: Globe,         path: '/pedidos-pagina',    isAdmin: true },
   { label: 'Pedidos VO',          icon: Package,       path: '/pedidos-vo',        isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,     path: '/ingreso-egreso-pt', isAdmin: true },
+  { label: 'Logística Diaria',   icon: Truck,         path: '/logistica',         isAdmin: true },
 ]
 
 // Nav base para admin2
