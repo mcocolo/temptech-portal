@@ -325,7 +325,7 @@ export default function PedidosCanal() {
 
   const [ventas, setVentas]       = useState([])
   const [loading, setLoading]     = useState(true)
-  const [filtroEstado, setFiltro] = useState('todos')
+  const [filtroEstado, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda]   = useState('')
   const [modal, setModal]         = useState(false)
   const [editando, setEditando]   = useState(null)

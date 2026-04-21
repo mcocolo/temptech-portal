@@ -86,7 +86,7 @@ export default function AdminPedidos() {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
-  const [filtroFecha, setFiltroFecha] = useState('')
+  const [filtroFecha, setFiltroFecha] = useState(() => new Date().toISOString().split('T')[0])
   const [editando, setEditando] = useState(null)
   const [itemsEdit, setItemsEdit] = useState([])
   const [notaAdmin, setNotaAdmin] = useState('')
@@ -163,9 +163,19 @@ export default function AdminPedidos() {
     if (error) toast.error('Error al cargar pedidos')
     else {
       const result = data || []
-      setPedidos(filtro === 'pendiente_pago'
+      const final = filtro === 'pendiente_pago'
         ? result.filter(p => p.tipo !== 'preventa' && !p.pago_archivos?.length)
-        : result)
+        : result
+      setPedidos(final)
+      // Si no hay pedidos para hoy, avanzar a mañana automáticamente
+      setFiltroFecha(prev => {
+        const hoy = new Date().toISOString().split('T')[0]
+        if (prev === hoy && !final.some(p => p.fecha_entrega === hoy)) {
+          const manana = new Date(); manana.setDate(manana.getDate() + 1)
+          return manana.toISOString().split('T')[0]
+        }
+        return prev
+      })
     }
     setLoading(false)
   }
@@ -1181,11 +1191,11 @@ export default function AdminPedidos() {
                   )}
 
                   {/* ── Datos internos ── */}
-                  {!isEdit && !isAdmin2 && (
+                  {!isEdit && (
                     <div style={{ marginTop: 12, padding: '12px 14px', background: 'rgba(255,209,102,0.04)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 'var(--radius)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: editingInternals === pedido.id ? 10 : 0 }}>
                         <span style={{ fontSize: 10, fontWeight: 700, color: '#ffd166', textTransform: 'uppercase', letterSpacing: '0.7px' }}>🔒 Datos internos</span>
-                        {editingInternals !== pedido.id && (
+                        {!isAdmin2 && editingInternals !== pedido.id && (
                           <button onClick={() => abrirInternals(pedido)}
                             style={{ background: 'none', border: 'none', color: '#ffd166', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>
                             ✏️ Editar
