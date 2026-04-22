@@ -400,8 +400,6 @@ export default function AdminPedidos() {
     const { error } = await supabase.from('pedidos').update({ estado: 'finalizado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
 
-    if (!yaFinalizado) await registrarEgresoStock(pedido)
-
     // Solo actualizar cantidad_retirada si NO estaba ya finalizado (evita duplicar al re-finalizar)
     if (!yaFinalizado && pedido.tipo === 'preventa' && pedido.preventa_id) {
       const { data: pv } = await supabase.from('preventas').select('items').eq('id', pedido.preventa_id).single()
