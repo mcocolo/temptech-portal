@@ -345,7 +345,7 @@ export default function PedidosCanal() {
   const [fEnvioItems, setFEnvioItems]             = useState([{ codigo: '', nombre: '', cantidad: 1 }]) // logistica/retiro
   const [fEnvioRetiroPersona, setFEnvioRetiroPersona] = useState('')
 
-  useEffect(() => { setBusqueda(''); setFiltro('todos'); cargar() }, [canal])
+  useEffect(() => { setBusqueda(''); setFiltro('pendiente'); cargar() }, [canal])
 
   async function cargar() {
     setLoading(true)
