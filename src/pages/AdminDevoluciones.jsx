@@ -73,6 +73,7 @@ export default function AdminDevoluciones() {
           tipo: 'ingreso', cantidad: item.cantidad, canal: 'Devolución',
           observacion: `Devolución #${String(dev.id).slice(0,8).toUpperCase()} — ${TIPO_CFG[dev.tipo]?.label || dev.tipo}`,
           usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
+          referencia_nombre: dev.profiles?.razon_social || dev.profiles?.full_name || null,
         })
       }
     }
