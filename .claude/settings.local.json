@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm run:*)",
-      "Bash(supabase functions *)"
+      "Bash(supabase functions *)",
+      "Bash(xargs grep *)"
     ]
   }
 }

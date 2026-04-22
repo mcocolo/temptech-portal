@@ -45,6 +45,20 @@ const CATALOGO = [
       { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart',modelo: '1400w Smart Wifi - App Temptech',precio: 157190.67, imagen: `${IMG}F1400SMARTBL.png` },
     ],
   },
+  {
+    categoria: 'anafes',
+    label: 'Anafes',
+    emoji: '🔥',
+    productos: [
+      { codigo: 'K40010', nombre: 'Anafe Inducción + Extractor',  modelo: '4 Hornallas Touch', precio: 468818.67, imagen: `${IMG}K40010.png` },
+      { codigo: 'K40011', nombre: 'Anafe Inducción + Extractor',  modelo: '4 Hornallas Knob',  precio: 468818.67, imagen: `${IMG}K40011.png` },
+      { codigo: 'DT4',    nombre: 'Anafe Infrarrojo + Extractor', modelo: '4 Hornallas Touch', precio: 424768.60, imagen: `${IMG}DT4.png` },
+      { codigo: 'DT4W',   nombre: 'Anafe Infrarrojo + Extractor', modelo: '4 Hornallas Knob',  precio: 424768.60, imagen: `${IMG}DT4W.png` },
+      { codigo: 'K1002',  nombre: 'Anafe Inducción',              modelo: '2 Hornallas Touch', precio: 137184.52, imagen: `${IMG}K1002.png` },
+      { codigo: 'K2002',  nombre: 'Anafe Infrarrojo',             modelo: '2 Hornallas Touch', precio: 125857.36, imagen: `${IMG}K2002.png` },
+      { codigo: 'DT4-1',  nombre: 'Anafe Inducción',              modelo: '4 Hornallas Touch', precio: 245421.86, imagen: `${IMG}DT4-1.png` },
+    ],
+  },
 ]
 
 function formatPrecio(n) {
