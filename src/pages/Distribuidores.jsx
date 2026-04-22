@@ -10,7 +10,6 @@ const CATEGORIAS = [
   { key: 'anafes',               label: 'Anafes',                color: '#ff6b2b', bg: 'rgba(255,107,43,0.1)' },
 ]
 
-// Precio base * (1 - d1/100) * (1 - d2/100) * (1 - d3/100)
 function calcPrecioFinal(base, dtos) {
   return dtos.reduce((p, d) => {
     const n = parseFloat(d) || 0
@@ -18,13 +17,7 @@ function calcPrecioFinal(base, dtos) {
   }, base)
 }
 
-function formatPct(val) {
-  const n = parseFloat(val) || 0
-  return n > 0 ? `${n}%` : null
-}
-
 function DescuentosCascada({ dtos, onChange }) {
-  // dtos: [d1, d2, d3]
   const BASE = 100000
   const final = calcPrecioFinal(BASE, dtos)
   const totalEfectivo = (((BASE - final) / BASE) * 100).toFixed(2)
@@ -36,16 +29,9 @@ function DescuentosCascada({ dtos, onChange }) {
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600 }}>Dto {i + 1}</div>
             <input
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
+              type="number" min="0" max="100" step="0.1"
               value={dtos[i] ?? ''}
-              onChange={e => {
-                const next = [...dtos]
-                next[i] = e.target.value
-                onChange(next)
-              }}
+              onChange={e => { const next = [...dtos]; next[i] = e.target.value; onChange(next) }}
               placeholder="0"
               style={{ width: 68, background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 8px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', textAlign: 'center' }}
             />
@@ -54,7 +40,6 @@ function DescuentosCascada({ dtos, onChange }) {
           </div>
         ))}
       </div>
-      {/* Preview */}
       {dtos.some(d => parseFloat(d) > 0) && (
         <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span>Sobre $100.000:</span>
@@ -74,28 +59,21 @@ function DescuentosCascada({ dtos, onChange }) {
   )
 }
 
-// Convierte el objeto guardado en arrays de 3 slots: [d1, d2, d3]
 function descToArrays(descObj) {
   const result = {}
   CATEGORIAS.forEach(({ key }) => {
     const v = descObj?.[key]
-    if (Array.isArray(v)) {
-      result[key] = [v[0] ?? '', v[1] ?? '', v[2] ?? '']
-    } else if (v != null && v !== 0 && v !== '') {
-      result[key] = [String(v), '', '']
-    } else {
-      result[key] = ['', '', '']
-    }
+    if (Array.isArray(v)) result[key] = [v[0] ?? '', v[1] ?? '', v[2] ?? '']
+    else if (v != null && v !== 0 && v !== '') result[key] = [String(v), '', '']
+    else result[key] = ['', '', '']
   })
   return result
 }
 
-// Convierte arrays → objeto para guardar (filtra vacíos y ceros)
 function arraysToDesc(arrObj) {
   const result = {}
   CATEGORIAS.forEach(({ key }) => {
     const arr = (arrObj[key] || ['', '', '']).map(v => parseFloat(v) || 0)
-    // Si todos son 0, guardar 0 simple; si hay más de uno, guardar array
     const nonZero = arr.filter(v => v > 0)
     if (nonZero.length === 0) result[key] = 0
     else if (nonZero.length === 1 && arr[1] === 0 && arr[2] === 0) result[key] = arr[0]
@@ -104,7 +82,6 @@ function arraysToDesc(arrObj) {
   return result
 }
 
-// Formatea el descuento para mostrar en el badge
 function formatDescuento(val) {
   if (!val || val === 0) return null
   if (Array.isArray(val)) {
@@ -119,28 +96,39 @@ function formatDescuento(val) {
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 
 const emptyNuevo = () => ({ email: '', full_name: '', razon_social: '', cuit: '', telefono: '', localidad: '', provincia: '' })
+const emptyInfo  = () => ({ transporte: '', domicilio: '' })
 
 export default function Distribuidores() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, isVendedor, user } = useAuth()
   const [distribuidores, setDistribuidores] = useState([])
   const [loading, setLoading] = useState(true)
   const [editando, setEditando] = useState(null)
-  const [descuentos, setDescuentos] = useState({})  // { key: [d1, d2, d3] }
+  const [descuentos, setDescuentos] = useState({})
+  const [infoForm, setInfoForm] = useState(emptyInfo())
   const [guardando, setGuardando] = useState(false)
+  const [guardandoInfo, setGuardandoInfo] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [modalNuevo, setModalNuevo] = useState(false)
   const [nuevo, setNuevo] = useState(emptyNuevo())
   const [invitando, setInvitando] = useState(false)
 
-  useEffect(() => { if (isAdmin) cargar() }, [isAdmin])
+  useEffect(() => {
+    if (isAdmin || isAdmin2 || isVendedor) cargar()
+  }, [isAdmin, isAdmin2, isVendedor, user])
 
   async function cargar() {
     setLoading(true)
-    const { data, error } = await supabase
+    let q = supabase
       .from('profiles')
-      .select('id, email, full_name, razon_social, cuit, localidad, provincia, telefono, descuentos, created_at')
+      .select('id, email, full_name, razon_social, cuit, localidad, provincia, telefono, descuentos, transporte, domicilio, created_at')
       .eq('user_type', 'distributor')
       .order('created_at', { ascending: false })
+
+    if (isVendedor && !isAdmin && !isAdmin2 && user) {
+      q = q.eq('vendedor_id', user.id)
+    }
+
+    const { data, error } = await q
     if (error) toast.error('Error al cargar distribuidores')
     else setDistribuidores(data || [])
     setLoading(false)
@@ -148,10 +136,11 @@ export default function Distribuidores() {
 
   function abrirEdicion(dist) {
     setDescuentos(descToArrays(dist.descuentos))
+    setInfoForm({ transporte: dist.transporte || '', domicilio: dist.domicilio || '' })
     setEditando(dist.id)
   }
 
-  function cerrarEdicion() { setEditando(null); setDescuentos({}) }
+  function cerrarEdicion() { setEditando(null); setDescuentos({}); setInfoForm(emptyInfo()) }
 
   async function invitarDistribuidor() {
     if (!nuevo.email.trim()) { toast.error('El email es requerido'); return }
@@ -174,6 +163,22 @@ export default function Distribuidores() {
     setInvitando(false)
   }
 
+  async function guardarInfo(distId) {
+    setGuardandoInfo(true)
+    const { error } = await supabase.from('profiles').update({
+      transporte: infoForm.transporte.trim() || null,
+      domicilio:  infoForm.domicilio.trim()  || null,
+    }).eq('id', distId)
+    if (error) {
+      toast.error('Error al guardar')
+    } else {
+      toast.success('Datos guardados ✅')
+      setDistribuidores(prev => prev.map(d => d.id === distId ? { ...d, transporte: infoForm.transporte.trim() || null, domicilio: infoForm.domicilio.trim() || null } : d))
+      cerrarEdicion()
+    }
+    setGuardandoInfo(false)
+  }
+
   async function guardarDescuentos(distId) {
     setGuardando(true)
     const payload = arraysToDesc(descuentos)
@@ -193,7 +198,7 @@ export default function Distribuidores() {
     return !q || (d.razon_social || '').toLowerCase().includes(q) || (d.email || '').toLowerCase().includes(q) || (d.full_name || '').toLowerCase().includes(q)
   })
 
-  if (!isAdmin && !isAdmin2) return null
+  if (!isAdmin && !isAdmin2 && !isVendedor) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -201,7 +206,9 @@ export default function Distribuidores() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Distribuidores</h1>
-          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Gestioná los descuentos por categoría de cada distribuidor</p>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>
+            {isVendedor && !isAdmin && !isAdmin2 ? 'Datos logísticos de tus distribuidores' : 'Gestioná los descuentos y datos logísticos de cada distribuidor'}
+          </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, color: 'var(--text3)' }}>
@@ -248,12 +255,27 @@ export default function Distribuidores() {
                       {dist.cuit && <span style={{ marginLeft: 10 }}>CUIT: {dist.cuit}</span>}
                       {(dist.localidad || dist.provincia) && <span style={{ marginLeft: 10 }}>{[dist.localidad, dist.provincia].filter(Boolean).join(', ')}</span>}
                     </div>
+                    {/* Datos logísticos */}
+                    {(dist.transporte || dist.domicilio) && (
+                      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        {dist.transporte && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ color: '#7b9fff' }}>🚚</span> {dist.transporte}
+                          </span>
+                        )}
+                        {dist.domicilio && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ color: '#7b9fff' }}>📍</span> {dist.domicilio}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Badges descuentos actuales */}
+                {/* Badges descuentos + botón editar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  {CATEGORIAS.map(({ key, label, color, bg }) => {
+                  {(isAdmin || isAdmin2) && CATEGORIAS.map(({ key, label, color, bg }) => {
                     const fmt = formatDescuento(dist.descuentos?.[key])
                     if (!fmt) return null
                     return (
@@ -266,47 +288,89 @@ export default function Distribuidores() {
                     onClick={() => editando === dist.id ? cerrarEdicion() : abrirEdicion(dist)}
                     style={{ background: editando === dist.id ? 'var(--surface3)' : 'rgba(74,108,247,0.1)', border: `1px solid ${editando === dist.id ? 'var(--border)' : 'rgba(74,108,247,0.35)'}`, color: editando === dist.id ? 'var(--text2)' : '#7b9fff', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                   >
-                    {editando === dist.id ? 'Cancelar' : '✏️ Editar descuentos'}
+                    {editando === dist.id ? 'Cancelar' : '✏️ Editar'}
                   </button>
                 </div>
               </div>
 
               {/* Panel edición */}
               {editando === dist.id && (
-                <div style={{ borderTop: '1px solid var(--border)', padding: '20px 22px', background: 'rgba(74,108,247,0.03)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 18 }}>
-                    Descuentos por categoría — hasta 3 descuentos acumulativos
-                  </div>
+                <div style={{ borderTop: '1px solid var(--border)', padding: '20px 22px', background: 'rgba(74,108,247,0.03)', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    {CATEGORIAS.map(({ key, label, color, bg }) => (
-                      <div key={key} style={{ background: 'var(--surface2)', border: `1px solid ${color}30`, borderRadius: 'var(--radius)', padding: '14px 16px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ background: bg, border: `1px solid ${color}40`, padding: '2px 10px', borderRadius: 20 }}>{label}</span>
-                        </div>
-                        <DescuentosCascada
-                          dtos={descuentos[key] || ['', '', '']}
-                          onChange={val => setDescuentos(prev => ({ ...prev, [key]: val }))}
+                  {/* Sección datos logísticos — visible para todos */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>
+                      🚚 Datos logísticos
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Nombre del transporte</label>
+                        <input
+                          value={infoForm.transporte}
+                          onChange={e => setInfoForm(p => ({ ...p, transporte: e.target.value }))}
+                          placeholder="Ej: Andreani, OCA, logística propia..."
+                          style={inputSt}
                         />
                       </div>
-                    ))}
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Domicilio</label>
+                        <input
+                          value={infoForm.domicilio}
+                          onChange={e => setInfoForm(p => ({ ...p, domicilio: e.target.value }))}
+                          placeholder="Ej: Av. Corrientes 1234, CABA"
+                          style={inputSt}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => guardarInfo(dist.id)}
+                        disabled={guardandoInfo}
+                        style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: guardandoInfo ? 'not-allowed' : 'pointer', opacity: guardandoInfo ? 0.6 : 1, fontFamily: 'var(--font)' }}
+                      >
+                        {guardandoInfo ? 'Guardando...' : '💾 Guardar datos logísticos'}
+                      </button>
+                      <button onClick={cerrarEdicion} style={{ background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-                    <button
-                      onClick={() => guardarDescuentos(dist.id)}
-                      disabled={guardando}
-                      style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 22px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1, fontFamily: 'var(--font)' }}
-                    >
-                      {guardando ? 'Guardando...' : '💾 Guardar descuentos'}
-                    </button>
-                    <button
-                      onClick={cerrarEdicion}
-                      style={{ background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
+                  {/* Sección descuentos — solo admin */}
+                  {(isAdmin || isAdmin2) && (
+                    <div>
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 18 }}>
+                          🏷️ Descuentos por categoría — hasta 3 descuentos acumulativos
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                          {CATEGORIAS.map(({ key, label, color, bg }) => (
+                            <div key={key} style={{ background: 'var(--surface2)', border: `1px solid ${color}30`, borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ background: bg, border: `1px solid ${color}40`, padding: '2px 10px', borderRadius: 20 }}>{label}</span>
+                              </div>
+                              <DescuentosCascada
+                                dtos={descuentos[key] || ['', '', '']}
+                                onChange={val => setDescuentos(prev => ({ ...prev, [key]: val }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+                          <button
+                            onClick={() => guardarDescuentos(dist.id)}
+                            disabled={guardando}
+                            style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 22px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1, fontFamily: 'var(--font)' }}
+                          >
+                            {guardando ? 'Guardando...' : '💾 Guardar descuentos'}
+                          </button>
+                          <button onClick={cerrarEdicion} style={{ background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -279,7 +279,7 @@ export default function AdminPedidos() {
 
   function npReset() {
     setNpDistId(''); setNpItems([]); setNpNotas(''); setNpFecha('')
-    setNpIVA(false); setNpEstado('aprobado'); setNpAplicarDesc(true)
+    setNpIVA(false); setNpEstado(isAdmin || isAdmin2 ? 'aprobado' : 'pendiente'); setNpAplicarDesc(true)
   }
 
   async function crearPedido() {
@@ -292,7 +292,7 @@ export default function AdminPedidos() {
     setCreando(true)
     const { error } = await supabase.from('pedidos').insert({
       distribuidor_id: npDistId,
-      estado: npEstado,
+      estado: (isAdmin || isAdmin2) ? npEstado : 'pendiente',
       tipo: 'normal',
       items: itemsValidos,
       total: totalFinal,
@@ -916,18 +916,20 @@ export default function AdminPedidos() {
                   </>
                 )}
 
-                {/* Estado inicial */}
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>Estado inicial</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[{ k: 'aprobado', label: 'Aprobado', color: '#3dd68c', bg: 'rgba(61,214,140,0.12)' }, { k: 'pendiente', label: 'Pendiente', color: '#ffd166', bg: 'rgba(255,209,102,0.12)' }].map(op => (
-                      <button key={op.k} onClick={() => setNpEstado(op.k)}
-                        style={{ flex: 1, padding: '7px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: npEstado === op.k ? op.bg : 'var(--surface2)', color: npEstado === op.k ? op.color : 'var(--text3)', border: npEstado === op.k ? `1px solid ${op.color}50` : '1px solid var(--border)' }}>
-                        {op.label}
-                      </button>
-                    ))}
+                {/* Estado inicial — solo admins */}
+                {(isAdmin || isAdmin2) && (
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>Estado inicial</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[{ k: 'aprobado', label: 'Aprobado', color: '#3dd68c', bg: 'rgba(61,214,140,0.12)' }, { k: 'pendiente', label: 'Pendiente', color: '#ffd166', bg: 'rgba(255,209,102,0.12)' }].map(op => (
+                        <button key={op.k} onClick={() => setNpEstado(op.k)}
+                          style={{ flex: 1, padding: '7px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: npEstado === op.k ? op.bg : 'var(--surface2)', color: npEstado === op.k ? op.color : 'var(--text3)', border: npEstado === op.k ? `1px solid ${op.color}50` : '1px solid var(--border)' }}>
+                          {op.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Fecha de entrega */}
                 <div>

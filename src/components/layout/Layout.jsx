@@ -90,6 +90,7 @@ const NAV_VENDEDOR = [
   { label: 'Novedades',         icon: Newspaper,       path: '/novedades' },
   { section: 'Gestión' },
   { label: 'Mis Clientes',      icon: Users,           path: '/mis-clientes' },
+  { label: 'Distribuidores',    icon: Store,           path: '/distribuidores' },
   { label: 'Service / Garantía', icon: AlertTriangle,   path: '/reclamos' },
   { label: 'Pedidos',           icon: ShoppingCart,    path: '/admin-pedidos' },
   { section: 'Recursos' },
@@ -99,8 +100,8 @@ const NAV_VENDEDOR = [
   { label: 'Especificaciones Técnicas', icon: Ruler,   path: '/especificaciones-tecnicas' },
 ]
 
-const NOTIF_ICONS = { pedido: '🛒', reclamo: '🔧', foro: '💬', preventa: '📦' }
-const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', preventa: '#a78bfa' }
+const NOTIF_ICONS = { pedido: '🛒', reclamo: '🔧', foro: '💬', preventa: '📦', stock: '⚠️' }
+const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', preventa: '#a78bfa', stock: '#ff5577' }
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -115,18 +116,20 @@ export default function Layout({ children }) {
   const notifRef                      = useRef(null)
 
   useEffect(() => {
-    if (!isAdmin && !isAdmin2) return
+    if (!isAdmin && !isAdmin2 && !isVendedor && !isDistributor) return
     cargarNotifs()
 
     const channel = supabase
       .channel('notificaciones-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones' }, payload => {
-        setNotifs(prev => [payload.new, ...prev].slice(0, 50))
+        const n = payload.new
+        const isForMe = (isAdmin || isAdmin2) ? n.user_id === null : n.user_id === profile?.id
+        if (isForMe) setNotifs(prev => [n, ...prev].slice(0, 50))
       })
       .subscribe()
 
     return () => supabase.removeChannel(channel)
-  }, [isAdmin, isAdmin2])
+  }, [isAdmin, isAdmin2, isVendedor, isDistributor, profile?.id])
 
   // Cerrar popup al hacer click afuera
   useEffect(() => {
@@ -138,16 +141,18 @@ export default function Layout({ children }) {
   }, [])
 
   async function cargarNotifs() {
-    const { data } = await supabase
-      .from('notificaciones')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
+    let q = supabase.from('notificaciones').select('*').order('created_at', { ascending: false }).limit(50)
+    if (isAdmin || isAdmin2) q = q.is('user_id', null)
+    else q = q.eq('user_id', profile?.id)
+    const { data } = await q
     setNotifs(data || [])
   }
 
   async function marcarTodasLeidas() {
-    await supabase.from('notificaciones').update({ leida: true }).eq('leida', false)
+    let q = supabase.from('notificaciones').update({ leida: true }).eq('leida', false)
+    if (isAdmin || isAdmin2) q = q.is('user_id', null)
+    else q = q.eq('user_id', profile?.id)
+    await q
     setNotifs(prev => prev.map(n => ({ ...n, leida: true })))
   }
 
@@ -445,7 +450,7 @@ export default function Layout({ children }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {(isAdmin || isAdmin2) && (
+            {(isAdmin || isAdmin2 || isVendedor || isDistributor) && (
               <div ref={notifRef} style={{ position: 'relative' }}>
                 {/* Botón campana */}
                 <button

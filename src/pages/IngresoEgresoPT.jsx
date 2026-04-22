@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui'
-import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload, FileText, Info } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload, FileText, Info, Bell } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -116,6 +116,9 @@ export default function IngresoEgresoPT() {
   const [prodItems, setProdItems]           = useState([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }])
   const [guardandoProd, setGuardandoProd]   = useState(false)
 
+  const [minimoEdit, setMinimoEdit]       = useState({})
+  const [enviandoAlerta, setEnviandoAlerta] = useState(false)
+
   const [ventas, setVentas]               = useState([])
   const [ventaDetalle, setVentaDetalle]   = useState(null)
   const [loadingVentas, setLoadingVentas] = useState(false)
@@ -176,6 +179,10 @@ export default function IngresoEgresoPT() {
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         stock_actual: nuevo, stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
       }, { onConflict: 'codigo' })
+      const sMinV = stock[item.codigo]?.stock_minimo
+      if (nuevo === 0 || (sMinV != null && nuevo <= sMinV)) {
+        await notificarAdminsStockBajo(item.codigo, item.nombre || '', item.modelo || '', nuevo, sMinV)
+      }
       await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         tipo: 'egreso', cantidad: item.cantidad, canal: (() => {
@@ -273,6 +280,10 @@ export default function IngresoEgresoPT() {
         stock_actual: nuevo,
         stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
       }, { onConflict: 'codigo' })
+      const sMinPed = stock[item.codigo]?.stock_minimo
+      if (nuevo === 0 || (sMinPed != null && nuevo <= sMinPed)) {
+        await notificarAdminsStockBajo(item.codigo, item.nombre || '', item.modelo || '', nuevo, sMinPed)
+      }
       await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
@@ -358,6 +369,10 @@ export default function IngresoEgresoPT() {
     if (e2) { toast.error('Error al registrar movimiento'); setGuardando(false); return }
     toast.success('Egreso registrado ✅')
     setGuardando(false)
+    const stockMinCheck = stock[eProducto.codigo]?.stock_minimo
+    if (nuevoStock === 0 || (stockMinCheck != null && nuevoStock <= stockMinCheck)) {
+      notificarAdminsStockBajo(eProducto.codigo, eProducto.nombre, eProducto.modelo, nuevoStock, stockMinCheck)
+    }
     setModalEgreso(false)
     setEProducto(null); setECantidad(''); setEObs('')
     cargar()
@@ -436,6 +451,46 @@ export default function IngresoEgresoPT() {
     cargar()
   }
 
+  async function notificarAdminsStockBajo(codigo, nombre, modelo, nuevoStock, stockMinimo) {
+    const esNulo = nuevoStock === 0
+    const mensaje = esNulo
+      ? `⚠️ Stock NULO — ${nombre} ${modelo} (${codigo})`
+      : `⚠️ Bajo stock — ${nombre} ${modelo} (${codigo}): quedan ${nuevoStock} unidades (mínimo: ${stockMinimo})`
+    await supabase.from('notificaciones').insert({
+      tipo: 'stock', mensaje, leida: false, link: '/ingreso-egreso-pt', user_id: null,
+    })
+  }
+
+  async function guardarMinimo(codigo, valor) {
+    const num = parseInt(valor)
+    if (isNaN(num) || num < 0) return toast.error('Valor inválido')
+    const { error } = await supabase.from('stock_pt').update({ stock_minimo: num }).eq('codigo', codigo)
+    if (error) return toast.error('Error: ' + error.message)
+    setStock(prev => ({ ...prev, [codigo]: { ...prev[codigo], stock_minimo: num } }))
+    setMinimoEdit(prev => { const n = { ...prev }; delete n[codigo]; return n })
+    toast.success('Stock mínimo actualizado ✅')
+  }
+
+  async function enviarAlertaStock(items, destino) {
+    setEnviandoAlerta(true)
+    const userTypes = destino === 'vendedores' ? ['vendedor'] : destino === 'distribuidores' ? ['distributor'] : ['vendedor', 'distributor']
+    const { data: recipients } = await supabase.from('profiles').select('id').in('user_type', userTypes)
+    if (!recipients?.length) { toast.error('No hay destinatarios registrados'); setEnviandoAlerta(false); return }
+    const notifs = []
+    for (const item of items) {
+      const s = stock[item.codigo]
+      const esNulo = !s || s.stock_actual === 0
+      const msg = esNulo
+        ? `⚠️ Stock NULO — ${item.nombre} ${item.modelo}`
+        : `⚠️ Bajo stock — ${item.nombre} ${item.modelo}: quedan ${s.stock_actual} unidades`
+      for (const r of recipients) notifs.push({ tipo: 'stock', mensaje: msg, leida: false, user_id: r.id })
+    }
+    const { error } = await supabase.from('notificaciones').insert(notifs)
+    if (error) toast.error('Error al enviar: ' + error.message)
+    else toast.success(`✅ Alerta enviada a ${recipients.length} usuario${recipients.length > 1 ? 's' : ''}`)
+    setEnviandoAlerta(false)
+  }
+
   const todosProductosFlat = CATALOGO.flatMap(c => c.productos.map(p => ({ ...p, categoria: c.categoria, catLabel: c.label, catEmoji: c.emoji })))
   const todosProductos = todosProductosFlat
   const filtrados = catFilter ? CATALOGO.filter(c => c.categoria === catFilter) : CATALOGO
@@ -486,6 +541,7 @@ export default function IngresoEgresoPT() {
           { v: 'egreso-pagina', icon: <ArrowUpCircle size={13} />, label: 'Egreso Página', color: '#7b9fff' },
           { v: 'egreso-vo',     icon: <ArrowUpCircle size={13} />, label: 'Egreso VO',     color: '#a78bfa' },
           { v: 'historial',     icon: <History size={13} />,     label: 'Historial' },
+          { v: 'alertas',       icon: <Bell size={13} />,        label: 'Alertas Stock', color: '#ff5577' },
         ].map(t => {
           const isActive = view === t.v
           const col = t.color || '#7b9fff'
@@ -734,6 +790,127 @@ export default function IngresoEgresoPT() {
                       )
                     })}
                 </div>
+              </div>
+            )
+          })}
+        </>
+      ) : view === 'alertas' ? (
+        /* ALERTAS DE STOCK */
+        <>
+          {/* Summary cards */}
+          {(() => {
+            const sinStockItems = todosProductosFlat.filter(p => { const s = stock[p.codigo]; return s && (s.stock_actual === 0 || s.stock_actual === null) })
+            const bajoStockItems = todosProductosFlat.filter(p => { const s = stock[p.codigo]; return s && s.stock_minimo != null && s.stock_actual > 0 && s.stock_actual <= s.stock_minimo })
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Sin stock / Nulo', val: sinStockItems.length, icon: '🔴', color: '#ff5577' },
+                  { label: 'Bajo mínimo', val: bajoStockItems.length, icon: '🟡', color: '#fb923c' },
+                  { label: 'Críticos total', val: sinStockItems.length + bajoStockItems.length, icon: '⚠️', color: '#ffd166' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span style={{ fontSize: 22 }}>{s.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.val}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Bulk notify */}
+          {(() => {
+            const criticos = todosProductosFlat.filter(p => {
+              const s = stock[p.codigo]
+              if (!s) return false
+              return s.stock_actual === 0 || s.stock_actual === null || (s.stock_minimo != null && s.stock_actual <= s.stock_minimo)
+            })
+            if (!criticos.length) return (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 20, fontSize: 13, color: 'var(--text3)', textAlign: 'center' }}>
+                ✅ Todos los productos están dentro del stock mínimo
+              </div>
+            )
+            return (
+              <div style={{ background: 'var(--surface)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#ff5577', marginBottom: 6 }}>📣 Notificar alerta masiva</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12 }}>{criticos.length} producto{criticos.length > 1 ? 's' : ''} con stock crítico o nulo</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[{ key: 'vendedores', label: '👤 Vendedores' }, { key: 'distribuidores', label: '🏪 Distribuidores' }, { key: 'ambos', label: '👥 Ambos' }].map(d => (
+                    <button key={d.key} onClick={() => enviarAlertaStock(criticos, d.key)} disabled={enviandoAlerta}
+                      style={{ padding: '8px 18px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: enviandoAlerta ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', opacity: enviandoAlerta ? 0.6 : 1, background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', color: '#ff5577' }}>
+                      {enviandoAlerta ? '⏳...' : d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Products table with editable stock_minimo */}
+          {CATALOGO.map(cat => {
+            const cc = CAT_COLORS[cat.categoria]
+            return (
+              <div key={cat.categoria} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: 20, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 20px', background: cc.bg, borderBottom: `1px solid ${cc.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>{cat.emoji}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: cc.color }}>{cat.label}</span>
+                </div>
+                {cat.productos.map((p, i) => {
+                  const s = stock[p.codigo]
+                  const actual = s?.stock_actual ?? null
+                  const minimo = s?.stock_minimo ?? null
+                  const editVal = minimoEdit[p.codigo]
+                  const sinStockItem = actual === 0 || actual === null
+                  const bajoStockItem = !sinStockItem && minimo != null && actual <= minimo
+                  const statusColor = sinStockItem ? '#ff5577' : bajoStockItem ? '#fb923c' : '#3dd68c'
+                  return (
+                    <div key={p.codigo} style={{
+                      borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                      padding: '10px 16px',
+                      background: sinStockItem ? 'rgba(255,85,119,0.04)' : bajoStockItem ? 'rgba(251,146,60,0.04)' : 'transparent',
+                      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: cc.color, fontFamily: 'monospace', background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 4, padding: '2px 6px', minWidth: 90 }}>{p.codigo}</span>
+                      <div style={{ flex: 1, minWidth: 180 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{p.nombre}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>{p.modelo}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>Actual:</span>
+                        <span style={{ fontWeight: 800, fontSize: 15, color: s ? statusColor : 'var(--text3)' }}>{actual ?? '—'}</span>
+                        {sinStockItem && s && <span style={{ fontSize: 9, background: 'rgba(255,85,119,0.15)', color: '#ff5577', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>NULO</span>}
+                        {bajoStockItem && <span style={{ fontSize: 9, background: 'rgba(251,146,60,0.15)', color: '#fb923c', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>BAJO</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>Mínimo:</span>
+                        {editVal !== undefined ? (
+                          <>
+                            <input type="number" min="0" value={editVal}
+                              onChange={e => setMinimoEdit(prev => ({ ...prev, [p.codigo]: e.target.value }))}
+                              style={{ width: 60, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 7px', color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--font)', outline: 'none' }} />
+                            <button onClick={() => guardarMinimo(p.codigo, editVal)}
+                              style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>✓</button>
+                            <button onClick={() => setMinimoEdit(prev => { const n = { ...prev }; delete n[p.codigo]; return n })}
+                              style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, padding: 0 }}>×</button>
+                          </>
+                        ) : (
+                          <button onClick={() => setMinimoEdit(prev => ({ ...prev, [p.codigo]: minimo ?? '' }))}
+                            style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: minimo != null ? 'var(--text2)' : 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            {minimo != null ? minimo : 'Sin mínimo'}
+                          </button>
+                        )}
+                      </div>
+                      {(sinStockItem || bajoStockItem) && s && (
+                        <button onClick={() => enviarAlertaStock([{ ...p, categoria: cat.categoria }], 'ambos')} disabled={enviandoAlerta}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)', opacity: enviandoAlerta ? 0.6 : 1 }}>
+                          <Bell size={11} /> Notificar
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )
           })}
