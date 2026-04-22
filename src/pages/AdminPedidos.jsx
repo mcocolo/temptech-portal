@@ -1313,19 +1313,22 @@ export default function AdminPedidos() {
                               </div>
                             </div>
                           </div>
-                          {archivosRemito.length > 0 && (
-                            <div style={{ marginTop: 10 }}>
-                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Archivos de remito</div>
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                {archivosRemito.map((url, i) => (
-                                  <a key={i} href={url} target="_blank" rel="noreferrer"
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none' }}>
-                                    📎 Remito {archivosRemito.length > 1 ? i + 1 : ''}
-                                  </a>
-                                ))}
-                              </div>
+                          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Remitos</div>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                              {archivosRemito.map((url, i) => (
+                                <a key={i} href={url} target="_blank" rel="noreferrer"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none' }}>
+                                  📎 Remito {archivosRemito.length > 1 ? i + 1 : ''}
+                                </a>
+                              ))}
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.06)', border: '1px dashed rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: subiendoRemito === pedido.id ? 'not-allowed' : 'pointer', opacity: subiendoRemito === pedido.id ? 0.6 : 1 }}>
+                                {subiendoRemito === pedido.id ? '⏳ Subiendo...' : '+ Adjuntar remito'}
+                                <input type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }} disabled={subiendoRemito === pedido.id}
+                                  onChange={e => { if (e.target.files?.length) subirRemitoMultiple(pedido, e.target.files); e.target.value = '' }} />
+                              </label>
                             </div>
-                          )}
+                          </div>
                         </>
                       )}
 
