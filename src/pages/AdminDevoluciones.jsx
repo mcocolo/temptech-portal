@@ -71,7 +71,7 @@ export default function AdminDevoluciones() {
         await supabase.from('movimientos_pt').insert({
           codigo: item.codigo, nombre: st.nombre || '', modelo: st.modelo || '', categoria: st.categoria || '',
           tipo: 'ingreso', cantidad: item.cantidad, canal: 'Devolución',
-          observacion: `Devolución #${dev.id.slice(0,8).toUpperCase()} — ${TIPO_CFG[dev.tipo]?.label || dev.tipo}`,
+          observacion: `Devolución #${String(dev.id).slice(0,8).toUpperCase()} — ${TIPO_CFG[dev.tipo]?.label || dev.tipo}`,
           usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
         })
       }
@@ -84,7 +84,7 @@ export default function AdminDevoluciones() {
     if (busqueda) {
       const q = busqueda.toLowerCase()
       const nombre = (d.profiles?.razon_social || d.profiles?.full_name || '').toLowerCase()
-      return nombre.includes(q) || d.id.slice(0,8).toLowerCase().includes(q)
+      return nombre.includes(q) || String(d.id).slice(0,8).toLowerCase().includes(q)
     }
     return true
   })
@@ -151,7 +151,7 @@ export default function AdminDevoluciones() {
                 {/* Cabecera */}
                 <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', cursor: 'pointer' }} onClick={() => setExpandido(isExp ? null : dev.id)}>
                   <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 8px', borderRadius: 4 }}>
-                    #{dev.id.slice(0,8).toUpperCase()}
+                    #{String(dev.id).slice(0,8).toUpperCase()}
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: tcfg.bg, color: tcfg.color, border: `1px solid ${tcfg.border}` }}>{tcfg.emoji} {tcfg.label}</span>
