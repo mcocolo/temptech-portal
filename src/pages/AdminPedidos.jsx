@@ -373,11 +373,34 @@ export default function AdminPedidos() {
     setEsActualizacionPrecios(true)
   }
 
+  async function registrarEgresoStock(pedido) {
+    const items = pedido.items_pendientes?.length > 0 ? pedido.items_pendientes : (pedido.items || [])
+    const distNombre = pedido.profiles?.razon_social || pedido.profiles?.full_name || ''
+    for (const item of items) {
+      if (!item.codigo || !item.cantidad) continue
+      const { data: stockRow } = await supabase.from('stock_pt').select('stock_actual, stock_inicial').eq('codigo', item.codigo).single()
+      const actual = stockRow?.stock_actual ?? 0
+      await supabase.from('stock_pt').upsert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        stock_actual: Math.max(0, actual - item.cantidad), stock_inicial: stockRow?.stock_inicial ?? 0,
+      }, { onConflict: 'codigo' })
+      await supabase.from('movimientos_pt').insert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
+        observacion: `Pedido #${pedido.id?.slice(0,8).toUpperCase()} · ${distNombre}${pedido.nro_remito ? ' · Remito ' + pedido.nro_remito : ''}`,
+        usuario_id: user.id, usuario_nombre: user.email,
+        referencia_nombre: distNombre || null,
+      })
+    }
+  }
+
   async function finalizarPedido(pedido) {
     const yaFinalizado = pedido.estado === 'finalizado'
 
     const { error } = await supabase.from('pedidos').update({ estado: 'finalizado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
+
+    if (!yaFinalizado) await registrarEgresoStock(pedido)
 
     // Solo actualizar cantidad_retirada si NO estaba ya finalizado (evita duplicar al re-finalizar)
     if (!yaFinalizado && pedido.tipo === 'preventa' && pedido.preventa_id) {
@@ -399,6 +422,7 @@ export default function AdminPedidos() {
   async function entregarPedido(pedido) {
     const { error } = await supabase.from('pedidos').update({ estado: 'entregado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
+    await registrarEgresoStock(pedido)
     toast.success('Pedido marcado como entregado ✅')
     cargar()
   }
