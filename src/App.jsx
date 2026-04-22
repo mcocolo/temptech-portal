@@ -84,9 +84,9 @@ function AppRoutes() {
               <Route path="/devoluciones"                  element={<Devoluciones />} />
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
-              <Route path="/pedidos-meli"              element={<PedidosCanal />} />
-              <Route path="/pedidos-pagina"            element={<PedidosCanal />} />
-              <Route path="/pedidos-vo"                element={<PedidosCanal />} />
+              <Route path="/pedidos-meli"              element={<PedidosCanal key="meli" />} />
+              <Route path="/pedidos-pagina"            element={<PedidosCanal key="pagina" />} />
+              <Route path="/pedidos-vo"                element={<PedidosCanal key="vo" />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>
