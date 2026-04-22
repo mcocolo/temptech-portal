@@ -534,6 +534,87 @@ function PanelNotificarService({ item, onClose, onGuardar }) {
   )
 }
 
+function PanelStock({ item, tipo, onClose, onGuardar }) {
+  const isEnviado = tipo === 'enviado'
+  const [codigo, setCodigo] = useState('')
+  const [nombre, setNombre] = useState(item.producto || '')
+  const [modelo, setModelo] = useState(item.modelo && item.modelo !== item.producto ? item.modelo : '')
+  const [cantidad, setCantidad] = useState(1)
+  const [recuperable, setRecuperable] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+
+  async function handleGuardar() {
+    if (!codigo.trim()) { alert('Ingresá el código del producto'); return }
+    if (cantidad < 1) { alert('La cantidad debe ser mayor a 0'); return }
+    if (!isEnviado && recuperable === null) { alert('Indicá si el panel es recuperable o no'); return }
+    setGuardando(true)
+    await onGuardar({ codigo: codigo.trim(), nombre, modelo, cantidad, recuperable })
+    setGuardando(false)
+  }
+
+  const color   = isEnviado ? T.red   : T.green
+  const colorBg = isEnviado ? T.redDim : T.greenDim
+  const colorBd = isEnviado ? `${T.red}40` : `${T.green}40`
+
+  return (
+    <div style={{ margin: '0 22px 18px', padding: 18, background: colorBg, border: `1px solid ${colorBd}`, borderRadius: T.radius }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 16 }}>
+        {isEnviado ? '📤 Panel Enviado al cliente' : '📥 Panel Recibido en fábrica'}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 80px', gap: 10, marginBottom: 12 }}>
+        <div>
+          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Código *</label>
+          <input value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="Ej: C250STV1"
+            style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Producto</label>
+          <input value={nombre} onChange={e => setNombre(e.target.value)}
+            style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Cantidad</label>
+          <input type="number" min="1" value={cantidad} onChange={e => setCantidad(parseInt(e.target.value) || 1)}
+            style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} />
+        </div>
+      </div>
+
+      {!isEnviado && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>¿El panel es recuperable?</label>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[
+              { v: true,  label: '✅ Recuperable',     desc: 'Se suma al stock' },
+              { v: false, label: '❌ No recuperable',  desc: 'Sin cambios en stock' },
+            ].map(({ v, label, desc }) => (
+              <button key={String(v)} onClick={() => setRecuperable(v)}
+                style={{ flex: 1, padding: '10px 14px', borderRadius: T.radius, cursor: 'pointer', fontFamily: T.font, border: 'none', textAlign: 'left',
+                  background: recuperable === v ? (v ? T.greenDim : T.redDim) : T.surface2,
+                  color:      recuperable === v ? (v ? T.green   : T.red)     : T.text3,
+                  outline:    recuperable === v ? `1.5px solid ${v ? T.green : T.red}` : 'none',
+                }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
+                <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>{desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <Btn variant={isEnviado ? 'danger' : 'success'} onClick={handleGuardar} disabled={guardando}>
+          {guardando ? 'Guardando...' : isEnviado ? '📤 Confirmar envío' : '📥 Confirmar recepción'}
+        </Btn>
+        <Btn onClick={onClose}>Cancelar</Btn>
+        {!isEnviado && recuperable === false && (
+          <span style={{ fontSize: 12, color: T.text3, fontStyle: 'italic' }}>No se modificará el stock</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminReclamos() {
   const [busquedaTracking, setBusquedaTracking] = useState('')
   const [datos, setDatos]             = useState([])
@@ -554,6 +635,7 @@ export default function AdminReclamos() {
   const [editForm, setEditForm] = useState({})
   const [supervisionAbierto, setSupervisionAbierto] = useState(null)  // item abierto para cargar
   const [supervisionVer, setSupervisionVer] = useState(null)           // item para ver resultado
+  const [panelStockAbierto, setPanelStockAbierto] = useState(null)     // { id, tipo } | null
 
   const { isAdmin, isAdmin2, user, profile } = useAuth()
 
@@ -803,6 +885,55 @@ export default function AdminReclamos() {
     if (error) { alert('Error al guardar supervisión: ' + error.message); return }
     setSupervisionAbierto(null)
     await cargar()
+  }
+
+  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad, recuperable }) {
+    const { data: st } = await supabase.from('stock_pt').select('stock_actual, categoria').eq('codigo', codigo).single()
+    const isEnviado = panelStockAbierto?.tipo === 'enviado'
+    const clienteNombre = item.nombre_apellido || item.nombre || item.email || ''
+    const reclamoRef = item.tracking_id || String(item.id).slice(0,8).toUpperCase()
+
+    if (isEnviado) {
+      if (st) {
+        await supabase.from('stock_pt').update({ stock_actual: Math.max(0, (st.stock_actual || 0) - cantidad) }).eq('codigo', codigo)
+      }
+      await supabase.from('movimientos_pt').insert({
+        codigo, nombre, modelo: modelo || nombre, categoria: st?.categoria || '',
+        tipo: 'egreso', cantidad, canal: 'Garantía',
+        observacion: `Panel enviado · Reclamo ${reclamoRef} · ${clienteNombre}`,
+        usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
+        referencia_nombre: clienteNombre || null,
+      })
+      const nuevaNota = armarLineaNota('PANEL ENVIADO', `Cód: ${codigo} · Cant: ${cantidad}`)
+      await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
+      setPanelStockAbierto(null)
+      await cargar()
+      alert('Panel enviado registrado ✅ Stock descontado.')
+    } else {
+      if (recuperable) {
+        if (st) {
+          await supabase.from('stock_pt').update({ stock_actual: (st.stock_actual || 0) + cantidad }).eq('codigo', codigo)
+        }
+        await supabase.from('movimientos_pt').insert({
+          codigo, nombre, modelo: modelo || nombre, categoria: st?.categoria || '',
+          tipo: 'ingreso', cantidad, canal: 'Garantía',
+          observacion: `Panel recibido recuperable · Reclamo ${reclamoRef} · ${clienteNombre}`,
+          usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
+          referencia_nombre: clienteNombre || null,
+        })
+        const nuevaNota = armarLineaNota('PANEL RECIBIDO', `Recuperable · Cód: ${codigo} · Cant: ${cantidad}`)
+        await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
+        setPanelStockAbierto(null)
+        await cargar()
+        alert('Panel recibido registrado ✅ Stock ingresado.')
+      } else {
+        const nuevaNota = armarLineaNota('PANEL RECIBIDO', `No recuperable · Cód: ${codigo} · Cant: ${cantidad}`)
+        await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
+        setPanelStockAbierto(null)
+        await cargar()
+        alert('Panel recibido registrado ✅ No recuperable — sin cambios en stock.')
+      }
+    }
   }
 
   async function eliminarReclamo(item) {
@@ -1234,6 +1365,8 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                       {isAdmin && <Btn onClick={() => { setRechazoAbiertoId(item.id); setTextoRechazo(item.motivo_rechazo || DEFAULT_RECHAZO(item.tracking_id)); setNotaRechazo('') }} disabled={esCerrado} variant="danger">Rechazar</Btn>}
                       {isAdmin && <Btn onClick={() => cerrarCaso(item)}>Cerrar</Btn>}
                       <Btn onClick={() => setSupervisionAbierto(item)} variant="teal">🏭 Supervisión</Btn>
+                      {isAdmin && <Btn onClick={() => setPanelStockAbierto(panelStockAbierto?.id === item.id && panelStockAbierto?.tipo === 'enviado' ? null : { id: item.id, tipo: 'enviado' })} variant="danger">📤 Panel Enviado</Btn>}
+                      {isAdmin && <Btn onClick={() => setPanelStockAbierto(panelStockAbierto?.id === item.id && panelStockAbierto?.tipo === 'recibido' ? null : { id: item.id, tipo: 'recibido' })} variant="success">📥 Panel Recibido</Btn>}
                       {isAdmin && <Btn onClick={() => eliminarReclamo(item)} variant="danger">🗑 Eliminar</Btn>}
                     </div>
 
@@ -1291,6 +1424,16 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         item={item}
                         onClose={() => setNotificarServiceId(null)}
                         onGuardar={(datos) => guardarNotificarService(item, datos)}
+                      />
+                    )}
+
+                    {/* Panel enviado / recibido stock */}
+                    {panelStockAbierto?.id === item.id && (
+                      <PanelStock
+                        item={item}
+                        tipo={panelStockAbierto.tipo}
+                        onClose={() => setPanelStockAbierto(null)}
+                        onGuardar={(datos) => guardarPanelStock(item, datos)}
                       />
                     )}
 
