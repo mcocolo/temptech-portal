@@ -423,32 +423,6 @@ export default function PedidosCanal() {
   async function cambiarEstado(id, nuevoEstado) {
     await supabase.from('ventas').update({ estado: nuevoEstado, updated_at: new Date().toISOString() }).eq('id', id)
     setVentas(prev => prev.map(v => v.id === id ? { ...v, estado: nuevoEstado } : v))
-
-    // Solo Admin/Admin2: al marcar Enviado o Entregado, descontar stock y crear movimiento
-    if ((isAdmin || isAdmin2) && (nuevoEstado === 'enviado' || nuevoEstado === 'entregado')) {
-      const venta = ventas.find(v => v.id === id)
-      if (!venta) return
-      // Evitar doble descuento si ya fue descontado
-      if (venta.stock_descontado) return
-      const items = (venta.items || []).filter(it => it.codigo && it.cantidad)
-      const canalLabel = canal === 'meli' ? 'Mercado Libre' : canal === 'pagina' ? 'Página Web' : 'Venta VO'
-      for (const item of items) {
-        const { data: st } = await supabase.from('stock_pt').select('stock_actual, stock_inicial').eq('codigo', item.codigo).single()
-        const actual = st?.stock_actual ?? 0
-        await supabase.from('stock_pt').upsert({
-          codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
-          stock_actual: Math.max(0, actual - item.cantidad), stock_inicial: st?.stock_inicial ?? 0,
-        }, { onConflict: 'codigo' })
-        await supabase.from('movimientos_pt').insert({
-          codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
-          tipo: 'egreso', cantidad: item.cantidad, canal: canalLabel,
-          observacion: `${canalLabel}${venta.nro_orden ? ' · ' + venta.nro_orden : ''} · ${venta.cliente_nombre || ''}`,
-          usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
-          referencia_nombre: venta.cliente_nombre || null,
-        })
-      }
-      await supabase.from('ventas').update({ stock_descontado: true }).eq('id', id)
-    }
   }
 
   async function eliminar(id) {
