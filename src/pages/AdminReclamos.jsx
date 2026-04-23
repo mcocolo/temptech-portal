@@ -540,15 +540,13 @@ function PanelStock({ item, tipo, onClose, onGuardar }) {
   const [nombre, setNombre] = useState(item.producto || '')
   const [modelo, setModelo] = useState(item.modelo && item.modelo !== item.producto ? item.modelo : '')
   const [cantidad, setCantidad] = useState(1)
-  const [recuperable, setRecuperable] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
   async function handleGuardar() {
     if (!codigo.trim()) { alert('Ingresá el código del producto'); return }
     if (cantidad < 1) { alert('La cantidad debe ser mayor a 0'); return }
-    if (!isEnviado && recuperable === null) { alert('Indicá si el panel es recuperable o no'); return }
     setGuardando(true)
-    await onGuardar({ codigo: codigo.trim(), nombre, modelo, cantidad, recuperable })
+    await onGuardar({ codigo: codigo.trim(), nombre, modelo, cantidad })
     setGuardando(false)
   }
 
@@ -558,11 +556,16 @@ function PanelStock({ item, tipo, onClose, onGuardar }) {
 
   return (
     <div style={{ margin: '0 22px 18px', padding: 18, background: colorBg, border: `1px solid ${colorBd}`, borderRadius: T.radius }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 16 }}>
-        {isEnviado ? '📤 Panel Enviado al cliente' : '📥 Panel Recibido en fábrica'}
+      <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 6 }}>
+        {isEnviado ? '📤 Enviar Panel al cliente' : '📥 Recibir Panel en fábrica'}
+      </div>
+      <div style={{ fontSize: 12, color: T.text3, marginBottom: 14 }}>
+        {isEnviado
+          ? 'Se registra como egreso pendiente — el stock se descuenta cuando Admin confirma en Ingreso/Egreso PT.'
+          : 'Se registra como devolucion pendiente — el stock ingresa cuando Admin confirma en Ingreso/Egreso PT.'}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 80px', gap: 10, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 80px', gap: 10, marginBottom: 14 }}>
         <div>
           <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Código *</label>
           <input value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="Ej: C250STV1"
@@ -580,36 +583,11 @@ function PanelStock({ item, tipo, onClose, onGuardar }) {
         </div>
       </div>
 
-      {!isEnviado && (
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>¿El panel es recuperable?</label>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {[
-              { v: true,  label: '✅ Recuperable',     desc: 'Se suma al stock' },
-              { v: false, label: '❌ No recuperable',  desc: 'Sin cambios en stock' },
-            ].map(({ v, label, desc }) => (
-              <button key={String(v)} onClick={() => setRecuperable(v)}
-                style={{ flex: 1, padding: '10px 14px', borderRadius: T.radius, cursor: 'pointer', fontFamily: T.font, border: 'none', textAlign: 'left',
-                  background: recuperable === v ? (v ? T.greenDim : T.redDim) : T.surface2,
-                  color:      recuperable === v ? (v ? T.green   : T.red)     : T.text3,
-                  outline:    recuperable === v ? `1.5px solid ${v ? T.green : T.red}` : 'none',
-                }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
-                <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>{desc}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <Btn variant={isEnviado ? 'danger' : 'success'} onClick={handleGuardar} disabled={guardando}>
-          {guardando ? 'Guardando...' : isEnviado ? '📤 Confirmar envío' : '📥 Confirmar recepción'}
+          {guardando ? 'Registrando...' : isEnviado ? '📤 Registrar envío pendiente' : '📥 Registrar recepción pendiente'}
         </Btn>
         <Btn onClick={onClose}>Cancelar</Btn>
-        {!isEnviado && recuperable === false && (
-          <span style={{ fontSize: 12, color: T.text3, fontStyle: 'italic' }}>No se modificará el stock</span>
-        )}
       </div>
     </div>
   )
@@ -887,52 +865,42 @@ export default function AdminReclamos() {
     await cargar()
   }
 
-  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad, recuperable }) {
-    const { data: st } = await supabase.from('stock_pt').select('stock_actual, categoria').eq('codigo', codigo).single()
+  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad }) {
     const isEnviado = panelStockAbierto?.tipo === 'enviado'
     const clienteNombre = item.nombre_apellido || item.nombre || item.email || ''
     const reclamoRef = item.tracking_id || String(item.id).slice(0,8).toUpperCase()
 
     if (isEnviado) {
-      if (st) {
-        await supabase.from('stock_pt').update({ stock_actual: Math.max(0, (st.stock_actual || 0) - cantidad) }).eq('codigo', codigo)
-      }
-      await supabase.from('movimientos_pt').insert({
-        codigo, nombre, modelo: modelo || nombre, categoria: st?.categoria || '',
-        tipo: 'egreso', cantidad, canal: 'Garantía',
-        observacion: `Panel enviado · Reclamo ${reclamoRef} · ${clienteNombre}`,
-        usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
+      const { error } = await supabase.from('egresos_garantia').insert({
+        reclamo_id: item.id,
+        codigo, nombre, modelo: modelo || nombre, categoria: '',
+        cantidad, canal: 'Garantía', estado: 'pendiente',
         referencia_nombre: clienteNombre || null,
+        observacion: `Reclamo ${reclamoRef}`,
+        usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
       })
-      const nuevaNota = armarLineaNota('PANEL ENVIADO', `Cód: ${codigo} · Cant: ${cantidad}`)
+      if (error) { alert('Error: ' + error.message); return }
+      const nuevaNota = armarLineaNota('ENVIAR PANEL', `Pendiente de egreso · Cód: ${codigo} · Cant: ${cantidad}`)
       await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
       setPanelStockAbierto(null)
       await cargar()
-      alert('Panel enviado registrado ✅ Stock descontado.')
+      alert('✅ Envío registrado como pendiente — se descuenta en Ingreso/Egreso PT.')
     } else {
-      if (recuperable) {
-        if (st) {
-          await supabase.from('stock_pt').update({ stock_actual: (st.stock_actual || 0) + cantidad }).eq('codigo', codigo)
-        }
-        await supabase.from('movimientos_pt').insert({
-          codigo, nombre, modelo: modelo || nombre, categoria: st?.categoria || '',
-          tipo: 'ingreso', cantidad, canal: 'Garantía',
-          observacion: `Panel recibido recuperable · Reclamo ${reclamoRef} · ${clienteNombre}`,
-          usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
-          referencia_nombre: clienteNombre || null,
-        })
-        const nuevaNota = armarLineaNota('PANEL RECIBIDO', `Recuperable · Cód: ${codigo} · Cant: ${cantidad}`)
-        await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
-        setPanelStockAbierto(null)
-        await cargar()
-        alert('Panel recibido registrado ✅ Stock ingresado.')
-      } else {
-        const nuevaNota = armarLineaNota('PANEL RECIBIDO', `No recuperable · Cód: ${codigo} · Cant: ${cantidad}`)
-        await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
-        setPanelStockAbierto(null)
-        await cargar()
-        alert('Panel recibido registrado ✅ No recuperable — sin cambios en stock.')
-      }
+      const { error } = await supabase.from('devoluciones').insert({
+        origen: 'garantia',
+        reclamo_id: item.id,
+        estado: 'pendiente',
+        tipo: 'falla',
+        items: [{ codigo, nombre, modelo: modelo || nombre, cantidad }],
+        referencia_nombre: clienteNombre || null,
+        notas: `Panel devuelto · Reclamo ${reclamoRef}`,
+      })
+      if (error) { alert('Error: ' + error.message); return }
+      const nuevaNota = armarLineaNota('RECIBIR PANEL', `Pendiente de ingreso · Cód: ${codigo} · Cant: ${cantidad}`)
+      await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
+      setPanelStockAbierto(null)
+      await cargar()
+      alert('✅ Recepción registrada como pendiente — el stock ingresa en Ingreso/Egreso PT.')
     }
   }
 
@@ -1365,8 +1333,8 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                       {isAdmin && <Btn onClick={() => { setRechazoAbiertoId(item.id); setTextoRechazo(item.motivo_rechazo || DEFAULT_RECHAZO(item.tracking_id)); setNotaRechazo('') }} disabled={esCerrado} variant="danger">Rechazar</Btn>}
                       {isAdmin && <Btn onClick={() => cerrarCaso(item)}>Cerrar</Btn>}
                       <Btn onClick={() => setSupervisionAbierto(item)} variant="teal">🏭 Supervisión</Btn>
-                      {isAdmin && <Btn onClick={() => setPanelStockAbierto(panelStockAbierto?.id === item.id && panelStockAbierto?.tipo === 'enviado' ? null : { id: item.id, tipo: 'enviado' })} variant="danger">📤 Panel Enviado</Btn>}
-                      {isAdmin && <Btn onClick={() => setPanelStockAbierto(panelStockAbierto?.id === item.id && panelStockAbierto?.tipo === 'recibido' ? null : { id: item.id, tipo: 'recibido' })} variant="success">📥 Panel Recibido</Btn>}
+                      {isAdmin && <Btn onClick={() => setPanelStockAbierto(panelStockAbierto?.id === item.id && panelStockAbierto?.tipo === 'enviado' ? null : { id: item.id, tipo: 'enviado' })} variant="danger">📤 Enviar Panel</Btn>}
+                      {isAdmin && <Btn onClick={() => setPanelStockAbierto(panelStockAbierto?.id === item.id && panelStockAbierto?.tipo === 'recibido' ? null : { id: item.id, tipo: 'recibido' })} variant="success">📥 Recibir Panel</Btn>}
                       {isAdmin && <Btn onClick={() => eliminarReclamo(item)} variant="danger">🗑 Eliminar</Btn>}
                     </div>
 

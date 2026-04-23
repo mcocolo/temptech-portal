@@ -41,7 +41,7 @@ export default function AdminDevoluciones() {
     const { data, error } = await supabase
       .from('devoluciones')
       .select('*, profiles(full_name, razon_social, email)')
-      .not('distribuidor_id', 'is', null)
+      .or('distribuidor_id.not.is.null,origen.eq.garantia')
       .order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar devoluciones')
     else setDevoluciones(data || [])
@@ -63,18 +63,21 @@ export default function AdminDevoluciones() {
   }
 
   async function marcarRecibido(dev) {
-    for (const item of (dev.items || [])) {
-      if (!item.codigo || !item.cantidad) continue
-      const { data: st } = await supabase.from('stock_pt').select('stock_actual, stock_inicial, nombre, modelo, categoria').eq('codigo', item.codigo).single()
-      if (st) {
-        await supabase.from('stock_pt').update({ stock_actual: (st.stock_actual || 0) + item.cantidad }).eq('codigo', item.codigo)
-        await supabase.from('movimientos_pt').insert({
-          codigo: item.codigo, nombre: st.nombre || '', modelo: st.modelo || '', categoria: st.categoria || '',
-          tipo: 'ingreso', cantidad: item.cantidad, canal: 'Devolución',
-          observacion: `Devolución #${String(dev.id).slice(0,8).toUpperCase()} — ${TIPO_CFG[dev.tipo]?.label || dev.tipo}`,
-          usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
-          referencia_nombre: dev.profiles?.razon_social || dev.profiles?.full_name || null,
-        })
+    // Garantia returns: just mark received — stock ingress happens in Ingreso/Egreso PT
+    if (dev.origen !== 'garantia') {
+      for (const item of (dev.items || [])) {
+        if (!item.codigo || !item.cantidad) continue
+        const { data: st } = await supabase.from('stock_pt').select('stock_actual, stock_inicial, nombre, modelo, categoria').eq('codigo', item.codigo).single()
+        if (st) {
+          await supabase.from('stock_pt').update({ stock_actual: (st.stock_actual || 0) + item.cantidad }).eq('codigo', item.codigo)
+          await supabase.from('movimientos_pt').insert({
+            codigo: item.codigo, nombre: st.nombre || '', modelo: st.modelo || '', categoria: st.categoria || '',
+            tipo: 'ingreso', cantidad: item.cantidad, canal: 'Devolución',
+            observacion: `Devolución #${String(dev.id).slice(0,8).toUpperCase()} — ${TIPO_CFG[dev.tipo]?.label || dev.tipo}`,
+            usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
+            referencia_nombre: dev.profiles?.razon_social || dev.profiles?.full_name || null,
+          })
+        }
       }
     }
     await cambiarEstado(dev.id, 'recibido')
@@ -150,19 +153,28 @@ export default function AdminDevoluciones() {
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: tcfg.bg, color: tcfg.color, border: `1px solid ${tcfg.border}` }}>{tcfg.emoji} {tcfg.label}</span>
+                  {dev.origen === 'garantia' && (
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', border: '1px solid rgba(167,139,250,0.35)' }}>🔧 Garantía</span>
+                  )}
                   <span style={{ fontSize: 12, color: 'var(--text3)', marginLeft: 'auto' }}>
                     {formatDistanceToNow(new Date(dev.created_at), { addSuffix: true, locale: es })}
                   </span>
                 </div>
 
-                {/* Distribuidor */}
+                {/* Distribuidor o cliente garantía */}
                 <div style={{ padding: '0 20px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                    {(dist?.razon_social || dist?.full_name || '?')[0].toUpperCase()}
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: dev.origen === 'garantia' ? 'linear-gradient(135deg,#b39dfa,#7c3aed)' : 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                    {(dev.origen === 'garantia' ? (dev.referencia_nombre || 'G') : (dist?.razon_social || dist?.full_name || '?'))[0].toUpperCase()}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{dist?.razon_social || dist?.full_name || '—'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{dist?.email}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>
+                      {dev.origen === 'garantia' ? (dev.referencia_nombre || 'Cliente garantía') : (dist?.razon_social || dist?.full_name || '—')}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                      {dev.origen === 'garantia'
+                        ? `Reclamo vinculado · #${dev.reclamo_id ? String(dev.reclamo_id).slice(0,8).toUpperCase() : '—'}`
+                        : dist?.email}
+                    </div>
                   </div>
                 </div>
 
@@ -219,7 +231,11 @@ export default function AdminDevoluciones() {
                       {dev.estado === 'aprobado' && (
                         confirmRecibido === dev.id ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: 13, width: '100%' }}>
-                            <span style={{ flex: 1, color: '#38bdf8' }}>¿Confirmar recepción? Se re-ingresará el stock automáticamente.</span>
+                            <span style={{ flex: 1, color: '#38bdf8' }}>
+                              {dev.origen === 'garantia'
+                                ? '¿Confirmar recepción? El stock se procesará en Ingreso/Egreso PT.'
+                                : '¿Confirmar recepción? Se re-ingresará el stock automáticamente.'}
+                            </span>
                             <button onClick={() => marcarRecibido(dev)} disabled={guardando}
                               style={{ background: '#38bdf8', border: 'none', borderRadius: 6, padding: '6px 16px', fontSize: 12, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                               Sí, confirmar

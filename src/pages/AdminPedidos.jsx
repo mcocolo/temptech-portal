@@ -115,7 +115,7 @@ export default function AdminPedidos() {
   const [npNotas, setNpNotas] = useState('')
   const [npFecha, setNpFecha] = useState('')
   const [npIVA, setNpIVA] = useState(false)
-  const [npEstado, setNpEstado] = useState('aprobado') // 'pendiente' | 'aprobado'
+  const [npEstado, setNpEstado] = useState('pendiente') // 'pendiente' | 'aprobado'
   const [npAplicarDesc, setNpAplicarDesc] = useState(true)
   const [creando, setCreando] = useState(false)
 
@@ -302,11 +302,12 @@ export default function AdminPedidos() {
       fecha_entrega: npFecha || null,
     })
     if (error) { toast.error('Error al crear el pedido: ' + error.message); setCreando(false); return }
+    const estadoCreado = (isAdmin || isAdmin2) ? npEstado : 'pendiente'
     toast.success('Pedido creado ✅')
     npReset()
     setCreando(false)
     setVista('lista')
-    setFiltro(npEstado)
+    setFiltro(estadoCreado)
     cargar()
   }
 

@@ -119,6 +119,21 @@ export default function IngresoEgresoPT() {
   const [minimoEdit, setMinimoEdit]       = useState({})
   const [enviandoAlerta, setEnviandoAlerta] = useState(false)
 
+  // Tab: Egreso Devoluciones (egresos_garantia pendientes)
+  const [egresosGarantia, setEgresosGarantia]           = useState([])
+  const [loadingEgresosGar, setLoadingEgresosGar]       = useState(false)
+  const [modalEgresoGar, setModalEgresoGar]             = useState(false)
+  const [egresoGarSel, setEgresoGarSel]                 = useState(null)
+  const [confirmandoEgresoGar, setConfirmandoEgresoGar] = useState(false)
+
+  // Tab: Dev. Entrada (devoluciones origen=garantia recibidas)
+  const [devGarantia, setDevGarantia]               = useState([])
+  const [loadingDevGar, setLoadingDevGar]           = useState(false)
+  const [modalDevGar, setModalDevGar]               = useState(false)
+  const [devGarSel, setDevGarSel]                   = useState(null)
+  const [devGarRecuperable, setDevGarRecuperable]   = useState(true)
+  const [confirmandoDevGar, setConfirmandoDevGar]   = useState(false)
+
   const [ventas, setVentas]               = useState([])
   const [ventaDetalle, setVentaDetalle]   = useState(null)
   const [loadingVentas, setLoadingVentas] = useState(false)
@@ -139,6 +154,8 @@ export default function IngresoEgresoPT() {
   useEffect(() => { cargar() }, [])
   useEffect(() => { if (view === 'pedidos') cargarPedidos() }, [view])
   useEffect(() => { if (CANAL_VIEWS.includes(view)) cargarVentas(CANAL_KEYS[view]) }, [view])
+  useEffect(() => { if (view === 'egreso-dev') cargarEgresosGarantia() }, [view])
+  useEffect(() => { if (view === 'dev-entrada') cargarDevGarantia() }, [view])
 
   async function cargarPedidos() {
     setLoadingPedidos(true)
@@ -297,6 +314,89 @@ export default function IngresoEgresoPT() {
     setConfirmandoPed(false)
     setModalPedido(false); setPedidoSel(null); setPNroRemito(''); setPFotosRemito([]); setPItems([])
     cargar(); cargarPedidos()
+  }
+
+  async function cargarEgresosGarantia() {
+    setLoadingEgresosGar(true)
+    const { data } = await supabase
+      .from('egresos_garantia')
+      .select('*')
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: false })
+    setEgresosGarantia(data || [])
+    setLoadingEgresosGar(false)
+  }
+
+  async function cargarDevGarantia() {
+    setLoadingDevGar(true)
+    const { data } = await supabase
+      .from('devoluciones')
+      .select('*')
+      .eq('origen', 'garantia')
+      .eq('estado', 'recibido')
+      .is('stock_ingresado', null)
+      .order('created_at', { ascending: false })
+    setDevGarantia(data || [])
+    setLoadingDevGar(false)
+  }
+
+  async function confirmarEgresoGarantia() {
+    if (!egresoGarSel) return
+    setConfirmandoEgresoGar(true)
+    const { codigo, nombre, modelo, categoria, cantidad, referencia_nombre, observacion } = egresoGarSel
+    const actual = stock[codigo]?.stock_actual ?? 0
+    const nuevo = Math.max(0, actual - cantidad)
+    await supabase.from('stock_pt').upsert({
+      codigo, nombre, modelo: modelo || '', categoria: categoria || '',
+      stock_actual: nuevo,
+      stock_inicial: stock[codigo]?.stock_inicial ?? 0,
+    }, { onConflict: 'codigo' })
+    const sMin = stock[codigo]?.stock_minimo
+    if (nuevo === 0 || (sMin != null && nuevo <= sMin)) {
+      await notificarAdminsStockBajo(codigo, nombre, modelo || '', nuevo, sMin)
+    }
+    await supabase.from('movimientos_pt').insert({
+      codigo, nombre, modelo: modelo || '', categoria: categoria || '',
+      tipo: 'egreso', cantidad, canal: 'Garantía',
+      observacion: observacion ? `Panel garantía · ${observacion}` : 'Panel garantía',
+      usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+      referencia_nombre: referencia_nombre || null,
+    })
+    await supabase.from('egresos_garantia').update({ estado: 'confirmado' }).eq('id', egresoGarSel.id)
+    toast.success('✅ Egreso garantía confirmado — stock descontado')
+    setConfirmandoEgresoGar(false)
+    setModalEgresoGar(false); setEgresoGarSel(null)
+    cargar(); cargarEgresosGarantia()
+  }
+
+  async function confirmarDevGarantia() {
+    if (!devGarSel) return
+    setConfirmandoDevGar(true)
+    const items = devGarSel.items || []
+    if (devGarRecuperable) {
+      for (const item of items) {
+        if (!item.codigo || !item.cantidad) continue
+        const actual = stock[item.codigo]?.stock_actual ?? 0
+        const nuevo = actual + item.cantidad
+        await supabase.from('stock_pt').upsert({
+          codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+          stock_actual: nuevo,
+          stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
+        }, { onConflict: 'codigo' })
+        await supabase.from('movimientos_pt').insert({
+          codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+          tipo: 'ingreso', cantidad: item.cantidad, canal: 'Devolución Garantía',
+          observacion: `Dev. garantía · ${devGarSel.referencia_nombre || ''}`,
+          usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+          referencia_nombre: devGarSel.referencia_nombre || null,
+        })
+      }
+    }
+    await supabase.from('devoluciones').update({ stock_ingresado: true }).eq('id', devGarSel.id)
+    toast.success(devGarRecuperable ? '✅ Stock ingresado — devolución confirmada' : '✅ Devolución cerrada — sin cambios en stock')
+    setConfirmandoDevGar(false)
+    setModalDevGar(false); setDevGarSel(null); setDevGarRecuperable(true)
+    cargar(); cargarDevGarantia()
   }
 
   async function cargar() {
@@ -540,6 +640,8 @@ export default function IngresoEgresoPT() {
           { v: 'egreso-meli',   icon: <ArrowUpCircle size={13} />, label: 'Egreso Meli',   color: '#ffe600' },
           { v: 'egreso-pagina', icon: <ArrowUpCircle size={13} />, label: 'Egreso Página', color: '#7b9fff' },
           { v: 'egreso-vo',     icon: <ArrowUpCircle size={13} />, label: 'Egreso VO',     color: '#a78bfa' },
+          { v: 'egreso-dev',    icon: <ArrowUpCircle size={13} />, label: 'Egreso Dev.',  color: '#fb923c' },
+          { v: 'dev-entrada',   icon: <ArrowDownCircle size={13} />, label: 'Dev. Entrada', color: '#38bdf8' },
           { v: 'historial',     icon: <History size={13} />,     label: 'Historial' },
           { v: 'alertas',       icon: <Bell size={13} />,        label: 'Alertas Stock', color: '#ff5577' },
         ].map(t => {
@@ -794,6 +896,161 @@ export default function IngresoEgresoPT() {
             )
           })}
         </>
+      ) : view === 'egreso-dev' ? (
+        /* EGRESO DEVOLUCIONES (egresos_garantia pendientes) */
+        <div>
+          {loadingEgresosGar ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>
+          ) : egresosGarantia.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay egresos de garantía pendientes</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {egresosGarantia.map(it => (
+                <div key={it.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace' }}>#{String(it.id).slice(0,8).toUpperCase()}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', padding: '1px 8px', borderRadius: 20 }}>GARANTÍA</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#fb923c', fontFamily: 'monospace', background: 'rgba(251,146,60,0.1)', padding: '2px 6px', borderRadius: 4 }}>{it.codigo}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700 }}>{it.nombre}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text3)' }}>{it.modelo}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                      Cliente: <strong style={{ color: 'var(--text2)' }}>{it.referencia_nombre || '—'}</strong>
+                      {it.observacion && <span> · {it.observacion}</span>}
+                    </div>
+                    <div style={{ fontSize: 12, marginTop: 2 }}>
+                      Cantidad a egresar: <strong style={{ color: '#fb923c' }}>{it.cantidad}</strong>
+                      {' · '}Stock actual: <strong style={{ color: typeof stock[it.codigo]?.stock_actual === 'number' ? (stock[it.codigo].stock_actual >= it.cantidad ? '#3dd68c' : '#ff5577') : 'var(--text3)' }}>
+                        {stock[it.codigo]?.stock_actual ?? '—'}
+                      </strong>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{it.created_at ? new Date(it.created_at).toLocaleDateString('es-AR') : ''}</div>
+                  <button onClick={() => { setEgresoGarSel(it); setModalEgresoGar(true) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                    <ArrowUpCircle size={13} /> Confirmar egreso
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Modal confirmar egreso garantía */}
+          {modalEgresoGar && egresoGarSel && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 460 }}>
+                <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#fb923c' }}>📤 Confirmar Egreso Garantía</div>
+                  <button onClick={() => setModalEgresoGar(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+                </div>
+                <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{egresoGarSel.codigo} — {egresoGarSel.nombre}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>{egresoGarSel.modelo}</div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>Cantidad: <strong style={{ color: '#fb923c' }}>{egresoGarSel.cantidad}</strong></div>
+                    <div style={{ fontSize: 12 }}>Cliente: <strong>{egresoGarSel.referencia_nombre || '—'}</strong></div>
+                    <div style={{ fontSize: 12, marginTop: 4, color: stock[egresoGarSel.codigo]?.stock_actual >= egresoGarSel.cantidad ? '#3dd68c' : '#ff5577', fontWeight: 700 }}>
+                      Stock disponible: {stock[egresoGarSel.codigo]?.stock_actual ?? '—'}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#fb923c' }}>
+                    Al confirmar se descuenta el stock y queda registrado como movimiento de egreso.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={confirmarEgresoGarantia} disabled={confirmandoEgresoGar}
+                      style={{ flex: 1, background: '#fb923c', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: confirmandoEgresoGar ? 'not-allowed' : 'pointer', opacity: confirmandoEgresoGar ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                      {confirmandoEgresoGar ? '⏳ Procesando...' : '📤 Confirmar y descontar stock'}
+                    </button>
+                    <button onClick={() => setModalEgresoGar(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : view === 'dev-entrada' ? (
+        /* DEV. ENTRADA (devoluciones garantia recibidas) */
+        <div>
+          {loadingDevGar ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>
+          ) : devGarantia.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay devoluciones de garantía recibidas pendientes de confirmar</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {devGarantia.map(dev => (
+                <div key={dev.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace' }}>#{String(dev.id).slice(0,8).toUpperCase()}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(56,189,248,0.12)', color: '#38bdf8', padding: '1px 8px', borderRadius: 20 }}>RECIBIDO</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', padding: '1px 8px', borderRadius: 20 }}>GARANTÍA</span>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{dev.referencia_nombre || 'Cliente garantía'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>
+                      {(dev.items || []).map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}
+                    </div>
+                    {dev.notas && <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>"{dev.notas}"</div>}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{dev.created_at ? new Date(dev.created_at).toLocaleDateString('es-AR') : ''}</div>
+                  <button onClick={() => { setDevGarSel(dev); setDevGarRecuperable(true); setModalDevGar(true) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                    <ArrowDownCircle size={13} /> Confirmar ingreso
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Modal confirmar ingreso garantía */}
+          {modalDevGar && devGarSel && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480 }}>
+                <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#38bdf8' }}>📥 Confirmar Entrada Garantía</div>
+                  <button onClick={() => setModalDevGar(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+                </div>
+                <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{devGarSel.referencia_nombre || 'Cliente garantía'}</div>
+                    {(devGarSel.items || []).map((it, i) => (
+                      <div key={i} style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3 }}>
+                        <span style={{ fontFamily: 'monospace', color: '#38bdf8', fontWeight: 700 }}>{it.codigo}</span>
+                        <span>{it.nombre}</span>
+                        <span style={{ color: 'var(--text3)' }}>{it.modelo}</span>
+                        <span style={{ fontWeight: 700, marginLeft: 'auto' }}>×{it.cantidad}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>¿El panel es recuperable?</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[{ v: true, label: '✅ Recuperable', desc: 'Suma al stock' }, { v: false, label: '❌ No recuperable', desc: 'Sin cambios en stock' }].map(({ v, label, desc }) => (
+                        <button key={String(v)} onClick={() => setDevGarRecuperable(v)}
+                          style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', textAlign: 'left',
+                            background: devGarRecuperable === v ? (v ? 'rgba(61,214,140,0.12)' : 'rgba(255,85,119,0.12)') : 'var(--surface2)',
+                            color: devGarRecuperable === v ? (v ? '#3dd68c' : '#ff5577') : 'var(--text3)',
+                            outline: devGarRecuperable === v ? `1.5px solid ${v ? '#3dd68c' : '#ff5577'}` : 'none' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
+                          <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>{desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={confirmarDevGarantia} disabled={confirmandoDevGar}
+                      style={{ flex: 1, background: '#38bdf8', color: '#000', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: confirmandoDevGar ? 'not-allowed' : 'pointer', opacity: confirmandoDevGar ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                      {confirmandoDevGar ? '⏳ Procesando...' : devGarRecuperable ? '📥 Confirmar e ingresar stock' : '✓ Confirmar sin stock'}
+                    </button>
+                    <button onClick={() => setModalDevGar(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       ) : view === 'alertas' ? (
         /* ALERTAS DE STOCK */
         <>
