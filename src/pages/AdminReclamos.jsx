@@ -94,6 +94,40 @@ function formatearFecha(fecha) {
   return d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+const CATALOGO_PT = [
+  { codigo: 'KF70SIL',      nombre: 'Calefón One 3,5/5,5/7Kw 220V Silver' },
+  { codigo: 'FE150TBLACK',  nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Black' },
+  { codigo: 'FE150TSIL',    nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Silver' },
+  { codigo: 'FE150TBL',     nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Blanco' },
+  { codigo: 'FM318BL',      nombre: 'Calefón Pulse 9/13,5/18Kw 380V Blanco' },
+  { codigo: 'FM324BL',      nombre: 'Calefón Pulse 12/18/24Kw 380V Blanco' },
+  { codigo: 'BF14EBL',      nombre: 'Caldera Core 220-380V 14,4Kw Blanco' },
+  { codigo: 'BF323EBL',     nombre: 'Caldera Core 380V 23Kw Blanco' },
+  { codigo: 'C250STV1',     nombre: 'Panel Calefactor Slim 250w' },
+  { codigo: 'C250STV1TS',   nombre: 'Panel Calefactor Slim 250w Toallero Simple' },
+  { codigo: 'C250STV1TD',   nombre: 'Panel Calefactor Slim 250w Toallero Doble' },
+  { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim 500w' },
+  { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim 500w Toallero Simple' },
+  { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim 500w Toallero Doble' },
+  { codigo: 'C500STV1MB',   nombre: 'Panel Calefactor Slim 500w Madera Blanca' },
+  { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze 1400w Blanco' },
+  { codigo: 'F1400MB',      nombre: 'Panel Calefactor Firenze 1400w Madera Blanca' },
+  { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze 1400w Madera Veteada' },
+  { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze 1400w Piedra Azteca' },
+  { codigo: 'F1400PR',      nombre: 'Panel Calefactor Firenze 1400w Piedra Romana' },
+  { codigo: 'F1400MTG',     nombre: 'Panel Calefactor Firenze 1400w Mármol Traviatta Gris' },
+  { codigo: 'F1400PCL',     nombre: 'Panel Calefactor Firenze 1400w Piedra Cantera Luna' },
+  { codigo: 'F1400MCO',     nombre: 'Panel Calefactor Firenze 1400w Mármol Calacatta Ocre' },
+  { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart 1400w Wifi' },
+  { codigo: 'K40010',       nombre: 'Anafe Inducción + Extractor 4 Hornallas Touch' },
+  { codigo: 'K40011',       nombre: 'Anafe Inducción + Extractor 4 Hornallas Knob' },
+  { codigo: 'DT4',          nombre: 'Anafe Infrarrojo + Extractor 4 Hornallas Touch' },
+  { codigo: 'DT4W',         nombre: 'Anafe Infrarrojo + Extractor 4 Hornallas Knob' },
+  { codigo: 'K1002',        nombre: 'Anafe Inducción 2 Hornallas Touch' },
+  { codigo: 'K2002',        nombre: 'Anafe Infrarrojo 2 Hornallas Touch' },
+  { codigo: 'DT4-1',        nombre: 'Anafe Inducción 4 Hornallas Touch' },
+]
+
 function sanitizeFileName(name) {
   return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
 }
@@ -536,23 +570,38 @@ function PanelNotificarService({ item, onClose, onGuardar }) {
 
 function PanelStock({ item, tipo, onClose, onGuardar }) {
   const isEnviado = tipo === 'enviado'
-  const [codigo, setCodigo] = useState('')
-  const [nombre, setNombre] = useState(item.producto || '')
-  const [modelo, setModelo] = useState(item.modelo && item.modelo !== item.producto ? item.modelo : '')
+
+  // Intentar auto-detectar el producto del catálogo por nombre
+  function detectarProducto() {
+    const haystack = ((item.producto || '') + ' ' + (item.modelo || '')).toLowerCase()
+    return CATALOGO_PT.find(p => haystack.includes(p.codigo.toLowerCase())) || null
+  }
+  const inicial = detectarProducto()
+
+  const [selCodigo, setSelCodigo] = useState(inicial?.codigo || '')
+  const [nombre, setNombre] = useState(inicial?.nombre || item.producto || '')
   const [cantidad, setCantidad] = useState(1)
   const [guardando, setGuardando] = useState(false)
 
+  function handleSelect(e) {
+    const val = e.target.value
+    setSelCodigo(val)
+    const prod = CATALOGO_PT.find(p => p.codigo === val)
+    if (prod) setNombre(prod.nombre)
+  }
+
   async function handleGuardar() {
-    if (!codigo.trim()) { alert('Ingresá el código del producto'); return }
+    if (!selCodigo.trim()) { alert('Seleccioná o ingresá el código del producto'); return }
     if (cantidad < 1) { alert('La cantidad debe ser mayor a 0'); return }
     setGuardando(true)
-    await onGuardar({ codigo: codigo.trim(), nombre, modelo, cantidad })
+    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo: '', cantidad })
     setGuardando(false)
   }
 
   const color   = isEnviado ? T.red   : T.green
   const colorBg = isEnviado ? T.redDim : T.greenDim
   const colorBd = isEnviado ? `${T.red}40` : `${T.green}40`
+  const inputSt = { background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none', boxSizing: 'border-box' }
 
   return (
     <div style={{ margin: '0 22px 18px', padding: 18, background: colorBg, border: `1px solid ${colorBd}`, borderRadius: T.radius }}>
@@ -562,26 +611,33 @@ function PanelStock({ item, tipo, onClose, onGuardar }) {
       <div style={{ fontSize: 12, color: T.text3, marginBottom: 14 }}>
         {isEnviado
           ? 'Se registra como egreso pendiente — el stock se descuenta cuando Admin confirma en Ingreso/Egreso PT.'
-          : 'Se registra como devolucion pendiente — el stock ingresa cuando Admin confirma en Ingreso/Egreso PT.'}
+          : 'Se registra como devolución pendiente — el stock ingresa cuando Admin confirma en Ingreso/Egreso PT.'}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 80px', gap: 10, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 10, marginBottom: 10 }}>
         <div>
-          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Código *</label>
-          <input value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="Ej: C250STV1"
-            style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Producto</label>
-          <input value={nombre} onChange={e => setNombre(e.target.value)}
-            style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} />
+          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Producto *</label>
+          <select value={selCodigo} onChange={handleSelect}
+            style={{ ...inputSt, cursor: 'pointer' }}>
+            <option value="">— Seleccioná un producto —</option>
+            {CATALOGO_PT.map(p => (
+              <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Cantidad</label>
           <input type="number" min="1" value={cantidad} onChange={e => setCantidad(parseInt(e.target.value) || 1)}
-            style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} />
+            style={inputSt} />
         </div>
       </div>
+
+      {selCodigo && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 12, color: T.text3 }}>
+          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '2px 8px', borderRadius: 4 }}>{selCodigo}</span>
+          <span style={{ color: T.text2 }}>{nombre}</span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <Btn variant={isEnviado ? 'danger' : 'success'} onClick={handleGuardar} disabled={guardando}>
