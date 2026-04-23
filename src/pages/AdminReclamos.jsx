@@ -670,6 +670,8 @@ export default function AdminReclamos() {
   const [supervisionAbierto, setSupervisionAbierto] = useState(null)  // item abierto para cargar
   const [supervisionVer, setSupervisionVer] = useState(null)           // item para ver resultado
   const [panelStockAbierto, setPanelStockAbierto] = useState(null)     // { id, tipo } | null
+  const [confirmarEliminar, setConfirmarEliminar] = useState(null)     // item | null
+  const [eliminando, setEliminando] = useState(false)
 
   const { isAdmin, isAdmin2, user, profile } = useAuth()
 
@@ -959,9 +961,16 @@ export default function AdminReclamos() {
   }
 
   async function eliminarReclamo(item) {
-    if (!window.confirm(`¿Eliminar el reclamo #${item.tracking_id || String(item.id).slice(0,8).toUpperCase()}? Esta acción no se puede deshacer.`)) return
-    const { error } = await supabase.from('devoluciones').delete().eq('id', item.id)
+    setConfirmarEliminar(item)
+  }
+
+  async function confirmarYEliminar() {
+    if (!confirmarEliminar) return
+    setEliminando(true)
+    const { error } = await supabase.from('devoluciones').delete().eq('id', confirmarEliminar.id)
+    setEliminando(false)
     if (error) { alert('Error al eliminar: ' + error.message); return }
+    setConfirmarEliminar(null)
     await cargar()
   }
 
