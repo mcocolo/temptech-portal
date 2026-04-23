@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui'
-import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload, FileText, Info, Bell } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload, FileText, Info, Bell, Briefcase } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -134,6 +134,17 @@ export default function IngresoEgresoPT() {
   const [devGarRecuperable, setDevGarRecuperable]   = useState(true)
   const [confirmandoDevGar, setConfirmandoDevGar]   = useState(false)
 
+  // Tab: Préstamos
+  const [prestamos, setPrestamos]               = useState([])
+  const [loadingPrestamos, setLoadingPrestamos] = useState(false)
+  const [modalPrestamo, setModalPrestamo]       = useState(false)
+  const [pItems, setPItems]                     = useState([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
+  const [pDestino, setPDestino]                 = useState('')
+  const [pObservacion, setPObservacion]         = useState('')
+  const [pFechaRetorno, setPFechaRetorno]       = useState('')
+  const [guardandoPrestamo, setGuardandoPrestamo] = useState(false)
+  const [verHistorialPrestamos, setVerHistorialPrestamos] = useState(false)
+
   const [ventas, setVentas]               = useState([])
   const [ventaDetalle, setVentaDetalle]   = useState(null)
   const [loadingVentas, setLoadingVentas] = useState(false)
@@ -156,6 +167,7 @@ export default function IngresoEgresoPT() {
   useEffect(() => { if (CANAL_VIEWS.includes(view)) cargarVentas(CANAL_KEYS[view]) }, [view])
   useEffect(() => { if (view === 'egreso-dev') cargarEgresosGarantia() }, [view])
   useEffect(() => { if (view === 'dev-entrada') cargarDevGarantia() }, [view])
+  useEffect(() => { if (view === 'prestamos') cargarPrestamos() }, [view])
 
   async function cargarPedidos() {
     setLoadingPedidos(true)
@@ -398,6 +410,85 @@ export default function IngresoEgresoPT() {
     setModalDevGar(false); setDevGarSel(null); setDevGarRecuperable(true)
     cargar(); cargarDevGarantia()
   }
+
+  // ── PRÉSTAMOS ──────────────────────────────────────────────
+  async function cargarPrestamos() {
+    setLoadingPrestamos(true)
+    const { data } = await supabase
+      .from('prestamos_stock')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setPrestamos(data || [])
+    setLoadingPrestamos(false)
+  }
+
+  async function registrarPrestamo() {
+    const itemsValidos = pItems.filter(it => it.codigo && it.cantidad > 0)
+    if (!itemsValidos.length) { toast.error('Agregá al menos un producto'); return }
+    if (!pDestino.trim()) { toast.error('Ingresá el destino o cliente'); return }
+    setGuardandoPrestamo(true)
+    for (const item of itemsValidos) {
+      const actual = stock[item.codigo]?.stock_actual ?? 0
+      const nuevo = Math.max(0, actual - item.cantidad)
+      await supabase.from('stock_pt').upsert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        stock_actual: nuevo, stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
+      }, { onConflict: 'codigo' })
+      const sMin = stock[item.codigo]?.stock_minimo
+      if (nuevo === 0 || (sMin != null && nuevo <= sMin)) {
+        await notificarAdminsStockBajo(item.codigo, item.nombre || '', item.modelo || '', nuevo, sMin)
+      }
+      await supabase.from('movimientos_pt').insert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        tipo: 'egreso', cantidad: item.cantidad, canal: 'Préstamo',
+        observacion: `Préstamo → ${pDestino}${pObservacion ? ' · ' + pObservacion : ''}`,
+        usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+        referencia_nombre: pDestino,
+      })
+    }
+    await supabase.from('prestamos_stock').insert({
+      items: itemsValidos,
+      destino: pDestino.trim(),
+      observacion: pObservacion.trim() || null,
+      fecha_retorno_estimada: pFechaRetorno || null,
+      estado: 'activo',
+      usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+    })
+    toast.success('📤 Préstamo registrado — stock descontado')
+    setGuardandoPrestamo(false)
+    setModalPrestamo(false)
+    setPItems([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
+    setPDestino(''); setPObservacion(''); setPFechaRetorno('')
+    cargar(); cargarPrestamos()
+  }
+
+  async function devolverPrestamo(p) {
+    for (const item of (p.items || [])) {
+      if (!item.codigo || !item.cantidad) continue
+      const actual = stock[item.codigo]?.stock_actual ?? 0
+      await supabase.from('stock_pt').upsert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        stock_actual: actual + item.cantidad, stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
+      }, { onConflict: 'codigo' })
+      await supabase.from('movimientos_pt').insert({
+        codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
+        tipo: 'ingreso', cantidad: item.cantidad, canal: 'Devolución Préstamo',
+        observacion: `Devuelto por ${p.destino}`,
+        usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+        referencia_nombre: p.destino,
+      })
+    }
+    await supabase.from('prestamos_stock').update({ estado: 'devuelto', fecha_devolucion: new Date().toISOString() }).eq('id', p.id)
+    toast.success('✅ Préstamo devuelto — stock re-ingresado')
+    cargar(); cargarPrestamos()
+  }
+
+  async function cerrarComoPerdido(p) {
+    await supabase.from('prestamos_stock').update({ estado: 'perdido', fecha_devolucion: new Date().toISOString() }).eq('id', p.id)
+    toast.success('📌 Cerrado como pérdida — stock ya descontado')
+    cargarPrestamos()
+  }
+  // ─────────────────────────────────────────────────────────
 
   async function cargar() {
     setLoading(true)
@@ -642,6 +733,7 @@ export default function IngresoEgresoPT() {
           { v: 'egreso-vo',     icon: <ArrowUpCircle size={13} />, label: 'Egreso VO',     color: '#a78bfa' },
           { v: 'egreso-dev',    icon: <ArrowUpCircle size={13} />, label: 'Egreso Dev.',  color: '#fb923c' },
           { v: 'dev-entrada',   icon: <ArrowDownCircle size={13} />, label: 'Dev. Entrada', color: '#38bdf8' },
+          { v: 'prestamos',     icon: <Briefcase size={13} />,   label: 'Préstamos',    color: '#34d399' },
           { v: 'historial',     icon: <History size={13} />,     label: 'Historial' },
           { v: 'alertas',       icon: <Bell size={13} />,        label: 'Alertas Stock', color: '#ff5577' },
         ].map(t => {
@@ -1050,6 +1142,113 @@ export default function IngresoEgresoPT() {
               </div>
             </div>
           )}
+        </div>
+      ) : view === 'prestamos' ? (
+        /* PRÉSTAMOS */
+        <div>
+          {/* Header + botón nuevo */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#34d399' }}>💼 Préstamos de stock</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Salidas temporales — muestras, demostraciones, etc.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setVerHistorialPrestamos(v => !v)}
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                {verHistorialPrestamos ? 'Ocultar historial' : 'Ver historial'}
+              </button>
+              <button onClick={() => setModalPrestamo(true)}
+                style={{ background: '#34d399', color: '#0a0e1a', border: 'none', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                + Nuevo préstamo
+              </button>
+            </div>
+          </div>
+
+          {loadingPrestamos ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>
+          ) : (() => {
+            const activos  = prestamos.filter(p => p.estado === 'activo')
+            const cerrados = prestamos.filter(p => p.estado !== 'activo')
+            const lista = verHistorialPrestamos ? prestamos : activos
+            if (lista.length === 0) return (
+              <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>
+                {verHistorialPrestamos ? 'No hay préstamos registrados' : 'No hay préstamos activos'}
+              </div>
+            )
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {activos.length > 0 && !verHistorialPrestamos && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
+                    {activos.length} préstamo{activos.length !== 1 ? 's' : ''} activo{activos.length !== 1 ? 's' : ''}
+                  </div>
+                )}
+                {lista.map(p => {
+                  const isActivo = p.estado === 'activo'
+                  const isPerdido = p.estado === 'perdido'
+                  const estadoCfg = isActivo
+                    ? { color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.35)', label: 'Activo' }
+                    : isPerdido
+                    ? { color: '#ff5577', bg: 'rgba(255,85,119,0.1)', border: 'rgba(255,85,119,0.35)', label: 'No volvió' }
+                    : { color: '#38bdf8', bg: 'rgba(56,189,248,0.1)', border: 'rgba(56,189,248,0.35)', label: 'Devuelto' }
+                  return (
+                    <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 8px', borderRadius: 4 }}>
+                          #{String(p.id).slice(0,8).toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: estadoCfg.bg, color: estadoCfg.color, border: `1px solid ${estadoCfg.border}` }}>
+                          {estadoCfg.label}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>📍 {p.destino}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 'auto' }}>
+                          {formatDistanceToNow(new Date(p.created_at), { addSuffix: true, locale: es })}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                        {(p.items || []).map((it, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#ffd166', fontFamily: 'monospace' }}>{it.codigo}</span>
+                            <span style={{ fontSize: 13 }}>{it.nombre} {it.modelo}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>×{it.cantidad}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {(p.observacion || p.fecha_retorno_estimada) && (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
+                          {p.observacion && <span>{p.observacion}</span>}
+                          {p.fecha_retorno_estimada && <span style={{ marginLeft: p.observacion ? ' · ' : '' }}>📅 Retorno estimado: <strong style={{ color: 'var(--text2)' }}>{new Date(p.fecha_retorno_estimada).toLocaleDateString('es-AR')}</strong></span>}
+                        </div>
+                      )}
+
+                      {isActivo && (
+                        <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                          <button onClick={() => devolverPrestamo(p)}
+                            style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 700, color: '#38bdf8', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ↩ Devuelto
+                          </button>
+                          <button onClick={() => cerrarComoPerdido(p)}
+                            style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ✗ No vuelve
+                          </button>
+                          <span style={{ fontSize: 11, color: 'var(--text3)', alignSelf: 'center', marginLeft: 4 }}>
+                            {p.usuario_nombre}
+                          </span>
+                        </div>
+                      )}
+                      {!isActivo && p.fecha_devolucion && (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                          {p.estado === 'devuelto' ? '✅ Devuelto' : '❌ No volvió'} · {new Date(p.fecha_devolucion).toLocaleDateString('es-AR')}
+                          <span style={{ marginLeft: 8 }}>{p.usuario_nombre}</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       ) : view === 'alertas' ? (
         /* ALERTAS DE STOCK */
@@ -1600,6 +1799,88 @@ export default function IngresoEgresoPT() {
                   {confirmandoVenta ? '⏳ Procesando...' : '↑ Confirmar egreso'}
                 </button>
                 <button onClick={() => setModalVenta(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NUEVO PRÉSTAMO */}
+      {modalPrestamo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#34d399' }}>💼 Nuevo Préstamo</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>El stock se descuenta ahora. Si vuelve, se re-ingresa.</div>
+              </div>
+              <button onClick={() => setModalPrestamo(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Destino */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Destino / Cliente *</label>
+                <input value={pDestino} onChange={e => setPDestino(e.target.value)} placeholder="Ej: Constructora Rossi, Arq. García..."
+                  style={inputSt} />
+              </div>
+
+              {/* Productos */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Productos *</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {pItems.map((it, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px auto', gap: 8, alignItems: 'center' }}>
+                      <select value={it.codigo} onChange={e => {
+                        const p = todosProductosFlat.find(p => p.codigo === e.target.value)
+                        setPItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: p?.nombre || '', modelo: p?.modelo || '', categoria: p?.categoria || '' } : x))
+                      }} style={{ ...inputSt, cursor: 'pointer' }}>
+                        <option value="">— Producto —</option>
+                        {CATALOGO.map(cat => (
+                          <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
+                            {cat.productos.map(p => (
+                              <option key={p.codigo} value={p.codigo}>
+                                {p.codigo} — {p.nombre} {p.modelo} {stock[p.codigo] ? `(${stock[p.codigo].stock_actual} en stock)` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                      <input type="number" min="1" value={it.cantidad} onChange={e => setPItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: parseInt(e.target.value) || 1 } : x))}
+                        style={inputSt} />
+                      <button onClick={() => setPItems(prev => prev.filter((_, j) => j !== i))} disabled={pItems.length === 1}
+                        style={{ background: 'none', border: 'none', color: '#ff5577', cursor: pItems.length === 1 ? 'not-allowed' : 'pointer', fontSize: 18, opacity: pItems.length === 1 ? 0.3 : 1 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setPItems(prev => [...prev, { codigo: '', nombre: '', modelo: '', cantidad: 1 }])}
+                  style={{ marginTop: 8, background: 'none', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  + Agregar producto
+                </button>
+              </div>
+
+              {/* Fecha retorno estimada */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Retorno estimado</label>
+                  <input type="date" value={pFechaRetorno} onChange={e => setPFechaRetorno(e.target.value)} style={inputSt} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observación</label>
+                  <input value={pObservacion} onChange={e => setPObservacion(e.target.value)} placeholder="Opcional..." style={inputSt} />
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, color: '#a78bfa' }}>
+                👤 Registrado por: <strong>{profile?.full_name || user?.email}</strong>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={registrarPrestamo} disabled={guardandoPrestamo}
+                  style={{ flex: 1, background: '#34d399', color: '#0a0e1a', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: guardandoPrestamo ? 'not-allowed' : 'pointer', opacity: guardandoPrestamo ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                  {guardandoPrestamo ? '⏳ Registrando...' : '💼 Registrar préstamo'}
+                </button>
+                <button onClick={() => setModalPrestamo(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
