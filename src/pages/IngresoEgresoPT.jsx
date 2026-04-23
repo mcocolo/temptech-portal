@@ -1153,6 +1153,10 @@ export default function IngresoEgresoPT() {
               <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Salidas temporales — muestras, demostraciones, etc.</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={cargarPrestamos}
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 12px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                🔄
+              </button>
               <button onClick={() => setVerHistorialPrestamos(v => !v)}
                 style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                 {verHistorialPrestamos ? 'Ocultar historial' : 'Ver historial'}
