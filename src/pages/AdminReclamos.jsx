@@ -959,7 +959,7 @@ export default function AdminReclamos() {
   }
 
   async function eliminarReclamo(item) {
-    if (!window.confirm(`¿Eliminar el reclamo #${item.tracking_id || item.id.slice(0,8).toUpperCase()}? Esta acción no se puede deshacer.`)) return
+    if (!window.confirm(`¿Eliminar el reclamo #${item.tracking_id || String(item.id).slice(0,8).toUpperCase()}? Esta acción no se puede deshacer.`)) return
     const { error } = await supabase.from('devoluciones').delete().eq('id', item.id)
     if (error) { alert('Error al eliminar: ' + error.message); return }
     await cargar()
