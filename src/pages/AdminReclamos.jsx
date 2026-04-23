@@ -928,7 +928,6 @@ export default function AdminReclamos() {
 
     if (isEnviado) {
       const { error } = await supabase.from('egresos_garantia').insert({
-        reclamo_id: item.id,
         codigo, nombre, modelo: modelo || nombre, categoria: '',
         cantidad, canal: 'Garantía', estado: 'pendiente',
         referencia_nombre: clienteNombre || null,
