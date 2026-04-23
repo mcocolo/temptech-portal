@@ -888,12 +888,11 @@ export default function AdminReclamos() {
     } else {
       const { error } = await supabase.from('devoluciones').insert({
         origen: 'garantia',
-        reclamo_id: item.id,
         estado: 'pendiente',
         tipo: 'falla',
         items: [{ codigo, nombre, modelo: modelo || nombre, cantidad }],
         referencia_nombre: clienteNombre || null,
-        notas: `Panel devuelto · Reclamo ${reclamoRef}`,
+        notas: `Panel devuelto · Reclamo ${reclamoRef} · ID:${item.id}`,
       })
       if (error) { alert('Error: ' + error.message); return }
       const nuevaNota = armarLineaNota('RECIBIR PANEL', `Pendiente de ingreso · Cód: ${codigo} · Cant: ${cantidad}`)
