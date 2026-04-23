@@ -1612,6 +1612,29 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
           </div>
         )
       })()}
+
+      {/* Modal confirmar eliminación */}
+      {confirmarEliminar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: T.radiusLg, width: '100%', maxWidth: 420, padding: '28px 28px 24px' }}>
+            <div style={{ fontSize: 22, marginBottom: 12 }}>🗑️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 8 }}>¿Eliminar reclamo?</div>
+            <div style={{ fontSize: 13, color: T.text3, marginBottom: 24 }}>
+              Vas a eliminar el reclamo <span style={{ color: T.text, fontWeight: 600 }}>#{confirmarEliminar.tracking_id || String(confirmarEliminar.id).slice(0,8).toUpperCase()}</span>. Esta acción no se puede deshacer.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={confirmarYEliminar} disabled={eliminando}
+                style={{ flex: 1, background: T.redDim, border: `1px solid ${T.red}40`, borderRadius: T.radius, padding: '10px', fontSize: 13, fontWeight: 700, color: T.red, cursor: eliminando ? 'not-allowed' : 'pointer', opacity: eliminando ? 0.5 : 1, fontFamily: T.font }}>
+                {eliminando ? 'Eliminando...' : '🗑 Sí, eliminar'}
+              </button>
+              <button onClick={() => setConfirmarEliminar(null)} disabled={eliminando}
+                style={{ flex: 1, background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '10px', fontSize: 13, fontWeight: 600, color: T.text2, cursor: 'pointer', fontFamily: T.font }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
