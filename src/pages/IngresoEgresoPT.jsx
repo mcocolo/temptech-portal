@@ -138,10 +138,10 @@ export default function IngresoEgresoPT() {
   const [prestamos, setPrestamos]               = useState([])
   const [loadingPrestamos, setLoadingPrestamos] = useState(false)
   const [modalPrestamo, setModalPrestamo]       = useState(false)
-  const [pItems, setPItems]                     = useState([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
-  const [pDestino, setPDestino]                 = useState('')
-  const [pObservacion, setPObservacion]         = useState('')
-  const [pFechaRetorno, setPFechaRetorno]       = useState('')
+  const [prItems, setPrItems]                   = useState([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
+  const [prDestino, setPrDestino]               = useState('')
+  const [prObservacion, setPrObservacion]       = useState('')
+  const [prFechaRetorno, setPrFechaRetorno]     = useState('')
   const [guardandoPrestamo, setGuardandoPrestamo] = useState(false)
   const [verHistorialPrestamos, setVerHistorialPrestamos] = useState(false)
 
@@ -423,9 +423,9 @@ export default function IngresoEgresoPT() {
   }
 
   async function registrarPrestamo() {
-    const itemsValidos = pItems.filter(it => it.codigo && it.cantidad > 0)
+    const itemsValidos = prItems.filter(it => it.codigo && it.cantidad > 0)
     if (!itemsValidos.length) { toast.error('Agregá al menos un producto'); return }
-    if (!pDestino.trim()) { toast.error('Ingresá el destino o cliente'); return }
+    if (!prDestino.trim()) { toast.error('Ingresá el destino o cliente'); return }
     setGuardandoPrestamo(true)
     for (const item of itemsValidos) {
       const actual = stock[item.codigo]?.stock_actual ?? 0
@@ -441,24 +441,24 @@ export default function IngresoEgresoPT() {
       await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         tipo: 'egreso', cantidad: item.cantidad, canal: 'Préstamo',
-        observacion: `Préstamo → ${pDestino}${pObservacion ? ' · ' + pObservacion : ''}`,
+        observacion: `Préstamo → ${prDestino}${prObservacion ? ' · ' + prObservacion : ''}`,
         usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
-        referencia_nombre: pDestino,
+        referencia_nombre: prDestino,
       })
     }
     await supabase.from('prestamos_stock').insert({
       items: itemsValidos,
-      destino: pDestino.trim(),
-      observacion: pObservacion.trim() || null,
-      fecha_retorno_estimada: pFechaRetorno || null,
+      destino: prDestino.trim(),
+      observacion: prObservacion.trim() || null,
+      fecha_retorno_estimada: prFechaRetorno || null,
       estado: 'activo',
       usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
     })
     toast.success('📤 Préstamo registrado — stock descontado')
     setGuardandoPrestamo(false)
     setModalPrestamo(false)
-    setPItems([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
-    setPDestino(''); setPObservacion(''); setPFechaRetorno('')
+    setPrItems([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
+    setPrDestino(''); setPrObservacion(''); setPrFechaRetorno('')
     cargar(); cargarPrestamos()
   }
 
@@ -1821,7 +1821,7 @@ export default function IngresoEgresoPT() {
               {/* Destino */}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Destino / Cliente *</label>
-                <input value={pDestino} onChange={e => setPDestino(e.target.value)} placeholder="Ej: Constructora Rossi, Arq. García..."
+                <input value={prDestino} onChange={e => setPrDestino(e.target.value)} placeholder="Ej: Constructora Rossi, Arq. García..."
                   style={inputSt} />
               </div>
 
@@ -1829,11 +1829,11 @@ export default function IngresoEgresoPT() {
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Productos *</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {pItems.map((it, i) => (
+                  {prItems.map((it, i) => (
                     <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px auto', gap: 8, alignItems: 'center' }}>
                       <select value={it.codigo} onChange={e => {
                         const p = todosProductosFlat.find(p => p.codigo === e.target.value)
-                        setPItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: p?.nombre || '', modelo: p?.modelo || '', categoria: p?.categoria || '' } : x))
+                        setPrItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: p?.nombre || '', modelo: p?.modelo || '', categoria: p?.categoria || '' } : x))
                       }} style={{ ...inputSt, cursor: 'pointer' }}>
                         <option value="">— Producto —</option>
                         {CATALOGO.map(cat => (
@@ -1846,14 +1846,14 @@ export default function IngresoEgresoPT() {
                           </optgroup>
                         ))}
                       </select>
-                      <input type="number" min="1" value={it.cantidad} onChange={e => setPItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: parseInt(e.target.value) || 1 } : x))}
+                      <input type="number" min="1" value={it.cantidad} onChange={e => setPrItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: parseInt(e.target.value) || 1 } : x))}
                         style={inputSt} />
-                      <button onClick={() => setPItems(prev => prev.filter((_, j) => j !== i))} disabled={pItems.length === 1}
-                        style={{ background: 'none', border: 'none', color: '#ff5577', cursor: pItems.length === 1 ? 'not-allowed' : 'pointer', fontSize: 18, opacity: pItems.length === 1 ? 0.3 : 1 }}>×</button>
+                      <button onClick={() => setPrItems(prev => prev.filter((_, j) => j !== i))} disabled={prItems.length === 1}
+                        style={{ background: 'none', border: 'none', color: '#ff5577', cursor: prItems.length === 1 ? 'not-allowed' : 'pointer', fontSize: 18, opacity: prItems.length === 1 ? 0.3 : 1 }}>×</button>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setPItems(prev => [...prev, { codigo: '', nombre: '', modelo: '', cantidad: 1 }])}
+                <button onClick={() => setPrItems(prev => [...prev, { codigo: '', nombre: '', modelo: '', cantidad: 1 }])}
                   style={{ marginTop: 8, background: 'none', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                   + Agregar producto
                 </button>
@@ -1863,11 +1863,11 @@ export default function IngresoEgresoPT() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Retorno estimado</label>
-                  <input type="date" value={pFechaRetorno} onChange={e => setPFechaRetorno(e.target.value)} style={inputSt} />
+                  <input type="date" value={prFechaRetorno} onChange={e => setPrFechaRetorno(e.target.value)} style={inputSt} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observación</label>
-                  <input value={pObservacion} onChange={e => setPObservacion(e.target.value)} placeholder="Opcional..." style={inputSt} />
+                  <input value={prObservacion} onChange={e => setPrObservacion(e.target.value)} placeholder="Opcional..." style={inputSt} />
                 </div>
               </div>
 
