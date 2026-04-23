@@ -334,7 +334,7 @@ export default function IngresoEgresoPT() {
       .select('*')
       .eq('origen', 'garantia')
       .eq('estado', 'recibido')
-      .is('stock_ingresado', null)
+      .not('stock_ingresado', 'eq', true)
       .order('created_at', { ascending: false })
     setDevGarantia(data || [])
     setLoadingDevGar(false)
