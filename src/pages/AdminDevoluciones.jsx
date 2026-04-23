@@ -253,9 +253,17 @@ export default function AdminDevoluciones() {
                         )
                       )}
                       {(dev.estado === 'recibido' || dev.estado === 'rechazado') && (
-                        <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>
-                          {dev.estado === 'recibido' ? '✅ Mercadería recibida — stock re-ingresado' : '❌ Devolución rechazada'}
-                          {dev.updated_at && <span style={{ marginLeft: 8 }}>{formatFecha(dev.updated_at)}</span>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 0' }}>
+                          <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                            {dev.estado === 'recibido' ? '✅ Mercadería recibida — stock re-ingresado' : '❌ Devolución rechazada'}
+                            {dev.updated_at && <span style={{ marginLeft: 8 }}>{formatFecha(dev.updated_at)}</span>}
+                          </span>
+                          {dev.estado === 'rechazado' && (
+                            <button onClick={() => cambiarEstado(dev.id, 'pendiente')} disabled={guardando}
+                              style={{ background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ↩ Volver a pendiente
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
