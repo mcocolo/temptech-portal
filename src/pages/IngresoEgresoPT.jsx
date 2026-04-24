@@ -322,9 +322,10 @@ export default function IngresoEgresoPT() {
       await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
-        observacion: `Pedido #${pedidoSel.id?.slice(0,8).toUpperCase()} · ${pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || ''}${pNroRemito ? ' · Remito ' + pNroRemito : ''}`,
+        observacion: `Pedido #${pedidoSel.id?.slice(0,8).toUpperCase()} · ${pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || ''}${pNroRemito ? ' · Remito ' + pNroRemito : ''}${!isComplete ? ' · Entrega parcial' : ''}`,
         usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
         referencia_nombre: pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || null,
+        es_parcial: !isComplete,
       })
     }
 
@@ -908,7 +909,10 @@ export default function IngresoEgresoPT() {
   if (items.length === 0 && Array.isArray(v.envio_etiquetas)) {
     const map = {}
     v.envio_etiquetas.forEach(et => {
-      const prods = typeof et === 'object' ? (et.productos || []) : []
+      if (!et || typeof et !== 'object') return
+      // Correo: { url, productos: [{codigo, nombre, cantidad}] }
+      // Logística/retiro: { codigo, nombre, cantidad }
+      const prods = et.productos ? et.productos : (et.codigo ? [et] : [])
       prods.forEach(p => {
         if (!p.codigo) return
         if (map[p.codigo]) map[p.codigo].cantidad += parseInt(p.cantidad) || 1
@@ -1467,11 +1471,14 @@ export default function IngresoEgresoPT() {
                 const isEgreso = m.tipo === 'egreso'
                 const cc = CAT_COLORS[m.categoria] || {}
                 return (
-                  <tr key={m.id} style={{ borderBottom: i < movs.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <tr key={m.id} style={{ borderBottom: i < movs.length - 1 ? '1px solid var(--border)' : 'none', background: m.es_parcial ? 'rgba(255,209,102,0.07)' : 'transparent' }}>
                     <td style={{ padding: '11px 14px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: isEgreso ? 'rgba(255,85,119,0.12)' : 'rgba(61,214,140,0.12)', color: isEgreso ? '#ff5577' : '#3dd68c' }}>
-                        {isEgreso ? '↑ EGRESO' : '↓ INGRESO'}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: isEgreso ? 'rgba(255,85,119,0.12)' : 'rgba(61,214,140,0.12)', color: isEgreso ? '#ff5577' : '#3dd68c' }}>
+                          {isEgreso ? '↑ EGRESO' : '↓ INGRESO'}
+                        </span>
+                        {m.es_parcial && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'rgba(255,209,102,0.18)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.4)' }}>⏳ PARCIAL</span>}
+                      </div>
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: cc.color, fontFamily: 'monospace' }}>{m.codigo}</td>
                     <td style={{ padding: '11px 14px' }}>
