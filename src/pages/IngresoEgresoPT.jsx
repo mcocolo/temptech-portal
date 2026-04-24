@@ -75,6 +75,8 @@ export default function IngresoEgresoPT() {
   const [stock, setStock]       = useState({})         // { [codigo]: { stock_inicial, stock_actual } }
   const [movs, setMovs]         = useState([])
   const [loading, setLoading]   = useState(true)
+  const [busquedaHist, setBusquedaHist] = useState('')
+  const [fechaHist, setFechaHist]       = useState('')
   const [catFilter, setCatFilter] = useState('')
 
   // Modal egreso
@@ -1408,7 +1410,28 @@ export default function IngresoEgresoPT() {
         </>
       ) : (
         /* HISTORIAL */
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              value={busquedaHist}
+              onChange={e => setBusquedaHist(e.target.value)}
+              placeholder="🔍 Buscar por nombre, #reclamo, #pedido, canal..."
+              style={{ ...inputSt, flex: 1, minWidth: 220, maxWidth: 420 }}
+            />
+            <input
+              type="date"
+              value={fechaHist}
+              onChange={e => setFechaHist(e.target.value)}
+              style={{ ...inputSt, width: 160 }}
+            />
+            {(busquedaHist || fechaHist) && (
+              <button onClick={() => { setBusquedaHist(''); setFechaHist('') }}
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                ✕ Limpiar
+              </button>
+            )}
+          </div>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -1418,9 +1441,29 @@ export default function IngresoEgresoPT() {
               </tr>
             </thead>
             <tbody>
-              {movs.length === 0 ? (
-                <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>No hay movimientos registrados</td></tr>
-              ) : movs.map((m, i) => {
+              {(() => {
+                const q = busquedaHist.toLowerCase().trim()
+                const filtrados = movs.filter(m => {
+                  if (fechaHist) {
+                    const d = m.created_at ? m.created_at.slice(0, 10) : ''
+                    if (d !== fechaHist) return false
+                  }
+                  if (!q) return true
+                  return (
+                    m.referencia_nombre?.toLowerCase().includes(q) ||
+                    m.usuario_nombre?.toLowerCase().includes(q) ||
+                    m.observacion?.toLowerCase().includes(q) ||
+                    m.canal?.toLowerCase().includes(q) ||
+                    m.codigo?.toLowerCase().includes(q) ||
+                    m.nombre?.toLowerCase().includes(q)
+                  )
+                })
+                if (filtrados.length === 0) return (
+                  <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+                    {q || fechaHist ? 'Sin resultados para la búsqueda' : 'No hay movimientos registrados'}
+                  </td></tr>
+                )
+                return filtrados.map((m, i) => {
                 const isEgreso = m.tipo === 'egreso'
                 const cc = CAT_COLORS[m.categoria] || {}
                 return (
@@ -1448,9 +1491,11 @@ export default function IngresoEgresoPT() {
                   </tr>
                 )
               })}
+              })()}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {/* MODAL EGRESO POR PEDIDO */}

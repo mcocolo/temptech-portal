@@ -22,39 +22,6 @@ const ESTADO_CONFIG = {
   cancelado:  { label: 'Cancelado', color: '#ff5577', bg: 'rgba(255,85,119,0.12)',   border: 'rgba(255,85,119,0.35)' },
 }
 
-const CATALOGO_PRODUCTOS = [
-  { codigo: 'KF70SIL',     nombre: 'Calefón One 3,5/5,5/7Kw 220V Silver' },
-  { codigo: 'FE150TBLACK', nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Black' },
-  { codigo: 'FE150TSIL',   nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Silver' },
-  { codigo: 'FE150TBL',    nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Blanco' },
-  { codigo: 'FM318BL',     nombre: 'Calefón Pulse 9/13,5/18Kw 380V Blanco' },
-  { codigo: 'FM324BL',     nombre: 'Calefón Pulse 12/18/24Kw 380V Blanco' },
-  { codigo: 'BF14EBL',     nombre: 'Caldera Core 220-380V 14,4Kw Blanco' },
-  { codigo: 'BF323EBL',    nombre: 'Caldera Core 380V 23Kw Blanco' },
-  { codigo: 'C250STV1',    nombre: 'Slim 250w' },
-  { codigo: 'C250STV1TS',  nombre: 'Slim 250w Toallero Simple' },
-  { codigo: 'C250STV1TD',  nombre: 'Slim 250w Toallero Doble' },
-  { codigo: 'C500STV1',    nombre: 'Slim 500w' },
-  { codigo: 'C500STV1TS',  nombre: 'Slim 500w Toallero Simple' },
-  { codigo: 'C500STV1TD',  nombre: 'Slim 500w Toallero Doble' },
-  { codigo: 'C500STV1MB',  nombre: 'Slim 500w Madera Blanca' },
-  { codigo: 'F1400BCO',    nombre: 'Firenze 1400w Blanco' },
-  { codigo: 'F1400MB',     nombre: 'Firenze 1400w Madera Blanca' },
-  { codigo: 'F1400MV',     nombre: 'Firenze 1400w Madera Veteada' },
-  { codigo: 'F1400PA',     nombre: 'Firenze 1400w Piedra Azteca' },
-  { codigo: 'F1400PR',     nombre: 'Firenze 1400w Piedra Romana' },
-  { codigo: 'F1400MTG',    nombre: 'Firenze 1400w Mármol Traviatta Gris' },
-  { codigo: 'F1400PCL',    nombre: 'Firenze 1400w Piedra Cantera Luna' },
-  { codigo: 'F1400MCO',    nombre: 'Firenze 1400w Mármol Calacatta Ocre' },
-  { codigo: 'F1400SMARTBL',nombre: 'Firenze Smart 1400w Smart Wifi' },
-  { codigo: 'K40010', nombre: 'Anafe Inducción + Extractor 4 Hornallas Touch' },
-  { codigo: 'K40011', nombre: 'Anafe Inducción + Extractor 4 Hornallas Knob' },
-  { codigo: 'DT4',    nombre: 'Anafe Infrarrojo + Extractor 4 Hornallas Touch' },
-  { codigo: 'DT4W',   nombre: 'Anafe Infrarrojo + Extractor 4 Hornallas Knob' },
-  { codigo: 'K1002',  nombre: 'Anafe Inducción 2 Hornallas Touch' },
-  { codigo: 'K2002',  nombre: 'Anafe Infrarrojo 2 Hornallas Touch' },
-  { codigo: 'DT4-1',  nombre: 'Anafe Inducción 4 Hornallas Touch' },
-]
 
 function formatFecha(d) {
   try { return formatDistanceToNow(new Date(d), { addSuffix: true, locale: es }) } catch { return '' }
@@ -156,7 +123,7 @@ function MeliCard({ v, cc, onEdit, onDelete, onCambiarEstado }) {
 
 // ── Meli modal: bulk shipment form ─────────────────────────────────────────
 
-function MeliModal({ cc, editando, onClose, onSaved, user, profile }) {
+function MeliModal({ cc, editando, onClose, onSaved, user, profile, catalogo = [] }) {
   const [fNroOrden, setFNroOrden]   = useState(editando?.nro_orden || '')
   const [fFechaEnvio, setFFechaEnvio] = useState(editando?.fecha_envio || '')
   const [fItems, setFItems]         = useState(editando?.items?.length ? editando.items.map(i => ({...i})) : [emptyItem()])
@@ -171,7 +138,7 @@ function MeliModal({ cc, editando, onClose, onSaved, user, profile }) {
     setFItems(prev => prev.map((it, j) => {
       if (j !== i) return it
       if (field === 'codigo') {
-        const prod = CATALOGO_PRODUCTOS.find(p => p.codigo === val)
+        const prod = catalogo.find(p => p.codigo === val)
         return { ...it, codigo: val, nombre: prod?.nombre || it.nombre }
       }
       return { ...it, [field]: val }
@@ -258,7 +225,7 @@ function MeliModal({ cc, editando, onClose, onSaved, user, profile }) {
                 <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '140px 1fr 72px auto', gap: 6, alignItems: 'center' }}>
                   <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                     <option value="">Código...</option>
-                    {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                    {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
                   </select>
                   <input value={it.nombre} onChange={e => updateItem(i, 'nombre', e.target.value)} placeholder="Descripción del producto" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
                   <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', e.target.value)} placeholder="Cant." style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
@@ -345,6 +312,7 @@ export default function PedidosCanal() {
   const { user, profile, isAdmin, isAdmin2 } = useAuth()
   const canEdit = isAdmin || isAdmin2
 
+  const [catalogo, setCatalogo]   = useState([])
   const [ventas, setVentas]       = useState([])
   const [loading, setLoading]     = useState(true)
   const [filtroEstado, setFiltro] = useState('pendiente')
@@ -367,7 +335,13 @@ export default function PedidosCanal() {
   const [fEnvioItems, setFEnvioItems]             = useState([{ codigo: '', nombre: '', cantidad: 1 }]) // logistica/retiro
   const [fEnvioRetiroPersona, setFEnvioRetiroPersona] = useState('')
 
+  useEffect(() => { cargarCatalogo() }, [])
   useEffect(() => { setBusqueda(''); setFiltro('pendiente'); cargar() }, [canal])
+
+  async function cargarCatalogo() {
+    const { data } = await supabase.from('precios').select('codigo, nombre, modelo').order('nombre')
+    setCatalogo(data || [])
+  }
 
   async function cargar() {
     setLoading(true)
@@ -394,7 +368,7 @@ export default function PedidosCanal() {
   function updateItem(i, field, val) {
     setFItems(prev => prev.map((it, j) => {
       if (j !== i) return it
-      if (field === 'codigo') { const prod = CATALOGO_PRODUCTOS.find(p => p.codigo === val); return { ...it, codigo: val, nombre: prod?.nombre || it.nombre } }
+      if (field === 'codigo') { const prod = catalogo.find(p => p.codigo === val); return { ...it, codigo: val, nombre: prod?.nombre || it.nombre } }
       return { ...it, [field]: val }
     }))
   }
@@ -620,7 +594,7 @@ export default function PedidosCanal() {
 
       {/* Modal Meli */}
       {modal && canal === 'meli' && (
-        <MeliModal cc={cc} editando={editando} user={user} profile={profile} onClose={() => setModal(false)} onSaved={() => { setModal(false); cargar() }} />
+        <MeliModal cc={cc} editando={editando} user={user} profile={profile} catalogo={catalogo} onClose={() => setModal(false)} onSaved={() => { setModal(false); cargar() }} />
       )}
 
       {/* Modal Pagina / VO */}
@@ -669,7 +643,7 @@ export default function PedidosCanal() {
                     <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
                       <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                         <option value="">Código...</option>
-                        {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                        {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
                       </select>
                       <input value={it.nombre} onChange={e => updateItem(i, 'nombre', e.target.value)} placeholder="Descripción" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
                       <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', e.target.value)} style={{ ...inputSt, padding: '7px 8px', fontSize: 12 }} />
@@ -724,11 +698,11 @@ export default function PedidosCanal() {
                           {(et.productos || []).map((prod, pi) => (
                             <div key={pi} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 54px auto', gap: 6, alignItems: 'center' }}>
                               <select value={prod.codigo} onChange={e => {
-                                const found = CATALOGO_PRODUCTOS.find(p => p.codigo === e.target.value)
+                                const found = catalogo.find(p => p.codigo === e.target.value)
                                 setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, codigo: e.target.value, nombre: found?.nombre || p.nombre }) }))
                               }} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }}>
                                 <option value="">Código...</option>
-                                {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                                {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
                               </select>
                               <input value={prod.nombre} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, nombre: e.target.value }) }))} placeholder="Descripción" style={{ ...inputSt, padding: '6px 8px', fontSize: 11 }} />
                               <input type="number" min="1" value={prod.cantidad} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, cantidad: e.target.value }) }))} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }} />
@@ -765,11 +739,11 @@ export default function PedidosCanal() {
                     {fEnvioItems.map((it, i) => (
                       <div key={i} style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px auto', gap: 6, alignItems: 'center' }}>
                         <select value={it.codigo} onChange={e => {
-                          const prod = CATALOGO_PRODUCTOS.find(p => p.codigo === e.target.value)
+                          const prod = catalogo.find(p => p.codigo === e.target.value)
                           setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: prod?.nombre || x.nombre } : x))
                         }} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                           <option value="">Código...</option>
-                          {CATALOGO_PRODUCTOS.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                          {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
                         </select>
                         <input value={it.nombre} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))} placeholder="Descripción" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
                         <input type="number" min="1" value={it.cantidad} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />

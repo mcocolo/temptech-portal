@@ -94,39 +94,6 @@ function formatearFecha(fecha) {
   return d.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-const CATALOGO_PT = [
-  { codigo: 'KF70SIL',      nombre: 'Calefón One 3,5/5,5/7Kw 220V Silver' },
-  { codigo: 'FE150TBLACK',  nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Black' },
-  { codigo: 'FE150TSIL',    nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Silver' },
-  { codigo: 'FE150TBL',     nombre: 'Calefón Nova 6/8/9/13,5Kw 220V Blanco' },
-  { codigo: 'FM318BL',      nombre: 'Calefón Pulse 9/13,5/18Kw 380V Blanco' },
-  { codigo: 'FM324BL',      nombre: 'Calefón Pulse 12/18/24Kw 380V Blanco' },
-  { codigo: 'BF14EBL',      nombre: 'Caldera Core 220-380V 14,4Kw Blanco' },
-  { codigo: 'BF323EBL',     nombre: 'Caldera Core 380V 23Kw Blanco' },
-  { codigo: 'C250STV1',     nombre: 'Panel Calefactor Slim 250w' },
-  { codigo: 'C250STV1TS',   nombre: 'Panel Calefactor Slim 250w Toallero Simple' },
-  { codigo: 'C250STV1TD',   nombre: 'Panel Calefactor Slim 250w Toallero Doble' },
-  { codigo: 'C500STV1',     nombre: 'Panel Calefactor Slim 500w' },
-  { codigo: 'C500STV1TS',   nombre: 'Panel Calefactor Slim 500w Toallero Simple' },
-  { codigo: 'C500STV1TD',   nombre: 'Panel Calefactor Slim 500w Toallero Doble' },
-  { codigo: 'C500STV1MB',   nombre: 'Panel Calefactor Slim 500w Madera Blanca' },
-  { codigo: 'F1400BCO',     nombre: 'Panel Calefactor Firenze 1400w Blanco' },
-  { codigo: 'F1400MB',      nombre: 'Panel Calefactor Firenze 1400w Madera Blanca' },
-  { codigo: 'F1400MV',      nombre: 'Panel Calefactor Firenze 1400w Madera Veteada' },
-  { codigo: 'F1400PA',      nombre: 'Panel Calefactor Firenze 1400w Piedra Azteca' },
-  { codigo: 'F1400PR',      nombre: 'Panel Calefactor Firenze 1400w Piedra Romana' },
-  { codigo: 'F1400MTG',     nombre: 'Panel Calefactor Firenze 1400w Mármol Traviatta Gris' },
-  { codigo: 'F1400PCL',     nombre: 'Panel Calefactor Firenze 1400w Piedra Cantera Luna' },
-  { codigo: 'F1400MCO',     nombre: 'Panel Calefactor Firenze 1400w Mármol Calacatta Ocre' },
-  { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart 1400w Wifi' },
-  { codigo: 'K40010',       nombre: 'Anafe Inducción + Extractor 4 Hornallas Touch' },
-  { codigo: 'K40011',       nombre: 'Anafe Inducción + Extractor 4 Hornallas Knob' },
-  { codigo: 'DT4',          nombre: 'Anafe Infrarrojo + Extractor 4 Hornallas Touch' },
-  { codigo: 'DT4W',         nombre: 'Anafe Infrarrojo + Extractor 4 Hornallas Knob' },
-  { codigo: 'K1002',        nombre: 'Anafe Inducción 2 Hornallas Touch' },
-  { codigo: 'K2002',        nombre: 'Anafe Infrarrojo 2 Hornallas Touch' },
-  { codigo: 'DT4-1',        nombre: 'Anafe Inducción 4 Hornallas Touch' },
-]
 
 function sanitizeFileName(name) {
   return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -568,13 +535,13 @@ function PanelNotificarService({ item, onClose, onGuardar }) {
   )
 }
 
-function PanelStock({ item, tipo, onClose, onGuardar }) {
+function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
   const isEnviado = tipo === 'enviado'
 
   // Intentar auto-detectar el producto del catálogo por nombre
   function detectarProducto() {
     const haystack = ((item.producto || '') + ' ' + (item.modelo || '')).toLowerCase()
-    return CATALOGO_PT.find(p => haystack.includes(p.codigo.toLowerCase())) || null
+    return catalogo.find(p => haystack.includes(p.codigo.toLowerCase())) || null
   }
   const inicial = detectarProducto()
 
@@ -586,7 +553,7 @@ function PanelStock({ item, tipo, onClose, onGuardar }) {
   function handleSelect(e) {
     const val = e.target.value
     setSelCodigo(val)
-    const prod = CATALOGO_PT.find(p => p.codigo === val)
+    const prod = catalogo.find(p => p.codigo === val)
     if (prod) setNombre(prod.nombre)
   }
 
@@ -620,7 +587,7 @@ function PanelStock({ item, tipo, onClose, onGuardar }) {
           <select value={selCodigo} onChange={handleSelect}
             style={{ ...inputSt, cursor: 'pointer' }}>
             <option value="">— Seleccioná un producto —</option>
-            {CATALOGO_PT.map(p => (
+            {catalogo.map(p => (
               <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre}</option>
             ))}
           </select>
@@ -672,8 +639,13 @@ export default function AdminReclamos() {
   const [panelStockAbierto, setPanelStockAbierto] = useState(null)     // { id, tipo } | null
   const [confirmarEliminar, setConfirmarEliminar] = useState(null)     // item | null
   const [eliminando, setEliminando] = useState(false)
+  const [catalogo, setCatalogo] = useState([])
 
   const { isAdmin, isAdmin2, user, profile } = useAuth()
+
+  useEffect(() => {
+    supabase.from('precios').select('codigo, nombre, modelo').order('nombre').then(({ data }) => setCatalogo(data || []))
+  }, [])
 
   const datosFiltrados = datos.filter(item => {
     if (!busquedaTracking) return true
@@ -1460,7 +1432,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
 
                     {/* Panel enviado / recibido stock */}
                     {panelStockAbierto?.id === item.id && (
-                      <PanelStock
+                      <PanelStock catalogo={catalogo}
                         item={item}
                         tipo={panelStockAbierto.tipo}
                         onClose={() => setPanelStockAbierto(null)}
