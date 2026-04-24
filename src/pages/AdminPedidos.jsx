@@ -146,7 +146,11 @@ export default function AdminPedidos() {
       .from('pedidos')
       .select('*, profiles(full_name, email, razon_social)')
       .order('fecha_entrega', { ascending: true })
-    if (isAdmin2) { q = q.eq('estado', 'aprobado') }
+    if (isAdmin2) {
+      const admin2Estados = ['aprobado', 'preparando', 'enviado']
+      if (admin2Estados.includes(filtro)) q = q.eq('estado', filtro)
+      else q = q.in('estado', admin2Estados)
+    }
     else if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
     else if (filtro !== 'todos') q = q.eq('estado', filtro)
 
@@ -989,6 +993,20 @@ export default function AdminPedidos() {
 
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        {isAdmin2 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {['todos', 'aprobado', 'preparando', 'enviado'].map(f => (
+              <button key={f} onClick={() => setFiltro(f)} style={{
+                padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+                background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',
+                color: filtro === f ? (STATUS_CONFIG[f]?.color || 'var(--text)') : 'var(--text3)',
+                border: filtro === f ? `1px solid ${STATUS_CONFIG[f]?.border || 'var(--border)'}` : '1px solid var(--border)',
+              }}>
+                {f === 'todos' ? 'Todos' : STATUS_CONFIG[f]?.label}
+              </button>
+            ))}
+          </div>
+        )}
         {!isAdmin2 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['todos', 'pendiente', 'aprobado', 'preparando', 'enviado', 'pendiente_pago', 'entregado', 'finalizado'].map(f => (
@@ -1530,7 +1548,23 @@ export default function AdminPedidos() {
                   )}
                 </div>}
                 {isAdmin2 && (
-                  <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
+                      <button
+                        onClick={async () => { await supabase.from('pedidos').update({ estado: 'preparando', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido en Preparando 🔧') }}
+                        style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                      >
+                        🔧 Preparando
+                      </button>
+                    )}
+                    {pedido.estado === 'preparando' && (
+                      <button
+                        onClick={async () => { await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido marcado como Enviado 🚚') }}
+                        style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                      >
+                        🚚 Enviado
+                      </button>
+                    )}
                     <button
                       onClick={() => imprimirPedido(pedido)}
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
