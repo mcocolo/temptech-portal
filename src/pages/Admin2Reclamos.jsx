@@ -52,7 +52,7 @@ function InfoRow({ label, value }) {
   if (!value && value !== 0) return null
   return (
     <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
-      <span className="rc-info-lbl" style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>{label}</span>
       <span style={{ color: T.text2 }}>{value}</span>
     </div>
   )

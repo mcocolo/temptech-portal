@@ -225,7 +225,7 @@ function MeliModal({ cc, editando, onClose, onSaved, user, profile, catalogo = [
                 <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '140px 1fr 72px auto', gap: 6, alignItems: 'center' }}>
                   <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                     <option value="">Código...</option>
-                    {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                    {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
                   </select>
                   <input value={it.nombre} onChange={e => updateItem(i, 'nombre', e.target.value)} placeholder="Descripción del producto" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
                   <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', e.target.value)} placeholder="Cant." style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
@@ -339,7 +339,7 @@ export default function PedidosCanal() {
   useEffect(() => { setBusqueda(''); setFiltro('pendiente'); cargar() }, [canal])
 
   async function cargarCatalogo() {
-    const { data } = await supabase.from('precios').select('codigo, nombre, modelo').order('nombre')
+    const { data } = await supabase.from('stock_pt').select('codigo, nombre, modelo').order('nombre')
     setCatalogo(data || [])
   }
 
@@ -643,7 +643,7 @@ export default function PedidosCanal() {
                     <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
                       <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                         <option value="">Código...</option>
-                        {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                        {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
                       </select>
                       <input value={it.nombre} onChange={e => updateItem(i, 'nombre', e.target.value)} placeholder="Descripción" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
                       <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', e.target.value)} style={{ ...inputSt, padding: '7px 8px', fontSize: 12 }} />
@@ -702,7 +702,7 @@ export default function PedidosCanal() {
                                 setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, codigo: e.target.value, nombre: found?.nombre || p.nombre }) }))
                               }} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }}>
                                 <option value="">Código...</option>
-                                {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                                {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
                               </select>
                               <input value={prod.nombre} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, nombre: e.target.value }) }))} placeholder="Descripción" style={{ ...inputSt, padding: '6px 8px', fontSize: 11 }} />
                               <input type="number" min="1" value={prod.cantidad} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, cantidad: e.target.value }) }))} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }} />
@@ -743,7 +743,7 @@ export default function PedidosCanal() {
                           setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: prod?.nombre || x.nombre } : x))
                         }} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
                           <option value="">Código...</option>
-                          {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo}</option>)}
+                          {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
                         </select>
                         <input value={it.nombre} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))} placeholder="Descripción" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
                         <input type="number" min="1" value={it.cantidad} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />

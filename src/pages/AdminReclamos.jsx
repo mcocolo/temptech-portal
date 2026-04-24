@@ -644,7 +644,7 @@ export default function AdminReclamos() {
   const { isAdmin, isAdmin2, user, profile } = useAuth()
 
   useEffect(() => {
-    supabase.from('precios').select('codigo, nombre, modelo').order('nombre').then(({ data }) => setCatalogo(data || []))
+    supabase.from('stock_pt').select('codigo, nombre, modelo').order('nombre').then(({ data }) => setCatalogo(data || []))
   }, [])
 
   const datosFiltrados = datos.filter(item => {

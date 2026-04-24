@@ -15,7 +15,7 @@ serve(async (req) => {
     if (!email) return new Response(JSON.stringify({ error: 'Email requerido' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
+      Denun vendedor quiere o.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )

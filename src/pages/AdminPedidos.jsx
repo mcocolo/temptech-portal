@@ -73,6 +73,7 @@ const STATUS_CONFIG = {
   pendiente:        { label: 'Pendiente',        color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
   aprobado:         { label: 'Aprobado',         color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
   modificado:       { label: 'Modificado',       color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
+  preparando:       { label: 'Preparando',       color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
   enviado:          { label: 'Enviado',          color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.35)' },
   rechazado:        { label: 'Rechazado',        color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
   finalizado:       { label: 'Finalizado',       color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' },
@@ -990,7 +991,7 @@ export default function AdminPedidos() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         {!isAdmin2 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {['todos', 'pendiente', 'aprobado', 'enviado', 'pendiente_pago', 'entregado', 'finalizado'].map(f => (
+            {['todos', 'pendiente', 'aprobado', 'preparando', 'enviado', 'pendiente_pago', 'entregado', 'finalizado'].map(f => (
               <button key={f} onClick={() => setFiltro(f)} style={{
                 padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
                 background: filtro === f ? (STATUS_CONFIG[f]?.bg || 'var(--surface3)') : 'var(--surface2)',
@@ -1484,13 +1485,21 @@ export default function AdminPedidos() {
                       </button>
                       {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
                         <button
+                          onClick={async () => { await supabase.from('pedidos').update({ estado: 'preparando', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido en Preparando 🔧') }}
+                          style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                        >
+                          🔧 Preparando
+                        </button>
+                      )}
+                      {pedido.estado === 'preparando' && (
+                        <button
                           onClick={async () => { await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido marcado como Enviado 🚚') }}
                           style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                         >
                           🚚 Enviado
                         </button>
                       )}
-                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado' || pedido.estado === 'entregado') && (
+                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado' || pedido.estado === 'preparando' || pedido.estado === 'entregado') && (
                         <button
                           onClick={() => finalizarPedido(pedido)}
                           style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
@@ -1498,7 +1507,7 @@ export default function AdminPedidos() {
                           ✓ Finalizado
                         </button>
                       )}
-                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado' || pedido.estado === 'finalizado') && (
+                      {(pedido.estado === 'aprobado' || pedido.estado === 'modificado' || pedido.estado === 'preparando' || pedido.estado === 'finalizado') && (
                         <button
                           onClick={() => entregarPedido(pedido)}
                           style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
