@@ -180,8 +180,7 @@ export default function IngresoEgresoPT() {
     const { data } = await supabase
       .from('pedidos')
       .select('*, profiles(full_name, razon_social, email)')
-      .eq('estado', 'aprobado')
-      .is('nro_remito', null)
+      .eq('estado', 'enviado')
       .order('created_at', { ascending: false })
     setPedidos(data || [])
     setLoadingPedidos(false)
@@ -193,9 +192,8 @@ export default function IngresoEgresoPT() {
       .from('ventas')
       .select('*')
       .eq('canal', canal)
+      .eq('estado', 'enviado')
       .or('stock_descontado.is.null,stock_descontado.eq.false')
-      .neq('estado', 'cancelado')
-      .neq('estado', 'enviado')
       .order('created_at', { ascending: false })
     setVentas(data || [])
     setLoadingVentas(false)
@@ -249,7 +247,7 @@ export default function IngresoEgresoPT() {
       stock_descontado: true,
       ...(vNroRemito.trim() ? { nro_remito: vNroRemito.trim() } : {}),
       ...(remitoUrls.length > 0 ? { remito_urls: remitoUrls } : {}),
-      estado: 'enviado',
+      estado: 'entregado',
       updated_at: new Date().toISOString(),
     }).eq('id', ventaSel.id)
 
@@ -835,18 +833,12 @@ export default function IngresoEgresoPT() {
             const canalColor = CANAL_COLORS[view]
             const canalLabel = CANAL_LABELS[view]
             const filtradas = ventas.filter(v => {
-              if (filtroEstadoVenta !== 'todos' && v.estado !== filtroEstadoVenta) return false
               if (!busquedaVenta) return true
               const q = busquedaVenta.toLowerCase()
               return v.cliente_nombre?.toLowerCase().includes(q) || v.nro_orden?.toLowerCase().includes(q)
             })
             return (
               <>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                  {[{ k: 'pendiente', label: 'Pendiente' }, { k: 'preparando', label: 'Preparando' }, { k: 'todos', label: 'Todos' }].map(f => (
-                    <button key={f.k} onClick={() => setFiltroEstadoVenta(f.k)} style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', border: filtroEstadoVenta === f.k ? `1px solid ${canalColor}` : '1px solid var(--border)', background: filtroEstadoVenta === f.k ? `${canalColor}22` : 'var(--surface)', color: filtroEstadoVenta === f.k ? canalColor : 'var(--text3)' }}>{f.label}</button>
-                  ))}
-                </div>
                 <input value={busquedaVenta} onChange={e => setBusquedaVenta(e.target.value)} placeholder={`🔍 Buscar por cliente o N° de orden ${canalLabel}...`} style={{ ...inputSt, marginBottom: 16, maxWidth: 420 }} />
                 {loadingVentas ? (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>

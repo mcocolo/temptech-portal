@@ -23,7 +23,7 @@ const TIPO_CFG = {
 }
 
 export default function AdminDevoluciones() {
-  const { isAdmin, isAdmin2, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, user, profile, loading: authLoading } = useAuth()
 
   const [devoluciones, setDevoluciones] = useState([])
   const [loading, setLoading] = useState(true)
@@ -95,6 +95,7 @@ export default function AdminDevoluciones() {
 
   const counts = Object.fromEntries(Object.keys(STATUS_CFG).map(k => [k, devoluciones.filter(d => d.estado === k).length]))
 
+  if (authLoading) return <div style={{ textAlign: 'center', padding: 80, color: 'var(--text3)', fontSize: 14 }}>Cargando...</div>
   if (!isAdmin && !isAdmin2) return null
 
   return (
