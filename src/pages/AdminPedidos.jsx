@@ -123,6 +123,8 @@ export default function AdminPedidos() {
 
   const IVA_PCT = 0.21
 
+  useEffect(() => { if (isAdmin2) setFiltro('todos') }, [isAdmin2])
+
   useEffect(() => {
     if (isAdmin) { cargar(); cargarDistribuidores(); cargarCatalogo() }
     else if (isVendedor && user) { cargar(); cargarDistribuidoresVendedor(); cargarCatalogo() }
