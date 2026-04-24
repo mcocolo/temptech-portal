@@ -144,6 +144,12 @@ export default function IngresoEgresoPT() {
   const [prFechaRetorno, setPrFechaRetorno]     = useState('')
   const [guardandoPrestamo, setGuardandoPrestamo] = useState(false)
   const [verHistorialPrestamos, setVerHistorialPrestamos] = useState(false)
+  const [editandoPrestamo, setEditandoPrestamo]   = useState(null)   // prestamo | null
+  const [prEditItems, setPrEditItems]             = useState([])
+  const [prEditDestino, setPrEditDestino]         = useState('')
+  const [prEditObservacion, setPrEditObservacion] = useState('')
+  const [prEditFechaRetorno, setPrEditFechaRetorno] = useState('')
+  const [guardandoEditPr, setGuardandoEditPr]     = useState(false)
 
   const [ventas, setVentas]               = useState([])
   const [ventaDetalle, setVentaDetalle]   = useState(null)
@@ -446,7 +452,7 @@ export default function IngresoEgresoPT() {
         referencia_nombre: prDestino,
       })
     }
-    await supabase.from('prestamos_stock').insert({
+    const { error: errPr } = await supabase.from('prestamos_stock').insert({
       items: itemsValidos,
       destino: prDestino.trim(),
       observacion: prObservacion.trim() || null,
@@ -454,6 +460,7 @@ export default function IngresoEgresoPT() {
       estado: 'activo',
       usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
     })
+    if (errPr) { toast.error('Error al guardar préstamo: ' + errPr.message); setGuardandoPrestamo(false); return }
     toast.success('📤 Préstamo registrado — stock descontado')
     setGuardandoPrestamo(false)
     setModalPrestamo(false)
@@ -486,6 +493,32 @@ export default function IngresoEgresoPT() {
   async function cerrarComoPerdido(p) {
     await supabase.from('prestamos_stock').update({ estado: 'perdido', fecha_devolucion: new Date().toISOString() }).eq('id', p.id)
     toast.success('📌 Cerrado como pérdida — stock ya descontado')
+    cargarPrestamos()
+  }
+
+  function abrirEditPrestamo(p) {
+    setEditandoPrestamo(p)
+    setPrEditItems((p.items || []).map(it => ({ ...it })))
+    setPrEditDestino(p.destino || '')
+    setPrEditObservacion(p.observacion || '')
+    setPrEditFechaRetorno(p.fecha_retorno_estimada || '')
+  }
+
+  async function guardarEditPrestamo() {
+    if (!prEditDestino.trim()) { toast.error('Ingresá el destino'); return }
+    const itemsValidos = prEditItems.filter(it => it.codigo && it.cantidad > 0)
+    if (!itemsValidos.length) { toast.error('Agregá al menos un producto'); return }
+    setGuardandoEditPr(true)
+    const { error } = await supabase.from('prestamos_stock').update({
+      items: itemsValidos,
+      destino: prEditDestino.trim(),
+      observacion: prEditObservacion.trim() || null,
+      fecha_retorno_estimada: prEditFechaRetorno || null,
+    }).eq('id', editandoPrestamo.id)
+    setGuardandoEditPr(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('✅ Préstamo actualizado')
+    setEditandoPrestamo(null)
     cargarPrestamos()
   }
   // ─────────────────────────────────────────────────────────
@@ -1227,7 +1260,7 @@ export default function IngresoEgresoPT() {
                       )}
 
                       {isActivo && (
-                        <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
                           <button onClick={() => devolverPrestamo(p)}
                             style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 700, color: '#38bdf8', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             ↩ Devuelto
@@ -1236,6 +1269,12 @@ export default function IngresoEgresoPT() {
                             style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             ✗ No vuelve
                           </button>
+                          {(isAdmin || isAdmin2) && (
+                            <button onClick={() => abrirEditPrestamo(p)}
+                              style={{ background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ✏ Editar
+                            </button>
+                          )}
                           <span style={{ fontSize: 11, color: 'var(--text3)', alignSelf: 'center', marginLeft: 4 }}>
                             {p.usuario_nombre}
                           </span>
@@ -1803,6 +1842,77 @@ export default function IngresoEgresoPT() {
                   {confirmandoVenta ? '⏳ Procesando...' : '↑ Confirmar egreso'}
                 </button>
                 <button onClick={() => setModalVenta(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR PRÉSTAMO */}
+      {editandoPrestamo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#ffd166' }}>✏ Editar Préstamo</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Solo modifica el registro — no ajusta stock</div>
+              </div>
+              <button onClick={() => setEditandoPrestamo(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Destino / Cliente *</label>
+                <input value={prEditDestino} onChange={e => setPrEditDestino(e.target.value)} style={inputSt} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Productos *</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {prEditItems.map((it, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px auto', gap: 8, alignItems: 'center' }}>
+                      <select value={it.codigo} onChange={e => {
+                        const p = todosProductosFlat.find(p => p.codigo === e.target.value)
+                        setPrEditItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: p?.nombre || '', modelo: p?.modelo || '', categoria: p?.categoria || '' } : x))
+                      }} style={{ ...inputSt, cursor: 'pointer' }}>
+                        <option value="">— Producto —</option>
+                        {CATALOGO.map(cat => (
+                          <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
+                            {cat.productos.map(p => (
+                              <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre} {p.modelo}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                      <input type="number" min="1" value={it.cantidad} onChange={e => setPrEditItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: parseInt(e.target.value) || 1 } : x))} style={inputSt} />
+                      <button onClick={() => setPrEditItems(prev => prev.filter((_, j) => j !== i))} disabled={prEditItems.length === 1}
+                        style={{ background: 'none', border: 'none', color: '#ff5577', cursor: prEditItems.length === 1 ? 'not-allowed' : 'pointer', fontSize: 18, opacity: prEditItems.length === 1 ? 0.3 : 1 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setPrEditItems(prev => [...prev, { codigo: '', nombre: '', modelo: '', cantidad: 1 }])}
+                  style={{ marginTop: 8, background: 'none', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  + Agregar producto
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Retorno estimado</label>
+                  <input type="date" value={prEditFechaRetorno} onChange={e => setPrEditFechaRetorno(e.target.value)} style={inputSt} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observación</label>
+                  <input value={prEditObservacion} onChange={e => setPrEditObservacion(e.target.value)} placeholder="Opcional..." style={inputSt} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={guardarEditPrestamo} disabled={guardandoEditPr}
+                  style={{ flex: 1, background: 'rgba(255,209,102,0.15)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.4)', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: guardandoEditPr ? 'not-allowed' : 'pointer', opacity: guardandoEditPr ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+                  {guardandoEditPr ? '⏳ Guardando...' : '💾 Guardar cambios'}
+                </button>
+                <button onClick={() => setEditandoPrestamo(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
