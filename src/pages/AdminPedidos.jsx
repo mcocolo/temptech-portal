@@ -1551,9 +1551,9 @@ export default function AdminPedidos() {
                 </div>}
                 {isAdmin2 && (
                   <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                    {(pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
+                    {(pedido.estado === 'pendiente' || pedido.estado === 'aprobado' || pedido.estado === 'modificado') && (
                       <button
-                        onClick={async () => { await supabase.from('pedidos').update({ estado: 'preparando', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido en Preparando 🔧') }}
+                        onClick={async () => { const { error } = await supabase.from('pedidos').update({ estado: 'preparando', updated_at: new Date().toISOString() }).eq('id', pedido.id); if (error) { toast.error('Error al actualizar: ' + error.message); return; } cargar(); toast.success('Pedido en Preparando 🔧') }}
                         style={{ background: 'rgba(255,209,102,0.12)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                       >
                         🔧 Preparando
@@ -1561,7 +1561,7 @@ export default function AdminPedidos() {
                     )}
                     {pedido.estado === 'preparando' && (
                       <button
-                        onClick={async () => { await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido marcado como Enviado 🚚') }}
+                        onClick={async () => { const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id); if (error) { toast.error('Error al actualizar: ' + error.message); return; } cargar(); toast.success('Pedido marcado como Enviado 🚚') }}
                         style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                       >
                         🚚 Enviado
