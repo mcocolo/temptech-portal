@@ -1490,7 +1490,7 @@ export default function IngresoEgresoPT() {
                     </td>
                   </tr>
                 )
-              })}
+              })
               })()}
             </tbody>
           </table>
