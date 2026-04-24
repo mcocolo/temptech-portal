@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -96,9 +96,20 @@ function MeliCard({ v, cc, onEdit, onDelete, onCambiarEstado }) {
             {v.nro_orden && <span style={{ fontSize: 11, fontWeight: 700, color: cc.color, background: cc.bg, border: `1px solid ${cc.border}`, padding: '1px 8px', borderRadius: 10 }}>{v.nro_orden}</span>}
             <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 12, background: ecfg.bg, color: ecfg.color }}>{ecfg.label}</span>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text3)' }}>{formatFecha(v.created_at)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)' }}>{formatFecha(v.created_at)}</div>
+          {v.usuario_nombre && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>👤 {v.usuario_nombre}</div>}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: cc.color }}>📦 {totalPkgs} paq.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: cc.color }}>📦 {totalPkgs} paq.</div>
+          {v.fecha_envio && (() => {
+            const hoy = new Date(); hoy.setHours(0,0,0,0)
+            const sale = new Date(v.fecha_envio + 'T00:00:00')
+            const diff = Math.round((sale - hoy) / 86400000)
+            const urgent = diff <= 1
+            const label = diff < 0 ? 'Venció' : diff === 0 ? 'Sale hoy' : diff === 1 ? 'Sale mañana' : `Sale ${sale.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}`
+            return <div style={{ fontSize: 11, fontWeight: 700, color: urgent ? '#ff5577' : '#34d399', background: urgent ? 'rgba(255,85,119,0.1)' : 'rgba(52,211,153,0.1)', border: `1px solid ${urgent ? 'rgba(255,85,119,0.3)' : 'rgba(52,211,153,0.3)'}`, borderRadius: 8, padding: '2px 8px' }}>📅 {label}</div>
+          })()}
+        </div>
       </div>
 
       {/* Productos */}
@@ -145,14 +156,16 @@ function MeliCard({ v, cc, onEdit, onDelete, onCambiarEstado }) {
 
 // ── Meli modal: bulk shipment form ─────────────────────────────────────────
 
-function MeliModal({ cc, editando, onClose, onSaved, user }) {
+function MeliModal({ cc, editando, onClose, onSaved, user, profile }) {
   const [fNroOrden, setFNroOrden]   = useState(editando?.nro_orden || '')
+  const [fFechaEnvio, setFFechaEnvio] = useState(editando?.fecha_envio || '')
   const [fItems, setFItems]         = useState(editando?.items?.length ? editando.items.map(i => ({...i})) : [emptyItem()])
   const [fObs, setFObs]             = useState(editando?.observaciones || '')
   const [fEstado, setFEstado]       = useState(editando?.estado || 'pendiente')
   const [etiquetasFiles, setEtiquetasFiles]   = useState([])
   const [etiquetasExist, setEtiquetasExist]   = useState(Array.isArray(editando?.etiquetas_urls) ? editando.etiquetas_urls : [])
   const [guardando, setGuardando]   = useState(false)
+  const fileInputRef = useRef(null)
 
   function updateItem(i, field, val) {
     setFItems(prev => prev.map((it, j) => {
@@ -175,11 +188,10 @@ function MeliModal({ cc, editando, onClose, onSaved, user }) {
     for (const file of etiquetasFiles) {
       const ext = file.name.split('.').pop()
       const path = `meli-etiquetas/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-      const { error } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
-      if (!error) {
-        const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
-        nuevasUrls.push(publicUrl)
-      }
+      const { error: upErr } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+      if (upErr) { toast.error('Error al subir etiqueta: ' + upErr.message); setGuardando(false); return }
+      const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+      nuevasUrls.push(publicUrl)
     }
 
     const payload = {
@@ -191,7 +203,9 @@ function MeliModal({ cc, editando, onClose, onSaved, user }) {
       estado: fEstado,
       observaciones: fObs.trim() || null,
       etiquetas_urls: [...etiquetasExist, ...nuevasUrls],
+      fecha_envio: fFechaEnvio || null,
       usuario_id: user.id,
+      usuario_nombre: profile?.full_name || profile?.razon_social || user?.email || null,
       updated_at: new Date().toISOString(),
       ...(!editando && { stock_descontado: false }),
     }
@@ -290,17 +304,24 @@ function MeliModal({ cc, editando, onClose, onSaved, user }) {
               </div>
             )}
 
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+            <button type="button" onClick={() => fileInputRef.current?.click()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', cursor: 'pointer', fontSize: 13, color: 'var(--text2)', fontFamily: 'var(--font)' }}>
               <Upload size={14} /> Adjuntar etiquetas PDF
-              <input type="file" accept=".pdf,image/*" multiple style={{ display: 'none' }}
-                onChange={e => { if (e.target.files?.length) setEtiquetasFiles(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
-            </label>
+            </button>
+            <input ref={fileInputRef} type="file" accept=".pdf,image/*" multiple style={{ display: 'none' }}
+              onChange={e => { if (e.target.files?.length) setEtiquetasFiles(prev => [...prev, ...Array.from(e.target.files)]); e.target.value = '' }} />
           </div>
 
-          {/* Observaciones */}
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observaciones</label>
-            <textarea value={fObs} onChange={e => setFObs(e.target.value)} rows={2} placeholder="Notas internas..." style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
+          {/* Fecha de salida + Observaciones */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>📅 Fecha de salida</label>
+              <input type="date" value={fFechaEnvio} onChange={e => setFFechaEnvio(e.target.value)} style={inputSt} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observaciones</label>
+              <textarea value={fObs} onChange={e => setFObs(e.target.value)} rows={1} placeholder="Notas internas..." style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
@@ -340,6 +361,7 @@ export default function PedidosCanal() {
   const [fItems, setFItems]       = useState([emptyItem()])
   const [fObs, setFObs]           = useState('')
   const [fEstado, setFEstado]     = useState('pendiente')
+  const [fFechaEnvio, setFFechaEnvio]             = useState('')
   const [fTipoEnvio, setFTipoEnvio]               = useState('')
   const [fEnvioEtiquetas, setFEnvioEtiquetas]     = useState([]) // correo: { file?, url?, productos:[{codigo,nombre}] }[]
   const [fEnvioItems, setFEnvioItems]             = useState([{ codigo: '', nombre: '', cantidad: 1 }]) // logistica/retiro
@@ -355,10 +377,11 @@ export default function PedidosCanal() {
   }
 
   function resetEnvio() { setFTipoEnvio(''); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona('') }
-  function abrirNueva() { setEditando(null); setFNroOrden(''); setFNombre(''); setFEmail(''); setFTel(''); setFItems([emptyItem()]); setFObs(''); setFEstado('pendiente'); resetEnvio(); setModal(true) }
+  function abrirNueva() { setEditando(null); setFNroOrden(''); setFNombre(''); setFEmail(''); setFTel(''); setFItems([emptyItem()]); setFObs(''); setFEstado('pendiente'); setFFechaEnvio(''); resetEnvio(); setModal(true) }
   function abrirEditar(v) {
     setEditando(v); setFNroOrden(v.nro_orden||''); setFNombre(v.cliente_nombre||''); setFEmail(v.cliente_email||''); setFTel(v.cliente_telefono||'')
     setFItems(v.items?.length ? v.items.map(i=>({...i})) : [emptyItem()]); setFObs(v.observaciones||''); setFEstado(v.estado||'pendiente')
+    setFFechaEnvio(v.fecha_envio||'')
     setFTipoEnvio(v.tipo_envio||'')
     setFEnvioEtiquetas((v.envio_etiquetas||[]).map(e => typeof e === 'object' && e.url ? { url: e.url, productos: e.productos||[] } : { url: e, productos: [] }))
     setFEnvioItems(v.tipo_envio && v.tipo_envio !== 'correo' && v.envio_etiquetas?.length ? v.envio_etiquetas : [{ codigo: '', nombre: '', cantidad: 1 }])
@@ -409,7 +432,10 @@ export default function PedidosCanal() {
       tipo_envio: fTipoEnvio || null,
       envio_etiquetas: envioEtiquetasFinal,
       envio_retiro_persona: fTipoEnvio === 'retiro' ? (fEnvioRetiroPersona.trim() || null) : null,
-      usuario_id: user.id, updated_at: new Date().toISOString(),
+      fecha_envio: fFechaEnvio || null,
+      usuario_id: user.id,
+      usuario_nombre: profile?.full_name || profile?.razon_social || user?.email || null,
+      updated_at: new Date().toISOString(),
       ...(!editando && { stock_descontado: false }),
     }
     const { error } = editando
@@ -513,6 +539,15 @@ export default function PedidosCanal() {
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: cc.color }}>{formatPrecio(v.total)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(v.created_at)}</div>
+                    {v.usuario_nombre && <div style={{ fontSize: 11, color: 'var(--text3)' }}>👤 {v.usuario_nombre}</div>}
+                    {v.fecha_envio && (() => {
+                      const hoy = new Date(); hoy.setHours(0,0,0,0)
+                      const sale = new Date(v.fecha_envio + 'T00:00:00')
+                      const diff = Math.round((sale - hoy) / 86400000)
+                      const urgent = diff <= 1
+                      const label = diff < 0 ? 'Venció' : diff === 0 ? 'Sale hoy' : diff === 1 ? 'Sale mañana' : `Sale ${sale.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}`
+                      return <div style={{ fontSize: 11, fontWeight: 700, color: urgent ? '#ff5577' : '#34d399', background: urgent ? 'rgba(255,85,119,0.1)' : 'rgba(52,211,153,0.1)', border: `1px solid ${urgent ? 'rgba(255,85,119,0.3)' : 'rgba(52,211,153,0.3)'}`, borderRadius: 8, padding: '2px 8px' }}>📅 {label}</div>
+                    })()}
                   </div>
                 </div>
                 {(v.items || []).length > 0 && (
@@ -585,7 +620,7 @@ export default function PedidosCanal() {
 
       {/* Modal Meli */}
       {modal && canal === 'meli' && (
-        <MeliModal cc={cc} editando={editando} user={user} onClose={() => setModal(false)} onSaved={() => { setModal(false); cargar() }} />
+        <MeliModal cc={cc} editando={editando} user={user} profile={profile} onClose={() => setModal(false)} onSaved={() => { setModal(false); cargar() }} />
       )}
 
       {/* Modal Pagina / VO */}
@@ -747,9 +782,15 @@ export default function PedidosCanal() {
                 </div>
               )}
 
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observaciones</label>
-                <textarea value={fObs} onChange={e => setFObs(e.target.value)} rows={2} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>📅 Fecha de salida</label>
+                  <input type="date" value={fFechaEnvio} onChange={e => setFFechaEnvio(e.target.value)} style={inputSt} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observaciones</label>
+                  <textarea value={fObs} onChange={e => setFObs(e.target.value)} rows={1} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={guardar} disabled={guardando} style={{ flex: 1, background: cc.color, color: cc.textColor, border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>

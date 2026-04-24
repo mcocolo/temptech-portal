@@ -27,7 +27,7 @@ export default function AdminDevoluciones() {
 
   const [devoluciones, setDevoluciones] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState('todos')
+  const [filtro, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
   const [expandido, setExpandido] = useState(null)
   const [notaAdmin, setNotaAdmin] = useState('')

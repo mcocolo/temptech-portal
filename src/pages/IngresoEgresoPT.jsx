@@ -1269,7 +1269,7 @@ export default function IngresoEgresoPT() {
                             style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             ✗ No vuelve
                           </button>
-                          {(isAdmin || isAdmin2) && (
+                          {isAdmin && (
                             <button onClick={() => abrirEditPrestamo(p)}
                               style={{ background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                               ✏ Editar
