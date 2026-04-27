@@ -504,6 +504,7 @@ export default function PedidosCanal() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', fontFamily: 'monospace' }}>#{v.id?.slice(0,8).toUpperCase()}</span>
                       {v.nro_orden && <span style={{ fontSize: 11, fontWeight: 700, color: cc.color, background: cc.bg, border: `1px solid ${cc.border}`, padding: '1px 8px', borderRadius: 10 }}>{v.nro_orden}</span>}
+                      {v.nro_orden?.startsWith('TN-') && <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#6d28d9', padding: '1px 6px', borderRadius: 6, letterSpacing: '0.5px' }}>TiendaNube</span>}
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 12, background: ecfg.bg, color: ecfg.color }}>{ecfg.label}</span>
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{v.cliente_nombre}</div>

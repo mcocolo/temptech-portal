@@ -1469,15 +1469,16 @@ export default function IngresoEgresoPT() {
                 )
                 return filtrados.map((m, i) => {
                 const isEgreso = m.tipo === 'egreso'
+                const isParcial = m.es_parcial === true || m.observacion?.toLowerCase().includes('parcial')
                 const cc = CAT_COLORS[m.categoria] || {}
                 return (
-                  <tr key={m.id} style={{ borderBottom: i < movs.length - 1 ? '1px solid var(--border)' : 'none', background: m.es_parcial ? 'rgba(255,209,102,0.07)' : 'transparent' }}>
+                  <tr key={m.id} style={{ borderBottom: i < movs.length - 1 ? '1px solid var(--border)' : 'none', background: isParcial ? 'rgba(255,209,102,0.07)' : 'transparent' }}>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: isEgreso ? 'rgba(255,85,119,0.12)' : 'rgba(61,214,140,0.12)', color: isEgreso ? '#ff5577' : '#3dd68c' }}>
                           {isEgreso ? '↑ EGRESO' : '↓ INGRESO'}
                         </span>
-                        {m.es_parcial && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'rgba(255,209,102,0.18)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.4)' }}>⏳ PARCIAL</span>}
+                        {isParcial && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'rgba(255,209,102,0.18)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.4)' }}>⏳ PARCIAL</span>}
                       </div>
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: cc.color, fontFamily: 'monospace' }}>{m.codigo}</td>

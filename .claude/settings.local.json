@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm run:*)",
       "Bash(supabase functions *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(npx supabase *)"
     ]
   }
 }
