@@ -591,7 +591,7 @@ export default function PedidosCanal() {
                     const items = v.tipo_envio === 'correo'
                       ? etiquetas.flatMap(et => et.productos || [])
                       : etiquetas.length ? etiquetas : (v.items || [])
-                    setReenvioItems(items.map(it => ({ ...it, cantidad: it.cantidad || 1, seleccionado: false })))
+                    setReenvioItems(items.map(it => ({ ...it, cantidad: it.cantidad || 1, seleccionado: true })))
                     setModalReenvio(v)
                   }} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)', fontWeight: 600 }}>🔁 Reenvío</button>
                   <button onClick={() => abrirEditar(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>
