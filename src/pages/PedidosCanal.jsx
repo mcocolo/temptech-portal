@@ -320,6 +320,8 @@ export default function PedidosCanal() {
   const [modal, setModal]         = useState(false)
   const [editando, setEditando]   = useState(null)
   const [guardando, setGuardando] = useState(false)
+  const [modalReenvio, setModalReenvio] = useState(null)
+  const [reenvioItems, setReenvioItems] = useState([])
 
   // Formulario (pagina / vo)
   const [fNroOrden, setFNroOrden] = useState('')
@@ -584,12 +586,91 @@ export default function PedidosCanal() {
                     <button key={k} onClick={() => cambiarEstado(v.id, k)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: ecf.bg, color: ecf.color, border: `1px solid ${ecf.border}`, fontWeight: 600 }}>→ {ecf.label}</button>
                   ))}
                   <div style={{ flex: 1 }} />
+                  <button onClick={() => {
+                    const etiquetas = v.envio_etiquetas || []
+                    const items = v.tipo_envio === 'correo'
+                      ? etiquetas.flatMap(et => et.productos || [])
+                      : etiquetas.length ? etiquetas : (v.items || [])
+                    setReenvioItems(items.map(it => ({ ...it, cantidad: it.cantidad || 1, seleccionado: false })))
+                    setModalReenvio(v)
+                  }} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)', fontWeight: 600 }}>🔁 Reenvío</button>
                   <button onClick={() => abrirEditar(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>
                   <button onClick={() => eliminar(v.id)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', fontWeight: 600 }}>🗑 Eliminar</button>
                 </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal Reenvío */}
+      {modalReenvio && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560 }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>🔁 Hoja de reenvío — {modalReenvio.nro_orden || `#${modalReenvio.id?.slice(0,8).toUpperCase()}`}</div>
+              <button onClick={() => setModalReenvio(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12 }}>Seleccioná los productos y cantidades a reenviar:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {reenvioItems.map((it, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: it.seleccionado ? 'rgba(255,209,102,0.08)' : 'var(--surface2)', border: `1px solid ${it.seleccionado ? 'rgba(255,209,102,0.4)' : 'var(--border)'}`, borderRadius: 8 }}>
+                    <input type="checkbox" checked={!!it.seleccionado} onChange={e => setReenvioItems(prev => prev.map((x, j) => j === i ? { ...x, seleccionado: e.target.checked } : x))} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                    {it.codigo && <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700, minWidth: 80 }}>{it.codigo}</span>}
+                    <span style={{ flex: 1, fontSize: 12 }}>{it.nombre || it.codigo}</span>
+                    <input type="number" min="1" value={it.cantidad} onChange={e => setReenvioItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: parseInt(e.target.value) || 1 } : x))}
+                      style={{ width: 52, padding: '4px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--font)' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>ud.</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => {
+                    const seleccionados = reenvioItems.filter(it => it.seleccionado)
+                    if (!seleccionados.length) { alert('Seleccioná al menos un producto'); return }
+                    const v = modalReenvio
+                    const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    const win = window.open('', '_blank', 'width=700,height=600')
+                    win.document.write(`<!DOCTYPE html><html><head><title>Reenvío ${v.nro_orden || v.id?.slice(0,8).toUpperCase()}</title>
+                    <style>
+                      body { font-family: Arial, sans-serif; padding: 40px; color: #111; }
+                      h1 { font-size: 22px; margin-bottom: 4px; }
+                      .sub { color: #555; font-size: 13px; margin-bottom: 24px; }
+                      .badge { display: inline-block; background: #fff3cd; border: 1px solid #ffc107; padding: 3px 10px; border-radius: 4px; font-weight: 700; font-size: 13px; margin-bottom: 20px; }
+                      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+                      th { background: #f5f5f5; padding: 10px 12px; text-align: left; font-size: 13px; border-bottom: 2px solid #ddd; }
+                      td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+                      .qty { font-size: 18px; font-weight: 800; color: #d97706; }
+                      .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 12px; color: #777; }
+                      @media print { body { padding: 20px; } }
+                    </style></head><body>
+                    <h1>📦 Reenvío de productos</h1>
+                    <div class="sub">Orden: <strong>${v.nro_orden || '#' + v.id?.slice(0,8).toUpperCase()}</strong> &nbsp;·&nbsp; Cliente: <strong>${v.cliente_nombre || '—'}</strong> &nbsp;·&nbsp; Fecha: ${fecha}</div>
+                    <div class="badge">⚠️ REENVÍO PARCIAL — Unidades faltantes</div>
+                    <table>
+                      <thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cantidad</th></tr></thead>
+                      <tbody>
+                        ${seleccionados.map(it => `<tr>
+                          <td style="font-family:monospace;font-weight:700">${it.codigo || '—'}</td>
+                          <td>${it.nombre || it.codigo || '—'}</td>
+                          <td style="text-align:center"><span class="qty">${it.cantidad}</span></td>
+                        </tr>`).join('')}
+                      </tbody>
+                    </table>
+                    <div class="footer">Generado desde Portal TEMPTECH &nbsp;·&nbsp; ${fecha} &nbsp;·&nbsp; Este documento acompaña el reenvío de las unidades faltantes del pedido original.</div>
+                    <script>window.onload = () => { window.print() }</script>
+                    </body></html>`)
+                    win.document.close()
+                  }}
+                  style={{ flex: 1, background: '#ffd166', color: '#111', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  🖨️ Imprimir hoja de reenvío
+                </button>
+                <button onClick={() => setModalReenvio(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

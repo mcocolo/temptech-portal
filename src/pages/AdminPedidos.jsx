@@ -300,7 +300,7 @@ export default function AdminPedidos() {
     setCreando(true)
     const { error } = await supabase.from('pedidos').insert({
       distribuidor_id: npDistId,
-      estado: (isAdmin || isAdmin2) ? npEstado : 'pendiente',
+      estado: isAdmin ? npEstado : 'pendiente',
       tipo: 'normal',
       items: itemsValidos,
       total: totalFinal,
@@ -310,7 +310,7 @@ export default function AdminPedidos() {
       fecha_entrega: npFecha || null,
     })
     if (error) { toast.error('Error al crear el pedido: ' + error.message); setCreando(false); return }
-    const estadoCreado = (isAdmin || isAdmin2) ? npEstado : 'pendiente'
+    const estadoCreado = isAdmin ? npEstado : 'pendiente'
     toast.success('Pedido creado ✅')
     npReset()
     setCreando(false)
@@ -926,7 +926,7 @@ export default function AdminPedidos() {
                 )}
 
                 {/* Estado inicial — solo admins */}
-                {(isAdmin || isAdmin2) && (
+                {isAdmin && (
                   <div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>Estado inicial</div>
                     <div style={{ display: 'flex', gap: 6 }}>
