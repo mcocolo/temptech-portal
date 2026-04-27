@@ -1408,7 +1408,8 @@ export default function AdminPedidos() {
                         )}
                       </div>
 
-                      {/* Comprobante de pago */}
+                      {/* Comprobante de pago — solo Admin */}
+                      {isAdmin && (
                       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(61,214,140,0.15)' }}>
                         <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Comprobantes de Pagos + Retenciones</div>
                         {(() => {
@@ -1436,6 +1437,7 @@ export default function AdminPedidos() {
                           )
                         })()}
                       </div>
+                      )}
                     </div>
                   )}
 

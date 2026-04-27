@@ -115,6 +115,7 @@ export default function IngresoEgresoPT() {
   // Modal producción
   const [modalProd, setModalProd]           = useState(false)
   const [prodFecha, setProdFecha]           = useState(() => new Date().toISOString().split('T')[0])
+  const [prodLote, setProdLote]             = useState('')
   const [prodItems, setProdItems]           = useState([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }])
   const [guardandoProd, setGuardandoProd]   = useState(false)
 
@@ -652,7 +653,7 @@ export default function IngresoEgresoPT() {
     const validos = prodItems.filter(it => it.codigo && parseInt(it.cantidad) > 0)
     if (!validos.length) return toast.error('Agregá al menos un producto con cantidad')
     setGuardandoProd(true)
-    const obs = `Ingreso de producción — ${prodFecha}`
+    const obs = `Ingreso de producción — ${prodFecha}${prodLote ? ` — Lote: ${prodLote}` : ''}`
     for (const item of validos) {
       const actual = stock[item.codigo]?.stock_actual ?? 0
       const nuevo = actual + parseInt(item.cantidad)
@@ -665,6 +666,7 @@ export default function IngresoEgresoPT() {
         codigo: item.codigo, nombre: item.nombre, modelo: item.modelo, categoria: item.categoria,
         tipo: 'ingreso', cantidad: parseInt(item.cantidad),
         canal: 'Producción', observacion: obs,
+        nro_lote: prodLote || null,
         usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
       })
     }
@@ -672,6 +674,7 @@ export default function IngresoEgresoPT() {
     setGuardandoProd(false)
     setModalProd(false)
     setProdFecha(new Date().toISOString().split('T')[0])
+    setProdLote('')
     setProdItems([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }])
     cargar()
   }
@@ -733,7 +736,7 @@ export default function IngresoEgresoPT() {
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Control de stock de Producto Terminado</p>
         </div>
         <button
-          onClick={() => { setModalProd(true); setProdFecha(new Date().toISOString().split('T')[0]); setProdItems([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }]) }}
+          onClick={() => { setModalProd(true); setProdFecha(new Date().toISOString().split('T')[0]); setProdLote(''); setProdItems([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }]) }}
           style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#3dd68c,#2ab573)', color: '#0a1a12', border: 'none', borderRadius: 'var(--radius)', padding: '11px 22px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font)', boxShadow: '0 4px 16px rgba(61,214,140,0.3)' }}>
           🏭 Ingresar Producción
         </button>
@@ -2107,6 +2110,18 @@ export default function IngresoEgresoPT() {
                   value={prodFecha}
                   onChange={e => setProdFecha(e.target.value)}
                   style={{ ...inputSt, maxWidth: 200 }}
+                />
+              </div>
+
+              {/* Número de lote */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Número de lote</label>
+                <input
+                  type="text"
+                  value={prodLote}
+                  onChange={e => setProdLote(e.target.value)}
+                  placeholder="Ej: L2026-001"
+                  style={{ ...inputSt, maxWidth: 220 }}
                 />
               </div>
 

@@ -7,7 +7,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -30,6 +30,7 @@ const NAV = [
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
   { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos',      isDistributor: true },
   { label: 'Mis Devoluciones', icon: RotateCcw,       path: '/devoluciones', isDistributor: true },
+  { label: 'Mi Perfil',        icon: User,            path: '/mi-perfil',    isDistributor: true },
 ]
 
 const ADMIN_NAV = [
