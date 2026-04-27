@@ -12,10 +12,13 @@ const UNIDADES = ['unidades', 'kg', 'litros', 'metros', 'rollos', 'cajas', 'pare
 
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 
+const MODELOS = ['Slim', 'Firenze', 'Slim/Firenze']
+const MODELO_COLOR = { Slim: '#7b9fff', Firenze: '#fb923c', 'Slim/Firenze': '#a78bfa' }
+
 const EMPTY_FORM = {
   codigo: '', descripcion: '', unidad: 'unidades',
   proveedor_nombre: '', proveedor_direccion: '', proveedor_telefono: '', proveedor_horario: '', proveedor_contacto: '',
-  sectores: [], stock_actual: 0, stock_minimo: 0,
+  sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '',
 }
 
 function stockColor(actual, minimo) {
@@ -40,6 +43,7 @@ export default function Insumos() {
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtroSector, setFiltroSector] = useState('')
+  const [filtroModelo, setFiltroModelo] = useState('')
   const [expandido, setExpandido] = useState(null)
 
   // Modal insumo
@@ -101,7 +105,7 @@ export default function Insumos() {
       proveedor_nombre: ins.proveedor_nombre || '', proveedor_direccion: ins.proveedor_direccion || '',
       proveedor_telefono: ins.proveedor_telefono || '', proveedor_horario: ins.proveedor_horario || '',
       proveedor_contacto: ins.proveedor_contacto || '',
-      sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0,
+      sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '',
     })
     setModal(true)
   }
@@ -181,6 +185,7 @@ export default function Insumos() {
 
   const filtrados = insumos.filter(ins => {
     if (filtroSector && !ins.sectores?.includes(filtroSector)) return false
+    if (filtroModelo && ins.modelo !== filtroModelo) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
       return ins.codigo.toLowerCase().includes(q) || ins.descripcion.toLowerCase().includes(q) || (ins.proveedor_nombre || '').toLowerCase().includes(q)
@@ -261,6 +266,22 @@ export default function Insumos() {
             </button>
           ))}
         </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text3)', alignSelf: 'center', marginRight: 2 }}>Modelo:</span>
+          <button onClick={() => setFiltroModelo('')}
+            style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !filtroModelo ? 'rgba(255,255,255,0.1)' : 'var(--surface2)', color: !filtroModelo ? 'var(--text)' : 'var(--text3)', border: !filtroModelo ? '1px solid var(--border)' : '1px solid var(--border)' }}>
+            Todos
+          </button>
+          {MODELOS.map(m => {
+            const mc = MODELO_COLOR[m]
+            return (
+              <button key={m} onClick={() => setFiltroModelo(m === filtroModelo ? '' : m)}
+                style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroModelo === m ? `${mc}20` : 'var(--surface2)', color: filtroModelo === m ? mc : 'var(--text3)', border: filtroModelo === m ? `1px solid ${mc}50` : '1px solid var(--border)' }}>
+                {m}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Lista */}
@@ -284,6 +305,7 @@ export default function Insumos() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{ins.descripcion}</div>
                     <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                      {ins.modelo && (() => { const mc = MODELO_COLOR[ins.modelo] || '#888'; return <span style={{ fontSize: 10, background: `${mc}20`, border: `1px solid ${mc}40`, color: mc, borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>{ins.modelo}</span> })()}
                       {(ins.sectores || []).map(s => (
                         <span key={s} style={{ fontSize: 10, background: `${color}15`, border: `1px solid ${color}30`, color, borderRadius: 3, padding: '1px 6px' }}>{s}</span>
                       ))}
@@ -457,6 +479,26 @@ export default function Insumos() {
                   <select value={form.unidad} onChange={e => setForm(p => ({ ...p, unidad: e.target.value }))} style={inputSt}>
                     {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
+                </div>
+              </div>
+
+              {/* Modelo */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Modelo</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => setForm(p => ({ ...p, modelo: '' }))}
+                    style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !form.modelo ? `${color}20` : 'var(--surface2)', color: !form.modelo ? color : 'var(--text3)', border: !form.modelo ? `1px solid ${color}50` : '1px solid var(--border)' }}>
+                    Sin definir
+                  </button>
+                  {MODELOS.map(m => {
+                    const mc = MODELO_COLOR[m]
+                    return (
+                      <button key={m} type="button" onClick={() => setForm(p => ({ ...p, modelo: m }))}
+                        style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: form.modelo === m ? `${mc}20` : 'var(--surface2)', color: form.modelo === m ? mc : 'var(--text3)', border: form.modelo === m ? `1px solid ${mc}50` : '1px solid var(--border)' }}>
+                        {m}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
