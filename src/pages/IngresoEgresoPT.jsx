@@ -188,7 +188,7 @@ export default function IngresoEgresoPT() {
     setLoadingPedidos(true)
     const { data } = await supabase
       .from('pedidos')
-      .select('*, profiles(full_name, razon_social, email)')
+      .select('*, profiles!distribuidor_id(full_name, razon_social, email)')
       .eq('estado', 'enviado')
       .order('created_at', { ascending: false })
     setPedidos(data || [])
