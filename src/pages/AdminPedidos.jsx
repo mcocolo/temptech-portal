@@ -1523,6 +1523,22 @@ export default function AdminPedidos() {
                           🚚 Enviado
                         </button>
                       )}
+                      {pedido.estado !== 'pendiente' && !['finalizado', 'entregado', 'rechazado'].includes(pedido.estado) && (
+                        <button
+                          onClick={async () => { await supabase.from('pedidos').update({ estado: 'pendiente', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido revertido a Pendiente') }}
+                          style={{ background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                        >
+                          ↩ Pendiente
+                        </button>
+                      )}
+                      {pedido.estado !== 'aprobado' && !['finalizado', 'entregado', 'rechazado'].includes(pedido.estado) && (
+                        <button
+                          onClick={async () => { await supabase.from('pedidos').update({ estado: 'aprobado', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido marcado como Aprobado ✓') }}
+                          style={{ background: 'rgba(61,214,140,0.08)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                        >
+                          ✓ Aprobado
+                        </button>
+                      )}
                       {(pedido.estado === 'pendiente' || pedido.estado === 'aprobado' || pedido.estado === 'modificado' || pedido.estado === 'preparando' || pedido.estado === 'entregado') && (
                         <button
                           onClick={() => finalizarPedido(pedido)}
