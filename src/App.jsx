@@ -32,6 +32,7 @@ import AdminDevoluciones from '@/pages/AdminDevoluciones'
 import AdminEgresoDevoluciones from '@/pages/AdminEgresoDevoluciones'
 import Devoluciones from '@/pages/Devoluciones'
 import PerfilDistribuidor from '@/pages/PerfilDistribuidor'
+import IngresoTransito from '@/pages/IngresoTransito'
 
 
 
@@ -86,6 +87,9 @@ function AppRoutes() {
               <Route path="/egreso-devoluciones"            element={<AdminEgresoDevoluciones />} />
               <Route path="/devoluciones"                  element={<Devoluciones />} />
               <Route path="/mi-perfil"                     element={<PerfilDistribuidor />} />
+              <Route path="/ingreso-transito/meli"         element={<IngresoTransito key="meli" />} />
+              <Route path="/ingreso-transito/pagina"       element={<IngresoTransito key="pagina" />} />
+              <Route path="/ingreso-transito/vo"           element={<IngresoTransito key="vo" />} />
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal key="meli" />} />

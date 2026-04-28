@@ -25,6 +25,9 @@ export default function AdminPreventas() {
 
   // Form nueva preventa
   const [distId, setDistId] = useState('')
+  const [distBusqueda, setDistBusqueda] = useState('')
+  const [distSeleccionado, setDistSeleccionado] = useState(null)
+  const [showDistDrop, setShowDistDrop] = useState(false)
   const [itemsForm, setItemsForm] = useState([])    // [{ codigo, nombre, modelo, categoria, precio_unitario, cantidad_total }]
   const [notasForm, setNotasForm] = useState('')
   const [fechaVenc, setFechaVenc] = useState('')
@@ -158,6 +161,8 @@ export default function AdminPreventas() {
 
     toast.success('Preventa creada ✅')
     setDistId('')
+    setDistSeleccionado(null)
+    setDistBusqueda('')
     setItemsForm([])
     setNotasForm('')
     setFechaVenc('')
@@ -370,18 +375,56 @@ export default function AdminPreventas() {
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Datos de la preventa</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
+                <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600 }}>Distribuidor *</label>
-                  <select
-                    value={distId}
-                    onChange={e => setDistId(e.target.value)}
-                    style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: distId ? 'var(--text)' : 'var(--text3)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
-                  >
-                    <option value="">Seleccioná un distribuidor...</option>
-                    {distribuidores.map(d => (
-                      <option key={d.id} value={d.id}>{d.razon_social || d.full_name} — {d.email}</option>
-                    ))}
-                  </select>
+                  {distSeleccionado ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
+                      <span style={{ flex: 1, fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                        🏪 {distSeleccionado.razon_social || distSeleccionado.full_name}
+                        <span style={{ fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>{distSeleccionado.email}</span>
+                      </span>
+                      <button
+                        onClick={() => { setDistSeleccionado(null); setDistId(''); setDistBusqueda('') }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}
+                      >×</button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={distBusqueda}
+                        onChange={e => { setDistBusqueda(e.target.value); setShowDistDrop(true) }}
+                        onFocus={() => setShowDistDrop(true)}
+                        placeholder="Buscar por nombre, empresa o email..."
+                        style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', boxSizing: 'border-box' }}
+                      />
+                      {showDistDrop && distBusqueda.length >= 1 && (() => {
+                        const q = distBusqueda.toLowerCase()
+                        const resultados = distribuidores.filter(d =>
+                          (d.razon_social || '').toLowerCase().includes(q) ||
+                          (d.full_name    || '').toLowerCase().includes(q) ||
+                          (d.email        || '').toLowerCase().includes(q)
+                        ).slice(0, 8)
+                        if (!resultados.length) return null
+                        return (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 50, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', marginTop: 2 }}>
+                            {resultados.map(d => (
+                              <div
+                                key={d.id}
+                                onMouseDown={() => { setDistSeleccionado(d); setDistId(d.id); setDistBusqueda(''); setShowDistDrop(false) }}
+                                style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>🏪 {d.razon_social || d.full_name || 'Sin nombre'}</span>
+                                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{d.email}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })()}
+                    </>
+                  )}
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600 }}>Fecha de vencimiento (opcional)</label>

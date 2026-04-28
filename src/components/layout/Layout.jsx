@@ -7,7 +7,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -48,6 +48,11 @@ const ADMIN_NAV = [
   { label: 'Preventas',           icon: Package,    path: '/admin-preventas',    isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,      path: '/logistica',          isAdmin: true },
+  { label: 'Ingreso en Tránsito', icon: Archive, isAdmin: true, submenu: 'transito', children: [
+    { label: 'Mercado Libre', icon: ShoppingBag, path: '/ingreso-transito/meli' },
+    { label: 'Página Web',    icon: Globe,       path: '/ingreso-transito/pagina' },
+    { label: 'VO',            icon: Package,     path: '/ingreso-transito/vo' },
+  ]},
   { section: 'Producción' },
   { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
@@ -66,6 +71,11 @@ const ADMIN2_NAV = [
   { label: 'Pedidos VO',          icon: Package,       path: '/pedidos-vo',        isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,     path: '/ingreso-egreso-pt', isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,         path: '/logistica',         isAdmin: true },
+  { label: 'Ingreso en Tránsito', icon: Archive, isAdmin: true, submenu: 'transito', children: [
+    { label: 'Mercado Libre', icon: ShoppingBag, path: '/ingreso-transito/meli' },
+    { label: 'Página Web',    icon: Globe,       path: '/ingreso-transito/pagina' },
+    { label: 'VO',            icon: Package,     path: '/ingreso-transito/vo' },
+  ]},
   { section: 'Producción' },
   { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },

@@ -122,6 +122,12 @@ export default function IngresoEgresoPT() {
   const [minimoEdit, setMinimoEdit]       = useState({})
   const [enviandoAlerta, setEnviandoAlerta] = useState(false)
 
+  // Modal tránsito
+  const [modalTransito, setModalTransito]       = useState(false)
+  const [transitoPendiente, setTransitoPendiente] = useState([])
+  const [loadingTransito, setLoadingTransito]   = useState(false)
+  const [confirmandoTransito, setConfirmandoTransito] = useState(null)
+
   // Tab: Egreso Devoluciones (egresos_garantia pendientes)
   const [egresosGarantia, setEgresosGarantia]           = useState([])
   const [loadingEgresosGar, setLoadingEgresosGar]       = useState(false)
@@ -719,6 +725,41 @@ export default function IngresoEgresoPT() {
     setEnviandoAlerta(false)
   }
 
+  async function cargarTransitoPendiente() {
+    setLoadingTransito(true)
+    const { data } = await supabase.from('ingresos_transito').select('*').eq('estado', 'pendiente').order('created_at', { ascending: false })
+    setTransitoPendiente(data || [])
+    setLoadingTransito(false)
+  }
+
+  async function confirmarTransito(registro) {
+    setConfirmandoTransito(registro.id)
+    for (const item of (registro.items || [])) {
+      const actual = stock[item.codigo]?.stock_actual ?? 0
+      const nuevo = actual + parseInt(item.cantidad)
+      await supabase.from('stock_pt').upsert({
+        codigo: item.codigo, nombre: item.nombre, modelo: item.modelo, categoria: item.categoria,
+        stock_actual: nuevo,
+        stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
+      }, { onConflict: 'codigo' })
+      await supabase.from('movimientos_pt').insert({
+        codigo: item.codigo, nombre: item.nombre, modelo: item.modelo, categoria: item.categoria,
+        tipo: 'ingreso', cantidad: parseInt(item.cantidad),
+        canal: registro.canal, observacion: `Ingreso en tránsito (${registro.canal}) — ${registro.fecha}${registro.observacion ? ' — ' + registro.observacion : ''}`,
+        usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
+      })
+    }
+    await supabase.from('ingresos_transito').update({
+      estado: 'confirmado',
+      confirmado_por: profile?.full_name || user.email,
+      confirmado_at: new Date().toISOString(),
+    }).eq('id', registro.id)
+    toast.success(`✅ Ingreso de tránsito confirmado — stock actualizado`)
+    setConfirmandoTransito(null)
+    setTransitoPendiente(prev => prev.filter(r => r.id !== registro.id))
+    cargar()
+  }
+
   const todosProductosFlat = CATALOGO.flatMap(c => c.productos.map(p => ({ ...p, categoria: c.categoria, catLabel: c.label, catEmoji: c.emoji })))
   const todosProductos = todosProductosFlat
   const filtrados = catFilter ? CATALOGO.filter(c => c.categoria === catFilter) : CATALOGO
@@ -735,11 +776,18 @@ export default function IngresoEgresoPT() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Ingreso / Egreso PT</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Control de stock de Producto Terminado</p>
         </div>
-        <button
-          onClick={() => { setModalProd(true); setProdFecha(new Date().toISOString().split('T')[0]); setProdLote(''); setProdItems([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }]) }}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#3dd68c,#2ab573)', color: '#0a1a12', border: 'none', borderRadius: 'var(--radius)', padding: '11px 22px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font)', boxShadow: '0 4px 16px rgba(61,214,140,0.3)' }}>
-          🏭 Ingresar Producción
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => { setModalTransito(true); cargarTransitoPendiente() }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            🚛 Ingreso Tránsito
+          </button>
+          <button
+            onClick={() => { setModalProd(true); setProdFecha(new Date().toISOString().split('T')[0]); setProdLote(''); setProdItems([{ codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }]) }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#3dd68c,#2ab573)', color: '#0a1a12', border: 'none', borderRadius: 'var(--radius)', padding: '11px 22px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font)', boxShadow: '0 4px 16px rgba(61,214,140,0.3)' }}>
+            🏭 Ingresar Producción
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -2083,6 +2131,76 @@ export default function IngresoEgresoPT() {
                 </button>
                 <button onClick={() => setModalStock(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INGRESO TRÁNSITO */}
+      {modalTransito && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 640, maxHeight: '88vh', overflowY: 'auto' }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#fb923c' }}>🚛 Ingreso en Tránsito → Stock</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Confirmá los ingresos pendientes para sumarlos oficialmente al stock</div>
+              </div>
+              <button onClick={() => setModalTransito(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {loadingTransito ? (
+                <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 32 }}>Cargando...</div>
+              ) : transitoPendiente.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 40 }}>
+                  <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+                  <div style={{ color: 'var(--text3)', fontSize: 14 }}>No hay ingresos en tránsito pendientes</div>
+                </div>
+              ) : (
+                transitoPendiente.map(reg => {
+                  const CANAL_COLOR = { Meli: '#ffd166', Página: '#7b9fff', VO: '#3dd68c' }
+                  const CANAL_EMOJI = { Meli: '🛒', Página: '🌐', VO: '📦' }
+                  const cc = CANAL_COLOR[reg.canal] || '#7b9fff'
+                  return (
+                    <div key={reg.id} style={{ background: 'var(--surface2)', border: `1px solid ${cc}30`, borderRadius: 'var(--radius)', padding: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: cc, background: `${cc}18`, border: `1px solid ${cc}40`, borderRadius: 6, padding: '3px 10px' }}>
+                            {CANAL_EMOJI[reg.canal]} {reg.canal}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(reg.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>— {reg.usuario_nombre}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10 }}>
+                        {(reg.items || []).map((it, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4 }}>{it.codigo}</span>
+                            <span style={{ color: 'var(--text2)', flex: 1 }}>{it.nombre} <span style={{ color: 'var(--text3)', fontSize: 11 }}>{it.modelo}</span></span>
+                            <span style={{ fontWeight: 700 }}>×{it.cantidad}</span>
+                            <span style={{ fontSize: 11, color: '#3dd68c' }}>
+                              → stock: {(stock[it.codigo]?.stock_actual ?? 0)} + {it.cantidad} = <strong>{(stock[it.codigo]?.stock_actual ?? 0) + parseInt(it.cantidad)}</strong>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {reg.observacion && (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, padding: '5px 10px', background: 'var(--surface)', borderRadius: 6 }}>{reg.observacion}</div>
+                      )}
+
+                      <button
+                        onClick={() => confirmarTransito(reg)}
+                        disabled={confirmandoTransito === reg.id}
+                        style={{ background: 'linear-gradient(135deg,#3dd68c,#2ab573)', color: '#0a1a12', border: 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 800, cursor: confirmandoTransito === reg.id ? 'not-allowed' : 'pointer', opacity: confirmandoTransito === reg.id ? 0.7 : 1, fontFamily: 'var(--font)' }}
+                      >
+                        {confirmandoTransito === reg.id ? '⏳ Confirmando...' : '✅ Confirmar → Sumar a Stock'}
+                      </button>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
