@@ -1379,7 +1379,8 @@ export default function AdminPedidos() {
                         </>
                       )}
 
-                      {/* Factura */}
+                      {/* Factura — solo Admin */}
+                      {isAdmin && (
                       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
                         <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Factura</div>
                         {pedido.factura_url ? (
@@ -1407,6 +1408,7 @@ export default function AdminPedidos() {
                           </label>
                         )}
                       </div>
+                      )}
 
                       {/* Comprobante de pago — solo Admin */}
                       {isAdmin && (
