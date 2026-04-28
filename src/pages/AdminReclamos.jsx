@@ -674,7 +674,7 @@ export default function AdminReclamos() {
 
   async function cargar() {
     setCargando(true); setErrorTexto('')
-    let q = supabase.from('devoluciones').select('*').order('fecha_creacion', { ascending: false })
+    let q = supabase.from('devoluciones').select('*').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false })
     if (filtroEstado !== 'todos') q = q.eq('estado', filtroEstado)
     const { data, error } = await q
     if (error) { setErrorTexto(error.message); setDatos([]) } else setDatos(data || [])
