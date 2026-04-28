@@ -149,7 +149,7 @@ export default function AdminPedidos() {
     setLoading(true)
     let q = supabase
       .from('pedidos')
-      .select('*, profiles(full_name, email, razon_social)')
+      .select('*, profiles!distribuidor_id(full_name, email, razon_social)')
       .order('fecha_entrega', { ascending: true })
     if (isAdmin2) {
       const admin2Estados = ['pendiente', 'aprobado', 'preparando', 'enviado']
