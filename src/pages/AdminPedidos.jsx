@@ -315,6 +315,7 @@ export default function AdminPedidos() {
       incluir_iva: npIVA,
       notas_admin: npNotas.trim() || null,
       fecha_entrega: npFecha || null,
+      ...(isVendedor && { vendedor_id: user.id }),
     })
     if (error) { toast.error('Error al crear el pedido: ' + error.message); setCreando(false); return }
     const estadoCreado = isAdmin ? npEstado : 'pendiente'
