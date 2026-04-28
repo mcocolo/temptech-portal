@@ -160,14 +160,17 @@ export default function AdminPedidos() {
     else if (filtro !== 'todos') q = q.eq('estado', filtro)
 
     if (isVendedor && user) {
-      // Solo pedidos de clientes de este vendedor
+      // Pedidos de clientes asignados a este vendedor O creados directamente por él
       const { data: clientes } = await supabase
         .from('profiles')
         .select('id')
         .eq('vendedor_id', user.id)
       const ids = (clientes || []).map(c => c.id)
-      if (ids.length === 0) { setPedidos([]); setLoading(false); return }
-      q = q.in('distribuidor_id', ids)
+      if (ids.length > 0) {
+        q = q.or(`distribuidor_id.in.(${ids.join(',')}),vendedor_id.eq.${user.id}`)
+      } else {
+        q = q.eq('vendedor_id', user.id)
+      }
     }
 
     const { data, error } = await q
