@@ -28,9 +28,10 @@ const NAV = [
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
-  { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos',      isDistributor: true },
-  { label: 'Mis Devoluciones', icon: RotateCcw,       path: '/devoluciones', isDistributor: true },
-  { label: 'Mi Perfil',        icon: User,            path: '/mi-perfil',    isDistributor: true },
+  { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos',       isDistributor: true },
+  { label: 'Mis Preventas',    icon: Package,         path: '/mis-preventas', isDistributor: true },
+  { label: 'Mis Devoluciones', icon: RotateCcw,       path: '/devoluciones',  isDistributor: true },
+  { label: 'Mi Perfil',        icon: User,            path: '/mi-perfil',     isDistributor: true },
 ]
 
 const ADMIN_NAV = [
@@ -106,6 +107,7 @@ const NAV_VENDEDOR = [
   { label: 'Distribuidores',    icon: Store,           path: '/distribuidores' },
   { label: 'Service / Garantía', icon: AlertTriangle,   path: '/reclamos' },
   { label: 'Pedidos',           icon: ShoppingCart,    path: '/admin-pedidos' },
+  { label: 'Preventas',         icon: Package,         path: '/admin-preventas' },
   { section: 'Recursos' },
   { label: 'Lista de Precios',  icon: Tags,            path: '/admin-precios' },
   { label: 'Videos',            icon: Video,           path: '/videos' },

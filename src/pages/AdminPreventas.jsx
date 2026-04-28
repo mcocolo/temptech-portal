@@ -14,7 +14,7 @@ const ESTADO_CONFIG = {
 }
 
 export default function AdminPreventas() {
-  const { isAdmin, isAdmin2, user } = useAuth()
+  const { isAdmin, isAdmin2, isVendedor, user, profile } = useAuth()
   const [tab, setTab] = useState('lista')           // 'lista' | 'nueva'
   const [preventas, setPreventas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -43,8 +43,17 @@ export default function AdminPreventas() {
   const [subiendoFactura, setSubiendoFactura] = useState(false)
   const [registrandoEntrega, setRegistrandoEntrega] = useState(false)
 
-  // Edición saldo cobrado inline
-  const [editandoSaldo, setEditandoSaldo] = useState(null)  // id de preventa
+  // Pagos
+  const [agregandoPago, setAgregandoPago] = useState(null)
+  const [pagoMonto, setPagoMonto] = useState('')
+  const [pagoFecha, setPagoFecha] = useState('')
+  const [pagoNotas, setPagoNotas] = useState('')
+  const [pagoComprobante, setPagoComprobante] = useState(null)
+  const [subiendoPagoComp, setSubiendoPagoComp] = useState(false)
+  const [registrandoPago, setRegistrandoPago] = useState(false)
+
+  // Edición saldo cobrado inline (legacy, mantenido para retrocompatibilidad)
+  const [editandoSaldo, setEditandoSaldo] = useState(null)
   const [saldoInput, setSaldoInput] = useState('')
 
   async function guardarSaldo(pvId) {
@@ -52,6 +61,60 @@ export default function AdminPreventas() {
     const { error } = await supabase.from('preventas').update({ saldo_cobrado: valor }).eq('id', pvId)
     if (error) { toast.error('Error al guardar saldo'); return }
     setEditandoSaldo(null)
+    cargar()
+  }
+
+  async function registrarPago(pv) {
+    const monto = parseFloat(pagoMonto) || 0
+    if (monto <= 0) { toast.error('Ingresá un monto válido'); return }
+    setRegistrandoPago(true)
+    let comprobanteUrl = null
+    if (pagoComprobante) {
+      setSubiendoPagoComp(true)
+      const ext = pagoComprobante.name.split('.').pop()
+      const path = `preventas/${pv.id}/pagos/${Date.now()}_comp.${ext}`
+      const { error: errUp } = await supabase.storage.from('facturas').upload(path, pagoComprobante, { upsert: true })
+      setSubiendoPagoComp(false)
+      if (errUp) { toast.error('Error al subir comprobante: ' + errUp.message); setRegistrandoPago(false); return }
+      const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(path)
+      comprobanteUrl = urlData.publicUrl
+    }
+    const nuevoPago = {
+      id: crypto.randomUUID(),
+      monto,
+      fecha: pagoFecha || new Date().toISOString().split('T')[0],
+      notas: pagoNotas.trim() || null,
+      comprobante_url: comprobanteUrl,
+      registrado_por: user.id,
+      registrado_por_nombre: profile?.full_name || user.email,
+      created_at: new Date().toISOString(),
+    }
+    const pagosActuales = pv.pagos || []
+    const nuevosPagos = [...pagosActuales, nuevoPago]
+    const nuevoSaldo = nuevosPagos.reduce((s, p) => s + p.monto, 0)
+    const { error } = await supabase.from('preventas').update({
+      pagos: nuevosPagos,
+      saldo_cobrado: nuevoSaldo,
+      updated_at: new Date().toISOString(),
+    }).eq('id', pv.id)
+    setRegistrandoPago(false)
+    if (error) { toast.error('Error al registrar pago: ' + error.message); return }
+    toast.success('Pago registrado ✅')
+    setAgregandoPago(null); setPagoMonto(''); setPagoFecha(''); setPagoNotas(''); setPagoComprobante(null)
+    cargar()
+  }
+
+  async function eliminarPago(pv, pagoId) {
+    if (!window.confirm('¿Eliminar este pago?')) return
+    const nuevosPagos = (pv.pagos || []).filter(p => p.id !== pagoId)
+    const nuevoSaldo = nuevosPagos.reduce((s, p) => s + p.monto, 0)
+    const { error } = await supabase.from('preventas').update({
+      pagos: nuevosPagos,
+      saldo_cobrado: nuevoSaldo,
+      updated_at: new Date().toISOString(),
+    }).eq('id', pv.id)
+    if (error) { toast.error('Error al eliminar pago'); return }
+    toast.success('Pago eliminado')
     cargar()
   }
 
@@ -66,7 +129,12 @@ export default function AdminPreventas() {
 
   const IVA_PCT = 0.21
 
-  useEffect(() => { if (isAdmin) { cargar(); cargarDists(); cargarPrecios() } }, [isAdmin])
+  useEffect(() => {
+    if (isAdmin || isVendedor) {
+      cargar()
+      if (isAdmin) { cargarDists(); cargarPrecios() }
+    }
+  }, [isAdmin, isVendedor])
 
   async function cargar() {
     setLoading(true)
@@ -93,7 +161,7 @@ export default function AdminPreventas() {
     setLoading(false)
   }
 
-  useEffect(() => { if (isAdmin) cargar() }, [filtroEstado])
+  useEffect(() => { if (isAdmin || isVendedor) cargar() }, [filtroEstado])
 
   async function cargarDists() {
     const { data } = await supabase
@@ -348,7 +416,7 @@ export default function AdminPreventas() {
   const totalRetirado = (items) => items.reduce((s, i) => s + i.precio_unitario * (i.cantidad_retirada || 0), 0)
   const totalPendiente = (items) => items.reduce((s, i) => s + i.precio_unitario * (i.cantidad_total - (i.cantidad_retirada || 0)), 0)
 
-  if (!isAdmin && !isAdmin2) return null
+  if (!isAdmin && !isAdmin2 && !isVendedor) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -358,12 +426,14 @@ export default function AdminPreventas() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Preventas</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Gestioná las preventas de los distribuidores</p>
         </div>
-        <button
-          onClick={() => setTab(tab === 'nueva' ? 'lista' : 'nueva')}
-          style={{ background: tab === 'nueva' ? 'var(--surface2)' : 'var(--brand-gradient)', color: tab === 'nueva' ? 'var(--text2)' : '#fff', border: tab === 'nueva' ? '1px solid var(--border)' : 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}
-        >
-          {tab === 'nueva' ? '← Volver' : '+ Nueva preventa'}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setTab(tab === 'nueva' ? 'lista' : 'nueva')}
+            style={{ background: tab === 'nueva' ? 'var(--surface2)' : 'var(--brand-gradient)', color: tab === 'nueva' ? 'var(--text2)' : '#fff', border: tab === 'nueva' ? '1px solid var(--border)' : 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}
+          >
+            {tab === 'nueva' ? '← Volver' : '+ Nueva preventa'}
+          </button>
+        )}
       </div>
 
       {/* ── FORM NUEVA PREVENTA ── */}
@@ -645,7 +715,8 @@ export default function AdminPreventas() {
                             {(() => {
                               const neto = totalPreventa(items)
                               const total = pv.incluir_iva ? neto + (pv.iva_monto || neto * IVA_PCT) : neto
-                              const retirado = totalRetirado(items)
+                              const retiradoNeto = totalRetirado(items)
+                              const retirado = pv.incluir_iva ? retiradoNeto * (total / neto) : retiradoNeto
                               return (
                                 <>
                                   Retirado: <span style={{ color: '#3dd68c', fontWeight: 700 }}>{formatPrecio(retirado)}</span>
@@ -653,7 +724,7 @@ export default function AdminPreventas() {
                                   <span style={{ fontWeight: 700 }}>{formatPrecio(total)}</span>
                                   {total > 0 && (
                                     <span style={{ marginLeft: 6, color: '#3dd68c', fontWeight: 700 }}>
-                                      ({((retirado / total) * 100).toFixed(0)}%)
+                                      ({Math.min(100, Math.round((retiradoNeto / neto) * 100))}%)
                                     </span>
                                   )}
                                 </>
@@ -937,11 +1008,14 @@ export default function AdminPreventas() {
 
                             {/* Totales */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 8 }}>
-                              {[
-                                { label: 'Total preventa', value: totalPreventa(items), color: 'var(--text)' },
-                                { label: 'Retirado', value: totalRetirado(items), color: '#3dd68c' },
-                                { label: 'Pendiente', value: totalPendiente(items), color: '#ffd166' },
-                              ].map(({ label, value, color }) => (
+                              {(() => {
+                                const ivaFactor = pv.incluir_iva ? (1 + IVA_PCT) : 1
+                                return [
+                                  { label: 'Total preventa', value: totalPreventa(items) * ivaFactor, color: 'var(--text)' },
+                                  { label: 'Retirado', value: totalRetirado(items) * ivaFactor, color: '#3dd68c' },
+                                  { label: 'Pendiente', value: totalPendiente(items) * ivaFactor, color: '#ffd166' },
+                                ]
+                              })().map(({ label, value, color }) => (
                                 <div key={label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center' }}>
                                   <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{label}</div>
                                   <div style={{ fontSize: 14, fontWeight: 800, color }}>{formatPrecio(value)}</div>
@@ -949,39 +1023,113 @@ export default function AdminPreventas() {
                               ))}
                             </div>
 
-                            {/* Saldo cobrado */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: pv.incluir_iva ? 8 : 16 }}>
-                              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center', position: 'relative' }}>
-                                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Saldo cobrado</div>
-                                {editandoSaldo === pv.id ? (
-                                  <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>$</span>
-                                    <input
-                                      type="number" min="0" step="0.01"
-                                      value={saldoInput}
-                                      onChange={e => setSaldoInput(e.target.value)}
-                                      onKeyDown={e => { if (e.key === 'Enter') guardarSaldo(pv.id); if (e.key === 'Escape') setEditandoSaldo(null) }}
-                                      autoFocus
-                                      style={{ width: 110, background: 'var(--surface)', border: '2px solid #7b9fff', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 14, outline: 'none', fontFamily: 'var(--font)', textAlign: 'right', fontWeight: 700 }}
-                                    />
-                                    <button onClick={e => { e.stopPropagation(); guardarSaldo(pv.id) }} style={{ background: 'rgba(61,214,140,0.15)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 6, color: '#3dd68c', cursor: 'pointer', fontSize: 13, padding: '2px 8px', fontFamily: 'var(--font)' }}>✓</button>
-                                    <button onClick={e => { e.stopPropagation(); setEditandoSaldo(null) }} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: '2px 6px' }}>✕</button>
-                                  </div>
-                                ) : (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                                    <span style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa' }}>{formatPrecio(pv.saldo_cobrado || 0)}</span>
-                                    <button onClick={e => { e.stopPropagation(); setEditandoSaldo(pv.id); setSaldoInput(pv.saldo_cobrado || 0) }}
-                                      style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.4)', borderRadius: 6, color: '#a78bfa', cursor: 'pointer', fontSize: 12, padding: '2px 8px', fontFamily: 'var(--font)', fontWeight: 600 }}>✏️ Editar</button>
-                                  </div>
+                            {/* Pagos */}
+                            <div style={{ marginBottom: 8, paddingTop: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>💳 Pagos</div>
+                                {agregandoPago !== pv.id && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setAgregandoPago(pv.id); setPagoFecha(new Date().toISOString().split('T')[0]) }}
+                                    style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                                  >
+                                    + Agregar pago
+                                  </button>
                                 )}
                               </div>
-                              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center' }}>
-                                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Saldo deudor</div>
-                                {(() => {
-                                  const total = pv.incluir_iva ? totalPreventa(items) + (pv.iva_monto || totalPreventa(items) * IVA_PCT) : totalPreventa(items)
-                                  const deuda = Math.max(0, total - (pv.saldo_cobrado || 0))
-                                  return <div style={{ fontSize: 14, fontWeight: 800, color: deuda > 0 ? '#ff5577' : '#3dd68c' }}>{formatPrecio(deuda)}</div>
-                                })()}
+                              {(pv.pagos || []).length === 0 ? (
+                                <div style={{ fontSize: 12, color: 'var(--text3)', padding: '4px 0', marginBottom: 10 }}>Sin pagos registrados aún.</div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                                  {(pv.pagos || []).map(pago => (
+                                    <div key={pago.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                          <span style={{ fontWeight: 800, color: '#a78bfa', fontSize: 13 }}>{formatPrecio(pago.monto)}</span>
+                                          <span style={{ color: 'var(--text3)', fontSize: 11 }}>{new Date(pago.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</span>
+                                          {pago.notas && <span style={{ color: 'var(--text2)', fontSize: 11 }}>— {pago.notas}</span>}
+                                        </div>
+                                        <div style={{ color: 'var(--text3)', fontSize: 11, marginTop: 2 }}>
+                                          Por {pago.registrado_por_nombre}
+                                          {pago.comprobante_url && (
+                                            <a href={pago.comprobante_url} target="_blank" rel="noreferrer" style={{ color: '#7b9fff', marginLeft: 8, textDecoration: 'none', fontWeight: 600 }}>
+                                              📎 Ver comprobante
+                                            </a>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {isAdmin && (
+                                        <button onClick={e => { e.stopPropagation(); eliminarPago(pv, pago.id) }}
+                                          style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, color: '#ff5577', cursor: 'pointer', fontSize: 11, padding: '3px 8px', fontFamily: 'var(--font)', marginTop: 2 }}>
+                                          ✕
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {agregandoPago === pv.id && (
+                                <div style={{ padding: '14px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 'var(--radius)', marginBottom: 12 }}>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                                    <div>
+                                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Monto *</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>$</span>
+                                        <input type="number" min="0" step="0.01" value={pagoMonto} onChange={e => setPagoMonto(e.target.value)}
+                                          placeholder="0.00" autoFocus
+                                          style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', fontWeight: 700 }} />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Fecha</div>
+                                      <input type="date" value={pagoFecha} onChange={e => setPagoFecha(e.target.value)}
+                                        style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
+                                    </div>
+                                  </div>
+                                  <div style={{ marginBottom: 10 }}>
+                                    <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Descripción / referencia (opcional)</div>
+                                    <input type="text" value={pagoNotas} onChange={e => setPagoNotas(e.target.value)} placeholder="Transferencia, efectivo, cheque..."
+                                      style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', color: 'var(--text)', fontSize: 12, outline: 'none', fontFamily: 'var(--font)' }} />
+                                  </div>
+                                  <div style={{ marginBottom: 12 }}>
+                                    <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Comprobante (opcional)</div>
+                                    {pagoComprobante ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'rgba(61,214,140,0.07)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, fontSize: 12 }}>
+                                        <span style={{ flex: 1, color: '#3dd68c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {pagoComprobante.name}</span>
+                                        <button onClick={() => setPagoComprobante(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕</button>
+                                      </div>
+                                    ) : (
+                                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
+                                        📎 Adjuntar comprobante
+                                        <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setPagoComprobante(e.target.files[0] || null)} />
+                                      </label>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8 }}>
+                                    <button onClick={() => registrarPago(pv)} disabled={registrandoPago || subiendoPagoComp || !pagoMonto}
+                                      style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: !pagoMonto ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', opacity: !pagoMonto ? 0.5 : 1 }}>
+                                      {subiendoPagoComp ? 'Subiendo...' : registrandoPago ? 'Registrando...' : '✓ Registrar pago'}
+                                    </button>
+                                    <button onClick={() => { setAgregandoPago(null); setPagoMonto(''); setPagoFecha(''); setPagoNotas(''); setPagoComprobante(null) }}
+                                      style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center' }}>
+                                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Total pagado</div>
+                                  <div style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa' }}>{formatPrecio((pv.pagos || []).reduce((s, p) => s + p.monto, 0))}</div>
+                                </div>
+                                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', textAlign: 'center' }}>
+                                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Saldo deudor</div>
+                                  {(() => {
+                                    const total = pv.incluir_iva ? totalPreventa(items) + (pv.iva_monto || totalPreventa(items) * IVA_PCT) : totalPreventa(items)
+                                    const pagado = (pv.pagos || []).reduce((s, p) => s + p.monto, 0)
+                                    const deuda = Math.max(0, total - pagado)
+                                    return <div style={{ fontSize: 14, fontWeight: 800, color: deuda > 0 ? '#ff5577' : '#3dd68c' }}>{formatPrecio(deuda)}</div>
+                                  })()}
+                                </div>
                               </div>
                             </div>
                             {pv.incluir_iva && (
