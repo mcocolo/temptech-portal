@@ -548,6 +548,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
   const [selCodigo, setSelCodigo] = useState(inicial?.codigo || '')
   const [nombre, setNombre] = useState(inicial?.nombre || item.producto || '')
   const [cantidad, setCantidad] = useState(1)
+  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
   const [guardando, setGuardando] = useState(false)
 
   function handleSelect(e) {
@@ -561,7 +562,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
     if (!selCodigo.trim()) { alert('Seleccioná o ingresá el código del producto'); return }
     if (cantidad < 1) { alert('La cantidad debe ser mayor a 0'); return }
     setGuardando(true)
-    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo: '', cantidad })
+    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo: '', cantidad, fecha })
     setGuardando(false)
   }
 
@@ -588,7 +589,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
             style={{ ...inputSt, cursor: 'pointer' }}>
             <option value="">— Seleccioná un producto —</option>
             {catalogo.map(p => (
-              <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre}</option>
+              <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre}{p.modelo ? ' ' + p.modelo : ''}</option>
             ))}
           </select>
         </div>
@@ -598,6 +599,13 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
             style={inputSt} />
         </div>
       </div>
+
+      {isEnviado && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Fecha de envío</label>
+          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={{ ...inputSt, maxWidth: 180 }} />
+        </div>
+      )}
 
       {selCodigo && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 12, color: T.text3 }}>
@@ -895,7 +903,7 @@ export default function AdminReclamos() {
     await cargar()
   }
 
-  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad }) {
+  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad, fecha }) {
     const isEnviado = panelStockAbierto?.tipo === 'enviado'
     const clienteNombre = item.nombre_apellido || item.nombre || item.email || ''
     const reclamoRef = item.tracking_id || String(item.id).slice(0,8).toUpperCase()
@@ -906,6 +914,7 @@ export default function AdminReclamos() {
         cantidad, canal: 'Garantía', estado: 'pendiente',
         referencia_nombre: clienteNombre || null,
         observacion: `Reclamo ${reclamoRef}`,
+        fecha_envio: fecha || null,
         usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
       })
       if (error) { alert('Error: ' + error.message); return }

@@ -144,6 +144,14 @@ export default function AdminEgresoDevoluciones() {
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Operador</div>
                     <div style={{ fontSize: 12 }}>{it.usuario_nombre || '—'}</div>
                   </div>
+                  {it.fecha_envio && (
+                    <div style={{ minWidth: 120 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Fecha envío</div>
+                      <div style={{ fontSize: 12, color: '#38bdf8', fontWeight: 600 }}>
+                        {new Date(it.fecha_envio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
