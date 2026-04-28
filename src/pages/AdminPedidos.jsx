@@ -113,6 +113,9 @@ export default function AdminPedidos() {
   // Nuevo pedido (admin crea en nombre de distribuidor)
   const [distribuidores, setDistribuidores] = useState([])
   const [npDistId, setNpDistId] = useState('')
+  const [npDistBusqueda, setNpDistBusqueda] = useState('')
+  const [npDistSeleccionado, setNpDistSeleccionado] = useState(null)
+  const [npShowDistDrop, setNpShowDistDrop] = useState(false)
   const [npItems, setNpItems] = useState([])           // [{ codigo, nombre, modelo, categoria, precio_base, precio_unitario, descuento_pct, cantidad, subtotal }]
   const [npNotas, setNpNotas] = useState('')
   const [npFecha, setNpFecha] = useState('')
@@ -286,7 +289,8 @@ export default function AdminPedidos() {
   }
 
   function npReset() {
-    setNpDistId(''); setNpItems([]); setNpNotas(''); setNpFecha('')
+    setNpDistId(''); setNpDistSeleccionado(null); setNpDistBusqueda('')
+    setNpItems([]); setNpNotas(''); setNpFecha('')
     setNpIVA(false); setNpEstado('pendiente'); setNpAplicarDesc(true)
   }
 
@@ -764,27 +768,68 @@ export default function AdminPedidos() {
             {/* Selector de distribuidor */}
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Distribuidor *</div>
-              <select
-                value={npDistId}
-                onChange={e => {
-                  const newId = e.target.value
-                  setNpDistId(newId)
-                  const dist = distribuidores.find(d => d.id === newId)
-                  if (dist) {
-                    setNpItems(prev => prev.map(item => {
-                      const descPct = npAplicarDesc ? calcDescPct(dist.descuentos?.[item.categoria]) : 0
-                      const precioUnit = item.precio_base * (1 - descPct / 100)
-                      return { ...item, descuento_pct: descPct, precio_unitario: precioUnit, subtotal: precioUnit * item.cantidad }
-                    }))
-                  }
-                }}
-                style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: npDistId ? 'var(--text)' : 'var(--text3)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
-              >
-                <option value="">Seleccioná un distribuidor...</option>
-                {distribuidores.map(d => (
-                  <option key={d.id} value={d.id}>{d.razon_social || d.full_name} — {d.email}</option>
-                ))}
-              </select>
+              <div style={{ position: 'relative' }}>
+                {npDistSeleccionado ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '9px 12px' }}>
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                      🏪 {npDistSeleccionado.razon_social || npDistSeleccionado.full_name}
+                      <span style={{ fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>{npDistSeleccionado.email}</span>
+                    </span>
+                    <button
+                      onClick={() => { setNpDistSeleccionado(null); setNpDistId(''); setNpDistBusqueda(''); setNpItems([]) }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}
+                    >×</button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={npDistBusqueda}
+                      onChange={e => { setNpDistBusqueda(e.target.value); setNpShowDistDrop(true) }}
+                      onFocus={() => setNpShowDistDrop(true)}
+                      placeholder="Buscar por nombre, empresa o email..."
+                      style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', boxSizing: 'border-box' }}
+                    />
+                    {npShowDistDrop && npDistBusqueda.length >= 1 && (() => {
+                      const q = npDistBusqueda.toLowerCase()
+                      const resultados = distribuidores.filter(d =>
+                        (d.razon_social || '').toLowerCase().includes(q) ||
+                        (d.full_name    || '').toLowerCase().includes(q) ||
+                        (d.email        || '').toLowerCase().includes(q)
+                      ).slice(0, 8)
+                      if (!resultados.length) return null
+                      return (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 50, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', marginTop: 2 }}>
+                          {resultados.map(d => (
+                            <div
+                              key={d.id}
+                              onMouseDown={() => {
+                                setNpDistSeleccionado(d)
+                                setNpDistId(d.id)
+                                setNpDistBusqueda('')
+                                setNpShowDistDrop(false)
+                                if (npItems.length > 0) {
+                                  setNpItems(prev => prev.map(item => {
+                                    const descPct = npAplicarDesc ? calcDescPct(d.descuentos?.[item.categoria]) : 0
+                                    const precioUnit = item.precio_base * (1 - descPct / 100)
+                                    return { ...item, descuento_pct: descPct, precio_unitario: precioUnit, subtotal: precioUnit * item.cantidad }
+                                  }))
+                                }
+                              }}
+                              style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>🏪 {d.razon_social || d.full_name || 'Sin nombre'}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text3)' }}>{d.email}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                  </>
+                )}
+              </div>
               {npDistId && (() => {
                 const dist = distribuidores.find(d => d.id === npDistId)
                 const tieneDesc = dist?.descuentos && Object.values(dist.descuentos).some(v => v && v !== 0 && !(Array.isArray(v) && v.every(x => !x || x === 0)))
@@ -1517,7 +1562,13 @@ export default function AdminPedidos() {
                       )}
                       {pedido.estado === 'preparando' && (
                         <button
-                          onClick={async () => { await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id); cargar(); toast.success('Pedido marcado como Enviado 🚚') }}
+                          onClick={async () => {
+                            const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
+                            if (error) { toast.error('Error: ' + error.message); return }
+                            await registrarEgresoStock(pedido)
+                            cargar()
+                            toast.success('Pedido marcado como Enviado 🚚 — stock descontado')
+                          }}
                           style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                         >
                           🚚 Enviado
@@ -1581,7 +1632,13 @@ export default function AdminPedidos() {
                     )}
                     {pedido.estado === 'preparando' && (
                       <button
-                        onClick={async () => { const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id); if (error) { toast.error('Error al actualizar: ' + error.message); return; } cargar(); toast.success('Pedido marcado como Enviado 🚚') }}
+                        onClick={async () => {
+                          const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
+                          if (error) { toast.error('Error al actualizar: ' + error.message); return }
+                          await registrarEgresoStock(pedido)
+                          cargar()
+                          toast.success('Pedido marcado como Enviado 🚚 — stock descontado')
+                        }}
                         style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                       >
                         🚚 Enviado
