@@ -7,6 +7,8 @@ import { es } from 'date-fns/locale'
 
 const STATUS_CFG = {
   pendiente:  { label: 'Pendiente',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
+  preparando: { label: 'Preparando', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)' },
+  enviado:    { label: 'Enviado',    color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',   border: 'rgba(56,189,248,0.35)' },
   confirmado: { label: 'Confirmado', color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
   cancelado:  { label: 'Cancelado',  color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
 }
@@ -31,11 +33,15 @@ export default function AdminEgresoDevoluciones() {
     setLoading(false)
   }
 
-  async function cancelar(id) {
-    if (!window.confirm('¿Cancelar este egreso pendiente?')) return
-    const { error } = await supabase.from('egresos_garantia').update({ estado: 'cancelado' }).eq('id', id)
+  async function cambiarEstado(id, nuevoEstado) {
+    const { error } = await supabase.from('egresos_garantia').update({ estado: nuevoEstado }).eq('id', id)
     if (error) toast.error('Error: ' + error.message)
-    else { toast.success('Cancelado'); cargar() }
+    else { toast.success(`Estado actualizado: ${STATUS_CFG[nuevoEstado]?.label}`); cargar() }
+  }
+
+  async function cancelar(id) {
+    if (!window.confirm('¿Cancelar este egreso?')) return
+    cambiarEstado(id, 'cancelado')
   }
 
   const filtrados = items.filter(it => {
@@ -52,6 +58,8 @@ export default function AdminEgresoDevoluciones() {
 
   const counts = {
     pendiente:  items.filter(i => i.estado === 'pendiente').length,
+    preparando: items.filter(i => i.estado === 'preparando').length,
+    enviado:    items.filter(i => i.estado === 'enviado').length,
     confirmado: items.filter(i => i.estado === 'confirmado').length,
     cancelado:  items.filter(i => i.estado === 'cancelado').length,
   }
@@ -138,22 +146,57 @@ export default function AdminEgresoDevoluciones() {
                   </div>
                 </div>
 
-                {it.estado === 'pendiente' && (
-                  <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flex: 1 }}>
-                      ⏳ Pendiente de confirmar egreso en Ingreso/Egreso PT
+                <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {it.estado === 'pendiente' && (
+                    <>
+                      <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flex: 1 }}>
+                        📋 Pendiente de preparar
+                      </span>
+                      <button onClick={() => cambiarEstado(it.id, 'preparando')}
+                        style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#fb923c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        → Preparando
+                      </button>
+                      <button onClick={() => cancelar(it.id)}
+                        style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        Cancelar
+                      </button>
+                    </>
+                  )}
+                  {it.estado === 'preparando' && (
+                    <>
+                      <span style={{ fontSize: 12, color: '#fb923c', fontStyle: 'italic', flex: 1 }}>
+                        📦 En preparación — listo para marcar como enviado
+                      </span>
+                      <button onClick={() => cambiarEstado(it.id, 'pendiente')}
+                        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        ↩ Pendiente
+                      </button>
+                      <button onClick={() => cambiarEstado(it.id, 'enviado')}
+                        style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#38bdf8', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        🚚 Marcar como Enviado
+                      </button>
+                      <button onClick={() => cancelar(it.id)}
+                        style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        Cancelar
+                      </button>
+                    </>
+                  )}
+                  {it.estado === 'enviado' && (
+                    <span style={{ fontSize: 12, color: '#38bdf8', flex: 1 }}>
+                      🚚 Enviado — pendiente de confirmar egreso en Ingreso/Egreso PT
                     </span>
-                    <button onClick={() => cancelar(it.id)}
-                      style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                      Cancelar
-                    </button>
-                  </div>
-                )}
-                {it.estado === 'confirmado' && (
-                  <div style={{ fontSize: 12, color: '#3dd68c', paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                    ✅ Egreso confirmado — stock descontado
-                  </div>
-                )}
+                  )}
+                  {it.estado === 'confirmado' && (
+                    <span style={{ fontSize: 12, color: '#3dd68c', flex: 1 }}>
+                      ✅ Egreso confirmado — stock descontado
+                    </span>
+                  )}
+                  {it.estado === 'cancelado' && (
+                    <span style={{ fontSize: 12, color: '#ff5577', flex: 1 }}>
+                      ✕ Cancelado
+                    </span>
+                  )}
+                </div>
               </div>
             )
           })}

@@ -133,15 +133,14 @@ function MeliModal({ cc, editando, onClose, onSaved, user, profile, catalogo = [
   const [etiquetasFiles, setEtiquetasFiles]   = useState([])
   const [etiquetasExist, setEtiquetasExist]   = useState(Array.isArray(editando?.etiquetas_urls) ? editando.etiquetas_urls : [])
   const [guardando, setGuardando]   = useState(false)
+  const [openDropIdx, setOpenDropIdx] = useState(null)
   const fileInputRef = useRef(null)
 
   function updateItem(i, field, val) {
     setFItems(prev => prev.map((it, j) => {
       if (j !== i) return it
-      if (field === 'codigo') {
-        const prod = catalogo.find(p => p.codigo === val)
-        return { ...it, codigo: val, nombre: prod?.nombre || it.nombre }
-      }
+      if (field === 'select') return { ...it, codigo: val.codigo, nombre: [val.nombre, val.modelo].filter(Boolean).join(' ') }
+      if (field === 'clear') return { ...it, codigo: '', nombre: '' }
       return { ...it, [field]: val }
     }))
   }
@@ -223,12 +222,50 @@ function MeliModal({ cc, editando, onClose, onSaved, user, profile, catalogo = [
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {fItems.map((it, i) => (
-                <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '140px 1fr 72px auto', gap: 6, alignItems: 'center' }}>
-                  <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
-                    <option value="">Código...</option>
-                    {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
-                  </select>
-                  <input value={it.nombre} onChange={e => updateItem(i, 'nombre', e.target.value)} placeholder="Descripción del producto" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 72px auto', gap: 6, alignItems: 'center' }}>
+                  {it.codigo ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12 }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700 }}>{it.codigo}</span>
+                      <span style={{ flex: 1, fontWeight: 600, color: 'var(--text)' }}>{it.nombre}</span>
+                      <button onClick={() => updateItem(i, 'clear', '')} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                    </div>
+                  ) : (
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        value={it.nombre}
+                        onChange={e => { updateItem(i, 'nombre', e.target.value); setOpenDropIdx(i) }}
+                        onFocus={() => setOpenDropIdx(i)}
+                        onBlur={() => setTimeout(() => setOpenDropIdx(null), 150)}
+                        placeholder="Buscar producto por nombre o código..."
+                        style={{ ...inputSt, padding: '7px 10px', fontSize: 12, width: '100%', boxSizing: 'border-box' }}
+                      />
+                      {openDropIdx === i && it.nombre.length >= 1 && (() => {
+                        const q = it.nombre.toLowerCase()
+                        const resultados = catalogo.filter(p =>
+                          (p.codigo || '').toLowerCase().includes(q) ||
+                          (p.nombre || '').toLowerCase().includes(q) ||
+                          (p.modelo || '').toLowerCase().includes(q)
+                        ).slice(0, 8)
+                        if (!resultados.length) return null
+                        return (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 200, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', marginTop: 2 }}>
+                            {resultados.map(p => (
+                              <div
+                                key={p.codigo}
+                                onMouseDown={() => { updateItem(i, 'select', p); setOpenDropIdx(null) }}
+                                style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700, minWidth: 76 }}>{p.codigo}</span>
+                                <span style={{ fontSize: 12, color: 'var(--text)' }}>{p.nombre}{p.modelo ? <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{p.modelo}</span> : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
                   <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', e.target.value)} placeholder="Cant." style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
                   {fItems.length > 1
                     ? <button onClick={() => setFItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px', lineHeight: 1 }}>×</button>
@@ -368,10 +405,13 @@ export default function PedidosCanal() {
 
   function calcTotal() { return fItems.reduce((s, it) => s + (parseFloat(it.precio_unitario)||0) * (parseInt(it.cantidad)||0), 0) }
 
+  const [openDropIdxMain, setOpenDropIdxMain] = useState(null)
+
   function updateItem(i, field, val) {
     setFItems(prev => prev.map((it, j) => {
       if (j !== i) return it
-      if (field === 'codigo') { const prod = catalogo.find(p => p.codigo === val); return { ...it, codigo: val, nombre: prod?.nombre || it.nombre } }
+      if (field === 'select') return { ...it, codigo: val.codigo, nombre: [val.nombre, val.modelo].filter(Boolean).join(' ') }
+      if (field === 'clear') return { ...it, codigo: '', nombre: '' }
       return { ...it, [field]: val }
     }))
   }
@@ -728,12 +768,50 @@ export default function PedidosCanal() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {fItems.map((it, i) => (
-                    <div key={i} className="prod-row-grid" style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
-                      <select value={it.codigo} onChange={e => updateItem(i, 'codigo', e.target.value)} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
-                        <option value="">Código...</option>
-                        {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
-                      </select>
-                      <input value={it.nombre} onChange={e => updateItem(i, 'nombre', e.target.value)} placeholder="Descripción" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
+                      {it.codigo ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12 }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700 }}>{it.codigo}</span>
+                          <span style={{ flex: 1, fontWeight: 600, color: 'var(--text)' }}>{it.nombre}</span>
+                          <button onClick={() => updateItem(i, 'clear', '')} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                        </div>
+                      ) : (
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            value={it.nombre}
+                            onChange={e => { updateItem(i, 'nombre', e.target.value); setOpenDropIdxMain(i) }}
+                            onFocus={() => setOpenDropIdxMain(i)}
+                            onBlur={() => setTimeout(() => setOpenDropIdxMain(null), 150)}
+                            placeholder="Buscar producto por nombre o código..."
+                            style={{ ...inputSt, padding: '7px 10px', fontSize: 12, width: '100%', boxSizing: 'border-box' }}
+                          />
+                          {openDropIdxMain === i && it.nombre.length >= 1 && (() => {
+                            const q = it.nombre.toLowerCase()
+                            const resultados = catalogo.filter(p =>
+                              (p.codigo || '').toLowerCase().includes(q) ||
+                              (p.nombre || '').toLowerCase().includes(q) ||
+                              (p.modelo || '').toLowerCase().includes(q)
+                            ).slice(0, 8)
+                            if (!resultados.length) return null
+                            return (
+                              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 200, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', marginTop: 2 }}>
+                                {resultados.map(p => (
+                                  <div
+                                    key={p.codigo}
+                                    onMouseDown={() => { updateItem(i, 'select', p); setOpenDropIdxMain(null) }}
+                                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700, minWidth: 76 }}>{p.codigo}</span>
+                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{p.nombre}{p.modelo ? <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{p.modelo}</span> : ''}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      )}
                       <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', e.target.value)} style={{ ...inputSt, padding: '7px 8px', fontSize: 12 }} />
                       <input type="number" min="0" value={it.precio_unitario} onChange={e => updateItem(i, 'precio_unitario', e.target.value)} placeholder="Precio" style={{ ...inputSt, padding: '7px 8px', fontSize: 12 }} />
                       {fItems.length > 1 ? <button onClick={() => setFItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px' }}>×</button> : <span />}
@@ -825,15 +903,47 @@ export default function PedidosCanal() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {fEnvioItems.map((it, i) => (
-                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '130px 1fr 60px auto', gap: 6, alignItems: 'center' }}>
-                        <select value={it.codigo} onChange={e => {
-                          const prod = catalogo.find(p => p.codigo === e.target.value)
-                          setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: prod?.nombre || x.nombre } : x))
-                        }} style={{ ...inputSt, padding: '7px 6px', fontSize: 12 }}>
-                          <option value="">Código...</option>
-                          {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
-                        </select>
-                        <input value={it.nombre} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))} placeholder="Descripción" style={{ ...inputSt, padding: '7px 10px', fontSize: 12 }} />
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 60px auto', gap: 6, alignItems: 'center' }}>
+                        {it.codigo ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700 }}>{it.codigo}</span>
+                            <span style={{ flex: 1, fontWeight: 600, color: 'var(--text)' }}>{it.nombre}</span>
+                            <button onClick={() => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: '', nombre: '' } : x))} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                          </div>
+                        ) : (
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              value={it.nombre}
+                              onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))}
+                              onFocus={() => setOpenDropIdxMain(1000 + i)}
+                              onBlur={() => setTimeout(() => setOpenDropIdxMain(null), 150)}
+                              placeholder="Buscar producto..."
+                              style={{ ...inputSt, padding: '7px 10px', fontSize: 12, width: '100%', boxSizing: 'border-box' }}
+                            />
+                            {openDropIdxMain === 1000 + i && it.nombre.length >= 1 && (() => {
+                              const q = it.nombre.toLowerCase()
+                              const resultados = catalogo.filter(p =>
+                                (p.codigo || '').toLowerCase().includes(q) ||
+                                (p.nombre || '').toLowerCase().includes(q) ||
+                                (p.modelo || '').toLowerCase().includes(q)
+                              ).slice(0, 8)
+                              if (!resultados.length) return null
+                              return (
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 200, maxHeight: 200, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', marginTop: 2 }}>
+                                  {resultados.map(p => (
+                                    <div key={p.codigo} onMouseDown={() => { setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: p.codigo, nombre: [p.nombre, p.modelo].filter(Boolean).join(' ') } : x)); setOpenDropIdxMain(null) }}
+                                      style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700, minWidth: 76 }}>{p.codigo}</span>
+                                      <span style={{ fontSize: 12 }}>{p.nombre}{p.modelo ? <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{p.modelo}</span> : ''}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
                         <input type="number" min="1" value={it.cantidad} onChange={e => setFEnvioItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
                         {fEnvioItems.length > 1
                           ? <button onClick={() => setFEnvioItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px' }}>×</button>

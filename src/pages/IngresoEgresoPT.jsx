@@ -347,7 +347,7 @@ export default function IngresoEgresoPT() {
     const { data } = await supabase
       .from('egresos_garantia')
       .select('*')
-      .eq('estado', 'pendiente')
+      .eq('estado', 'enviado')
       .order('created_at', { ascending: false })
     setEgresosGarantia(data || [])
     setLoadingEgresosGar(false)
@@ -1071,12 +1071,12 @@ export default function IngresoEgresoPT() {
           })}
         </>
       ) : view === 'egreso-dev' ? (
-        /* EGRESO DEVOLUCIONES (egresos_garantia pendientes) */
+        /* EGRESO DEVOLUCIONES (egresos_garantia estado=enviado) */
         <div>
           {loadingEgresosGar ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>
           ) : egresosGarantia.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay egresos de garantía pendientes</div>
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay egresos de garantía enviados — confirmá el estado "Enviado" en Egreso Devoluciones primero</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {egresosGarantia.map(it => (
