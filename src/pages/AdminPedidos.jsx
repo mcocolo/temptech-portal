@@ -506,23 +506,24 @@ export default function AdminPedidos() {
   }
 
   async function subirRemitoMultiple(pedido, files) {
-    if (!files || files.length === 0) return
+    const filesArr = Array.from(files || [])
+    if (filesArr.length === 0) return
     setSubiendoRemito(pedido.id)
     const actuales = Array.isArray(pedido.remito_urls) && pedido.remito_urls.length > 0 ? pedido.remito_urls : pedido.remito_url ? [pedido.remito_url] : []
     const nuevasUrls = []
-    for (const file of Array.from(files)) {
+    for (const file of filesArr) {
       const ext = file.name.split('.').pop()
       const path = `remitos/${pedido.id}/remito_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
       const { error } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
-      if (error) { toast.error('Error al subir ' + file.name); continue }
+      if (error) { console.error('Upload error:', error); toast.error('Error al subir ' + file.name + ': ' + error.message); continue }
       const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
       nuevasUrls.push(publicUrl)
     }
-    if (nuevasUrls.length === 0) { setSubiendoRemito(null); return }
+    if (nuevasUrls.length === 0) { setSubiendoRemito(null); toast.error('No se pudo subir ningún archivo'); return }
     const todas = [...actuales, ...nuevasUrls]
     const { error } = await supabase.from('pedidos').update({ remito_urls: todas, remito_url: todas[0], updated_at: new Date().toISOString() }).eq('id', pedido.id)
     setSubiendoRemito(null)
-    if (error) { toast.error('Error al guardar'); return }
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
     toast.success('Remito subido ✅')
     cargar()
   }
@@ -1421,7 +1422,7 @@ export default function AdminPedidos() {
                               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.06)', border: '1px dashed rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: subiendoRemito === pedido.id ? 'not-allowed' : 'pointer', opacity: subiendoRemito === pedido.id ? 0.6 : 1 }}>
                                 {subiendoRemito === pedido.id ? '⏳ Subiendo...' : '+ Adjuntar remito'}
                                 <input type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }} disabled={subiendoRemito === pedido.id}
-                                  onChange={e => { if (e.target.files?.length) subirRemitoMultiple(pedido, e.target.files); e.target.value = '' }} />
+                                  onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirRemitoMultiple(pedido, f) }} />
                               </label>
                             </div>
                           </div>
@@ -1482,7 +1483,7 @@ export default function AdminPedidos() {
                               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', marginTop: archivos.length ? 4 : 0 }}>
                                 {subiendoPago === pedido.id ? '⏳ Subiendo...' : '+ Agregar comprobante'}
                                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display: 'none' }}
-                                  onChange={e => { subirPagoMultiple(pedido, e.target.files); e.target.value = '' }} />
+                                  onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirPagoMultiple(pedido, f) }} />
                               </label>
                             </div>
                           )
