@@ -360,6 +360,9 @@ export default function PedidosCanal() {
   const [guardando, setGuardando] = useState(false)
   const [modalReenvio, setModalReenvio] = useState(null)
   const [reenvioItems, setReenvioItems] = useState([])
+  const [notaAbierta, setNotaAbierta]   = useState(null)
+  const [notaEdit, setNotaEdit]         = useState({})
+  const [guardandoNota, setGuardandoNota] = useState(false)
 
   // Formulario (pagina / vo)
   const [fNroOrden, setFNroOrden] = useState('')
@@ -466,6 +469,17 @@ export default function PedidosCanal() {
   async function cambiarEstado(id, nuevoEstado) {
     await supabase.from('ventas').update({ estado: nuevoEstado, updated_at: new Date().toISOString() }).eq('id', id)
     setVentas(prev => prev.map(v => v.id === id ? { ...v, estado: nuevoEstado } : v))
+  }
+
+  async function guardarNotaVenta(v) {
+    const texto = (notaEdit[v.id] ?? v.notas_admin ?? '').trim()
+    setGuardandoNota(true)
+    const { error } = await supabase.from('ventas').update({ notas_admin: texto || null }).eq('id', v.id)
+    setGuardandoNota(false)
+    if (error) { toast.error('Error al guardar nota'); return }
+    toast.success('Nota guardada')
+    setNotaAbierta(null)
+    setVentas(prev => prev.map(x => x.id === v.id ? { ...x, notas_admin: texto || null } : x))
   }
 
   async function eliminar(id) {
@@ -627,6 +641,38 @@ export default function PedidosCanal() {
                     </div>
                   )
                 })()}
+                {/* Nota interna */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 8 }}>
+                  {notaAbierta !== v.id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {v.notas_admin
+                        ? <span style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', flex: 1 }}>📝 {v.notas_admin}</span>
+                        : <span style={{ fontSize: 12, color: 'var(--text3)', flex: 1 }}>Sin nota interna</span>
+                      }
+                      <button onClick={() => { setNotaEdit(prev => ({ ...prev, [v.id]: v.notas_admin || '' })); setNotaAbierta(v.id) }}
+                        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 10px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                        ✏ {v.notas_admin ? 'Editar nota' : 'Agregar nota'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <textarea rows={2} value={notaEdit[v.id] ?? ''} onChange={e => setNotaEdit(prev => ({ ...prev, [v.id]: e.target.value }))}
+                        placeholder="Nota interna (solo admins)..."
+                        style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => guardarNotaVenta(v)} disabled={guardandoNota}
+                          style={{ background: '#7b9fff', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          {guardandoNota ? 'Guardando...' : 'Guardar'}
+                        </button>
+                        <button onClick={() => setNotaAbierta(null)}
+                          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                   {Object.entries(ESTADO_CONFIG).filter(([k]) => k !== v.estado).map(([k, ecf]) => (
                     <button key={k} onClick={() => cambiarEstado(v.id, k)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: ecf.bg, color: ecf.color, border: `1px solid ${ecf.border}`, fontWeight: 600 }}>→ {ecf.label}</button>

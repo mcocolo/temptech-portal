@@ -33,6 +33,9 @@ export default function AdminDevoluciones() {
   const [notaAdmin, setNotaAdmin] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [confirmRecibido, setConfirmRecibido] = useState(null)
+  const [notaAbierta, setNotaAbierta] = useState(null)
+  const [notaEdit, setNotaEdit] = useState({})
+  const [guardandoNota, setGuardandoNota] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -46,6 +49,17 @@ export default function AdminDevoluciones() {
     if (error) toast.error('Error al cargar devoluciones')
     else setDevoluciones(data || [])
     setLoading(false)
+  }
+
+  async function guardarNotaAdmin(dev) {
+    const texto = (notaEdit[dev.id] ?? dev.notas_admin ?? '').trim()
+    setGuardandoNota(true)
+    const { error } = await supabase.from('devoluciones').update({ notas_admin: texto || null }).eq('id', dev.id)
+    setGuardandoNota(false)
+    if (error) { toast.error('Error al guardar nota'); return }
+    toast.success('Nota guardada')
+    setNotaAbierta(null)
+    cargar()
   }
 
   async function cambiarEstado(id, estado) {
@@ -200,12 +214,37 @@ export default function AdminDevoluciones() {
                 {/* Detalle expandido */}
                 {isExp && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', background: 'rgba(0,0,0,0.12)' }}>
-                    {dev.notas_admin && (
-                      <div style={{ background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
-                        <span style={{ fontWeight: 700, color: '#ffd166' }}>Nota admin: </span>
-                        <span style={{ color: 'var(--text2)' }}>{dev.notas_admin}</span>
-                      </div>
-                    )}
+                    {/* Nota interna editable */}
+                    <div style={{ marginBottom: 14 }}>
+                      {notaAbierta !== dev.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {dev.notas_admin
+                            ? <span style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', flex: 1 }}>📝 {dev.notas_admin}</span>
+                            : <span style={{ fontSize: 12, color: 'var(--text3)', flex: 1 }}>Sin nota interna</span>
+                          }
+                          <button onClick={() => { setNotaEdit(prev => ({ ...prev, [dev.id]: dev.notas_admin || '' })); setNotaAbierta(dev.id) }}
+                            style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 10px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                            ✏ {dev.notas_admin ? 'Editar nota' : 'Agregar nota'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <textarea rows={2} value={notaEdit[dev.id] ?? ''} onChange={e => setNotaEdit(prev => ({ ...prev, [dev.id]: e.target.value }))}
+                            placeholder="Nota interna (solo admins)..."
+                            style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => guardarNotaAdmin(dev)} disabled={guardandoNota}
+                              style={{ background: '#7b9fff', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              {guardandoNota ? 'Guardando...' : 'Guardar'}
+                            </button>
+                            <button onClick={() => setNotaAbierta(null)}
+                              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {dev.estado === 'pendiente' && (
                       <div style={{ marginBottom: 14 }}>

@@ -547,6 +547,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
 
   const [selCodigo, setSelCodigo] = useState(inicial?.codigo || '')
   const [nombre, setNombre] = useState(inicial?.nombre || item.producto || '')
+  const [modelo, setModelo] = useState(inicial?.modelo || '')
   const [cantidad, setCantidad] = useState(1)
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
   const [guardando, setGuardando] = useState(false)
@@ -555,14 +556,14 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
     const val = e.target.value
     setSelCodigo(val)
     const prod = catalogo.find(p => p.codigo === val)
-    if (prod) setNombre(prod.nombre)
+    if (prod) { setNombre(prod.nombre); setModelo(prod.modelo || '') }
   }
 
   async function handleGuardar() {
     if (!selCodigo.trim()) { alert('Seleccioná o ingresá el código del producto'); return }
     if (cantidad < 1) { alert('La cantidad debe ser mayor a 0'); return }
     setGuardando(true)
-    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo: '', cantidad, fecha })
+    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo, cantidad, fecha })
     setGuardando(false)
   }
 
@@ -910,7 +911,7 @@ export default function AdminReclamos() {
 
     if (isEnviado) {
       const { error } = await supabase.from('egresos_garantia').insert({
-        codigo, nombre, modelo: modelo || nombre, categoria: '',
+        codigo, nombre, modelo: modelo || null, categoria: '',
         cantidad, canal: 'Garantía', estado: 'pendiente',
         referencia_nombre: clienteNombre || null,
         observacion: `Reclamo ${reclamoRef}`,

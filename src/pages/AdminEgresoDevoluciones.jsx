@@ -13,12 +13,17 @@ const STATUS_CFG = {
   cancelado:  { label: 'Cancelado',  color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
 }
 
+const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', resize: 'vertical' }
+
 export default function AdminEgresoDevoluciones() {
   const { isAdmin, isAdmin2 } = useAuth()
-  const [items, setItems]     = useState([])
-  const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro]   = useState('pendiente')
+  const [items, setItems]       = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [filtro, setFiltro]     = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
+  const [notaAbierta, setNotaAbierta] = useState(null)
+  const [notaEdit, setNotaEdit]       = useState({})
+  const [guardandoNota, setGuardandoNota] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -42,6 +47,22 @@ export default function AdminEgresoDevoluciones() {
   async function cancelar(id) {
     if (!window.confirm('¿Cancelar este egreso?')) return
     cambiarEstado(id, 'cancelado')
+  }
+
+  async function guardarNota(it) {
+    const texto = (notaEdit[it.id] ?? it.notas_admin ?? '').trim()
+    setGuardandoNota(true)
+    const { error } = await supabase.from('egresos_garantia').update({ notas_admin: texto || null }).eq('id', it.id)
+    setGuardandoNota(false)
+    if (error) { toast.error('Error al guardar nota'); return }
+    toast.success('Nota guardada')
+    setNotaAbierta(null)
+    cargar()
+  }
+
+  function abrirNota(it) {
+    setNotaEdit(prev => ({ ...prev, [it.id]: it.notas_admin || '' }))
+    setNotaAbierta(it.id)
   }
 
   const filtrados = items.filter(it => {
@@ -112,6 +133,7 @@ export default function AdminEgresoDevoluciones() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtrados.map(it => {
             const scfg = STATUS_CFG[it.estado] || STATUS_CFG.pendiente
+            const notaActiva = notaAbierta === it.id
             return (
               <div key={it.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -140,7 +162,7 @@ export default function AdminEgresoDevoluciones() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '2px 6px', borderRadius: 4 }}>{it.codigo}</span>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{it.nombre}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>{it.modelo}</span>
+                      {it.modelo && it.modelo !== it.nombre && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{it.modelo}</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Cantidad: <strong style={{ color: 'var(--text)' }}>{it.cantidad}</strong></div>
                   </div>
@@ -155,12 +177,43 @@ export default function AdminEgresoDevoluciones() {
                   </div>
                 </div>
 
+                {/* Nota interna */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 10 }}>
+                  {!notaActiva && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {it.notas_admin
+                        ? <span style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', flex: 1 }}>📝 {it.notas_admin}</span>
+                        : <span style={{ fontSize: 12, color: 'var(--text3)', flex: 1 }}>Sin nota interna</span>
+                      }
+                      <button onClick={() => abrirNota(it)}
+                        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 10px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                        ✏ {it.notas_admin ? 'Editar nota' : 'Agregar nota'}
+                      </button>
+                    </div>
+                  )}
+                  {notaActiva && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <textarea rows={2} value={notaEdit[it.id] ?? ''} onChange={e => setNotaEdit(prev => ({ ...prev, [it.id]: e.target.value }))}
+                        placeholder="Nota interna (solo admins)..."
+                        style={inputSt} />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => guardarNota(it)} disabled={guardandoNota}
+                          style={{ background: '#7b9fff', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          {guardandoNota ? 'Guardando...' : 'Guardar'}
+                        </button>
+                        <button onClick={() => setNotaAbierta(null)}
+                          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
                   {it.estado === 'pendiente' && (
                     <>
-                      <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flex: 1 }}>
-                        📋 Pendiente de preparar
-                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flex: 1 }}>📋 Pendiente de preparar</span>
                       <button onClick={() => cambiarEstado(it.id, 'preparando')}
                         style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#fb923c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         → Preparando
@@ -173,9 +226,7 @@ export default function AdminEgresoDevoluciones() {
                   )}
                   {it.estado === 'preparando' && (
                     <>
-                      <span style={{ fontSize: 12, color: '#fb923c', fontStyle: 'italic', flex: 1 }}>
-                        📦 En preparación — listo para marcar como enviado
-                      </span>
+                      <span style={{ fontSize: 12, color: '#fb923c', fontStyle: 'italic', flex: 1 }}>📦 En preparación — listo para marcar como enviado</span>
                       <button onClick={() => cambiarEstado(it.id, 'pendiente')}
                         style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         ↩ Pendiente
@@ -191,19 +242,13 @@ export default function AdminEgresoDevoluciones() {
                     </>
                   )}
                   {it.estado === 'enviado' && (
-                    <span style={{ fontSize: 12, color: '#38bdf8', flex: 1 }}>
-                      🚚 Enviado — pendiente de confirmar egreso en Ingreso/Egreso PT
-                    </span>
+                    <span style={{ fontSize: 12, color: '#38bdf8', flex: 1 }}>🚚 Enviado — pendiente de confirmar egreso en Ingreso/Egreso PT</span>
                   )}
                   {it.estado === 'confirmado' && (
-                    <span style={{ fontSize: 12, color: '#3dd68c', flex: 1 }}>
-                      ✅ Egreso confirmado — stock descontado
-                    </span>
+                    <span style={{ fontSize: 12, color: '#3dd68c', flex: 1 }}>✅ Egreso confirmado — stock descontado</span>
                   )}
                   {it.estado === 'cancelado' && (
-                    <span style={{ fontSize: 12, color: '#ff5577', flex: 1 }}>
-                      ✕ Cancelado
-                    </span>
+                    <span style={{ fontSize: 12, color: '#ff5577', flex: 1 }}>✕ Cancelado</span>
                   )}
                 </div>
               </div>
