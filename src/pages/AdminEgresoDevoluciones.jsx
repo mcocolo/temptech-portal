@@ -120,6 +120,15 @@ export default function AdminEgresoDevoluciones() {
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
                   <span style={{ fontSize: 11, fontWeight: 600, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', padding: '2px 8px', borderRadius: 20 }}>🔧 Garantía</span>
+                  {it.fecha_envio ? (
+                    <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.4)', padding: '3px 10px', borderRadius: 20 }}>
+                      📅 Enviar: {new Date(it.fecha_envio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 20 }}>
+                      📅 Sin fecha de envío
+                    </span>
+                  )}
                   <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 'auto' }}>
                     {formatDistanceToNow(new Date(it.created_at), { addSuffix: true, locale: es })}
                   </span>
@@ -144,14 +153,6 @@ export default function AdminEgresoDevoluciones() {
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Operador</div>
                     <div style={{ fontSize: 12 }}>{it.usuario_nombre || '—'}</div>
                   </div>
-                  {it.fecha_envio && (
-                    <div style={{ minWidth: 120 }}>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Fecha envío</div>
-                      <div style={{ fontSize: 12, color: '#38bdf8', fontWeight: 600 }}>
-                        {new Date(it.fecha_envio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
