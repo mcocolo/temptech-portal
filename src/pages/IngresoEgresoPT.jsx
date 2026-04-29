@@ -1686,6 +1686,7 @@ export default function IngresoEgresoPT() {
                         <div>
                           {it.codigo && <span style={{ fontSize: 11, fontWeight: 700, color: vc, fontFamily: 'monospace', marginRight: 8 }}>{it.codigo}</span>}
                           <span style={{ fontSize: 13, fontWeight: 500 }}>{it.nombre}</span>
+                          {it.modelo && <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 6 }}>{it.modelo}</span>}
                         </div>
                         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                           <span style={{ fontSize: 13, fontWeight: 700 }}>×{it.cantidad}</span>

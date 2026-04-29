@@ -931,7 +931,7 @@ export default function AdminPreventas() {
                                 <div style={{ padding: '10px 14px', background: 'rgba(61,214,140,0.06)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius)' }}>
                                   {itemsEnt.map(i => (
                                     <div key={i.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
-                                      <span>{i.nombre}</span>
+                                      <span>{i.nombre}{i.modelo ? ' ' + i.modelo : ''}</span>
                                       <span style={{ fontWeight: 700, color: '#3dd68c' }}>x{cantEntrega[i.codigo]}</span>
                                     </div>
                                   ))}

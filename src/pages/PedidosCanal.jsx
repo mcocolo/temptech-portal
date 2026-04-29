@@ -84,7 +84,7 @@ function MeliCard({ v, cc, onEdit, onDelete, onCambiarEstado, onReenvio }) {
         {(v.items || []).map((it, i) => (
           <span key={i} style={{ fontSize: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 12px', fontWeight: 600 }}>
             {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 6 }}>{it.codigo}</span>}
-            {it.nombre} <strong style={{ marginLeft: 4 }}>×{it.cantidad}</strong>
+            {it.nombre}{it.modelo ? ' ' + it.modelo : ''} <strong style={{ marginLeft: 4 }}>×{it.cantidad}</strong>
           </span>
         ))}
       </div>
@@ -592,7 +592,7 @@ export default function PedidosCanal() {
                     {v.items.map((it, i) => (
                       <span key={i} style={{ fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
                         {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}
-                        {it.nombre} ×{it.cantidad}
+                        {it.nombre}{it.modelo ? ' ' + it.modelo : ''} ×{it.cantidad}
                         {it.precio_unitario > 0 && <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{formatPrecio(it.precio_unitario * it.cantidad)}</span>}
                       </span>
                     ))}
@@ -621,7 +621,7 @@ export default function PedidosCanal() {
                                 </a>
                                 {prods.map((p, pi) => (
                                   <span key={pi} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 7px' }}>
-                                    {p.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{p.codigo}</span>}{p.nombre}{p.cantidad > 1 ? <span style={{ color: cc.color, fontWeight: 700, marginLeft: 4 }}>×{p.cantidad}</span> : ''}
+                                    {p.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{p.codigo}</span>}{p.nombre}{p.modelo ? ' ' + p.modelo : ''}{p.cantidad > 1 ? <span style={{ color: cc.color, fontWeight: 700, marginLeft: 4 }}>×{p.cantidad}</span> : ''}
                                   </span>
                                 ))}
                               </div>
@@ -633,7 +633,7 @@ export default function PedidosCanal() {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                           {etiquetas.map((it, i) => (
                             <span key={i} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
-                              {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}{it.nombre} ×{it.cantidad}
+                              {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}{it.nombre}{it.modelo ? ' ' + it.modelo : ''} ×{it.cantidad}
                             </span>
                           ))}
                         </div>
