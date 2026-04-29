@@ -1430,15 +1430,15 @@ export default function AdminPedidos() {
                       )}
 
                       {/* Factura — solo Admin */}
-                      {isAdmin && (
+                      {(isAdmin || isVendedor) && pedido.factura_url && (
                       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
                         <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Factura</div>
-                        {pedido.factura_url ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <a href={pedido.factura_url} target="_blank" rel="noreferrer"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#3dd68c', textDecoration: 'none' }}>
-                              📄 Ver factura
-                            </a>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <a href={pedido.factura_url} target="_blank" rel="noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#3dd68c', textDecoration: 'none' }}>
+                            📄 Ver factura
+                          </a>
+                          {isAdmin && (<>
                             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#7b9fff', cursor: 'pointer' }}>
                               🔄 Reemplazar
                               <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
@@ -1449,14 +1449,18 @@ export default function AdminPedidos() {
                               ✕
                             </button>
                             {subiendoFactura === pedido.id && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Subiendo...</span>}
-                          </div>
-                        ) : (
-                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,209,102,0.08)', border: '1px dashed rgba(255,209,102,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer' }}>
-                            {subiendoFactura === pedido.id ? '⏳ Subiendo...' : '📎 Adjuntar factura'}
-                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
-                              onChange={e => subirFactura(pedido, e.target.files[0])} />
-                          </label>
-                        )}
+                          </>)}
+                        </div>
+                      </div>
+                      )}
+                      {isAdmin && !pedido.factura_url && (
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Factura</div>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,209,102,0.08)', border: '1px dashed rgba(255,209,102,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer' }}>
+                          {subiendoFactura === pedido.id ? '⏳ Subiendo...' : '📎 Adjuntar factura'}
+                          <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                            onChange={e => subirFactura(pedido, e.target.files[0])} />
+                        </label>
                       </div>
                       )}
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui'
@@ -104,6 +104,7 @@ export default function IngresoEgresoPT() {
   const [pNroRemito, setPNroRemito]         = useState('')
   const [pFotosRemito, setPFotosRemito]     = useState([])
   const [confirmandoPed, setConfirmandoPed] = useState(false)
+  const confirmingPedRef = useRef(false)
 
   // Modal stock inicial (solo admin)
   const [modalStock, setModalStock]     = useState(false)
@@ -267,8 +268,9 @@ export default function IngresoEgresoPT() {
   }
 
   async function confirmarEgresoPedido() {
-    if (!pedidoSel) return
+    if (!pedidoSel || confirmingPedRef.current) return
     if (!pNroRemito.trim()) return toast.error('Ingresá el número de remito')
+    confirmingPedRef.current = true
     setConfirmandoPed(true)
 
     const remitoUrls = []
@@ -278,7 +280,7 @@ export default function IngresoEgresoPT() {
       const { error: upErr } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
       if (upErr) {
         toast.error('Error al subir remito: ' + upErr.message)
-        setConfirmandoPed(false); return
+        setConfirmandoPed(false); confirmingPedRef.current = false; return
       }
       const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
       remitoUrls.push(publicUrl)
@@ -304,7 +306,7 @@ export default function IngresoEgresoPT() {
       estado: isComplete ? 'entregado' : 'aprobado',
       updated_at: new Date().toISOString(),
     }).eq('id', pedidoSel.id)
-    if (errEstado) { toast.error('Error al actualizar pedido: ' + errEstado.message); setConfirmandoPed(false); return }
+    if (errEstado) { toast.error('Error al actualizar pedido: ' + errEstado.message); setConfirmandoPed(false); confirmingPedRef.current = false; return }
 
     // Guardar saldo pendiente (requiere columna items_pendientes)
     await supabase.from('pedidos').update({ items_pendientes: newPending }).eq('id', pedidoSel.id)
@@ -338,6 +340,7 @@ export default function IngresoEgresoPT() {
 
     toast.success(isComplete ? '✅ Entrega completa — Pedido marcado como Entregado' : '✅ Entrega parcial registrada — saldo pendiente guardado')
     setConfirmandoPed(false)
+    confirmingPedRef.current = false
     setModalPedido(false); setPedidoSel(null); setPNroRemito(''); setPFotosRemito([]); setPItems([])
     cargar(); cargarPedidos()
   }
