@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
+import { imprimirPreventa, exportarPreventaExcel } from '@/utils/exportDoc'
 
 function formatPrecio(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n)
@@ -51,6 +52,8 @@ export default function AdminPreventas() {
   const [pagoComprobante, setPagoComprobante] = useState(null)
   const [subiendoPagoComp, setSubiendoPagoComp] = useState(false)
   const [registrandoPago, setRegistrandoPago] = useState(false)
+  const [exportDropPv, setExportDropPv] = useState(null) // id de preventa con dropdown abierto
+  const exportDropRef = useRef(null)
 
   // Edición saldo cobrado inline (legacy, mantenido para retrocompatibilidad)
   const [editandoSaldo, setEditandoSaldo] = useState(null)
@@ -1149,6 +1152,30 @@ export default function AdminPreventas() {
 
                             {/* Acciones */}
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {/* Exportar */}
+                              <div style={{ position: 'relative' }} ref={exportDropPv === pv.id ? exportDropRef : null}>
+                                <button
+                                  onClick={() => setExportDropPv(exportDropPv === pv.id ? null : pv.id)}
+                                  style={{ background: 'rgba(255,107,43,0.1)', color: '#ff6b2b', border: '1px solid rgba(255,107,43,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  ⬇ Exportar
+                                </button>
+                                {exportDropPv === pv.id && (
+                                  <div style={{ position: 'absolute', bottom: '110%', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 300, minWidth: 160, overflow: 'hidden' }}>
+                                    <button onClick={() => { imprimirPreventa(pv); setExportDropPv(null) }}
+                                      style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer', textAlign: 'left' }}
+                                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                      onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                                      📄 Exportar PDF
+                                    </button>
+                                    <button onClick={() => { exportarPreventaExcel(pv); setExportDropPv(null) }}
+                                      style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer', textAlign: 'left' }}
+                                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                      onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                                      📊 Exportar Excel
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                               <button onClick={() => abrirEdicionPv(pv)}
                                 style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                                 ✏️ Editar preventa

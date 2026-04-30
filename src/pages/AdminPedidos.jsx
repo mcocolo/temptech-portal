@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
+import { imprimirPresupuesto, exportarPresupuestoExcel } from '@/utils/exportDoc'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -1004,6 +1005,32 @@ export default function AdminPedidos() {
                     placeholder="Condiciones, aclaraciones..." rows={2}
                     style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none', lineHeight: 1.6 }} />
                 </div>
+
+                {/* Exportar presupuesto */}
+                {npItems.filter(i => i.cantidad > 0).length > 0 && (() => {
+                  const itemsValidos = npItems.filter(i => i.cantidad > 0)
+                  const totalNeto = itemsValidos.reduce((s, i) => s + i.subtotal, 0)
+                  const ivaMonto  = npIVA ? totalNeto * IVA_PCT : 0
+                  const total     = totalNeto + ivaMonto
+                  const exportData = {
+                    items: itemsValidos, notas: npNotas.trim() || null,
+                    fecha: npFecha || null, incluirIVA: npIVA, total, ivaMonto,
+                    distribuidor: npDistSeleccionado || null,
+                    titulo: 'PRESUPUESTO',
+                  }
+                  return (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => imprimirPresupuesto(exportData)}
+                        style={{ flex: 1, background: 'rgba(255,107,43,0.08)', color: '#ff6b2b', border: '1px solid rgba(255,107,43,0.35)', borderRadius: 'var(--radius)', padding: '9px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        📄 Exportar PDF
+                      </button>
+                      <button onClick={() => exportarPresupuestoExcel(exportData)}
+                        style={{ flex: 1, background: 'rgba(255,107,43,0.08)', color: '#ff6b2b', border: '1px solid rgba(255,107,43,0.35)', borderRadius: 'var(--radius)', padding: '9px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        📊 Exportar Excel
+                      </button>
+                    </div>
+                  )
+                })()}
 
                 <button onClick={crearPedido} disabled={creando || !npDistId || npItems.filter(i => i.cantidad > 0).length === 0}
                   style={{ width: '100%', background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: (!npDistId || npItems.filter(i => i.cantidad > 0).length === 0) ? 0.5 : 1 }}>
