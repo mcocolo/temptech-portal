@@ -59,8 +59,7 @@ export default function AdminPrecios() {
   const [filtroCat, setFiltroCat] = useState('todos')
   const [preview, setPreview] = useState(null)   // { filas, errores }
   const [subiendo, setSubiendo] = useState(false)
-  const [editando, setEditando] = useState(null) // { codigo, precio }
-  const [precioEdit, setPrecioEdit] = useState('')
+  const [editando, setEditando] = useState(null) // { codigo, precio, nombre, modelo }
   const [modalNuevo, setModalNuevo] = useState(false)
   const [nuevoForm, setNuevoForm] = useState({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores', ean: '' })
   const [guardandoNuevo, setGuardandoNuevo] = useState(false)
@@ -117,15 +116,20 @@ export default function AdminPrecios() {
   }
 
   async function guardarPrecioIndividual() {
-    const precio = parseFloat(precioEdit.replace(',', '.'))
+    const precio = parseFloat(editando.precio.replace(',', '.'))
     if (isNaN(precio) || precio <= 0) { toast.error('Precio inválido'); return }
+    if (!editando.nombre?.trim()) { toast.error('El nombre no puede estar vacío'); return }
 
-    const { error } = await supabase.from('precios').update({ precio, updated_at: new Date().toISOString() }).eq('codigo', editando)
+    const { error } = await supabase.from('precios').update({
+      precio,
+      nombre: editando.nombre.trim(),
+      modelo: editando.modelo?.trim() || '',
+      updated_at: new Date().toISOString()
+    }).eq('codigo', editando.codigo)
     if (error) { toast.error('Error al guardar'); return }
 
-    toast.success('Precio actualizado ✅')
+    toast.success('Producto actualizado ✅')
     setEditando(null)
-    setPrecioEdit('')
     cargar()
   }
 
@@ -305,26 +309,46 @@ export default function AdminPrecios() {
               </thead>
               <tbody>
                 {preciosFiltrados.map((p, i) => (
-                  <tr key={p.codigo} style={{ borderBottom: i < preciosFiltrados.length - 1 ? '1px solid var(--border)' : 'none', background: editando === p.codigo ? 'rgba(74,108,247,0.04)' : 'transparent' }}>
+                  <tr key={p.codigo} style={{ borderBottom: i < preciosFiltrados.length - 1 ? '1px solid var(--border)' : 'none', background: editando?.codigo === p.codigo ? 'rgba(74,108,247,0.04)' : 'transparent' }}>
                     <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: 12, color: '#7b9fff' }}>{p.codigo}</td>
                     <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: 11, color: 'var(--text3)' }}>{p.ean || '—'}</td>
-                    <td style={{ padding: '10px 16px', fontWeight: 600 }}>{p.nombre}</td>
-                    <td style={{ padding: '10px 16px', color: 'var(--text3)', fontSize: 12 }}>{p.modelo}</td>
+                    <td style={{ padding: '10px 16px', fontWeight: 600 }}>
+                      {editando?.codigo === p.codigo ? (
+                        <input
+                          type="text"
+                          value={editando.nombre}
+                          onChange={e => setEditando(prev => ({ ...prev, nombre: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') guardarPrecioIndividual(); if (e.key === 'Escape') setEditando(null) }}
+                          autoFocus
+                          style={{ width: '100%', minWidth: 160, background: 'var(--surface3)', border: '1px solid rgba(74,108,247,0.5)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', fontWeight: 600 }}
+                        />
+                      ) : p.nombre}
+                    </td>
+                    <td style={{ padding: '10px 16px', color: 'var(--text3)', fontSize: 12 }}>
+                      {editando?.codigo === p.codigo ? (
+                        <input
+                          type="text"
+                          value={editando.modelo}
+                          onChange={e => setEditando(prev => ({ ...prev, modelo: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') guardarPrecioIndividual(); if (e.key === 'Escape') setEditando(null) }}
+                          style={{ width: '100%', minWidth: 120, background: 'var(--surface3)', border: '1px solid rgba(74,108,247,0.5)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 12, outline: 'none', fontFamily: 'var(--font)' }}
+                        />
+                      ) : p.modelo}
+                    </td>
                     <td style={{ padding: '10px 16px' }}>
                       <span style={{ fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 4, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
                         {CATEGORIAS[p.categoria] || p.categoria}
                       </span>
                     </td>
                     <td style={{ padding: '10px 16px' }}>
-                      {editando === p.codigo ? (
+                      {editando?.codigo === p.codigo ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ color: 'var(--text3)', fontSize: 12 }}>$</span>
                           <input
                             type="text"
-                            value={precioEdit}
-                            onChange={e => setPrecioEdit(e.target.value)}
+                            value={editando.precio}
+                            onChange={e => setEditando(prev => ({ ...prev, precio: e.target.value }))}
                             onKeyDown={e => { if (e.key === 'Enter') guardarPrecioIndividual(); if (e.key === 'Escape') setEditando(null) }}
-                            autoFocus
                             style={{ width: 120, background: 'var(--surface3)', border: '1px solid rgba(74,108,247,0.5)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
                           />
                         </div>
@@ -336,7 +360,7 @@ export default function AdminPrecios() {
                       {p.updated_at ? new Date(p.updated_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                     </td>
                     <td style={{ padding: '10px 16px' }}>
-                      {isAdmin && editando === p.codigo ? (
+                      {isAdmin && editando?.codigo === p.codigo ? (
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={guardarPrecioIndividual} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             Guardar
@@ -347,7 +371,7 @@ export default function AdminPrecios() {
                         </div>
                       ) : isAdmin ? (
                         <button
-                          onClick={() => { setEditando(p.codigo); setPrecioEdit(p.precio.toString()) }}
+                          onClick={() => setEditando({ codigo: p.codigo, precio: p.precio.toString(), nombre: p.nombre, modelo: p.modelo || '' })}
                           style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = '#7b9fff'; e.currentTarget.style.color = '#7b9fff' }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text3)' }}

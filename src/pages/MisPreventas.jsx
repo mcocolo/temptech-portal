@@ -87,6 +87,90 @@ export default function MisPreventas() {
   const totalRetirado = (items) => (items || []).reduce((s, i) => s + i.precio_unitario * (i.cantidad_retirada || 0), 0)
   const totalPendiente = (items) => (items || []).reduce((s, i) => s + i.precio_unitario * (i.cantidad_total - (i.cantidad_retirada || 0)), 0)
 
+  function imprimirSaldo(pv) {
+    const clienteNombre = profile?.razon_social || profile?.full_name || 'Mi Cuenta'
+    const items = pv.items || []
+    const iva = pv.incluir_iva ? IVA_PCT : 0
+    const aplicarIva = (n) => n * (1 + iva)
+
+    const filas = items.map(i => {
+      const pendiente = i.cantidad_total - (i.cantidad_retirada || 0)
+      return `
+        <tr>
+          <td>${i.codigo || ''}</td>
+          <td>${i.nombre || ''}${i.modelo ? ' — ' + i.modelo : ''}</td>
+          <td style="text-align:center">${i.cantidad_total}</td>
+          <td style="text-align:center">${i.cantidad_retirada || 0}</td>
+          <td style="text-align:center;font-weight:700;color:${pendiente > 0 ? '#c0392b' : '#27ae60'}">${pendiente}</td>
+          <td style="text-align:right">${formatPrecio(aplicarIva(i.precio_unitario * i.cantidad_total))}</td>
+          <td style="text-align:right">${formatPrecio(aplicarIva(i.precio_unitario * (i.cantidad_retirada || 0)))}</td>
+          <td style="text-align:right;font-weight:700;color:${pendiente > 0 ? '#c0392b' : '#27ae60'}">${formatPrecio(aplicarIva(i.precio_unitario * pendiente))}</td>
+        </tr>`
+    }).join('')
+
+    const totPreventa = aplicarIva(totalPreventa(items))
+    const totRetirado = aplicarIva(totalRetirado(items))
+    const totPendiente = aplicarIva(totalPendiente(items))
+    const ivaLabel = pv.incluir_iva ? ' (c/ IVA)' : ' (s/ IVA)'
+    const fechaHoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Saldo Pendiente — ${clienteNombre}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #111; padding: 32px }
+  h1 { font-size: 20px; margin-bottom: 4px }
+  .sub { color: #555; font-size: 12px; margin-bottom: 24px }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px }
+  th { background: #222; color: #fff; padding: 8px 10px; text-align: left; font-size: 12px }
+  td { padding: 7px 10px; border-bottom: 1px solid #ddd; font-size: 12px }
+  tr:last-child td { border-bottom: none }
+  .totales { border: 2px solid #222; border-radius: 6px; padding: 16px; max-width: 360px; margin-left: auto }
+  .totales div { display: flex; justify-content: space-between; padding: 4px 0 }
+  .totales .pendiente { font-weight: 700; font-size: 15px; color: #c0392b; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 4px }
+  .btn-print { margin-bottom: 20px; padding: 8px 20px; font-size: 13px; cursor: pointer; background: #222; color: #fff; border: none; border-radius: 4px }
+  @media print { .btn-print { display: none } }
+</style>
+</head>
+<body>
+<button class="btn-print" onclick="window.print()">🖨️ Imprimir</button>
+<h1>Saldo Pendiente de Entrega</h1>
+<div class="sub">
+  Cliente: <strong>${clienteNombre}</strong> &nbsp;|&nbsp;
+  Preventa: <strong>#${pv.id.slice(0, 8).toUpperCase()}</strong> &nbsp;|&nbsp;
+  Fecha: <strong>${fechaHoy}</strong>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>Código</th>
+      <th>Producto</th>
+      <th style="text-align:center">Total pactado</th>
+      <th style="text-align:center">Retirado</th>
+      <th style="text-align:center">Pendiente</th>
+      <th style="text-align:right">Monto total${ivaLabel}</th>
+      <th style="text-align:right">Retirado${ivaLabel}</th>
+      <th style="text-align:right">Pendiente${ivaLabel}</th>
+    </tr>
+  </thead>
+  <tbody>${filas}</tbody>
+</table>
+<div class="totales">
+  <div><span>Total preventa${ivaLabel}</span><span>${formatPrecio(totPreventa)}</span></div>
+  <div><span>Retirado${ivaLabel}</span><span>${formatPrecio(totRetirado)}</span></div>
+  <div class="pendiente"><span>Saldo pendiente${ivaLabel}</span><span>${formatPrecio(totPendiente)}</span></div>
+</div>
+</body>
+</html>`
+
+    const w = window.open('', '_blank')
+    w.document.write(html)
+    w.document.close()
+  }
+
   function exportarExcel() {
     const HEADER_STYLE = {
       font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
@@ -434,6 +518,14 @@ export default function MisPreventas() {
                           <div style={{ fontSize: 13, fontWeight: 800, color }}>{formatPrecio(value)}</div>
                         </div>
                       ))}
+                    </div>
+
+                    <div style={{ marginBottom: 14 }}>
+                      <button
+                        onClick={() => imprimirSaldo(pv)}
+                        style={{ background: 'rgba(255,107,43,0.1)', color: '#ff6b2b', border: '1px solid rgba(255,107,43,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        🖨️ Saldo Pendiente
+                      </button>
                     </div>
 
                     {pv.notas && (
