@@ -115,8 +115,8 @@ function MeliCard({ v, cc, onEdit, onDelete, onCambiarEstado, onReenvio }) {
         ))}
         <div style={{ flex: 1 }} />
         {onReenvio && <button onClick={() => onReenvio(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)', fontWeight: 600 }}>🔁 Reenvío</button>}
-        <button onClick={() => onEdit(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>
-        <button onClick={() => onDelete(v.id)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', fontWeight: 600 }}>🗑 Eliminar</button>
+        {onEdit && <button onClick={() => onEdit(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>}
+        {onDelete && <button onClick={() => onDelete(v.id)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', fontWeight: 600 }}>🗑 Eliminar</button>}
       </div>
     </div>
   )
@@ -546,8 +546,8 @@ export default function PedidosCanal() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtradas.map(v => (
             <MeliCard key={v.id} v={v} cc={cc}
-              onEdit={abrirEditar}
-              onDelete={eliminar}
+              onEdit={canEdit ? abrirEditar : null}
+              onDelete={canEdit ? eliminar : null}
               onCambiarEstado={cambiarEstado}
               onReenvio={(v) => {
                 const items = v.items || []
@@ -687,8 +687,8 @@ export default function PedidosCanal() {
                     setReenvioItems(items.map(it => ({ ...it, cantidad: it.cantidad || 1, seleccionado: true })))
                     setModalReenvio(v)
                   }} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)', fontWeight: 600 }}>🔁 Reenvío</button>
-                  <button onClick={() => abrirEditar(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>
-                  <button onClick={() => eliminar(v.id)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', fontWeight: 600 }}>🗑 Eliminar</button>
+                  {canEdit && <button onClick={() => abrirEditar(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>}
+                  {canEdit && <button onClick={() => eliminar(v.id)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', fontWeight: 600 }}>🗑 Eliminar</button>}
                 </div>
               </div>
             )

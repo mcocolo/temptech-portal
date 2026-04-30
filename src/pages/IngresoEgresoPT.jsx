@@ -123,6 +123,12 @@ export default function IngresoEgresoPT() {
   const [minimoEdit, setMinimoEdit]       = useState({})
   const [enviandoAlerta, setEnviandoAlerta] = useState(false)
 
+  // Modal edición de movimiento
+  const [editandoMov, setEditandoMov]         = useState(null)
+  const [editCantidad, setEditCantidad]       = useState('')
+  const [editObs, setEditObs]                 = useState('')
+  const [guardandoEditMov, setGuardandoEditMov] = useState(false)
+
   // Modal tránsito
   const [modalTransito, setModalTransito]       = useState(false)
   const [transitoPendiente, setTransitoPendiente] = useState([])
@@ -545,6 +551,34 @@ export default function IngresoEgresoPT() {
     setStock(map)
     setMovs(movsData || [])
     setLoading(false)
+  }
+
+  async function guardarEditMov() {
+    if (!editandoMov) return
+    const nuevaCant = parseInt(editCantidad) || 0
+    if (nuevaCant <= 0) { toast.error('La cantidad debe ser mayor a 0'); return }
+    setGuardandoEditMov(true)
+
+    // Calcular ajuste de stock: diff = nuevaCant - cantidadOriginal
+    // Para egreso: si baja la cantidad, el stock sube (se "devuelven" unidades)
+    // Para ingreso: si baja la cantidad, el stock baja
+    const diff = nuevaCant - editandoMov.cantidad
+    if (diff !== 0) {
+      const actual = stock[editandoMov.codigo]?.stock_actual ?? 0
+      const stockAdj = editandoMov.tipo === 'egreso' ? -diff : diff
+      const nuevoStock = Math.max(0, actual + stockAdj)
+      await supabase.from('stock_pt').update({ stock_actual: nuevoStock }).eq('codigo', editandoMov.codigo)
+    }
+
+    const { error } = await supabase.from('movimientos_pt')
+      .update({ cantidad: nuevaCant, observacion: editObs.trim() || null })
+      .eq('id', editandoMov.id)
+
+    setGuardandoEditMov(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Movimiento actualizado ✅')
+    setEditandoMov(null)
+    cargar()
   }
 
   async function guardarIngreso() {
@@ -1496,6 +1530,7 @@ export default function IngresoEgresoPT() {
                 {['Tipo', 'Código', 'Producto / Modelo', 'Cantidad', 'Canal', 'Distribuidor / Cliente', 'Operador', 'Observación', 'Fecha'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
+                {isAdmin && <th style={{ padding: '11px 14px' }} />}
               </tr>
             </thead>
             <tbody>
@@ -1550,6 +1585,16 @@ export default function IngresoEgresoPT() {
                     <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
                       {m.created_at ? new Date(m.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
+                    {isAdmin && (
+                      <td style={{ padding: '8px 14px' }}>
+                        <button
+                          onClick={() => { setEditandoMov(m); setEditCantidad(String(m.cantidad)); setEditObs(m.observacion || '') }}
+                          style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}
+                        >
+                          ✏️ Editar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 )
               })
@@ -1558,6 +1603,86 @@ export default function IngresoEgresoPT() {
           </table>
           </div>
         </>
+      )}
+
+      {/* MODAL EDITAR MOVIMIENTO */}
+      {editandoMov && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 460 }}>
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>✏️ Editar movimiento</div>
+              <button onClick={() => setEditandoMov(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Info del movimiento */}
+              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: editandoMov.tipo === 'egreso' ? 'rgba(255,85,119,0.12)' : 'rgba(61,214,140,0.12)', color: editandoMov.tipo === 'egreso' ? '#ff5577' : '#3dd68c' }}>
+                    {editandoMov.tipo === 'egreso' ? '↑ EGRESO' : '↓ INGRESO'}
+                  </span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#7b9fff' }}>{editandoMov.codigo}</span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{editandoMov.nombre} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>{editandoMov.modelo}</span></div>
+                {editandoMov.referencia_nombre && <div style={{ fontSize: 12, color: '#ffd166' }}>📦 {editandoMov.referencia_nombre}</div>}
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Canal: {editandoMov.canal}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                  Stock actual: <strong style={{ color: 'var(--text)' }}>{stock[editandoMov.codigo]?.stock_actual ?? '—'}</strong>
+                  {' '}→ al guardar:{' '}
+                  <strong style={{ color: '#7b9fff' }}>
+                    {(() => {
+                      const nuevaCant = parseInt(editCantidad) || 0
+                      const diff = nuevaCant - editandoMov.cantidad
+                      const actual = stock[editandoMov.codigo]?.stock_actual ?? 0
+                      const stockAdj = editandoMov.tipo === 'egreso' ? -diff : diff
+                      return Math.max(0, actual + stockAdj)
+                    })()}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Cantidad */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  Cantidad <span style={{ color: 'var(--text3)', fontWeight: 400 }}>(original: {editandoMov.cantidad})</span>
+                </label>
+                <input
+                  type="number" min="1" autoFocus
+                  value={editCantidad}
+                  onChange={e => setEditCantidad(e.target.value)}
+                  style={inputSt}
+                />
+              </div>
+
+              {/* Observación */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Observación</label>
+                <textarea
+                  value={editObs}
+                  onChange={e => setEditObs(e.target.value)}
+                  rows={2}
+                  style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={guardarEditMov}
+                  disabled={guardandoEditMov || !editCantidad || parseInt(editCantidad) <= 0}
+                  style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: (!editCantidad || parseInt(editCantidad) <= 0) ? 0.5 : 1 }}
+                >
+                  {guardandoEditMov ? 'Guardando...' : '💾 Guardar cambios'}
+                </button>
+                <button
+                  onClick={() => setEditandoMov(null)}
+                  style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL EGRESO POR PEDIDO */}

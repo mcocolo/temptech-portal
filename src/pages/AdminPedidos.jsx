@@ -1551,7 +1551,7 @@ export default function AdminPedidos() {
                 </div>
 
                 {/* Acciones */}
-                {!isAdmin2 && <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {isAdmin && <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {isEdit ? (
                     <>
                       {esActualizacionPrecios ? (
