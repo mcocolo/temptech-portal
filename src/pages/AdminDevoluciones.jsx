@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -187,7 +188,11 @@ export default function AdminDevoluciones() {
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                       {dev.origen === 'garantia'
-                        ? `Reclamo vinculado · #${dev.reclamo_id ? String(dev.reclamo_id).slice(0,8).toUpperCase() : '—'}`
+                        ? dev.reclamo_id
+                          ? <Link to={`/reclamos?id=${dev.reclamo_id}`} style={{ color: '#7b9fff', textDecoration: 'underline', cursor: 'pointer' }}>
+                              Reclamo vinculado · #{String(dev.reclamo_id).slice(0,8).toUpperCase()} ↗
+                            </Link>
+                          : 'Reclamo vinculado · #—'
                         : dist?.email}
                     </div>
                   </div>

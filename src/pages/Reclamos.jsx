@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import AdminReclamos from './AdminReclamos'
 import Admin2Reclamos from './Admin2Reclamos'
 import { supabase } from '@/lib/supabase'
@@ -133,6 +134,8 @@ const inputStyle = {
 
 export default function Reclamos() {
   const { user, profile, isAdmin, isAdmin2, isVendedor } = useAuth()
+  const [searchParams] = useSearchParams()
+  const openId = searchParams.get('id')
   const [reclamos, setReclamos] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -377,7 +380,7 @@ export default function Reclamos() {
   }
 
   // ── Vista admin ──
-  if (isAdmin || isAdmin2) return <AdminReclamos />
+  if (isAdmin || isAdmin2) return <AdminReclamos openId={openId} />
 
   // ── Vista detalle ──
   if (selected) return (
