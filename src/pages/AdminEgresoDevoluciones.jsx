@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -169,7 +170,16 @@ export default function AdminEgresoDevoluciones() {
                   <div style={{ minWidth: 180 }}>
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Cliente</div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{it.referencia_nombre || '—'}</div>
-                    {it.observacion && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{it.observacion}</div>}
+                    {it.observacion && (() => {
+                      const tracking = it.observacion?.match(/Reclamo (DEV-[\w-]+)/)?.[1]
+                      return tracking
+                        ? <div style={{ fontSize: 11, marginTop: 2 }}>
+                            <Link to={`/reclamos?tracking=${tracking}`} style={{ color: '#7b9fff', textDecoration: 'underline', cursor: 'pointer' }}>
+                              {it.observacion} ↗
+                            </Link>
+                          </div>
+                        : <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{it.observacion}</div>
+                    })()}
                   </div>
                   <div style={{ minWidth: 140 }}>
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Operador</div>

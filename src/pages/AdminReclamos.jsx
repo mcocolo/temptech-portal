@@ -625,11 +625,11 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
   )
 }
 
-export default function AdminReclamos({ openId } = {}) {
-  const [busquedaTracking, setBusquedaTracking] = useState('')
+export default function AdminReclamos({ openTracking } = {}) {
+  const [busquedaTracking, setBusquedaTracking] = useState(openTracking || '')
   const [datos, setDatos]             = useState([])
   const [cargando, setCargando]       = useState(true)
-  const [filtroEstado, setFiltroEstado] = useState('Ingresado')
+  const [filtroEstado, setFiltroEstado] = useState(openTracking ? 'todos' : 'Ingresado')
   const [errorTexto, setErrorTexto]   = useState('')
   const [rechazoAbiertoId, setRechazoAbiertoId] = useState(null)
   const [textoRechazo, setTextoRechazo]         = useState('')
@@ -684,18 +684,6 @@ export default function AdminReclamos({ openId } = {}) {
   }
 
   useEffect(() => { cargar() }, [filtroEstado])
-
-  useEffect(() => {
-    if (!openId || datos.length === 0) return
-    const found = datos.find(d => d.id === openId)
-    if (found) {
-      setBusquedaTracking(found.tracking_id || String(found.id).slice(0, 8).toUpperCase())
-    } else {
-      // Puede estar en otro estado — mostramos todos y buscamos por id
-      setFiltroEstado('todos')
-      setBusquedaTracking(String(openId).slice(0, 8).toUpperCase())
-    }
-  }, [openId, datos])
   async function cambiarEstado(item, nuevoEstado) {
     if (item.estado === 'cerrado' && nuevoEstado !== 'cerrado') return
     const payload = { estado: nuevoEstado }

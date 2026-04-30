@@ -135,7 +135,7 @@ const inputStyle = {
 export default function Reclamos() {
   const { user, profile, isAdmin, isAdmin2, isVendedor } = useAuth()
   const [searchParams] = useSearchParams()
-  const openId = searchParams.get('id')
+  const openTracking = searchParams.get('tracking')
   const [reclamos, setReclamos] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -380,7 +380,7 @@ export default function Reclamos() {
   }
 
   // ── Vista admin ──
-  if (isAdmin || isAdmin2) return <AdminReclamos openId={openId} />
+  if (isAdmin || isAdmin2) return <AdminReclamos openTracking={openTracking} />
 
   // ── Vista detalle ──
   if (selected) return (

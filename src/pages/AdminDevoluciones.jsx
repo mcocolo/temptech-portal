@@ -188,11 +188,14 @@ export default function AdminDevoluciones() {
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                       {dev.origen === 'garantia'
-                        ? dev.reclamo_id
-                          ? <Link to={`/reclamos?id=${dev.reclamo_id}`} style={{ color: '#7b9fff', textDecoration: 'underline', cursor: 'pointer' }}>
-                              Reclamo vinculado · #{String(dev.reclamo_id).slice(0,8).toUpperCase()} ↗
-                            </Link>
-                          : 'Reclamo vinculado · #—'
+                        ? (() => {
+                            const tracking = dev.notas?.match(/Reclamo (DEV-[\w-]+)/)?.[1]
+                            return tracking
+                              ? <Link to={`/reclamos?tracking=${tracking}`} style={{ color: '#7b9fff', textDecoration: 'underline', cursor: 'pointer' }}>
+                                  Reclamo {tracking} ↗
+                                </Link>
+                              : 'Reclamo vinculado · #—'
+                          })()
                         : dist?.email}
                     </div>
                   </div>
