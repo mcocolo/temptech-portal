@@ -929,7 +929,7 @@ export default function AdminReclamos() {
         origen: 'garantia',
         estado: 'pendiente',
         tipo: 'falla',
-        items: [{ codigo, nombre, modelo: modelo || nombre, cantidad }],
+        items: [{ codigo, nombre, modelo: modelo || null, cantidad }],
         referencia_nombre: clienteNombre || null,
         notas: `Panel devuelto · Reclamo ${reclamoRef} · ID:${item.id}`,
       })

@@ -409,6 +409,7 @@ export default function PedidosCanal() {
   function calcTotal() { return fItems.reduce((s, it) => s + (parseFloat(it.precio_unitario)||0) * (parseInt(it.cantidad)||0), 0) }
 
   const [openDropIdxMain, setOpenDropIdxMain] = useState(null)
+  const [openDropEt, setOpenDropEt] = useState(null) // 'etIdx-prodIdx'
 
   function updateItem(i, field, val) {
     setFItems(prev => prev.map((it, j) => {
@@ -904,23 +905,59 @@ export default function PedidosCanal() {
                         {/* Productos en esta etiqueta */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                           <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' }}>Productos en esta etiqueta:</div>
-                          <button onClick={() => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: [...(x.productos || []), { codigo: '', nombre: '', cantidad: 1 }] }))} style={{ fontSize: 11, padding: '2px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px solid ${cc.border}`, fontWeight: 700 }}>+ Item</button>
+                          <button onClick={() => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: [...(x.productos || []), { codigo: '', nombre: '', modelo: '', cantidad: 1 }] }))} style={{ fontSize: 11, padding: '2px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px solid ${cc.border}`, fontWeight: 700 }}>+ Item</button>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {(et.productos || []).map((prod, pi) => (
-                            <div key={pi} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 54px auto', gap: 6, alignItems: 'center' }}>
-                              <select value={prod.codigo} onChange={e => {
-                                const found = catalogo.find(p => p.codigo === e.target.value)
-                                setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, codigo: e.target.value, nombre: found?.nombre || p.nombre }) }))
-                              }} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }}>
-                                <option value="">Código...</option>
-                                {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre || ''}{p.modelo ? ' ' + p.modelo : ''}</option>)}
-                              </select>
-                              <input value={prod.nombre} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, nombre: e.target.value }) }))} placeholder="Descripción" style={{ ...inputSt, padding: '6px 8px', fontSize: 11 }} />
+                          {(et.productos || []).map((prod, pi) => {
+                            const etKey = `${i}-${pi}`
+                            return (
+                            <div key={pi} style={{ display: 'grid', gridTemplateColumns: '1fr 54px auto', gap: 6, alignItems: 'center' }}>
+                              {prod.codigo ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)', padding: '6px 10px', fontSize: 12 }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700 }}>{prod.codigo}</span>
+                                  <span style={{ flex: 1, fontWeight: 600 }}>{prod.nombre}{prod.modelo ? ' ' + prod.modelo : ''}</span>
+                                  <button onClick={() => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, codigo: '', nombre: '', modelo: '' }) }))} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                                </div>
+                              ) : (
+                                <div style={{ position: 'relative' }}>
+                                  <input
+                                    value={prod.nombre}
+                                    onChange={e => { setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, nombre: e.target.value }) })); setOpenDropEt(etKey) }}
+                                    onFocus={() => setOpenDropEt(etKey)}
+                                    onBlur={() => setTimeout(() => setOpenDropEt(null), 150)}
+                                    placeholder="Buscar producto por nombre o código..."
+                                    style={{ ...inputSt, padding: '6px 10px', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                                  />
+                                  {openDropEt === etKey && prod.nombre.length >= 1 && (() => {
+                                    const q = prod.nombre.toLowerCase()
+                                    const resultados = catalogo.filter(p =>
+                                      (p.codigo || '').toLowerCase().includes(q) ||
+                                      (p.nombre || '').toLowerCase().includes(q) ||
+                                      (p.modelo || '').toLowerCase().includes(q)
+                                    ).slice(0, 8)
+                                    if (!resultados.length) return null
+                                    return (
+                                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 200, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', marginTop: 2 }}>
+                                        {resultados.map(p => (
+                                          <div key={p.codigo}
+                                            onMouseDown={() => { setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((pr, k) => k !== pi ? pr : { ...pr, codigo: p.codigo, nombre: p.nombre, modelo: p.modelo || '' }) })); setOpenDropEt(null) }}
+                                            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700, minWidth: 76 }}>{p.codigo}</span>
+                                            <span style={{ fontSize: 12 }}>{p.nombre}{p.modelo ? <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{p.modelo}</span> : ''}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )
+                                  })()}
+                                </div>
+                              )}
                               <input type="number" min="1" value={prod.cantidad} onChange={e => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.map((p, k) => k !== pi ? p : { ...p, cantidad: e.target.value }) }))} style={{ ...inputSt, padding: '6px 6px', fontSize: 11 }} />
                               {(et.productos || []).length > 1 ? <button onClick={() => setFEnvioEtiquetas(prev => prev.map((x, j) => j !== i ? x : { ...x, productos: x.productos.filter((_, k) => k !== pi) }))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button> : <span />}
                             </div>
-                          ))}
+                            )
+                          })}
                           {(et.productos || []).length === 0 && (
                             <span style={{ fontSize: 11, color: 'var(--text3)' }}>Usá "+ Item" para agregar productos a esta etiqueta</span>
                           )}
