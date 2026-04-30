@@ -418,8 +418,8 @@ export default function AdminPedidos() {
     const { error } = await supabase.from('pedidos').update({ estado: 'finalizado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
 
-    // Solo actualizar cantidad_retirada si NO estaba ya finalizado (evita duplicar al re-finalizar)
-    if (!yaFinalizado && pedido.tipo === 'preventa' && pedido.preventa_id) {
+    // Solo actualizar cantidad_retirada si NO estaba ya finalizado ni entregado (evita duplicar si ya se procesó el egreso)
+    if (!yaFinalizado && pedido.estado !== 'entregado' && pedido.tipo === 'preventa' && pedido.preventa_id) {
       const { data: pv } = await supabase.from('preventas').select('items').eq('id', pedido.preventa_id).single()
       if (pv?.items) {
         const updatedItems = pv.items.map(pvItem => {
@@ -439,6 +439,19 @@ export default function AdminPedidos() {
     const { error } = await supabase.from('pedidos').update({ estado: 'entregado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
     await registrarEgresoStock(pedido)
+    // Actualizar cantidad_retirada en la preventa si corresponde
+    if (pedido.tipo === 'preventa' && pedido.preventa_id) {
+      const itemsEntregados = pedido.items_pendientes?.length > 0 ? pedido.items_pendientes : (pedido.items || [])
+      const { data: pv } = await supabase.from('preventas').select('items').eq('id', pedido.preventa_id).single()
+      if (pv?.items) {
+        const updatedItems = pv.items.map(pvItem => {
+          const entregado = itemsEntregados.find(i => i.codigo === pvItem.codigo)
+          if (!entregado || !entregado.cantidad) return pvItem
+          return { ...pvItem, cantidad_retirada: (pvItem.cantidad_retirada || 0) + entregado.cantidad }
+        })
+        await supabase.from('preventas').update({ items: updatedItems }).eq('id', pedido.preventa_id)
+      }
+    }
     toast.success('Pedido marcado como entregado ✅')
     cargar()
   }
