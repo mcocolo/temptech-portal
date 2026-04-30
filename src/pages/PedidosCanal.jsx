@@ -382,7 +382,7 @@ export default function PedidosCanal() {
   useEffect(() => { setBusqueda(''); setFiltro('pendiente'); cargar() }, [canal])
 
   async function cargarCatalogo() {
-    const { data } = await supabase.from('stock_pt').select('codigo, nombre, modelo').order('nombre')
+    const { data } = await supabase.from('precios').select('codigo, nombre, modelo').order('nombre')
     setCatalogo(data || [])
   }
 
