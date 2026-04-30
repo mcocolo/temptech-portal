@@ -962,9 +962,34 @@ export default function IngresoEgresoPT() {
                             <div style={{ fontSize: 14, fontWeight: 700 }}>{v.cliente_nombre}</div>
                             {v.cliente_email && <div style={{ fontSize: 12, color: 'var(--text3)' }}>{v.cliente_email}</div>}
                             {v.cliente_telefono && <div style={{ fontSize: 12, color: 'var(--text3)' }}>{v.cliente_telefono}</div>}
-                            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-                              {(Array.isArray(v.items) ? v.items : []).map(it => `${it.codigo || ''} ×${it.cantidad}`).join(' · ')}
-                            </div>
+                            {(() => {
+                              let displayItems = (Array.isArray(v.items) ? v.items : []).filter(it => it.codigo || it.nombre)
+                              if (displayItems.length === 0 && Array.isArray(v.envio_etiquetas)) {
+                                const map = {}
+                                v.envio_etiquetas.forEach(et => {
+                                  if (!et || typeof et !== 'object') return
+                                  const prods = et.productos ? et.productos : (et.codigo ? [et] : [])
+                                  prods.forEach(p => {
+                                    if (!p.codigo) return
+                                    if (map[p.codigo]) map[p.codigo].cantidad += parseInt(p.cantidad) || 1
+                                    else map[p.codigo] = { ...p, cantidad: parseInt(p.cantidad) || 1 }
+                                  })
+                                })
+                                displayItems = Object.values(map)
+                              }
+                              if (displayItems.length === 0) return null
+                              return (
+                                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {displayItems.map((it, idx) => (
+                                    <div key={idx} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
+                                      <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: canalColor, background: `${canalColor}15`, padding: '1px 6px', borderRadius: 4 }}>{it.codigo}</span>
+                                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>{it.nombre}{it.modelo ? ` ${it.modelo}` : ''}</span>
+                                      <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text2)' }}>×{it.cantidad}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            })()}
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{formatFecha(v.created_at)}</div>
                         </div>
