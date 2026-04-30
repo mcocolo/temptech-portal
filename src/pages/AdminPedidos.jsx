@@ -1614,9 +1614,8 @@ export default function AdminPedidos() {
                           onClick={async () => {
                             const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
                             if (error) { toast.error('Error: ' + error.message); return }
-                            await registrarEgresoStock(pedido)
                             cargar()
-                            toast.success('Pedido marcado como Enviado 🚚 — stock descontado')
+                            toast.success('Pedido marcado como Enviado 🚚')
                           }}
                           style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                         >
@@ -1684,9 +1683,8 @@ export default function AdminPedidos() {
                         onClick={async () => {
                           const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
                           if (error) { toast.error('Error al actualizar: ' + error.message); return }
-                          await registrarEgresoStock(pedido)
                           cargar()
-                          toast.success('Pedido marcado como Enviado 🚚 — stock descontado')
+                          toast.success('Pedido marcado como Enviado 🚚')
                         }}
                         style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                       >
