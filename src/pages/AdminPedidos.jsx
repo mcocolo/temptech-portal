@@ -90,6 +90,7 @@ export default function AdminPedidos() {
   const [filtro, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
   const [filtroFecha, setFiltroFecha] = useState(() => new Date().toISOString().split('T')[0])
+  const [sortOrder, setSortOrder] = useState('newest')
   const [editando, setEditando] = useState(null)
   const [itemsEdit, setItemsEdit] = useState([])
   const [notaAdmin, setNotaAdmin] = useState('')
@@ -727,6 +728,10 @@ export default function AdminPedidos() {
     const email = (p.profiles?.email || '').toLowerCase()
     const id = p.id.slice(0, 8).toLowerCase()
     return nombre.includes(q) || email.includes(q) || id.includes(q)
+  }).sort((a, b) => {
+    const ta = new Date(a.created_at).getTime()
+    const tb = new Date(b.created_at).getTime()
+    return sortOrder === 'newest' ? tb - ta : ta - tb
   })
 
   if (!isAdmin && !isVendedor && !isAdmin2) return null
@@ -1103,6 +1108,12 @@ export default function AdminPedidos() {
               ✕
             </button>
           )}
+          <button
+            onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
+            title={sortOrder === 'newest' ? 'Mostrando más nuevos primero' : 'Mostrando más antiguos primero'}
+            style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+            {sortOrder === 'newest' ? '↓ Más nuevo' : '↑ Más antiguo'}
+          </button>
         </div>
       </div>
 

@@ -366,36 +366,7 @@ export default function AdminPreventas() {
 
     setRegistrandoEntrega(true)
 
-    // 0. Subir factura si existe
-    let facturaUrl = null
-    if (entregaFactura) {
-      setSubiendoFactura(true)
-      const ext = entregaFactura.name.split('.').pop()
-      const path = `preventas/${pv.id}/${Date.now()}_factura.${ext}`
-      const { error: errUp } = await supabase.storage.from('facturas').upload(path, entregaFactura, { upsert: true })
-      setSubiendoFactura(false)
-      if (errUp) { toast.error('Error al subir factura: ' + errUp.message); setRegistrandoEntrega(false); return }
-      const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(path)
-      facturaUrl = urlData.publicUrl
-    }
-
-    // 1. Crear pedido aprobado
-    const { error: errPedido } = await supabase.from('pedidos').insert({
-      distribuidor_id: pv.distribuidor_id,
-      estado: 'aprobado',
-      tipo: 'preventa',
-      preventa_id: pv.id,
-      items: itemsEntrega,
-      total: totalFinal,
-      iva_monto: ivaMonto,
-      incluir_iva: entregaIVA,
-      notas_admin: entregaNotas.trim() || null,
-      ...(facturaUrl ? { factura_url: facturaUrl } : {}),
-    })
-
-    if (errPedido) { toast.error('Error al registrar: ' + errPedido.message); setRegistrandoEntrega(false); return }
-
-    // 2. Actualizar cantidad_retirada en la preventa
+    // Actualizar cantidad_retirada en la preventa
     const itemsActualizados = pv.items.map(i => ({
       ...i,
       cantidad_retirada: (i.cantidad_retirada || 0) + (cantEntrega[i.codigo] || 0),
@@ -408,7 +379,7 @@ export default function AdminPreventas() {
 
     setRegistrandoEntrega(false)
 
-    if (errPv) { toast.error('Pedido creado pero error al actualizar la preventa: ' + errPv.message); return }
+    if (errPv) { toast.error('Error al actualizar la preventa: ' + errPv.message); return }
 
     toast.success('Entrega registrada ✅')
     cerrarEntrega()

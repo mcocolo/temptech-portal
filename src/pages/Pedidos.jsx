@@ -209,7 +209,7 @@ export default function Pedidos() {
     setNotasPrev('')
     setPrevActiva(null)
     setEnviandoPrev(false)
-    cargarHistorial()
+    await cargarHistorial()
     setTab('historial')
   }
 
