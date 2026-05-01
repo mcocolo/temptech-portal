@@ -1128,6 +1128,7 @@ export default function IngresoEgresoPT() {
                                 📋 Stock Inicial
                               </button>
                             )}
+                            {!isAdmin2 && (<>
                             <button onClick={() => { setIProducto({ ...p, categoria: cat.categoria }); setICantidad(''); setIObs(''); setModalIngreso(true) }}
                               style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                               <ArrowDownCircle size={12} /> Ingreso
@@ -1136,6 +1137,7 @@ export default function IngresoEgresoPT() {
                               style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                               <ArrowUpCircle size={12} /> Egreso
                             </button>
+                            </>)}
                           </div>
                         </div>
                       )
