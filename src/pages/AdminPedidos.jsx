@@ -154,7 +154,7 @@ export default function AdminPedidos() {
     setLoading(true)
     let q = supabase
       .from('pedidos')
-      .select('*, profiles!distribuidor_id(full_name, email, razon_social)')
+      .select('*, profiles!distribuidor_id(full_name, email, razon_social), vendedor_profile:profiles!vendedor_id(full_name)')
       .order('fecha_entrega', { ascending: true })
     if (isAdmin2) {
       const admin2Estados = ['pendiente', 'aprobado', 'preparando', 'enviado']
@@ -1163,11 +1163,20 @@ export default function AdminPedidos() {
 
                 {/* Distribuidor */}
                 <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(74,108,247,0.03)' }}>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,209,102,0.15)', border: '1px solid rgba(255,209,102,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🏪</div>
-                  <div>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,209,102,0.15)', border: '1px solid rgba(255,209,102,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🏪</div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{dist?.razon_social || dist?.full_name || 'Sin nombre'}</div>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>{dist?.email}</div>
                   </div>
+                  {pedido.vendedor_profile?.full_name && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 'var(--radius)', padding: '5px 10px', flexShrink: 0 }}>
+                      <span style={{ fontSize: 13 }}>👤</span>
+                      <div>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Vendedor</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa' }}>{pedido.vendedor_profile.full_name}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Items */}
