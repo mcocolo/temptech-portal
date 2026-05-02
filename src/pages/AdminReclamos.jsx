@@ -627,6 +627,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
 
 export default function AdminReclamos({ openTracking } = {}) {
   const [busquedaTracking, setBusquedaTracking] = useState(openTracking || '')
+  const [sortOrder, setSortOrder] = useState('newest')
   const [datos, setDatos]             = useState([])
   const [cargando, setCargando]       = useState(true)
   const [filtroEstado, setFiltroEstado] = useState(openTracking ? 'todos' : 'Ingresado')
@@ -657,6 +658,7 @@ export default function AdminReclamos({ openTracking } = {}) {
   }, [])
 
   const datosFiltrados = datos.filter(item => {
+    if (filtroEstado !== 'todos' && item.estado !== filtroEstado) return false
     if (!busquedaTracking) return true
     const q = busquedaTracking.toLowerCase()
     return (
@@ -666,6 +668,10 @@ export default function AdminReclamos({ openTracking } = {}) {
       item.email?.toLowerCase().includes(q) ||
       item.id?.toLowerCase().includes(q)
     )
+  }).sort((a, b) => {
+    const ta = new Date(a.fecha_creacion || a.created_at).getTime()
+    const tb = new Date(b.fecha_creacion || b.created_at).getTime()
+    return sortOrder === 'newest' ? tb - ta : ta - tb
   })
 
   function armarLineaNota(tipo, texto) {
@@ -1137,6 +1143,10 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
             {busquedaTracking && <button onClick={() => setBusquedaTracking('')} style={{ background: T.surface3, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text2, fontSize: 12, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>Limpiar</button>}
           </div>
           <button onClick={exportarExcel} style={{ background: T.greenDim, color: T.green, border: `1px solid ${T.green}40`, borderRadius: T.radius, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>📊 Exportar Excel</button>
+          <button onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
+            style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 10px', fontSize: 12, color: T.text2, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>
+            {sortOrder === 'newest' ? '↓ Más nuevo' : '↑ Más antiguo'}
+          </button>
           <div style={{ fontSize: 12, color: T.text3, marginLeft: 'auto' }}>{datosFiltrados.length} reclamo{datosFiltrados.length !== 1 ? 's' : ''}</div>
         </div>
 

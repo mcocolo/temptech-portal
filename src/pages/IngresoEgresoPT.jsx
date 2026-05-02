@@ -76,6 +76,7 @@ export default function IngresoEgresoPT() {
   const [movs, setMovs]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [busquedaHist, setBusquedaHist] = useState('')
+  const [sortOrderHist, setSortOrderHist] = useState('newest')
   const [fechaHist, setFechaHist]       = useState('')
   const [catFilter, setCatFilter] = useState('')
 
@@ -1562,6 +1563,10 @@ export default function IngresoEgresoPT() {
                 ✕ Limpiar
               </button>
             )}
+            <button onClick={() => setSortOrderHist(s => s === 'newest' ? 'oldest' : 'newest')}
+              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+              {sortOrderHist === 'newest' ? '↓ Más nuevo' : '↑ Más antiguo'}
+            </button>
           </div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1590,6 +1595,9 @@ export default function IngresoEgresoPT() {
                     m.codigo?.toLowerCase().includes(q) ||
                     m.nombre?.toLowerCase().includes(q)
                   )
+                }).sort((a, b) => {
+                  const ta = new Date(a.created_at).getTime(), tb = new Date(b.created_at).getTime()
+                  return sortOrderHist === 'newest' ? tb - ta : ta - tb
                 })
                 if (filtrados.length === 0) return (
                   <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>

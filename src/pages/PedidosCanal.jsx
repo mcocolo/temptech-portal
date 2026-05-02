@@ -355,6 +355,7 @@ export default function PedidosCanal() {
   const [loading, setLoading]     = useState(true)
   const [filtroEstado, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda]   = useState('')
+  const [sortOrder, setSortOrder] = useState('newest')
   const [modal, setModal]         = useState(false)
   const [editando, setEditando]   = useState(null)
   const [guardando, setGuardando] = useState(false)
@@ -494,6 +495,9 @@ export default function PedidosCanal() {
     if (filtroEstado !== 'todos' && v.estado !== filtroEstado) return false
     if (busqueda) { const q = busqueda.toLowerCase(); return v.cliente_nombre?.toLowerCase().includes(q) || v.nro_orden?.toLowerCase().includes(q) }
     return true
+  }).sort((a, b) => {
+    const ta = new Date(a.created_at).getTime(), tb = new Date(b.created_at).getTime()
+    return sortOrder === 'newest' ? tb - ta : ta - tb
   })
 
   return (
@@ -535,6 +539,10 @@ export default function PedidosCanal() {
             return <button key={e} onClick={() => setFiltro(e)} style={{ padding: '5px 13px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', border: `1px solid ${active ? (ecfg.border||'var(--border)') : 'var(--border)'}`, background: active ? ecfg.bg : 'transparent', color: active ? ecfg.color : 'var(--text3)', fontWeight: active ? 700 : 400 }}>{ecfg.label}</button>
           })}
         </div>
+        <button onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
+          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+          {sortOrder === 'newest' ? '↓ Más nuevo' : '↑ Más antiguo'}
+        </button>
       </div>
 
       {/* Lista */}

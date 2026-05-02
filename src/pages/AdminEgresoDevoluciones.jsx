@@ -22,6 +22,7 @@ export default function AdminEgresoDevoluciones() {
   const [loading, setLoading]   = useState(true)
   const [filtro, setFiltro]     = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
+  const [sortOrder, setSortOrder] = useState('newest')
   const [notaAbierta, setNotaAbierta] = useState(null)
   const [notaEdit, setNotaEdit]       = useState({})
   const [guardandoNota, setGuardandoNota] = useState(false)
@@ -76,6 +77,9 @@ export default function AdminEgresoDevoluciones() {
       it.referencia_nombre?.toLowerCase().includes(q) ||
       String(it.id).slice(0,8).toLowerCase().includes(q)
     )
+  }).sort((a, b) => {
+    const ta = new Date(a.created_at).getTime(), tb = new Date(b.created_at).getTime()
+    return sortOrder === 'newest' ? tb - ta : ta - tb
   })
 
   const counts = {
@@ -123,6 +127,10 @@ export default function AdminEgresoDevoluciones() {
         <input type="text" placeholder="🔍 Buscar por código, producto o cliente..."
           value={busqueda} onChange={e => setBusqueda(e.target.value)}
           style={{ flex: 1, minWidth: 200, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
+        <button onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
+          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+          {sortOrder === 'newest' ? '↓ Más nuevo' : '↑ Más antiguo'}
+        </button>
       </div>
 
       {/* Lista */}
