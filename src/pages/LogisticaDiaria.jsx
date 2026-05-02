@@ -68,10 +68,10 @@ export default function LogisticaDiaria() {
     const [{ data: logData }, { data: logAsignados }, { data: pedidosData }, { data: ventasData }] = await Promise.all([
       supabase.from('logistica_diaria').select('*').eq('fecha', fecha).order('orden'),
       supabase.from('logistica_diaria').select('pedido_id,venta_id'),
-      supabase.from('pedidos').select('*').eq('tipo_envio', 'correo')
+      supabase.from('pedidos').select('*').in('tipo_envio', ['correo', 'logistica'])
         .in('estado', ['aprobado', 'preparando', 'modificado'])
         .order('created_at', { ascending: false }),
-      supabase.from('ventas').select('*').eq('tipo_envio', 'correo')
+      supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica'])
         .not('estado', 'in', '("entregado","cancelado")')
         .order('created_at', { ascending: false }),
     ])
@@ -319,7 +319,7 @@ export default function LogisticaDiaria() {
       {(pedidosPendientes.length > 0 || ventasPendientes.length > 0) && (
         <div style={{ marginBottom: 24, background: 'rgba(74,108,247,0.04)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
-            📬 Correo / Andreani — Por asignar a ruta ({pedidosPendientes.length + ventasPendientes.length})
+            🚚 Por asignar a ruta ({pedidosPendientes.length + ventasPendientes.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pedidosPendientes.map(pedido => {
@@ -332,6 +332,9 @@ export default function LogisticaDiaria() {
                       <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>#{pedido.id.slice(0, 8).toUpperCase()}</span>
                       <span style={{ fontWeight: 700, fontSize: 13 }}>{nombre}</span>
                       <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 10 }}>Distribuidor</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, ...(pedido.tipo_envio === 'correo' ? { color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)' } : { color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)' }) }}>
+                        {pedido.tipo_envio === 'correo' ? '📬 Correo/Andreani' : '🚚 Logística'}
+                      </span>
                       <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fechaPedido}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -363,6 +366,9 @@ export default function LogisticaDiaria() {
                           {CANAL_LABEL[venta.canal] || venta.canal}
                         </span>
                       )}
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, ...(venta.tipo_envio === 'correo' ? { color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)' } : { color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)' }) }}>
+                        {venta.tipo_envio === 'correo' ? '📬 Correo/Andreani' : '🚚 Logística'}
+                      </span>
                       {venta.nro_orden && <span style={{ fontSize: 11, color: 'var(--text3)' }}>#{venta.nro_orden}</span>}
                       <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fechaVenta}</span>
                     </div>
