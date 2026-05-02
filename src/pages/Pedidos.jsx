@@ -298,9 +298,17 @@ export default function Pedidos() {
         </div>
       )}
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Mis Pedidos</h1>
-        <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Seleccioná los productos y enviá tu pedido</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Mis Pedidos</h1>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Seleccioná los productos y enviá tu pedido</p>
+        </div>
+        <a
+          href="https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Lista%20de%20Precios%20-%20TEMPTECH%2016-1-26.xlsx"
+          download
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(61,214,140,0.08)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font)', flexShrink: 0 }}>
+          📥 Lista de Precios
+        </a>
       </div>
 
       {/* Tabs */}
