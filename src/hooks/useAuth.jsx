@@ -64,6 +64,7 @@ export function AuthProvider({ children }) {
   const isAdmin       = profile?.role === 'admin'
   const isAdmin2      = profile?.role === 'admin2'
   const isVendedor    = profile?.role === 'vendedor'
+  const isChofer      = profile?.role === 'chofer'
   const isClient      = profile?.user_type === 'client'      || profile?.clientes?.user_type === 'client'
   const isDistributor = profile?.user_type === 'distributor'  || profile?.clientes?.user_type === 'distributor'
   const isTechService = profile?.user_type === 'tech_service' || profile?.clientes?.user_type === 'tech_service'
@@ -72,7 +73,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, profile, loading,
-      isAdmin, isAdmin2, isVendedor, isClient, isDistributor, isTechService,
+      isAdmin, isAdmin2, isVendedor, isChofer, isClient, isDistributor, isTechService,
       clientCode,
       signIn, signInWithGoogle, signUp, signOut,
       refreshProfile: () => user && fetchProfile(user.id),

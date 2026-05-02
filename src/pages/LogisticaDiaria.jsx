@@ -46,7 +46,7 @@ const iSt = {
 }
 
 export default function LogisticaDiaria() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, isChofer, user, profile } = useAuth()
   const [fecha, setFecha] = useState(() => new Date().toISOString().split('T')[0])
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
@@ -224,6 +224,20 @@ export default function LogisticaDiaria() {
     cargar()
   }
 
+  async function confirmarEntrega(item) {
+    const yaConfirmado = !!item.estado_entrega
+    const payload = yaConfirmado
+      ? { estado_entrega: null, entregado_at: null, chofer_nombre: null }
+      : {
+          estado_entrega: ['entrega_pt', 'cambio_garantia'].includes(item.tipo) ? 'entregado' : 'recibido',
+          entregado_at: new Date().toISOString(),
+          chofer_nombre: profile?.full_name || user?.email || 'Chofer',
+        }
+    const { error } = await supabase.from('logistica_diaria').update(payload).eq('id', item.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    cargar()
+  }
+
   function imprimirRuta() {
     const fechaDisplay = new Date(fecha + 'T12:00:00').toLocaleDateString('es-AR', {
       weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
@@ -291,7 +305,7 @@ export default function LogisticaDiaria() {
     setTimeout(() => w.print(), 350)
   }
 
-  if (!isAdmin && !isAdmin2) return null
+  if (!isAdmin && !isAdmin2 && !isChofer) return null
 
   const conProductos = ['entrega_pt', 'cambio_garantia'].includes(form.tipo)
 
@@ -315,8 +329,8 @@ export default function LogisticaDiaria() {
         </div>
       </div>
 
-      {/* Pedidos / Ventas Correo-Andreani pendientes de asignar */}
-      {(pedidosPendientes.length > 0 || ventasPendientes.length > 0) && (
+      {/* Pedidos / Ventas Correo-Andreani pendientes de asignar — solo admin */}
+      {!isChofer && (pedidosPendientes.length > 0 || ventasPendientes.length > 0) && (
         <div style={{ marginBottom: 24, background: 'rgba(74,108,247,0.04)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
             🚚 Por asignar a ruta ({pedidosPendientes.length + ventasPendientes.length})
@@ -391,15 +405,17 @@ export default function LogisticaDiaria() {
         </div>
       )}
 
-      {/* Type buttons */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-        {Object.entries(TIPOS).map(([key, t]) => (
-          <button key={key} onClick={() => abrirNuevo(key)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: t.bg, color: t.color, border: `1px solid ${t.border}`, borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
-            {t.emoji} + {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Type buttons — solo admin */}
+      {!isChofer && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+          {Object.entries(TIPOS).map(([key, t]) => (
+            <button key={key} onClick={() => abrirNuevo(key)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: t.bg, color: t.color, border: `1px solid ${t.border}`, borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+              {t.emoji} + {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Summary chips */}
       {items.length > 0 && (
@@ -434,15 +450,21 @@ export default function LogisticaDiaria() {
             const prodsCon = (item.productos || []).filter(p => p.cantidad > 0)
             const isDel = confirmDel === item.id
             return (
-              <div key={item.id} style={{ background: 'var(--surface)', border: `1px solid ${isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden', display: 'flex' }}>
-                {/* Number */}
-                <div style={{ width: 44, background: 'var(--surface2)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0, padding: '8px 0' }}>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text3)' }}>{idx + 1}</span>
-                  <button onClick={() => mover(item.id, -1)} disabled={idx === 0}
-                    style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--border)' : 'var(--text3)', fontSize: 12, padding: '2px 6px', lineHeight: 1 }}>▲</button>
-                  <button onClick={() => mover(item.id, 1)} disabled={idx === items.length - 1}
-                    style={{ background: 'none', border: 'none', cursor: idx === items.length - 1 ? 'default' : 'pointer', color: idx === items.length - 1 ? 'var(--border)' : 'var(--text3)', fontSize: 12, padding: '2px 6px', lineHeight: 1 }}>▼</button>
-                </div>
+              <div key={item.id} style={{ background: item.estado_entrega ? 'rgba(61,214,140,0.04)' : 'var(--surface)', border: `1px solid ${item.estado_entrega ? 'rgba(61,214,140,0.3)' : isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden', display: 'flex' }}>
+                {/* Number / reorder — solo admin */}
+                {!isChofer ? (
+                  <div style={{ width: 44, background: 'var(--surface2)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0, padding: '8px 0' }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text3)' }}>{idx + 1}</span>
+                    <button onClick={() => mover(item.id, -1)} disabled={idx === 0}
+                      style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--border)' : 'var(--text3)', fontSize: 12, padding: '2px 6px', lineHeight: 1 }}>▲</button>
+                    <button onClick={() => mover(item.id, 1)} disabled={idx === items.length - 1}
+                      style={{ background: 'none', border: 'none', cursor: idx === items.length - 1 ? 'default' : 'pointer', color: idx === items.length - 1 ? 'var(--border)' : 'var(--text3)', fontSize: 12, padding: '2px 6px', lineHeight: 1 }}>▼</button>
+                  </div>
+                ) : (
+                  <div style={{ width: 44, background: item.estado_entrega ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: item.estado_entrega ? '#3dd68c' : 'var(--text3)' }}>{idx + 1}</span>
+                  </div>
+                )}
 
                 {/* Content */}
                 <div style={{ flex: 1, padding: '12px 16px', minWidth: 0 }}>
@@ -458,28 +480,53 @@ export default function LogisticaDiaria() {
                           📬 #{(item.pedido_id || item.venta_id).slice(0, 8).toUpperCase()}
                         </span>
                       )}
+                      {item.estado_entrega && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', padding: '2px 10px', borderRadius: 20 }}>
+                          {item.estado_entrega === 'entregado' ? '✅ Entregado' : '📥 Recibido'}
+                          {item.chofer_nombre ? ` · ${item.chofer_nombre}` : ''}
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                      <button onClick={() => abrirEditar(item)}
-                        style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        ✏️ Editar
-                      </button>
-                      {isDel ? (
-                        <>
-                          <button onClick={() => eliminar(item.id)}
-                            style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                            Eliminar
-                          </button>
-                          <button onClick={() => setConfirmDel(null)}
-                            style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                            No
-                          </button>
-                        </>
-                      ) : (
-                        <button onClick={() => setConfirmDel(item.id)}
-                          style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                          🗑
+                      {/* Botón confirmar — chofer */}
+                      {isChofer && (
+                        <button onClick={() => confirmarEntrega(item)}
+                          style={{
+                            background: item.estado_entrega ? 'rgba(255,85,119,0.08)' : 'rgba(61,214,140,0.12)',
+                            color: item.estado_entrega ? '#ff5577' : '#3dd68c',
+                            border: `1px solid ${item.estado_entrega ? 'rgba(255,85,119,0.35)' : 'rgba(61,214,140,0.4)'}`,
+                            borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)',
+                          }}>
+                          {item.estado_entrega
+                            ? '↩ Deshacer'
+                            : ['entrega_pt', 'cambio_garantia'].includes(item.tipo) ? '✅ Entregado' : '📥 Recibido'}
                         </button>
+                      )}
+                      {/* Editar / Eliminar — solo admin */}
+                      {!isChofer && (
+                        <>
+                          <button onClick={() => abrirEditar(item)}
+                            style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ✏️ Editar
+                          </button>
+                          {isDel ? (
+                            <>
+                              <button onClick={() => eliminar(item.id)}
+                                style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                Eliminar
+                              </button>
+                              <button onClick={() => setConfirmDel(null)}
+                                style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                No
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={() => setConfirmDel(item.id)}
+                              style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              🗑
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -518,8 +565,8 @@ export default function LogisticaDiaria() {
         </div>
       )}
 
-      {/* MODAL */}
-      {modalOpen && (
+      {/* MODAL — solo admin */}
+      {!isChofer && modalOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto' }}>
 

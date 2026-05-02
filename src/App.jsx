@@ -53,12 +53,18 @@ function PrivateRoute({ children }) {
   return user ? children : <Navigate to="/auth" replace />
 }
 
+function HomeRedirect() {
+  const { isChofer, loading } = useAuth()
+  if (loading) return null
+  return <Navigate to={isChofer ? '/logistica' : '/dashboard'} replace />
+}
+
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth"          element={<Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route path="/"              element={<Navigate to="/dashboard" replace />} />
+      <Route path="/"              element={<PrivateRoute><HomeRedirect /></PrivateRoute>} />
       <Route path="/*" element={
         <PrivateRoute>
           <Layout>
