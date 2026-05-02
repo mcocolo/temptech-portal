@@ -83,9 +83,32 @@ export default function MisPreventas() {
     cargar()
   }
 
+  const [subiendoFacturaPvId, setSubiendoFacturaPvId] = useState(null)
+
   const totalPreventa = (items) => (items || []).reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0)
   const totalRetirado = (items) => (items || []).reduce((s, i) => s + i.precio_unitario * (i.cantidad_retirada || 0), 0)
   const totalPendiente = (items) => (items || []).reduce((s, i) => s + i.precio_unitario * (i.cantidad_total - (i.cantidad_retirada || 0)), 0)
+
+  async function subirFacturaPv(pv, file) {
+    if (!file) return
+    setSubiendoFacturaPvId(pv.id)
+    const ext = file.name.split('.').pop()
+    const path = `preventas/${pv.id}/facturas/${Date.now()}.${ext}`
+    const { error: errUp } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+    if (errUp) { toast.error('Error al subir: ' + errUp.message); setSubiendoFacturaPvId(null); return }
+    const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(path)
+    const nuevas = [...(pv.facturas || []), {
+      url: urlData.publicUrl,
+      nombre: file.name,
+      subido_por: profile?.full_name || user.email,
+      created_at: new Date().toISOString(),
+    }]
+    const { error } = await supabase.from('preventas').update({ facturas: nuevas, updated_at: new Date().toISOString() }).eq('id', pv.id)
+    setSubiendoFacturaPvId(null)
+    if (error) { toast.error('Error al guardar factura'); return }
+    toast.success('Factura adjuntada ✅')
+    cargar()
+  }
 
   function imprimirSaldo(pv) {
     const clienteNombre = profile?.razon_social || profile?.full_name || 'Mi Cuenta'
@@ -526,6 +549,27 @@ export default function MisPreventas() {
                         style={{ background: 'rgba(255,107,43,0.1)', color: '#ff6b2b', border: '1px solid rgba(255,107,43,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         🖨️ Saldo Pendiente
                       </button>
+                    </div>
+
+                    {/* Facturas adjuntas */}
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>📄 Facturas adjuntas</div>
+                      {(pv.facturas || []).length === 0 ? (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>Sin facturas adjuntas.</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                          {(pv.facturas || []).map((f, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                              <a href={f.url} target="_blank" rel="noreferrer" style={{ flex: 1, color: '#7b9fff', textDecoration: 'none', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📎 {f.nombre}</a>
+                              <span style={{ color: 'var(--text3)', fontSize: 11, whiteSpace: 'nowrap' }}>{f.subido_por} · {new Date(f.created_at).toLocaleDateString('es-AR')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: '#7b9fff', cursor: subiendoFacturaPvId === pv.id ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', fontWeight: 600, opacity: subiendoFacturaPvId === pv.id ? 0.6 : 1 }}>
+                        {subiendoFacturaPvId === pv.id ? '⏳ Subiendo...' : '📎 Adjuntar factura'}
+                        <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={subiendoFacturaPvId === pv.id} onChange={e => subirFacturaPv(pv, e.target.files[0])} />
+                      </label>
                     </div>
 
                     {pv.notas && (

@@ -35,6 +35,8 @@ const EMPTY_FORM = {
   telefono: '', email: '', dni: '',
   descripcion: '', notas: '',
   productos: {},
+  pedido_id: null,
+  venta_id: null,
 }
 
 const iSt = {
@@ -53,17 +55,46 @@ export default function LogisticaDiaria() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [guardando, setGuardando] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [pedidosPendientes, setPedidosPendientes] = useState([])
+  const [ventasPendientes, setVentasPendientes] = useState([])
+  const [pedidosEnRuta, setPedidosEnRuta] = useState(new Set())
+  const [ventasEnRuta, setVentasEnRuta] = useState(new Set())
 
   useEffect(() => { cargar() }, [fecha])
 
   async function cargar() {
     setLoading(true)
-    const { data } = await supabase
-      .from('logistica_diaria')
-      .select('*')
-      .eq('fecha', fecha)
-      .order('orden')
-    setItems(data || [])
+
+    const [{ data: logData }, { data: logAsignados }, { data: pedidosData }, { data: ventasData }] = await Promise.all([
+      supabase.from('logistica_diaria').select('*').eq('fecha', fecha).order('orden'),
+      supabase.from('logistica_diaria').select('pedido_id,venta_id'),
+      supabase.from('pedidos').select('*').eq('tipo_envio', 'correo')
+        .in('estado', ['aprobado', 'preparando', 'modificado'])
+        .order('created_at', { ascending: false }),
+      supabase.from('ventas').select('*').eq('tipo_envio', 'correo')
+        .not('estado', 'in', '("entregado","cancelado")')
+        .order('created_at', { ascending: false }),
+    ])
+
+    setItems(logData || [])
+
+    const asignadosPedidos = new Set((logAsignados || []).map(l => l.pedido_id).filter(Boolean))
+    const asignadosVentas = new Set((logAsignados || []).map(l => l.venta_id).filter(Boolean))
+    setPedidosEnRuta(asignadosPedidos)
+    setVentasEnRuta(asignadosVentas)
+
+    const pedidosFiltrados = (pedidosData || []).filter(p => !asignadosPedidos.has(p.id))
+    if (pedidosFiltrados.length > 0) {
+      const ids = [...new Set(pedidosFiltrados.map(p => p.distribuidor_id).filter(Boolean))]
+      const { data: profsData } = await supabase.from('profiles').select('id,full_name,razon_social').in('id', ids)
+      const profsMap = Object.fromEntries((profsData || []).map(p => [p.id, p]))
+      setPedidosPendientes(pedidosFiltrados.map(p => ({ ...p, _profile: profsMap[p.distribuidor_id] || null })))
+    } else {
+      setPedidosPendientes([])
+    }
+
+    setVentasPendientes((ventasData || []).filter(v => !asignadosVentas.has(v.id)))
+
     setLoading(false)
   }
 
@@ -88,8 +119,38 @@ export default function LogisticaDiaria() {
       descripcion: item.descripcion || '',
       notas: item.notas || '',
       productos,
+      pedido_id: item.pedido_id || null,
+      venta_id: item.venta_id || null,
     })
     setEditId(item.id)
+    setModalOpen(true)
+  }
+
+  function abrirDesdeVenta(venta) {
+    const nombre = venta.cliente_nombre || ''
+    const productos = {}
+    const codigosLog = new Set(PRODUCTOS_LOG.map(p => p.codigo))
+    for (const item of (venta.items || [])) {
+      if (item.codigo && codigosLog.has(item.codigo) && item.cantidad > 0) {
+        productos[item.codigo] = (productos[item.codigo] || 0) + item.cantidad
+      }
+    }
+    setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, telefono: venta.cliente_telefono || '', email: venta.cliente_email || '', productos, venta_id: venta.id })
+    setEditId(null)
+    setModalOpen(true)
+  }
+
+  function abrirDesdePedido(pedido) {
+    const nombre = pedido._profile?.razon_social || pedido._profile?.full_name || ''
+    const productos = {}
+    const codigosLog = new Set(PRODUCTOS_LOG.map(p => p.codigo))
+    for (const item of (pedido.items || [])) {
+      if (item.codigo && codigosLog.has(item.codigo) && item.cantidad > 0) {
+        productos[item.codigo] = (productos[item.codigo] || 0) + item.cantidad
+      }
+    }
+    setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, productos, pedido_id: pedido.id })
+    setEditId(null)
     setModalOpen(true)
   }
 
@@ -124,6 +185,8 @@ export default function LogisticaDiaria() {
       descripcion: form.descripcion.trim() || null,
       notas: form.notas.trim() || null,
       productos: productosArr,
+      pedido_id: form.pedido_id || null,
+      venta_id: form.venta_id || null,
     }
 
     setGuardando(true)
@@ -252,6 +315,76 @@ export default function LogisticaDiaria() {
         </div>
       </div>
 
+      {/* Pedidos / Ventas Correo-Andreani pendientes de asignar */}
+      {(pedidosPendientes.length > 0 || ventasPendientes.length > 0) && (
+        <div style={{ marginBottom: 24, background: 'rgba(74,108,247,0.04)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
+            📬 Correo / Andreani — Por asignar a ruta ({pedidosPendientes.length + ventasPendientes.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pedidosPendientes.map(pedido => {
+              const nombre = pedido._profile?.razon_social || pedido._profile?.full_name || pedido.distribuidor_id?.slice(0, 8)
+              const fechaPedido = new Date(pedido.created_at).toLocaleDateString('es-AR')
+              return (
+                <div key={pedido.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>#{pedido.id.slice(0, 8).toUpperCase()}</span>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{nombre}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 10 }}>Distribuidor</span>
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fechaPedido}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {(pedido.items || []).map((item, i) => (
+                        <span key={i} style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.25)', color: '#3dd68c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                          {item.codigo} ×{item.cantidad}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={() => abrirDesdePedido(pedido)}
+                    style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    ➕ Completar y agregar
+                  </button>
+                </div>
+              )
+            })}
+            {ventasPendientes.map(venta => {
+              const CANAL_LABEL = { meli: 'Mercado Libre', vo: 'Venta VO', pagina: 'Página Web' }
+              const fechaVenta = new Date(venta.created_at).toLocaleDateString('es-AR')
+              return (
+                <div key={venta.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>#{venta.id.slice(0, 8).toUpperCase()}</span>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{venta.cliente_nombre || '—'}</span>
+                      {venta.canal && (
+                        <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 10 }}>
+                          {CANAL_LABEL[venta.canal] || venta.canal}
+                        </span>
+                      )}
+                      {venta.nro_orden && <span style={{ fontSize: 11, color: 'var(--text3)' }}>#{venta.nro_orden}</span>}
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fechaVenta}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {(venta.items || []).map((item, i) => (
+                        <span key={i} style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.25)', color: '#3dd68c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                          {item.codigo || item.nombre} ×{item.cantidad}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={() => abrirDesdeVenta(venta)}
+                    style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    ➕ Completar y agregar
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Type buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {Object.entries(TIPOS).map(([key, t]) => (
@@ -314,6 +447,11 @@ export default function LogisticaDiaria() {
                         {t?.emoji} {t?.label}
                       </span>
                       <span style={{ fontSize: 14, fontWeight: 700 }}>{item.nombre || item.descripcion}</span>
+                      {(item.pedido_id || item.venta_id) && (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.25)', padding: '1px 7px', borderRadius: 10 }}>
+                          📬 #{(item.pedido_id || item.venta_id).slice(0, 8).toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
                       <button onClick={() => abrirEditar(item)}
@@ -382,9 +520,16 @@ export default function LogisticaDiaria() {
             {/* Header modal */}
             <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>{editId ? 'Editar parada' : 'Nueva parada'}</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>
+                  {editId ? 'Editar parada' : form.pedido_id ? 'Completar datos de entrega' : 'Nueva parada'}
+                </div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
                   {new Date(fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                  {form.pedido_id && (
+                    <span style={{ marginLeft: 8, color: '#7b9fff', fontWeight: 600 }}>
+                      · Pedido #{form.pedido_id.slice(0, 8).toUpperCase()}
+                    </span>
+                  )}
                 </div>
               </div>
               <button onClick={() => setModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>

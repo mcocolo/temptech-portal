@@ -43,6 +43,9 @@ const CATALOGO = [
       { codigo: 'F1400PCL',     nombre: 'Panel Calefactor Firenze',      modelo: '1400w Piedra Cantera Luna',      precio: 78592.53,  imagen: `${IMG}F1400PCL.png` },
       { codigo: 'F1400MCO',     nombre: 'Panel Calefactor Firenze',      modelo: '1400w Mármol Calacatta Ocre',    precio: 78592.53,  imagen: `${IMG}F1400MCO.png` },
       { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart',modelo: '1400w Smart Wifi - App Temptech',precio: 157190.67, imagen: `${IMG}F1400SMARTBL.png` },
+      { codigo: 'KITSLIM',      nombre: 'Kit Instalación Slim',          modelo: '250/500w',                       precio: 0,          imagen: '' },
+      { codigo: 'KITFIRENZE',   nombre: 'Kit Instalación Firenze',       modelo: '1400w',                          precio: 0,          imagen: '' },
+      { codigo: 'PATASFIRENZE', nombre: 'Patas Firenze',                 modelo: 'x2',                             precio: 0,          imagen: '' },
     ],
   },
   {
@@ -85,6 +88,7 @@ export default function Pedidos() {
   const [enviando, setEnviando] = useState(false)
   const [historial, setHistorial] = useState([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [sortHistorial, setSortHistorial] = useState('newest')
   const [subiendoPago, setSubiendoPago] = useState(null)
 
   // Preventa
@@ -686,11 +690,19 @@ export default function Pedidos() {
 
       {tab === 'historial' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {historial.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setSortHistorial(s => s === 'newest' ? 'oldest' : 'newest')}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
+                {sortHistorial === 'newest' ? '↓ Más nuevo' : '↑ Más antiguo'}
+              </button>
+            </div>
+          )}
           {loadingHistorial ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
           ) : historial.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>No tenés pedidos aún.</div>
-          ) : historial.map(p => {
+          ) : [...historial].sort((a, b) => sortHistorial === 'newest' ? new Date(b.created_at) - new Date(a.created_at) : new Date(a.created_at) - new Date(b.created_at)).map(p => {
             const cfg = STATUS_CONFIG[p.estado] || STATUS_CONFIG.pendiente
             return (
               <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>

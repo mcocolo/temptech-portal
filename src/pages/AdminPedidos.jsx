@@ -45,6 +45,9 @@ const CATALOGO_ADMIN = [
       { codigo: 'F1400PCL',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Piedra Cantera Luna',       precio: 78592.53 },
       { codigo: 'F1400MCO',     nombre: 'Panel Calefactor Firenze',       modelo: '1400w Mármol Calacatta Ocre',     precio: 78592.53 },
       { codigo: 'F1400SMARTBL', nombre: 'Panel Calefactor Firenze Smart', modelo: '1400w Smart Wifi - App Temptech', precio: 157190.67 },
+      { codigo: 'KITSLIM',      nombre: 'Kit Instalación Slim',          modelo: '250/500w',                       precio: 0 },
+      { codigo: 'KITFIRENZE',   nombre: 'Kit Instalación Firenze',       modelo: '1400w',                          precio: 0 },
+      { codigo: 'PATASFIRENZE', nombre: 'Patas Firenze',                 modelo: 'x2',                             precio: 0 },
     ],
   },
   {
