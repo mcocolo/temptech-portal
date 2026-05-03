@@ -315,12 +315,14 @@ export default function LogisticaDiaria() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Logística Diaria</h1>
-          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Armá la hoja de ruta para el chofer</p>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>
+            {isChofer ? 'Confirmá cada parada a medida que la completás' : 'Armá la hoja de ruta para el chofer'}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
             style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
-          {items.length > 0 && (
+          {!isChofer && items.length > 0 && (
             <button onClick={imprimirRuta}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
               🖨️ Imprimir hoja de ruta
@@ -420,7 +422,7 @@ export default function LogisticaDiaria() {
       {/* Summary chips */}
       {items.length > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {Object.entries(TIPOS).map(([key, t]) => {
+          {!isChofer && Object.entries(TIPOS).map(([key, t]) => {
             const count = items.filter(i => i.tipo === key).length
             if (!count) return null
             return (
@@ -429,9 +431,28 @@ export default function LogisticaDiaria() {
               </div>
             )
           })}
-          <div style={{ marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 14px', fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>
-            {items.length} parada{items.length !== 1 ? 's' : ''} en total
-          </div>
+          {isChofer ? (() => {
+            const completadas = items.filter(i => i.estado_entrega).length
+            const total = items.length
+            const pct = Math.round((completadas / total) * 100)
+            return (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
+                  <span style={{ color: completadas === total ? '#3dd68c' : 'var(--text2)' }}>
+                    {completadas === total ? '🎉 ¡Ruta completada!' : `${completadas} de ${total} paradas completadas`}
+                  </span>
+                  <span style={{ color: 'var(--text3)', fontWeight: 600 }}>{pct}%</span>
+                </div>
+                <div style={{ height: 8, borderRadius: 99, background: 'var(--surface2)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: completadas === total ? '#3dd68c' : 'var(--brand-blue)', borderRadius: 99, transition: 'width 0.4s ease' }} />
+                </div>
+              </div>
+            )
+          })() : (
+            <div style={{ marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 14px', fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>
+              {items.length} parada{items.length !== 1 ? 's' : ''} en total
+            </div>
+          )}
         </div>
       )}
 
@@ -441,7 +462,10 @@ export default function LogisticaDiaria() {
       ) : items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🚚</div>
-          No hay paradas para esta fecha.<br />Usá los botones de arriba para armar la ruta.
+          {isChofer
+            ? <>No hay paradas asignadas para esta fecha.<br />Seleccioná otro día o consultá con el equipo.</>
+            : <>No hay paradas para esta fecha.<br />Usá los botones de arriba para armar la ruta.</>
+          }
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
