@@ -337,7 +337,7 @@ export default function IngresoEgresoPT() {
       if (nuevo === 0 || (sMinPed != null && nuevo <= sMinPed)) {
         await notificarAdminsStockBajo(item.codigo, item.nombre || '', item.modelo || '', nuevo, sMinPed)
       }
-      await supabase.from('movimientos_pt').insert({
+      const { error: movErr } = await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
         observacion: `Pedido #${pedidoSel.id?.slice(0,8).toUpperCase()} · ${pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || ''}${pNroRemito ? ' · Remito ' + pNroRemito : ''}${!isComplete ? ' · Entrega parcial' : ''}`,
@@ -345,6 +345,7 @@ export default function IngresoEgresoPT() {
         referencia_nombre: pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || null,
         es_parcial: !isComplete,
       })
+      if (movErr) { toast.error('Error al registrar movimiento ' + item.codigo + ': ' + movErr.message); setConfirmandoPed(false); confirmingPedRef.current = false; return }
     }
 
     // Actualizar cantidad_retirada en la preventa si corresponde

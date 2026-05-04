@@ -406,13 +406,14 @@ export default function AdminPedidos() {
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         stock_actual: Math.max(0, actual - item.cantidad), stock_inicial: stockRow?.stock_inicial ?? 0,
       }, { onConflict: 'codigo' })
-      await supabase.from('movimientos_pt').insert({
+      const { error: movErr } = await supabase.from('movimientos_pt').insert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         tipo: 'egreso', cantidad: item.cantidad, canal: 'Distribuidor',
         observacion: `Pedido #${pedido.id?.slice(0,8).toUpperCase()} · ${distNombre}${pedido.nro_remito ? ' · Remito ' + pedido.nro_remito : ''}`,
         usuario_id: user.id, usuario_nombre: profile?.full_name || user.email,
         referencia_nombre: distNombre || null,
       })
+      if (movErr) toast.error('Error al registrar movimiento ' + item.codigo + ': ' + movErr.message)
     }
     await supabase.from('pedidos').update({ stock_descontado: true }).eq('id', pedido.id)
   }
