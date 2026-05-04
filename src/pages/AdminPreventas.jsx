@@ -58,6 +58,13 @@ export default function AdminPreventas() {
   // Facturas adjuntas
   const [subiendoFacturaPvId, setSubiendoFacturaPvId] = useState(null)
 
+  // Solicitar retiro (admin crea pedido de preventa)
+  const [solicitandoRetiroPv, setSolicitandoRetiroPv] = useState(null)
+  const [cantRetiro, setCantRetiro] = useState({})
+  const [retiroIVA, setRetiroIVA] = useState(false)
+  const [retiroNotas, setRetiroNotas] = useState('')
+  const [enviandoRetiro, setEnviandoRetiro] = useState(false)
+
   // Edición saldo cobrado inline (legacy, mantenido para retrocompatibilidad)
   const [editandoSaldo, setEditandoSaldo] = useState(null)
   const [saldoInput, setSaldoInput] = useState('')
@@ -413,6 +420,56 @@ export default function AdminPreventas() {
   const totalPreventa = (items) => items.reduce((s, i) => s + i.precio_unitario * i.cantidad_total, 0)
   const totalRetirado = (items) => items.reduce((s, i) => s + i.precio_unitario * (i.cantidad_retirada || 0), 0)
   const totalPendiente = (items) => items.reduce((s, i) => s + i.precio_unitario * (i.cantidad_total - (i.cantidad_retirada || 0)), 0)
+
+  function abrirSolicitudRetiro(pv) {
+    setCantRetiro({})
+    setRetiroIVA(pv.incluir_iva || false)
+    setRetiroNotas('')
+    setSolicitandoRetiroPv(pv.id)
+    setEditandoPv(null)
+    setEntregandoPv(null)
+  }
+
+  function cerrarSolicitudRetiro() {
+    setSolicitandoRetiroPv(null)
+    setCantRetiro({})
+    setRetiroIVA(false)
+    setRetiroNotas('')
+  }
+
+  async function enviarSolicitudRetiro(pv) {
+    const itemsRetiro = pv.items
+      .filter(i => (cantRetiro[i.codigo] || 0) > 0)
+      .map(i => ({
+        codigo: i.codigo, nombre: i.nombre, modelo: i.modelo,
+        categoria: i.categoria,
+        precio_unitario: i.precio_unitario,
+        precio_base: i.precio_unitario,
+        descuento_pct: 0,
+        cantidad: cantRetiro[i.codigo],
+        subtotal: i.precio_unitario * cantRetiro[i.codigo],
+      }))
+    if (itemsRetiro.length === 0) { toast.error('Indicá al menos una cantidad'); return }
+    const totalNeto = itemsRetiro.reduce((s, i) => s + i.subtotal, 0)
+    const ivaMonto = retiroIVA ? totalNeto * IVA_PCT : 0
+    setEnviandoRetiro(true)
+    const { error } = await supabase.from('pedidos').insert({
+      distribuidor_id: pv.distribuidor_id,
+      estado: 'pendiente',
+      tipo: 'preventa',
+      preventa_id: pv.id,
+      items: itemsRetiro,
+      total: totalNeto + ivaMonto,
+      iva_monto: ivaMonto,
+      incluir_iva: retiroIVA,
+      notas: retiroNotas.trim() || null,
+    })
+    setEnviandoRetiro(false)
+    if (error) { toast.error('Error al crear el pedido: ' + error.message); return }
+    toast.success('Solicitud de retiro creada ✅ — aparece en Pedidos Distribuidores')
+    cerrarSolicitudRetiro()
+    cargar()
+  }
 
   function imprimirSaldo(pv) {
     const dist = pv.profiles
@@ -1061,6 +1118,85 @@ export default function AdminPreventas() {
                               </button>
                             </div>
                           </div>
+                        ) : solicitandoRetiroPv === pv.id ? (
+                          /* ── MODO SOLICITAR RETIRO ── */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#fb923c', marginBottom: 2 }}>
+                              📋 Solicitar retiro — indicá las cantidades para este pedido
+                            </div>
+                            {items.map((item, i) => {
+                              const pendiente = item.cantidad_total - (item.cantidad_retirada || 0)
+                              const cant = cantRetiro[item.codigo] || 0
+                              return (
+                                <div key={i} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 16, opacity: pendiente === 0 ? 0.5 : 1 }}>
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '1px 6px', borderRadius: 4 }}>{item.codigo}</span>
+                                      <span style={{ fontSize: 13, fontWeight: 600 }}>{item.nombre}</span>
+                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{item.modelo}</div>
+                                    <div style={{ fontSize: 11, color: pendiente > 0 ? '#ffd166' : '#3dd68c', marginTop: 2 }}>
+                                      {pendiente > 0 ? `${pendiente} disponibles` : 'Completo ✓'}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <button onClick={() => setCantRetiro(p => ({ ...p, [item.codigo]: Math.max(0, (p[item.codigo] || 0) - 1) }))} disabled={pendiente === 0 || cant === 0}
+                                      style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface3)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                                    <input type="number" min="0" max={pendiente} value={cant || ''}
+                                      onChange={e => setCantRetiro(p => ({ ...p, [item.codigo]: Math.min(pendiente, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                                      placeholder="0" disabled={pendiente === 0}
+                                      style={{ width: 52, textAlign: 'center', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }} />
+                                    <button onClick={() => setCantRetiro(p => ({ ...p, [item.codigo]: Math.min(pendiente, (p[item.codigo] || 0) + 1) }))} disabled={pendiente === 0 || cant >= pendiente}
+                                      style={{ width: 28, height: 28, borderRadius: 6, background: pendiente > 0 ? 'rgba(251,146,60,0.5)' : 'var(--surface2)', border: 'none', color: '#fff', cursor: pendiente > 0 ? 'pointer' : 'default', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+
+                            {/* Resumen */}
+                            {Object.values(cantRetiro).some(v => v > 0) && (() => {
+                              const itemsEnt = items.filter(i => (cantRetiro[i.codigo] || 0) > 0)
+                              const totalNeto = itemsEnt.reduce((s, i) => s + i.precio_unitario * cantRetiro[i.codigo], 0)
+                              const ivaAmt = retiroIVA ? totalNeto * IVA_PCT : 0
+                              return (
+                                <div style={{ padding: '10px 14px', background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.25)', borderRadius: 'var(--radius)' }}>
+                                  {itemsEnt.map(i => (
+                                    <div key={i.codigo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
+                                      <span>{i.nombre}{i.modelo ? ' ' + i.modelo : ''}</span>
+                                      <span style={{ fontWeight: 700, color: '#fb923c' }}>×{cantRetiro[i.codigo]} — {formatPrecio(i.precio_unitario * cantRetiro[i.codigo])}</span>
+                                    </div>
+                                  ))}
+                                  <div style={{ borderTop: '1px solid rgba(251,146,60,0.2)', marginTop: 6, paddingTop: 6, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 12 }}>
+                                    <span style={{ color: 'var(--text3)' }}>Total{retiroIVA ? ' c/IVA' : ''}</span>
+                                    <span style={{ color: '#fb923c' }}>{formatPrecio(totalNeto + ivaAmt)}</span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>
+                              <input type="checkbox" checked={retiroIVA} onChange={e => setRetiroIVA(e.target.checked)} style={{ width: 14, height: 14, accentColor: '#fb923c' }} />
+                              Incluir IVA (21%)
+                            </label>
+
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Notas (opcional)</div>
+                              <textarea value={retiroNotas} onChange={e => setRetiroNotas(e.target.value)} rows={2}
+                                placeholder="Observaciones del retiro..."
+                                style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', resize: 'none', outline: 'none' }} />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => enviarSolicitudRetiro(pv)} disabled={enviandoRetiro || !Object.values(cantRetiro).some(v => v > 0)}
+                                style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 'var(--radius)', padding: '7px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: !Object.values(cantRetiro).some(v => v > 0) ? 0.5 : 1 }}>
+                                {enviandoRetiro ? 'Creando pedido...' : '📋 Confirmar solicitud'}
+                              </button>
+                              <button onClick={cerrarSolicitudRetiro}
+                                style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
                         ) : (
                           /* ── MODO VISTA ── */
                           <>
@@ -1295,6 +1431,10 @@ export default function AdminPreventas() {
                               </button>
                               {pv.estado === 'activa' && (
                                 <>
+                                  <button onClick={() => abrirSolicitudRetiro(pv)}
+                                    style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                    📋 Solicitar retiro
+                                  </button>
                                   <button onClick={() => abrirEntrega(pv)}
                                     style={{ background: 'rgba(61,214,140,0.1)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                                     📦 Registrar entrega

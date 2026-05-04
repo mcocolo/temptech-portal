@@ -127,10 +127,14 @@ export default function LogisticaDiaria() {
   }
 
   function abrirDesdeVenta(venta) {
-    const nombre = venta.cliente_nombre || ''
+    const nombre = venta.cliente_nombre || venta.usuario_nombre || ''
     const productos = {}
     const codigosLog = new Set(PRODUCTOS_LOG.map(p => p.codigo))
-    for (const item of (venta.items || [])) {
+    // For logistica ventas, items are stored in envio_etiquetas; fall back to items
+    const fuente = (venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0)
+      ? venta.envio_etiquetas
+      : venta.items || []
+    for (const item of fuente) {
       if (item.codigo && codigosLog.has(item.codigo) && item.cantidad > 0) {
         productos[item.codigo] = (productos[item.codigo] || 0) + item.cantidad
       }
@@ -371,12 +375,17 @@ export default function LogisticaDiaria() {
             {ventasPendientes.map(venta => {
               const CANAL_LABEL = { meli: 'Mercado Libre', vo: 'Venta VO', pagina: 'Página Web' }
               const fechaVenta = new Date(venta.created_at).toLocaleDateString('es-AR')
+              const nombreVenta = venta.cliente_nombre || venta.usuario_nombre || '—'
+              // For logistica ventas, items are in envio_etiquetas
+              const itemsVenta = (venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0)
+                ? venta.envio_etiquetas
+                : venta.items || []
               return (
                 <div key={venta.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>#{venta.id.slice(0, 8).toUpperCase()}</span>
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>{venta.cliente_nombre || '—'}</span>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{nombreVenta}</span>
                       {venta.canal && (
                         <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 10 }}>
                           {CANAL_LABEL[venta.canal] || venta.canal}
@@ -389,7 +398,7 @@ export default function LogisticaDiaria() {
                       <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fechaVenta}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                      {(venta.items || []).map((item, i) => (
+                      {itemsVenta.map((item, i) => (
                         <span key={i} style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.25)', color: '#3dd68c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
                           {item.codigo || item.nombre} ×{item.cantidad}
                         </span>
