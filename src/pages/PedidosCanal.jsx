@@ -24,7 +24,12 @@ const ESTADO_CONFIG = {
 
 
 function formatFecha(d) {
-  try { return formatDistanceToNow(new Date(d), { addSuffix: true, locale: es }) } catch { return '' }
+  try {
+    const dt = new Date(d)
+    const relativa = formatDistanceToNow(dt, { addSuffix: true, locale: es })
+    const absoluta = dt.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })
+    return `${relativa} · ${absoluta}`
+  } catch { return '' }
 }
 function formatPrecio(v) {
   if (!v && v !== 0) return '—'
