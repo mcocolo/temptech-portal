@@ -278,6 +278,8 @@ export default function IngresoEgresoPT() {
   async function confirmarEgresoPedido() {
     if (!pedidoSel || confirmingPedRef.current) return
     if (!pNroRemito.trim()) return toast.error('Ingresá el número de remito')
+    const itemsAEntregar = pItems.filter(it => it.codigo && it.cantidad > 0)
+    if (itemsAEntregar.length === 0) return toast.error('No hay productos con cantidad para entregar')
     confirmingPedRef.current = true
     setConfirmandoPed(true)
 
@@ -321,11 +323,10 @@ export default function IngresoEgresoPT() {
     await supabase.from('pedidos').update({ items_pendientes: newPending }).eq('id', pedidoSel.id)
 
     // Descontar stock por las cantidades efectivamente entregadas
-    for (const item of pItems) {
-      if (!item.codigo || !item.cantidad) continue
+    for (const item of itemsAEntregar) {
       const actual = stock[item.codigo]?.stock_actual ?? 0
       const nuevo = Math.max(0, actual - item.cantidad)
-      await supabase.from('stock_pt').upsert({
+      const { error: stockErr } = await supabase.from('stock_pt').upsert({
         codigo: item.codigo,
         nombre: item.nombre || '',
         modelo: item.modelo || '',
@@ -333,6 +334,7 @@ export default function IngresoEgresoPT() {
         stock_actual: nuevo,
         stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
       }, { onConflict: 'codigo' })
+      if (stockErr) { toast.error('Error al actualizar stock de ' + item.codigo + ': ' + stockErr.message); setConfirmandoPed(false); confirmingPedRef.current = false; return }
       const sMinPed = stock[item.codigo]?.stock_minimo
       if (nuevo === 0 || (sMinPed != null && nuevo <= sMinPed)) {
         await notificarAdminsStockBajo(item.codigo, item.nombre || '', item.modelo || '', nuevo, sMinPed)
@@ -345,7 +347,7 @@ export default function IngresoEgresoPT() {
         referencia_nombre: pedidoSel.profiles?.razon_social || pedidoSel.profiles?.full_name || null,
         es_parcial: !isComplete,
       })
-      if (movErr) { toast.error('Error al registrar movimiento ' + item.codigo + ': ' + movErr.message); setConfirmandoPed(false); confirmingPedRef.current = false; return }
+      if (movErr) { toast.error('Error al registrar movimiento de ' + item.codigo + ': ' + movErr.message); setConfirmandoPed(false); confirmingPedRef.current = false; return }
     }
 
     // Actualizar cantidad_retirada en la preventa si corresponde
@@ -925,7 +927,7 @@ export default function IngresoEgresoPT() {
                     )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(ped.created_at)}</div>
-                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(''); setPFotosRemito([]); const pending = ped.items_pendientes?.length > 0 ? ped.items_pendientes : (ped.items || []); setPItems(pending.map(it => ({ ...it }))); setModalPedido(true) }}
+                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(''); setPFotosRemito([]); const base = (ped.items || []); const pending = ped.items_pendientes?.length > 0 ? ped.items_pendientes : base; setPItems(pending.map(it => ({ ...it, _max: it.cantidad }))); setModalPedido(true) }}
                     style={{ background: 'rgba(74,108,247,0.12)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
                     📋 Registrar egreso
                   </button>
@@ -1772,15 +1774,15 @@ export default function IngresoEgresoPT() {
                         </span>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                           <input
-                            type="number" min="0" max={it.cantidad}
+                            type="number" min="0" max={it._max ?? it.cantidad}
                             value={it.cantidad}
                             onChange={e => {
-                              const val = Math.min(parseInt(e.target.value) || 0, it.cantidad)
+                              const val = Math.min(parseInt(e.target.value) || 0, it._max ?? it.cantidad)
                               setPItems(prev => prev.map((p, j) => j === i ? { ...p, cantidad: val } : p))
                             }}
                             style={{ width: 64, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--font)' }}
                           />
-                          <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>de {it.cantidad}</span>
+                          <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>de {it._max ?? it.cantidad}</span>
                         </div>
                       </div>
                     </div>
