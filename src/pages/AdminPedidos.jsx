@@ -506,7 +506,7 @@ export default function AdminPedidos() {
     const nuevasUrls = []
     for (const file of filesArr) {
       const ext = file.name.split('.').pop()
-      const path = `remitos/${pedido.id}/remito_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const path = `pedidos/${pedido.id}/remito_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
       const { error } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
       if (error) { console.error('Upload error:', error); toast.error('Error al subir ' + file.name + ': ' + error.message); continue }
       const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)

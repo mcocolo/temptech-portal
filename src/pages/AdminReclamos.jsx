@@ -666,7 +666,7 @@ export default function AdminReclamos({ openTracking } = {}) {
       item.nombre_apellido?.toLowerCase().includes(q) ||
       item.nombre?.toLowerCase().includes(q) ||
       item.email?.toLowerCase().includes(q) ||
-      item.id?.toLowerCase().includes(q)
+      String(item.id || '').toLowerCase().includes(q)
     )
   }).sort((a, b) => {
     const ta = new Date(a.fecha_creacion || a.created_at).getTime()
