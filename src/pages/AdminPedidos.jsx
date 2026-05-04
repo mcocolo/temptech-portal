@@ -414,6 +414,7 @@ export default function AdminPedidos() {
         referencia_nombre: distNombre || null,
       })
     }
+    await supabase.from('pedidos').update({ stock_descontado: true }).eq('id', pedido.id)
   }
 
   async function finalizarPedido(pedido) {
@@ -424,9 +425,12 @@ export default function AdminPedidos() {
   }
 
   async function entregarPedido(pedido) {
-    const { error } = await supabase.from('pedidos').update({ estado: 'entregado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    if (!pedido.stock_descontado) {
+      await registrarEgresoStock(pedido)
+    }
+    const { error } = await supabase.from('pedidos').update({ estado: 'entregado', stock_descontado: true, updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('Pedido marcado como entregado ✅')
+    toast.success('Pedido entregado — egreso de stock registrado ✅')
     cargar()
   }
 

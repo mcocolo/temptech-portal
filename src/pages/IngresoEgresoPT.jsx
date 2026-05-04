@@ -197,7 +197,8 @@ export default function IngresoEgresoPT() {
     const { data } = await supabase
       .from('pedidos')
       .select('*, profiles!distribuidor_id(full_name, razon_social, email)')
-      .eq('estado', 'enviado')
+      .in('estado', ['enviado', 'entregado'])
+      .or('stock_descontado.is.null,stock_descontado.eq.false')
       .order('created_at', { ascending: false })
     setPedidos(data || [])
     setLoadingPedidos(false)
@@ -311,6 +312,7 @@ export default function IngresoEgresoPT() {
       nro_remito: pNroRemito.trim(),
       ...(remitoUrls.length > 0 ? { remito_url: remitoUrl, remito_urls: remitoUrls } : {}),
       estado: isComplete ? 'entregado' : 'aprobado',
+      stock_descontado: true,
       updated_at: new Date().toISOString(),
     }).eq('id', pedidoSel.id)
     if (errEstado) { toast.error('Error al actualizar pedido: ' + errEstado.message); setConfirmandoPed(false); confirmingPedRef.current = false; return }
