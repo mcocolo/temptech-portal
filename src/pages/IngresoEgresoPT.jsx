@@ -56,6 +56,10 @@ const CATALOGO = [
   },
 ]
 
+const PRODUCTOS_TODOS = CATALOGO.flatMap(cat =>
+  cat.productos.map(p => ({ ...p, categoria: cat.categoria, catLabel: cat.label }))
+)
+
 const CANALES_EGRESO = ['Distribuidor', 'Mercado Libre', 'Web TEMPTECH']
 const CAT_COLORS = {
   calefones_calderas:   { color: '#ff6b2b', bg: 'rgba(255,107,43,0.12)',  border: 'rgba(255,107,43,0.35)' },
@@ -148,6 +152,7 @@ export default function IngresoEgresoPT() {
   const [loadingDevGar, setLoadingDevGar]           = useState(false)
   const [modalDevGar, setModalDevGar]               = useState(false)
   const [devGarSel, setDevGarSel]                   = useState(null)
+  const [devGarItemsEdit, setDevGarItemsEdit]       = useState([])
   const [devGarRecuperable, setDevGarRecuperable]   = useState(true)
   const [confirmandoDevGar, setConfirmandoDevGar]   = useState(false)
 
@@ -426,7 +431,7 @@ export default function IngresoEgresoPT() {
   async function confirmarDevGarantia() {
     if (!devGarSel) return
     setConfirmandoDevGar(true)
-    const items = devGarSel.items || []
+    const items = devGarItemsEdit.filter(it => it.codigo && it.cantidad > 0)
     if (devGarRecuperable) {
       for (const item of items) {
         if (!item.codigo || !item.cantidad) continue
@@ -449,7 +454,7 @@ export default function IngresoEgresoPT() {
     await supabase.from('devoluciones').update({ stock_ingresado: true }).eq('id', devGarSel.id)
     toast.success(devGarRecuperable ? '✅ Stock ingresado — devolución confirmada' : '✅ Devolución cerrada — sin cambios en stock')
     setConfirmandoDevGar(false)
-    setModalDevGar(false); setDevGarSel(null); setDevGarRecuperable(true)
+    setModalDevGar(false); setDevGarSel(null); setDevGarItemsEdit([]); setDevGarRecuperable(true)
     cargar(); cargarDevGarantia()
   }
 
@@ -1292,7 +1297,7 @@ export default function IngresoEgresoPT() {
                     {dev.notas && <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>"{dev.notas}"</div>}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{dev.created_at ? new Date(dev.created_at).toLocaleDateString('es-AR') : ''}</div>
-                  <button onClick={() => { setDevGarSel(dev); setDevGarRecuperable(true); setModalDevGar(true) }}
+                  <button onClick={() => { setDevGarSel(dev); setDevGarRecuperable(true); setDevGarItemsEdit((dev.items || []).map(it => ({ ...it, cantidad: it.cantidad || 1 }))); setModalDevGar(true) }}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
                     <ArrowDownCircle size={13} /> Confirmar ingreso
                   </button>
@@ -1311,15 +1316,49 @@ export default function IngresoEgresoPT() {
                 </div>
                 <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{devGarSel.referencia_nombre || 'Cliente garantía'}</div>
-                    {(devGarSel.items || []).map((it, i) => (
-                      <div key={i} style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3 }}>
-                        <span style={{ fontFamily: 'monospace', color: '#38bdf8', fontWeight: 700 }}>{it.codigo}</span>
-                        <span>{it.nombre}</span>
-                        <span style={{ color: 'var(--text3)' }}>{it.modelo}</span>
-                        <span style={{ fontWeight: 700, marginLeft: 'auto' }}>×{it.cantidad}</span>
-                      </div>
-                    ))}
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{devGarSel.referencia_nombre || 'Cliente garantía'}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {devGarItemsEdit.map((it, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <select
+                            value={it.codigo || ''}
+                            onChange={e => {
+                              const prod = PRODUCTOS_TODOS.find(p => p.codigo === e.target.value)
+                              setDevGarItemsEdit(prev => prev.map((row, idx) => idx !== i ? row : {
+                                ...row,
+                                codigo: prod?.codigo || '',
+                                nombre: prod?.nombre || '',
+                                modelo: prod?.modelo || '',
+                                categoria: prod?.categoria || '',
+                              }))
+                            }}
+                            style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}
+                          >
+                            <option value="">— Elegir producto —</option>
+                            {CATALOGO.map(cat => (
+                              <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
+                                {cat.productos.map(p => (
+                                  <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.nombre} {p.modelo}</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          <input
+                            type="number" min="1" value={it.cantidad || ''}
+                            onChange={e => setDevGarItemsEdit(prev => prev.map((row, idx) => idx !== i ? row : { ...row, cantidad: Math.max(1, parseInt(e.target.value) || 1) }))}
+                            style={{ width: 60, textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 6px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }}
+                          />
+                          <button
+                            onClick={() => setDevGarItemsEdit(prev => prev.filter((_, idx) => idx !== i))}
+                            style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '6px 9px', fontSize: 13, color: '#ff5577', cursor: 'pointer', flexShrink: 0 }}
+                          >✕</button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setDevGarItemsEdit(prev => [...prev, { codigo: '', nombre: '', modelo: '', categoria: '', cantidad: 1 }])}
+                        style={{ alignSelf: 'flex-start', background: 'none', border: '1px dashed rgba(56,189,248,0.4)', borderRadius: 'var(--radius)', padding: '5px 14px', fontSize: 12, fontWeight: 600, color: '#38bdf8', cursor: 'pointer', fontFamily: 'var(--font)' }}
+                      >+ Agregar producto</button>
+                    </div>
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>¿El panel es recuperable?</div>
