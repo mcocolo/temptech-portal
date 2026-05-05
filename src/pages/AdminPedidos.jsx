@@ -476,6 +476,27 @@ export default function AdminPedidos() {
     cargar()
   }
 
+  async function enviarEmailPedido(pedido, tipo) {
+    try {
+      const email = pedido.profiles?.email
+      if (!email) return
+      const nombre = pedido.profiles?.razon_social || pedido.profiles?.full_name || 'Distribuidor'
+      const pedidoId = pedido.id?.slice(0, 8).toUpperCase()
+      let subject, text
+      if (tipo === 'enviado') {
+        const lineaRemito = pedido.nro_remito ? `\n\nNúmero de remito: ${pedido.nro_remito}` : ''
+        subject = `TEMPTECH - Tu pedido #${pedidoId} fue enviado 🚚`
+        text = `Hola ${nombre},\n\nTu pedido #${pedidoId} fue ENVIADO.${lineaRemito}\n\nPodés ingresar al portal para ver el detalle y descargar el remito: mi.temptech.com.ar\n\nSaludos,\nEquipo TEMPTECH`
+      } else if (tipo === 'factura') {
+        subject = `TEMPTECH - Factura disponible para pedido #${pedidoId} 📄`
+        text = `Hola ${nombre},\n\nTe informamos que la factura de tu pedido #${pedidoId} ya fue adjuntada.\n\nPodés ingresar al portal para descargarla: mi.temptech.com.ar\n\nSaludos,\nEquipo TEMPTECH`
+      }
+      await supabase.functions.invoke('enviar-email-resolucion', {
+        body: { to: email, subject, text, tracking_id: pedidoId, empresa: '', tracking: '', fecha: '' },
+      })
+    } catch { /* email no crítico */ }
+  }
+
   async function subirFactura(pedido, file) {
     if (!file) return
     setSubiendoFactura(pedido.id)
@@ -488,6 +509,7 @@ export default function AdminPedidos() {
     setSubiendoFactura(null)
     if (error) { toast.error('Error al guardar URL'); return }
     toast.success('Factura subida ✅')
+    await enviarEmailPedido(pedido, 'factura')
     cargar()
   }
 
@@ -626,7 +648,7 @@ export default function AdminPedidos() {
 
       const texto =
         nuevoEstado === 'aprobado'
-          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue APROBADO.\n\nDetalle:\n${textoItems}\n${lineaIVA}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
+          ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue APROBADO y ya está en etapa de preparación.\n\nDetalle:\n${textoItems}\n${lineaIVA}${lineaFecha}${lineaNota}\n\nPodés hacer seguimiento de tu pedido en el portal.\n\nSaludos,\nEquipo TEMPTECH`
           : nuevoEstado === 'modificado'
           ? `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue MODIFICADO por nuestro equipo.\n\nNuevo detalle:\n${textoItems}\n${lineaIVA}${lineaFecha}${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
           : `Hola ${nombreDist},\n\nTu pedido #${pedidoId} fue RECHAZADO.${lineaNota}\n\nSaludos,\nEquipo TEMPTECH`
@@ -1612,8 +1634,9 @@ export default function AdminPedidos() {
                           onClick={async () => {
                             const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
                             if (error) { toast.error('Error: ' + error.message); return }
+                            await enviarEmailPedido(pedido, 'enviado')
                             cargar()
-                            toast.success('Pedido marcado como Enviado 🚚')
+                            toast.success('Pedido marcado como Enviado 🚚 · Email enviado')
                           }}
                           style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                         >
@@ -1681,8 +1704,9 @@ export default function AdminPedidos() {
                         onClick={async () => {
                           const { error } = await supabase.from('pedidos').update({ estado: 'enviado', updated_at: new Date().toISOString() }).eq('id', pedido.id)
                           if (error) { toast.error('Error al actualizar: ' + error.message); return }
+                          await enviarEmailPedido(pedido, 'enviado')
                           cargar()
-                          toast.success('Pedido marcado como Enviado 🚚')
+                          toast.success('Pedido marcado como Enviado 🚚 · Email enviado')
                         }}
                         style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                       >

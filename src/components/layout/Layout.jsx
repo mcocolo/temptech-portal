@@ -451,7 +451,7 @@ export default function Layout({ children }) {
 
         {/* Topbar */}
         <header style={{
-          position: 'sticky', top: 0, zIndex: 50,
+          position: 'sticky', top: 0, zIndex: 60,
           background: 'rgba(8,9,15,0.93)',
           backdropFilter: 'blur(14px)',
           borderBottom: '1px solid var(--border)',
