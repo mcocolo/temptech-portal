@@ -26,6 +26,7 @@ export default function AdminEgresoDevoluciones() {
   const [notaAbierta, setNotaAbierta] = useState(null)
   const [notaEdit, setNotaEdit]       = useState({})
   const [guardandoNota, setGuardandoNota] = useState(false)
+  const [subiendoEtiqueta, setSubiendoEtiqueta] = useState(null) // item id
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -65,6 +66,37 @@ export default function AdminEgresoDevoluciones() {
   function abrirNota(it) {
     setNotaEdit(prev => ({ ...prev, [it.id]: it.notas_admin || '' }))
     setNotaAbierta(it.id)
+  }
+
+  async function subirEtiqueta(it, files) {
+    const arr = Array.from(files || [])
+    if (!arr.length) return
+    setSubiendoEtiqueta(it.id)
+    const actuales = Array.isArray(it.etiqueta_urls) ? it.etiqueta_urls : []
+    const nuevas = []
+    for (const file of arr) {
+      const ext = file.name.split('.').pop()
+      const path = `egresos-garantia/${it.id}/etiqueta_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+      if (error) { toast.error('Error al subir ' + file.name + ': ' + error.message); continue }
+      const { data: { publicUrl } } = supabase.storage.from('facturas').getPublicUrl(path)
+      nuevas.push(publicUrl)
+    }
+    if (!nuevas.length) { setSubiendoEtiqueta(null); return }
+    const todas = [...actuales, ...nuevas]
+    const { error } = await supabase.from('egresos_garantia').update({ etiqueta_urls: todas }).eq('id', it.id)
+    setSubiendoEtiqueta(null)
+    if (error) { toast.error('Error al guardar etiqueta: ' + error.message); return }
+    toast.success(`${nuevas.length} etiqueta${nuevas.length > 1 ? 's' : ''} adjuntada${nuevas.length > 1 ? 's' : ''} ✅`)
+    cargar()
+  }
+
+  async function eliminarEtiqueta(it, url) {
+    const nuevas = (it.etiqueta_urls || []).filter(u => u !== url)
+    const { error } = await supabase.from('egresos_garantia').update({ etiqueta_urls: nuevas }).eq('id', it.id)
+    if (error) { toast.error('Error al eliminar etiqueta'); return }
+    toast.success('Etiqueta eliminada')
+    cargar()
   }
 
   const filtrados = items.filter(it => {
@@ -226,6 +258,28 @@ export default function AdminEgresoDevoluciones() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Etiquetas de envío */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Etiquetas de envío</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    {(it.etiqueta_urls || []).map((url, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <a href={url} target="_blank" rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#38bdf8', textDecoration: 'none' }}>
+                          🏷️ Etiqueta {(it.etiqueta_urls || []).length > 1 ? i + 1 : ''}
+                        </a>
+                        <button onClick={() => eliminarEtiqueta(it, url)}
+                          style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '5px 8px', fontSize: 11, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>✕</button>
+                      </div>
+                    ))}
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(56,189,248,0.06)', border: '1px dashed rgba(56,189,248,0.4)', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 600, color: '#38bdf8', cursor: subiendoEtiqueta === it.id ? 'not-allowed' : 'pointer' }}>
+                      {subiendoEtiqueta === it.id ? '⏳ Subiendo...' : '+ Adjuntar etiqueta'}
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display: 'none' }} disabled={subiendoEtiqueta === it.id}
+                        onChange={e => { const f = e.target.files; e.target.value = ''; if (f?.length) subirEtiqueta(it, f) }} />
+                    </label>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
