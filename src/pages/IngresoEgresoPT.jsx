@@ -559,6 +559,38 @@ export default function IngresoEgresoPT() {
   }
   // ─────────────────────────────────────────────────────────
 
+  function imprimirCategoria(categoriaKey) {
+    const cat = CATALOGO.find(c => c.categoria === categoriaKey)
+    if (!cat) return
+    const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })
+    const rows = cat.productos.map(p => {
+      const s = stock[p.codigo]
+      const actual = s?.stock_actual ?? '—'
+      const inicial = s?.stock_inicial ?? '—'
+      const estado = typeof actual === 'number' && actual === 0 && s ? 'AGOTADO' : typeof actual === 'number' && actual <= 5 && actual > 0 ? 'BAJO' : ''
+      return `<tr>
+        <td style="font-family:monospace;font-size:12px;color:#444;padding:8px 12px;border-bottom:1px solid #eee">${p.codigo}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.nombre}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666">${p.modelo}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center">${inicial}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;font-weight:700;font-size:16px;color:${actual === 0 && s ? '#e53e3e' : typeof actual === 'number' && actual <= 5 ? '#d97706' : '#16a34a'}">${actual}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;font-size:11px;color:${estado === 'AGOTADO' ? '#e53e3e' : '#d97706'};font-weight:600">${estado}</td>
+      </tr>`
+    }).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stock ${cat.label} — ${fecha}</title>
+    <style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{font-size:18px;margin-bottom:4px}p{color:#666;font-size:13px;margin:0 0 20px}table{width:100%;border-collapse:collapse}th{background:#f4f4f4;padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;color:#666;border-bottom:2px solid #ddd}@media print{body{margin:16px}}</style>
+    </head><body>
+    <h1>${cat.emoji} Stock — ${cat.label}</h1>
+    <p>Impreso el ${fecha}</p>
+    <table><thead><tr><th>Código</th><th>Producto</th><th>Modelo</th><th>Inicial</th><th>Actual</th><th>Estado</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
+    </body></html>`
+    const w = window.open('', '_blank', 'width=900,height=600')
+    w.document.write(html)
+    w.document.close()
+  }
+
   async function cargar() {
     setLoading(true)
     const [{ data: stockData }, { data: movsData }] = await Promise.all([
@@ -1071,8 +1103,8 @@ export default function IngresoEgresoPT() {
         </div>
       ) : view === 'stock' ? (
         <>
-          {/* Filtro categoría */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          {/* Filtro categoría + botones imprimir */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <button onClick={() => setCatFilter('')} style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${!catFilter ? 'rgba(255,255,255,0.3)' : 'var(--border)'}`, background: !catFilter ? 'rgba(255,255,255,0.07)' : 'transparent', color: !catFilter ? 'var(--text)' : 'var(--text3)', fontWeight: !catFilter ? 600 : 400, fontFamily: 'var(--font)' }}>
               📦 Todos
             </button>
@@ -1081,6 +1113,14 @@ export default function IngresoEgresoPT() {
                 {c.emoji} {c.label}
               </button>
             )})}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {CATALOGO.map(c => (
+                <button key={c.categoria} onClick={() => imprimirCategoria(c.categoria)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontFamily: 'var(--font)' }}>
+                  🖨️ {c.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Tabla de stock */}
