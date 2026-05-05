@@ -49,6 +49,7 @@ const ADMIN_NAV = [
   { label: 'Preventas',           icon: Package,    path: '/admin-preventas',    isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,      path: '/logistica',          isAdmin: true },
+  { label: 'Reportes',           icon: BarChart2,  path: '/reportes',           isAdmin: true },
   { label: 'Ingreso en Tránsito', icon: Archive, isAdmin: true, submenu: 'transito', children: [
     { label: 'Mercado Libre', icon: ShoppingBag, path: '/ingreso-transito/meli' },
     { label: 'Página Web',    icon: Globe,       path: '/ingreso-transito/pagina' },

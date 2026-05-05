@@ -34,6 +34,7 @@ import Devoluciones from '@/pages/Devoluciones'
 import PerfilDistribuidor from '@/pages/PerfilDistribuidor'
 import IngresoTransito from '@/pages/IngresoTransito'
 import MisPreventas from '@/pages/MisPreventas'
+import AdminReportes from '@/pages/AdminReportes'
 
 
 
@@ -100,6 +101,7 @@ function AppRoutes() {
               <Route path="/ingreso-transito/vo"           element={<IngresoTransito key="vo" />} />
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
+              <Route path="/reportes"                   element={<AdminReportes />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal key="meli" />} />
               <Route path="/pedidos-pagina"            element={<PedidosCanal key="pagina" />} />
               <Route path="/pedidos-vo"                element={<PedidosCanal key="vo" />} />
