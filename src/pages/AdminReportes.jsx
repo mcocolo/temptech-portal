@@ -51,8 +51,10 @@ const ESTADO_PV_CONFIG = {
   completada: { label: 'Completada', color: '#7b9fff', bg: 'rgba(74,108,247,0.12)',  border: 'rgba(74,108,247,0.35)' },
 }
 
+const REPORTE_EMAIL = 'martin@temptech.com.ar'
+
 export default function AdminReportes() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
   const [reporte, setReporte] = useState('ventas')
 
   // Ventas / Ranking state
@@ -167,7 +169,7 @@ export default function AdminReportes() {
     setLoadingPv(false)
   }
 
-  if (!isAdmin) return null
+  if (!isAdmin || user?.email !== REPORTE_EMAIL) return null
 
   const maxMonto = datos.length > 0 ? Math.max(...datos.map(d => d.monto)) : 1
 

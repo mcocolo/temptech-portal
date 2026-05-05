@@ -127,7 +127,7 @@ const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', p
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [openSubmenus, setOpenSubmenus] = useState({ produccion: true })
-  const { profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor } = useAuth()
+  const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -195,8 +195,11 @@ export default function Layout({ children }) {
   }
 
   const baseNav = NAV.filter(item => !item.isDistributor || isDistributor || isAdmin)
+  const adminNavFiltrado = ADMIN_NAV.filter(item =>
+    item.path !== '/reportes' || user?.email === 'martin@temptech.com.ar'
+  )
   const allNav = isAdmin
-    ? [...baseNav, ...ADMIN_NAV]
+    ? [...baseNav, ...adminNavFiltrado]
     : isAdmin2
     ? [...NAV_ADMIN2, ...ADMIN2_NAV]
     : isVendedor
