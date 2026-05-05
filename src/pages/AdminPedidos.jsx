@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -129,6 +129,8 @@ export default function AdminPedidos() {
   const [npAplicarDesc, setNpAplicarDesc] = useState(true)
   const [creando, setCreando] = useState(false)
 
+  const scrollTargetRef = useRef(null)
+
   const IVA_PCT = 0.21
 
   useEffect(() => { if (isAdmin2) setFiltro('todos') }, [isAdmin2])
@@ -148,6 +150,39 @@ export default function AdminPedidos() {
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [isAdmin, isAdmin2, isVendedor])
+
+  // Restore filter/search state and scroll position when returning to this page
+  useEffect(() => {
+    const saved = sessionStorage.getItem('adminpedidos_state')
+    if (!saved) return
+    try {
+      const st = JSON.parse(saved)
+      if (!isAdmin2 && st.filtro) setFiltro(st.filtro)
+      if (st.busqueda !== undefined) setBusqueda(st.busqueda)
+      if (st.sortOrder) setSortOrder(st.sortOrder)
+      if (st.filtroFecha) setFiltroFecha(st.filtroFecha)
+      if (typeof st.scrollY === 'number' && st.scrollY > 0) scrollTargetRef.current = st.scrollY
+    } catch {}
+    sessionStorage.removeItem('adminpedidos_state')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Once data finishes loading, scroll to the saved position
+  useEffect(() => {
+    if (!loading && scrollTargetRef.current !== null) {
+      const y = scrollTargetRef.current
+      scrollTargetRef.current = null
+      requestAnimationFrame(() => window.scrollTo(0, y))
+    }
+  }, [loading])
+
+  // Save state to sessionStorage when navigating away
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem('adminpedidos_state', JSON.stringify({
+        filtro, busqueda, sortOrder, filtroFecha, scrollY: window.scrollY,
+      }))
+    }
+  }, [filtro, busqueda, sortOrder, filtroFecha])
 
 
   async function cargar() {
