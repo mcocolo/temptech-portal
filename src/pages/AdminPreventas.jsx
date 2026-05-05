@@ -1403,7 +1403,7 @@ export default function AdminPreventas() {
                               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,108,247,0.08)', border: '1px dashed rgba(74,108,247,0.4)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: '#7b9fff', cursor: subiendoFacturaPvId === pv.id ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', fontWeight: 600, opacity: subiendoFacturaPvId === pv.id ? 0.6 : 1 }}>
                                 {subiendoFacturaPvId === pv.id ? '⏳ Subiendo...' : '📎 Adjuntar facturas'}
                                 <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} disabled={subiendoFacturaPvId === pv.id}
-                                  onChange={e => { const f = e.target.files; e.target.value = ''; if (f?.length) subirFacturaPv(pv, f) }} />
+                                  onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirFacturaPv(pv, f) }} />
                               </label>
                             </div>
 
