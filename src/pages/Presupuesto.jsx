@@ -67,7 +67,7 @@ function formatPrecio(n) {
 }
 
 export default function Presupuesto() {
-  const { profile, isDistributor } = useAuth()
+  const { profile, isDistributor, isAdmin } = useAuth()
   const [cantidades, setCantidades] = useState({})
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
@@ -140,7 +140,7 @@ export default function Presupuesto() {
     setIncluirIVA(false)
   }
 
-  if (!isDistributor) return null
+  if (!isDistributor && !isAdmin) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
