@@ -194,8 +194,10 @@ export default function Reclamos() {
         .select('email')
         .eq('vendedor_id', user.id)
       const emails = (clientes || []).map(c => c.email).filter(Boolean)
-      if (emails.length === 0) { setReclamos([]); setLoading(false); return }
-      query = query.in('email', emails)
+      // Incluir casos de clientes asignados + casos ingresados directamente por el vendedor
+      const clientesParts = emails.map(e => `email.eq.${e}`)
+      const orFilter = [`portal_user_id.eq.${user.id}`, ...clientesParts].join(',')
+      query = query.or(orFilter)
     } else {
       query = query.eq('portal_user_id', user.id)
     }
