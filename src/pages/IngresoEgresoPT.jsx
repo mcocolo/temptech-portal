@@ -79,6 +79,7 @@ export default function IngresoEgresoPT() {
   const [stock, setStock]       = useState({})         // { [codigo]: { stock_inicial, stock_actual } }
   const [movs, setMovs]         = useState([])
   const [loading, setLoading]   = useState(true)
+  const [preciosDB, setPreciosDB] = useState([])
   const [busquedaHist, setBusquedaHist] = useState('')
   const [sortOrderHist, setSortOrderHist] = useState('newest')
   const [fechaHist, setFechaHist]       = useState('')
@@ -190,7 +191,10 @@ export default function IngresoEgresoPT() {
   const CANAL_KEYS   = { 'egreso-meli': 'meli', 'egreso-pagina': 'pagina', 'egreso-vo': 'vo' }
   const CANAL_COLORS = { 'egreso-meli': '#ffe600', 'egreso-pagina': '#7b9fff', 'egreso-vo': '#a78bfa' }
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => {
+    cargar()
+    supabase.from('precios').select('codigo,nombre,modelo,categoria').order('categoria').order('nombre').then(({ data }) => setPreciosDB(data || []))
+  }, [])
   useEffect(() => { if (view === 'pedidos') cargarPedidos() }, [view])
   useEffect(() => { if (CANAL_VIEWS.includes(view)) cargarVentas(CANAL_KEYS[view]) }, [view])
   useEffect(() => { if (view === 'egreso-dev') cargarEgresosGarantia() }, [view])
@@ -1323,7 +1327,7 @@ export default function IngresoEgresoPT() {
                           <select
                             value={it.codigo || ''}
                             onChange={e => {
-                              const prod = PRODUCTOS_TODOS.find(p => p.codigo === e.target.value)
+                              const prod = preciosDB.find(p => p.codigo === e.target.value)
                               setDevGarItemsEdit(prev => prev.map((row, idx) => idx !== i ? row : {
                                 ...row,
                                 codigo: prod?.codigo || '',
@@ -1335,9 +1339,16 @@ export default function IngresoEgresoPT() {
                             style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}
                           >
                             <option value="">— Elegir producto —</option>
-                            {CATALOGO.map(cat => (
-                              <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
-                                {cat.productos.map(p => (
+                            {Object.entries(
+                              preciosDB.reduce((acc, p) => {
+                                const cat = p.categoria || 'otros'
+                                if (!acc[cat]) acc[cat] = []
+                                acc[cat].push(p)
+                                return acc
+                              }, {})
+                            ).map(([cat, prods]) => (
+                              <optgroup key={cat} label={CATALOGO.find(c => c.categoria === cat)?.label || cat}>
+                                {prods.map(p => (
                                   <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.nombre} {p.modelo}</option>
                                 ))}
                               </optgroup>
@@ -1652,8 +1663,8 @@ export default function IngresoEgresoPT() {
               {sortOrderHist === 'newest' ? '↓ Más nuevo' : '↑ Más antiguo'}
             </button>
           </div>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
                 {['Tipo', 'Código', 'Producto / Modelo', 'Cantidad', 'Canal', 'Distribuidor / Cliente', 'Operador', 'Observación', 'Fecha'].map(h => (
