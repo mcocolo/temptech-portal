@@ -312,7 +312,7 @@ export default function Reclamos() {
         console.warn('Email de confirmación falló:', emailErr)
       }
 
-      toast.success(`Reclamo registrado. Tracking: ${tracking_id}`)
+      toast.success(`Caso registrado. Tracking: ${tracking_id}`)
       setModalOpen(false)
       resetForm()
       load()
@@ -360,7 +360,7 @@ export default function Reclamos() {
     }).eq('id', selected.id)
     setEditSubmitting(false)
     if (error) { toast.error('Error al guardar los cambios'); return }
-    toast.success('Reclamo actualizado')
+    toast.success('Caso actualizado')
     setEditOpen(false)
     await load()
     // Actualizar el selected con los nuevos datos
@@ -386,7 +386,7 @@ export default function Reclamos() {
   if (selected) return (
     <div style={{ animation: 'fadeUp 0.3s ease', maxWidth: 720 }}>
       <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24, cursor: 'pointer' }}>
-        <ChevronLeft size={15} /> Volver a mis reclamos
+        <ChevronLeft size={15} /> Volver a mis casos
       </button>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 28 }}>
@@ -502,12 +502,12 @@ export default function Reclamos() {
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>{isVendedor ? 'Reclamos de mis clientes' : 'Mis Reclamos'}</h1>
-          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>{isVendedor ? 'Reclamos de tus clientes' : 'Registrá y seguí el estado de tus reclamos de garantía'}</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>{isVendedor ? 'Casos de mis clientes' : 'Mis Casos'}</h1>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>{isVendedor ? 'Casos de tus clientes' : 'Registrá y seguí el estado de tus casos de garantía'}</p>
         </div>
         {user && (
           <Button variant="danger" onClick={() => { setModalOpen(true); setStep(1) }}>
-            <AlertTriangle size={14} /> Nuevo Reclamo
+            <AlertTriangle size={14} /> Nuevo Caso
           </Button>
         )}
       </div>
@@ -529,8 +529,8 @@ export default function Reclamos() {
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
       ) : reclamos.length === 0 ? (
-        <Empty icon="✅" title="Sin reclamos" description="No tenés reclamos registrados todavía">
-          <Button variant="danger" style={{ marginTop: 16 }} onClick={() => setModalOpen(true)}>Registrar reclamo</Button>
+        <Empty icon="✅" title="Sin casos" description="No tenés casos registrados todavía">
+          <Button variant="danger" style={{ marginTop: 16 }} onClick={() => setModalOpen(true)}>Registrar caso</Button>
         </Empty>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -568,7 +568,7 @@ export default function Reclamos() {
       )}
 
       {/* ── Modal editar reclamo ── */}
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="✏️ Editar Reclamo">
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="✏️ Editar Caso">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ padding: '10px 14px', background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
             ⚠️ Solo podés editar reclamos en estado <strong>Ingresado</strong>.
@@ -603,7 +603,7 @@ export default function Reclamos() {
             <input type="date" value={editForm.fecha_compra} onChange={e => setEditForm(p => ({ ...p, fecha_compra: e.target.value }))} style={{ ...inputStyle, colorScheme: 'dark' }} />
           </Field>
 
-          <Field label="Motivo del reclamo *">
+          <Field label="Motivo del caso *">
             <select value={editForm.motivo} onChange={e => setEditForm(p => ({ ...p, motivo: e.target.value }))} style={inputStyle}>
               <option value="">Seleccioná el motivo...</option>
               {getMotivos(editForm.producto).map(m => <option key={m} value={m}>{m}</option>)}
@@ -653,7 +653,7 @@ export default function Reclamos() {
       </Modal>
 
       {/* ── Modal nuevo reclamo ── */}
-      <Modal open={modalOpen} onClose={() => { setModalOpen(false); resetForm() }} title="⚠️ Registrar Reclamo de Garantía">
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); resetForm() }} title="⚠️ Registrar Caso de Garantía">
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
           {['Producto', 'Falla', 'Contacto', 'Archivos'].map((label, i) => {
@@ -719,7 +719,7 @@ export default function Reclamos() {
         {/* PASO 2 — Falla */}
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Field label="Motivo del reclamo *">
+            <Field label="Motivo del caso *">
               <select value={form.motivo} onChange={e => setF('motivo', e.target.value)} style={inputStyle}>
                 <option value="">Seleccioná el motivo...</option>
                 {getMotivos(form.producto).map(m => <option key={m} value={m}>{m}</option>)}

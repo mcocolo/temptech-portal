@@ -353,9 +353,9 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
 
   const textoResolucion = (emp, cod) => {
     if (emp === 'Logistica Propia') {
-      return `Nos contactamos de TEMPTECH por el reclamo "${item.tracking_id}".\nNos pondremos en contacto para coordinar el retiro de la unidad con nuestra logística propia y la entrega de un reemplazo. Recuerde tener el equipo listo para ser retirado y entregar sólo el Panel, conservando el kit de instalación para ser utilizado con la nueva unidad de reemplazo.\n\nSaludos.\nEquipo Soporte TEMPTECH`
+      return `Nos contactamos de TEMPTECH por el caso "${item.tracking_id}".\nNos pondremos en contacto para coordinar el retiro de la unidad con nuestra logística propia y la entrega de un reemplazo. Recuerde tener el equipo listo para ser retirado y entregar sólo el Panel, conservando el kit de instalación para ser utilizado con la nueva unidad de reemplazo.\n\nSaludos.\nEquipo Soporte TEMPTECH`
     }
-    return `Nos contactamos de TEMPTECH por el reclamo "${item.tracking_id}".\nNuevamente queremos pedirle disculpas por los inconvenientes ocasionados.\nA continuación le dejamos los datos para el seguimiento de su envío.\n\nEmpresa: ${emp || ''}\nCódigo de seguimiento: ${cod || ''}\nLink de seguimiento: ${linkSeguimiento(emp, cod)}`
+    return `Nos contactamos de TEMPTECH por el caso "${item.tracking_id}".\nNuevamente queremos pedirle disculpas por los inconvenientes ocasionados.\nA continuación le dejamos los datos para el seguimiento de su envío.\n\nEmpresa: ${emp || ''}\nCódigo de seguimiento: ${cod || ''}\nLink de seguimiento: ${linkSeguimiento(emp, cod)}`
   }
 
   const [empresa, setEmpresa]       = useState(item.empresa_envio || 'Correo Argentino')
@@ -490,7 +490,7 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
 function PanelNotificarService({ item, onClose, onGuardar }) {
   const [fechaVisita, setFechaVisita] = useState('')
   const defaultTexto = (fecha) =>
-    `Nos contactamos de TEMPTECH por el reclamo "${item.tracking_id}".\nLe informamos que el día "${fecha || '[FECHA]'}" estaremos realizando el retiro de la unidad y la entrega de un reemplazo. Recuerde que el día del cambio tener el equipo listo para ser retirado y entregar sólo el Panel, es decir, conservar el kit de instalación (y sus respectivas patas en el caso de corresponder) para ser utilizadas con la nueva unidad de reemplazo.`
+    `Nos contactamos de TEMPTECH por el caso "${item.tracking_id}".\nLe informamos que el día "${fecha || '[FECHA]'}" estaremos realizando el retiro de la unidad y la entrega de un reemplazo. Recuerde que el día del cambio tener el equipo listo para ser retirado y entregar sólo el Panel, es decir, conservar el kit de instalación (y sus respectivas patas en el caso de corresponder) para ser utilizadas con la nueva unidad de reemplazo.`
   const [textoEmail, setTextoEmail] = useState(defaultTexto(''))
 
   // Actualizar texto cuando cambia la fecha
@@ -812,7 +812,7 @@ export default function AdminReclamos({ openTracking } = {}) {
       const { error: emailError } = await supabase.functions.invoke('enviar-email-resolucion', {
         body: {
           to: String(item.email || '').trim(),
-          subject: `TEMPTECH - ${tipo === 'Devolucion' ? 'Devolución' : 'Resolución'} de reclamo ${item.tracking_id}`,
+          subject: `TEMPTECH - ${tipo === 'Devolucion' ? 'Devolución' : 'Resolución'} de caso ${item.tracking_id}`,
           text: textoFinal,
           tracking_id: item.tracking_id || '',
           empresa: empresa || '',
