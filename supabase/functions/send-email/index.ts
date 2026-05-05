@@ -112,14 +112,14 @@ serve(async (req) => {
       const statusLabel: Record<string, string> = { open: 'Abierto', in_progress: 'En proceso', closed: 'Resuelto ✓' }
       ok = await sendEmail({
         to: data.recipientEmail,
-        subject: `📋 Tu reclamo fue actualizado — ${statusLabel[data.newStatus] || data.newStatus}`,
+        subject: `📋 Tu caso fue actualizado — ${statusLabel[data.newStatus] || data.newStatus}`,
         html: baseTemplate(`
           <div class="card">
-            <h2>Actualización de tu reclamo</h2>
-            <p>El estado de tu reclamo <span class="highlight">#${data.reclamoId?.slice(0,8).toUpperCase()}</span> fue actualizado.</p>
+            <h2>Actualización de tu caso</h2>
+            <p>El estado de tu caso <span class="highlight">#${data.reclamoId?.slice(0,8).toUpperCase()}</span> fue actualizado.</p>
             <p><strong>Nuevo estado:</strong> <span class="highlight">${statusLabel[data.newStatus] || data.newStatus}</span></p>
             ${data.adminNote ? `<p style="background:#1e2130;padding:14px;border-radius:8px;color:#c8cad4"><strong>Nota del equipo:</strong><br>${data.adminNote}</p>` : ''}
-            <a href="${APP_URL}/reclamos" class="btn">Ver mis reclamos →</a>
+            <a href="${APP_URL}/reclamos" class="btn">Ver mis casos →</a>
           </div>
         `),
       })

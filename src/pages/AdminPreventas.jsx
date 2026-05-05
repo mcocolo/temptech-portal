@@ -77,24 +77,33 @@ export default function AdminPreventas() {
     cargar()
   }
 
-  async function subirFacturaPv(pv, file) {
-    if (!file) return
+  async function subirFacturaPv(pv, files) {
+    const arr = Array.from(files || [])
+    if (!arr.length) return
     setSubiendoFacturaPvId(pv.id)
-    const ext = file.name.split('.').pop()
-    const path = `preventas/${pv.id}/facturas/${Date.now()}.${ext}`
-    const { error: errUp } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
-    if (errUp) { toast.error('Error al subir: ' + errUp.message); setSubiendoFacturaPvId(null); return }
-    const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(path)
-    const nuevas = [...(pv.facturas || []), {
-      url: urlData.publicUrl,
-      nombre: file.name,
-      subido_por: profile?.full_name || user.email,
-      created_at: new Date().toISOString(),
-    }]
-    const { error } = await supabase.from('preventas').update({ facturas: nuevas, updated_at: new Date().toISOString() }).eq('id', pv.id)
+    const actuales = pv.facturas || []
+    const nuevasEntradas = []
+    for (const file of arr) {
+      const ext = file.name.split('.').pop()
+      const path = `preventas/${pv.id}/facturas/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: errUp } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
+      if (errUp) { toast.error('Error al subir ' + file.name + ': ' + errUp.message); continue }
+      const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(path)
+      nuevasEntradas.push({ url: urlData.publicUrl, nombre: file.name, subido_por: profile?.full_name || user.email, created_at: new Date().toISOString() })
+    }
+    if (!nuevasEntradas.length) { setSubiendoFacturaPvId(null); return }
+    const { error } = await supabase.from('preventas').update({ facturas: [...actuales, ...nuevasEntradas], updated_at: new Date().toISOString() }).eq('id', pv.id)
     setSubiendoFacturaPvId(null)
-    if (error) { toast.error('Error al guardar factura'); return }
-    toast.success('Factura adjuntada ✅')
+    if (error) { toast.error('Error al guardar facturas'); return }
+    toast.success(`${nuevasEntradas.length} factura${nuevasEntradas.length > 1 ? 's' : ''} adjuntada${nuevasEntradas.length > 1 ? 's' : ''} ✅`)
+    cargar()
+  }
+
+  async function eliminarFacturaPv(pv, idx) {
+    const nuevas = (pv.facturas || []).filter((_, i) => i !== idx)
+    const { error } = await supabase.from('preventas').update({ facturas: nuevas, updated_at: new Date().toISOString() }).eq('id', pv.id)
+    if (error) { toast.error('Error al eliminar factura'); return }
+    toast.success('Factura eliminada')
     cargar()
   }
 
@@ -1372,7 +1381,9 @@ export default function AdminPreventas() {
 
                             {/* Facturas adjuntas */}
                             <div style={{ marginBottom: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>📄 Facturas adjuntas</div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+                                📄 Facturas adjuntas {(pv.facturas || []).length > 0 && <span style={{ fontWeight: 400, color: 'var(--text3)' }}>({pv.facturas.length})</span>}
+                              </div>
                               {(pv.facturas || []).length === 0 ? (
                                 <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>Sin facturas adjuntas.</div>
                               ) : (
@@ -1383,13 +1394,16 @@ export default function AdminPreventas() {
                                         📎 {f.nombre}
                                       </a>
                                       <span style={{ color: 'var(--text3)', fontSize: 11, whiteSpace: 'nowrap' }}>{f.subido_por} · {new Date(f.created_at).toLocaleDateString('es-AR')}</span>
+                                      <button onClick={() => eliminarFacturaPv(pv, i)}
+                                        style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '3px 8px', fontSize: 11, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
                                     </div>
                                   ))}
                                 </div>
                               )}
-                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: '#7b9fff', cursor: subiendoFacturaPvId === pv.id ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', fontWeight: 600, opacity: subiendoFacturaPvId === pv.id ? 0.6 : 1 }}>
-                                {subiendoFacturaPvId === pv.id ? '⏳ Subiendo...' : '📎 Adjuntar factura'}
-                                <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={subiendoFacturaPvId === pv.id} onChange={e => subirFacturaPv(pv, e.target.files[0])} />
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,108,247,0.08)', border: '1px dashed rgba(74,108,247,0.4)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, color: '#7b9fff', cursor: subiendoFacturaPvId === pv.id ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', fontWeight: 600, opacity: subiendoFacturaPvId === pv.id ? 0.6 : 1 }}>
+                                {subiendoFacturaPvId === pv.id ? '⏳ Subiendo...' : '📎 Adjuntar facturas'}
+                                <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} disabled={subiendoFacturaPvId === pv.id}
+                                  onChange={e => { const f = e.target.files; e.target.value = ''; if (f?.length) subirFacturaPv(pv, f) }} />
                               </label>
                             </div>
 

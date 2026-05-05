@@ -571,7 +571,7 @@ export default function Reclamos() {
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="✏️ Editar Caso">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ padding: '10px 14px', background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
-            ⚠️ Solo podés editar reclamos en estado <strong>Ingresado</strong>.
+            ⚠️ Solo podés editar casos en estado <strong>Ingresado</strong>.
           </div>
 
           <Field label="Producto *">
@@ -747,7 +747,7 @@ export default function Reclamos() {
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ padding: '10px 14px', background: 'rgba(110,181,255,0.08)', border: '1px solid rgba(110,181,255,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
-              📋 Verificá que tus datos de contacto sean correctos para coordinar el reclamo.
+              📋 Verificá que tus datos de contacto sean correctos para coordinar el caso.
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -833,7 +833,7 @@ export default function Reclamos() {
 
             {/* Resumen */}
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', fontSize: 13 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Resumen del reclamo</div>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Resumen del caso</div>
               <div style={{ color: 'var(--text2)', lineHeight: 1.9 }}>
                 <div><span style={{ color: 'var(--text3)' }}>Producto: </span>{form.producto}</div>
                 {form.canal && <div><span style={{ color: 'var(--text3)' }}>Canal: </span>{form.canal}</div>}
@@ -844,7 +844,7 @@ export default function Reclamos() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
               <Button variant="ghost" onClick={() => setStep(3)}>← Atrás</Button>
               <Button variant="danger" onClick={submit} loading={submitting}>
-                <AlertTriangle size={14} /> Enviar reclamo
+                <AlertTriangle size={14} /> Enviar caso
               </Button>
             </div>
           </div>
