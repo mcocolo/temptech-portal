@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 import { imprimirPresupuesto, exportarPresupuestoExcel } from '@/utils/exportDoc'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
@@ -62,36 +63,78 @@ const CATALOGO = [
   },
 ]
 
+const CATEGORIAS_LABELS = {
+  calefones_calderas:   'Calefones / Calderas',
+  paneles_calefactores: 'Paneles Calefactores',
+  anafes:               'Anafes',
+}
+
 function formatPrecio(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n)
 }
 
+function calcularDescuentoEfectivo(desc) {
+  if (!desc || desc === 0) return 0
+  const base = 100
+  let final = base
+  if (Array.isArray(desc)) {
+    final = desc.reduce((p, d) => p * (1 - (parseFloat(d) || 0) / 100), base)
+  } else {
+    final = base * (1 - parseFloat(desc) / 100)
+  }
+  return ((base - final) / base * 100).toFixed(1)
+}
+
+function aplicarDescuento(precio, desc) {
+  if (!desc || desc === 0) return precio
+  if (Array.isArray(desc)) {
+    return desc.reduce((p, d) => p * (1 - (parseFloat(d) || 0) / 100), precio)
+  }
+  return precio * (1 - parseFloat(desc) / 100)
+}
+
 export default function Presupuesto() {
   const { profile, isDistributor, isAdmin } = useAuth()
+
+  // Estado del selector de distribuidor (solo para admin)
+  const [distribuidores, setDistribuidores] = useState([])
+  const [distSeleccionado, setDistSeleccionado] = useState(null) // null = no elegido, 'manual' = manual, profile obj = elegido
+  const [descuentosManual, setDescuentosManual] = useState({
+    calefones_calderas: '',
+    paneles_calefactores: '',
+    anafes: '',
+  })
+
+  // Estado general
   const [cantidades, setCantidades] = useState({})
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
   const [clienteNombre, setClienteNombre] = useState('')
   const [incluirIVA, setIncluirIVA] = useState(false)
 
-  const descuentos = profile?.descuentos || {}
+  useEffect(() => {
+    if (isAdmin) cargarDistribuidores()
+  }, [isAdmin])
 
-  function precioConDescuento(precio, categoria) {
-    const desc = descuentos[categoria]
-    if (!desc || desc === 0) return precio
-    if (Array.isArray(desc)) {
-      return desc.reduce((p, d) => p * (1 - (parseFloat(d) || 0) / 100), precio)
-    }
-    return precio * (1 - parseFloat(desc) / 100)
+  async function cargarDistribuidores() {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, razon_social, email, descuentos')
+      .eq('user_type', 'distributor')
+      .order('razon_social', { ascending: true })
+    setDistribuidores(data || [])
   }
 
-  function pctEfectivo(categoria) {
-    const desc = descuentos[categoria]
-    if (!desc || desc === 0) return 0
-    const base = 100
-    const final = precioConDescuento(base, categoria)
-    return ((base - final) / base * 100).toFixed(1)
-  }
+  // Descuentos activos según el modo
+  const descuentos = isAdmin
+    ? distSeleccionado && distSeleccionado !== 'manual'
+      ? (distSeleccionado.descuentos || {})
+      : distSeleccionado === 'manual'
+        ? Object.fromEntries(
+            Object.entries(descuentosManual).map(([cat, val]) => [cat, parseFloat(val) || 0])
+          )
+        : {}
+    : (profile?.descuentos || {})
 
   function setCantidad(codigo, val) {
     const n = Math.max(0, parseInt(val) || 0)
@@ -101,14 +144,18 @@ export default function Presupuesto() {
   const itemsPresupuesto = CATALOGO.flatMap(cat =>
     cat.productos
       .filter(p => (cantidades[p.codigo] || 0) > 0)
-      .map(p => ({
-        ...p,
-        categoria: cat.categoria,
-        cantidad: cantidades[p.codigo],
-        precio_unitario: precioConDescuento(p.precio, cat.categoria),
-        descuento_pct: parseFloat(pctEfectivo(cat.categoria)) || 0,
-        subtotal: precioConDescuento(p.precio, cat.categoria) * cantidades[p.codigo],
-      }))
+      .map(p => {
+        const precioFinal = aplicarDescuento(p.precio, descuentos[cat.categoria])
+        const pct = parseFloat(calcularDescuentoEfectivo(descuentos[cat.categoria])) || 0
+        return {
+          ...p,
+          categoria: cat.categoria,
+          cantidad: cantidades[p.codigo],
+          precio_unitario: precioFinal,
+          descuento_pct: pct,
+          subtotal: precioFinal * cantidades[p.codigo],
+        }
+      })
   )
 
   const total = itemsPresupuesto.reduce((s, i) => s + i.subtotal, 0)
@@ -116,15 +163,27 @@ export default function Presupuesto() {
   const ivaMonto = incluirIVA ? total * IVA_PCT : 0
   const totalConIVA = total + ivaMonto
 
-  const distribuidor = {
-    razon_social: clienteNombre || profile?.razon_social || profile?.full_name,
-    email: profile?.email || '',
+  function getNombreCliente() {
+    if (isAdmin) {
+      if (clienteNombre.trim()) return clienteNombre.trim()
+      if (distSeleccionado && distSeleccionado !== 'manual') {
+        return distSeleccionado.razon_social || distSeleccionado.full_name || ''
+      }
+      return clienteNombre.trim() || ''
+    }
+    return clienteNombre.trim() || profile?.razon_social || profile?.full_name || ''
   }
 
   function exportPayload() {
+    const nombre = getNombreCliente()
     return {
       items: itemsPresupuesto,
-      distribuidor,
+      distribuidor: {
+        razon_social: nombre,
+        email: isAdmin && distSeleccionado && distSeleccionado !== 'manual'
+          ? distSeleccionado.email
+          : profile?.email || '',
+      },
       notas: notas.trim() || null,
       fecha: null,
       incluirIVA,
@@ -138,6 +197,10 @@ export default function Presupuesto() {
     setNotas('')
     setClienteNombre('')
     setIncluirIVA(false)
+    if (isAdmin) {
+      setDistSeleccionado(null)
+      setDescuentosManual({ calefones_calderas: '', paneles_calefactores: '', anafes: '' })
+    }
   }
 
   if (!isDistributor && !isAdmin) return null
@@ -151,32 +214,138 @@ export default function Presupuesto() {
           onClick={() => setImagenAmpliada(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)', cursor: 'zoom-out' }}
         >
-          <img
-            src={imagenAmpliada}
-            alt="Producto"
-            style={{ maxWidth: '80vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12, boxShadow: '0 0 60px rgba(0,0,0,0.6)' }}
-            onClick={e => e.stopPropagation()}
-          />
-          <button
-            onClick={() => setImagenAmpliada(null)}
-            style={{ position: 'fixed', top: 20, right: 20, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >×</button>
+          <img src={imagenAmpliada} alt="Producto" style={{ maxWidth: '80vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12, boxShadow: '0 0 60px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()} />
+          <button onClick={() => setImagenAmpliada(null)} style={{ position: 'fixed', top: 20, right: 20, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
         </div>
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Presupuesto</h1>
-          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Armá un presupuesto y exportalo en PDF o Excel</p>
-        </div>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Presupuesto</h1>
+        <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Armá un presupuesto y exportalo en PDF o Excel</p>
       </div>
+
+      {/* Selector de distribuidor (solo admin) */}
+      {isAdmin && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 14 }}>
+            Distribuidor del presupuesto
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: distSeleccionado ? 16 : 0 }}>
+            {/* Select distribuidor registrado */}
+            <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+              <select
+                value={distSeleccionado && distSeleccionado !== 'manual' ? distSeleccionado.id : ''}
+                onChange={e => {
+                  const id = e.target.value
+                  if (!id) { setDistSeleccionado(null); setClienteNombre(''); return }
+                  const found = distribuidores.find(d => d.id === id)
+                  setDistSeleccionado(found || null)
+                  setClienteNombre('')
+                }}
+                style={{ width: '100%', background: 'var(--surface2)', border: `1px solid ${distSeleccionado && distSeleccionado !== 'manual' ? 'rgba(74,108,247,0.5)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '9px 12px', color: distSeleccionado && distSeleccionado !== 'manual' ? 'var(--text)' : 'var(--text3)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}
+              >
+                <option value="">— Elegir distribuidor registrado —</option>
+                {distribuidores.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.razon_social || d.full_name}{d.email ? ` · ${d.email}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text3)', fontSize: 12, fontWeight: 600, padding: '0 4px' }}>ó</div>
+
+            {/* Botón manual */}
+            <button
+              onClick={() => {
+                setDistSeleccionado('manual')
+                setDescuentosManual({ calefones_calderas: '', paneles_calefactores: '', anafes: '' })
+              }}
+              style={{
+                padding: '9px 18px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+                background: distSeleccionado === 'manual' ? 'rgba(255,107,43,0.12)' : 'var(--surface2)',
+                color: distSeleccionado === 'manual' ? '#ff6b2b' : 'var(--text2)',
+                border: distSeleccionado === 'manual' ? '1px solid rgba(255,107,43,0.4)' : '1px solid var(--border)',
+              }}
+            >
+              ✏️ Sin registrar / % manual
+            </button>
+
+            {distSeleccionado && (
+              <button
+                onClick={() => { setDistSeleccionado(null); setClienteNombre('') }}
+                style={{ padding: '9px 14px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: 'none', border: '1px solid var(--border)', color: 'var(--text3)' }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Info del distribuidor seleccionado */}
+          {distSeleccionado && distSeleccionado !== 'manual' && (
+            <div style={{ background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius)', padding: '12px 16px', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>Distribuidor</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{distSeleccionado.razon_social || distSeleccionado.full_name}</div>
+                {distSeleccionado.email && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{distSeleccionado.email}</div>}
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {CATALOGO.map(cat => {
+                  const pct = calcularDescuentoEfectivo(descuentos[cat.categoria])
+                  return (
+                    <div key={cat.categoria} style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>{cat.label}</div>
+                      <span style={{
+                        background: parseFloat(pct) > 0 ? 'rgba(61,214,140,0.12)' : 'var(--surface2)',
+                        color: parseFloat(pct) > 0 ? '#3dd68c' : 'var(--text3)',
+                        border: `1px solid ${parseFloat(pct) > 0 ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`,
+                        fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                      }}>
+                        {parseFloat(pct) > 0 ? `${pct}%` : 'Sin dto.'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Descuentos manuales */}
+          {distSeleccionado === 'manual' && (
+            <div style={{ background: 'rgba(255,107,43,0.05)', border: '1px solid rgba(255,107,43,0.2)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 12 }}>Descuento por categoría (%)</div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {CATALOGO.map(cat => (
+                  <div key={cat.categoria} style={{ flex: '1 1 160px' }}>
+                    <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5 }}>{cat.emoji} {cat.label}</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        placeholder="0"
+                        value={descuentosManual[cat.categoria]}
+                        onChange={e => setDescuentosManual(prev => ({ ...prev, [cat.categoria]: e.target.value }))}
+                        style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 30px 8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }}
+                      />
+                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 13, fontWeight: 700 }}>%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
         {/* Catálogo */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {CATALOGO.map(cat => {
-            const desc = descuentos[cat.categoria] || 0
+            const pct = parseFloat(calcularDescuentoEfectivo(descuentos[cat.categoria])) || 0
             return (
               <div key={cat.categoria} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -184,41 +353,36 @@ export default function Presupuesto() {
                     <span style={{ fontSize: 20 }}>{cat.emoji}</span>
                     <span style={{ fontWeight: 700, fontSize: 15 }}>{cat.label}</span>
                   </div>
-                  {(desc > 0 || (Array.isArray(desc) && desc.some(d => parseFloat(d) > 0))) ? (
+                  {pct > 0 && (
                     <span style={{ background: 'rgba(61,214,140,0.12)', color: 'var(--green)', border: '1px solid rgba(61,214,140,0.3)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
-                      {pctEfectivo(cat.categoria)}% de descuento aplicado
+                      {pct}% de descuento aplicado
                     </span>
-                  ) : null}
+                  )}
                 </div>
 
                 <div>
                   {cat.productos.map((p, i) => {
-                    const precioFinal = precioConDescuento(p.precio, cat.categoria)
+                    const precioFinal = aplicarDescuento(p.precio, descuentos[cat.categoria])
                     const cant = cantidades[p.codigo] || 0
                     return (
                       <div key={p.codigo} style={{
                         display: 'grid', gridTemplateColumns: '56px 1fr auto auto',
-                        alignItems: 'center', gap: 16,
-                        padding: '12px 20px',
+                        alignItems: 'center', gap: 16, padding: '12px 20px',
                         borderBottom: i < cat.productos.length - 1 ? '1px solid var(--border)' : 'none',
                         background: cant > 0 ? 'rgba(74,108,247,0.04)' : 'transparent',
                         transition: 'background .15s',
                       }}>
-                        {/* Imagen */}
                         <div
                           onClick={() => p.imagen && setImagenAmpliada(p.imagen)}
                           style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: p.imagen ? 'zoom-in' : 'default', transition: 'border-color .15s' }}
                           onMouseEnter={e => p.imagen && (e.currentTarget.style.borderColor = '#7b9fff')}
                           onMouseLeave={e => p.imagen && (e.currentTarget.style.borderColor = 'var(--border)')}
                         >
-                          {p.imagen ? (
-                            <img src={p.imagen} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { e.currentTarget.style.display = 'none' }} />
-                          ) : (
-                            <span style={{ fontSize: 22, opacity: 0.3 }}>📦</span>
-                          )}
+                          {p.imagen
+                            ? <img src={p.imagen} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { e.currentTarget.style.display = 'none' }} />
+                            : <span style={{ fontSize: 22, opacity: 0.3 }}>📦</span>}
                         </div>
 
-                        {/* Info */}
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                             <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>{p.codigo}</span>
@@ -227,15 +391,13 @@ export default function Presupuesto() {
                           <div style={{ fontSize: 12, color: 'var(--text3)' }}>{p.modelo}</div>
                         </div>
 
-                        {/* Precio */}
                         <div style={{ textAlign: 'right', minWidth: 130 }}>
-                          {pctEfectivo(cat.categoria) > 0 && (
+                          {pct > 0 && (
                             <div style={{ fontSize: 11, color: 'var(--text3)', textDecoration: 'line-through' }}>{formatPrecio(p.precio)}</div>
                           )}
-                          <div style={{ fontSize: 14, fontWeight: 700, color: pctEfectivo(cat.categoria) > 0 ? 'var(--green)' : 'var(--text)' }}>{formatPrecio(precioFinal)}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: pct > 0 ? 'var(--green)' : 'var(--text)' }}>{formatPrecio(precioFinal)}</div>
                         </div>
 
-                        {/* Cantidad */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <button onClick={() => setCantidad(p.codigo, cant - 1)} style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                           <input
@@ -263,19 +425,25 @@ export default function Presupuesto() {
             </div>
 
             <div style={{ padding: '16px 20px' }}>
-              {/* Cliente */}
+              {/* Nombre cliente */}
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Cliente / Destinatario</label>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  {isAdmin ? 'Nombre en el presupuesto' : 'Cliente / Destinatario'}
+                </label>
                 <input
                   type="text"
                   value={clienteNombre}
                   onChange={e => setClienteNombre(e.target.value)}
-                  placeholder={profile?.razon_social || profile?.full_name || 'Nombre del cliente'}
+                  placeholder={
+                    isAdmin && distSeleccionado && distSeleccionado !== 'manual'
+                      ? distSeleccionado.razon_social || distSeleccionado.full_name
+                      : profile?.razon_social || profile?.full_name || 'Nombre del cliente'
+                  }
                   style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }}
                 />
               </div>
 
-              {/* Items seleccionados */}
+              {/* Items */}
               {itemsPresupuesto.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>
                   Seleccioná productos del catálogo
@@ -300,11 +468,11 @@ export default function Presupuesto() {
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 8 }}>
                     {incluirIVA && (
                       <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                           <span style={{ fontSize: 13, color: 'var(--text3)' }}>Subtotal (neto)</span>
                           <span style={{ fontSize: 13, color: 'var(--text3)' }}>{formatPrecio(total)}</span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                           <span style={{ fontSize: 13, color: 'var(--text3)' }}>IVA (21%)</span>
                           <span style={{ fontSize: 13, color: 'var(--text3)' }}>{formatPrecio(ivaMonto)}</span>
                         </div>
@@ -316,12 +484,7 @@ export default function Presupuesto() {
                     </div>
                   </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', userSelect: 'none' }}>
-                    <input
-                      type="checkbox"
-                      checked={incluirIVA}
-                      onChange={e => setIncluirIVA(e.target.checked)}
-                      style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }}
-                    />
+                    <input type="checkbox" checked={incluirIVA} onChange={e => setIncluirIVA(e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#7b9fff' }} />
                     <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>Incluir IVA (21%)</span>
                   </label>
                 </>
@@ -339,7 +502,7 @@ export default function Presupuesto() {
                 />
               </div>
 
-              {/* Botones de exportación */}
+              {/* Botones */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <button
                   onClick={() => imprimirPresupuesto(exportPayload())}
@@ -351,11 +514,11 @@ export default function Presupuesto() {
                 <button
                   onClick={() => exportarPresupuestoExcel(exportPayload())}
                   disabled={itemsPresupuesto.length === 0}
-                  style={{ width: '100%', background: itemsPresupuesto.length === 0 ? 'var(--surface2)' : 'rgba(61,214,140,0.1)', color: itemsPresupuesto.length === 0 ? 'var(--text3)' : '#3dd68c', border: `1px solid ${itemsPresupuesto.length === 0 ? 'var(--border)' : 'rgba(61,214,140,0.4)'}`, borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: itemsPresupuesto.length === 0 ? 'not-allowed' : 'pointer', opacity: itemsPresupuesto.length === 0 ? 0.5 : 1, fontFamily: 'var(--font)' }}
+                  style={{ width: '100%', background: 'none', color: itemsPresupuesto.length === 0 ? 'var(--text3)' : '#3dd68c', border: `1px solid ${itemsPresupuesto.length === 0 ? 'var(--border)' : 'rgba(61,214,140,0.4)'}`, borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: itemsPresupuesto.length === 0 ? 'not-allowed' : 'pointer', opacity: itemsPresupuesto.length === 0 ? 0.5 : 1, fontFamily: 'var(--font)' }}
                 >
                   📊 Exportar a Excel
                 </button>
-                {itemsPresupuesto.length > 0 && (
+                {(itemsPresupuesto.length > 0 || distSeleccionado) && (
                   <button
                     onClick={limpiar}
                     style={{ width: '100%', background: 'none', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
@@ -367,9 +530,8 @@ export default function Presupuesto() {
             </div>
           </div>
 
-          {/* Info validez */}
           <div style={{ background: 'rgba(255,209,102,0.06)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 'var(--radius)', padding: '12px 14px', fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
-            ⚠️ Los presupuestos tienen validez de <strong style={{ color: 'var(--text2)' }}>7 días corridos</strong>. Precios sujetos a disponibilidad de stock.
+            ⚠️ Validez <strong style={{ color: 'var(--text2)' }}>7 días corridos</strong>. Precios sujetos a disponibilidad de stock.
           </div>
         </div>
       </div>
