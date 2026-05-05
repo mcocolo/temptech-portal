@@ -35,6 +35,7 @@ import PerfilDistribuidor from '@/pages/PerfilDistribuidor'
 import IngresoTransito from '@/pages/IngresoTransito'
 import MisPreventas from '@/pages/MisPreventas'
 import AdminReportes from '@/pages/AdminReportes'
+import Presupuesto from '@/pages/Presupuesto'
 
 
 
@@ -81,6 +82,7 @@ function AppRoutes() {
               <Route path="/registro-producto" element={<RegistroProducto />} />
               <Route path="/clientes-registrados" element={<ClientesRegistrados />} />
               <Route path="/distribuidores" element={<Distribuidores />} />
+              <Route path="/presupuesto" element={<Presupuesto />} />
               <Route path="/pedidos" element={<Pedidos />} />
               <Route path="/admin-pedidos" element={<AdminPedidos />} />
               <Route path="/admin-precios" element={<AdminPrecios />} />

@@ -28,6 +28,7 @@ const NAV = [
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },
+  { label: 'Presupuesto',       icon: ClipboardList,   path: '/presupuesto',   isDistributor: true },
   { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos',       isDistributor: true },
   { label: 'Mis Preventas',    icon: Package,         path: '/mis-preventas', isDistributor: true },
   { label: 'Mis Devoluciones', icon: RotateCcw,       path: '/devoluciones',  isDistributor: true },
