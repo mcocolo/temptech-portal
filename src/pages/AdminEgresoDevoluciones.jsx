@@ -277,7 +277,7 @@ export default function AdminEgresoDevoluciones() {
                     <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(56,189,248,0.06)', border: '1px dashed rgba(56,189,248,0.4)', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 600, color: '#38bdf8', cursor: subiendoEtiqueta === it.id ? 'not-allowed' : 'pointer' }}>
                       {subiendoEtiqueta === it.id ? '⏳ Subiendo...' : '+ Adjuntar etiqueta'}
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display: 'none' }} disabled={subiendoEtiqueta === it.id}
-                        onChange={e => { const f = e.target.files; e.target.value = ''; if (f?.length) subirEtiqueta(it, f) }} />
+                        onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirEtiqueta(it, f) }} />
                     </label>
                   </div>
                 </div>
