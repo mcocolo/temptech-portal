@@ -119,6 +119,7 @@ const NAV_VENDEDOR = [
   { label: 'Lista de Precios',  icon: Tags,            path: '/admin-precios' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+  { label: 'Documentación',     icon: ClipboardList,   path: '/documentacion' },
   { label: 'Especificaciones Técnicas', icon: Ruler,   path: '/especificaciones-tecnicas' },
 ]
 
