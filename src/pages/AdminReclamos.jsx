@@ -939,6 +939,7 @@ export default function AdminReclamos({ openTracking } = {}) {
         items: [{ codigo, nombre, modelo: modelo || null, cantidad }],
         referencia_nombre: clienteNombre || null,
         notas: `Panel devuelto · Reclamo ${reclamoRef} · ID:${item.id}`,
+        dias_garantia: item.dias_garantia ?? null,
       })
       if (error) { alert('Error: ' + error.message); return }
       const nuevaNota = armarLineaNota('RECIBIR PANEL', `Pendiente de ingreso · Cód: ${codigo} · Cant: ${cantidad}`)

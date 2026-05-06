@@ -65,9 +65,42 @@ export default function AdminPreventas() {
   const [retiroNotas, setRetiroNotas] = useState('')
   const [enviandoRetiro, setEnviandoRetiro] = useState(false)
 
+  const [recalculando, setRecalculando] = useState(null) // preventa id en recalculo
+
   // Edición saldo cobrado inline (legacy, mantenido para retrocompatibilidad)
   const [editandoSaldo, setEditandoSaldo] = useState(null)
   const [saldoInput, setSaldoInput] = useState('')
+
+  async function recalcularSaldoPreventa(pv) {
+    setRecalculando(pv.id)
+    const { data: peds, error } = await supabase
+      .from('pedidos')
+      .select('items, items_pendientes')
+      .eq('preventa_id', pv.id)
+      .eq('stock_descontado', true)
+    if (error) { toast.error('Error al leer pedidos: ' + error.message); setRecalculando(null); return }
+
+    const retirado = {}
+    for (const ped of (peds || [])) {
+      for (const item of (ped.items || [])) {
+        if (!item.codigo) continue
+        const pendiente = (ped.items_pendientes || []).find(p => p.codigo === item.codigo)
+        const entregado = Math.max(0, item.cantidad - (pendiente?.cantidad || 0))
+        retirado[item.codigo] = (retirado[item.codigo] || 0) + entregado
+      }
+    }
+
+    const updatedItems = (pv.items || []).map(pvItem => ({
+      ...pvItem,
+      cantidad_retirada: retirado[pvItem.codigo] || 0,
+    }))
+
+    const { error: updErr } = await supabase.from('preventas').update({ items: updatedItems, updated_at: new Date().toISOString() }).eq('id', pv.id)
+    setRecalculando(null)
+    if (updErr) { toast.error('Error al actualizar preventa: ' + updErr.message); return }
+    toast.success('✅ Saldo recalculado desde ' + (peds?.length || 0) + ' pedido(s) entregado(s)')
+    cargar()
+  }
 
   async function guardarSaldo(pvId) {
     const valor = parseFloat(saldoInput) || 0
@@ -1445,6 +1478,10 @@ export default function AdminPreventas() {
                               </button>
                               {pv.estado === 'activa' && (
                                 <>
+                                  <button onClick={() => recalcularSaldoPreventa(pv)} disabled={recalculando === pv.id}
+                                    style={{ background: 'rgba(56,189,248,0.08)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                    {recalculando === pv.id ? 'Recalculando...' : '🔁 Recalcular saldo'}
+                                  </button>
                                   <button onClick={() => abrirSolicitudRetiro(pv)}
                                     style={{ background: 'rgba(251,146,60,0.1)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                                     📋 Solicitar retiro

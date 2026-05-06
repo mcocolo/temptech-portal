@@ -38,6 +38,12 @@ export default function AdminDevoluciones() {
   const [notaAbierta, setNotaAbierta] = useState(null)
   const [notaEdit, setNotaEdit] = useState({})
   const [guardandoNota, setGuardandoNota] = useState(false)
+  const [modalService, setModalService] = useState(null) // null | { dev, action }
+  const [serviceModelo, setServiceModelo] = useState('')
+  const [serviceNotas, setServiceNotas] = useState('')
+  const [guardandoService, setGuardandoService] = useState(false)
+
+  const esService = dev => dev.origen === 'garantia' && dev.dias_garantia != null && dev.dias_garantia > 365
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -75,6 +81,29 @@ export default function AdminDevoluciones() {
     setNotaAdmin('')
     setExpandido(null)
     setConfirmRecibido(null)
+    cargar()
+  }
+
+  async function confirmarService() {
+    if (!modalService) return
+    setGuardandoService(true)
+    const { dev, action } = modalService
+    const prefijo = action === 'aprobado' ? '🔧 SERVICE APROBADO' : '❌ SERVICE RECHAZADO'
+    const modelo = serviceModelo.trim()
+    const notas = serviceNotas.trim()
+    const notaFormateada = [prefijo, modelo ? `Modelo: ${modelo}` : null, notas ? `Notas: ${notas}` : null].filter(Boolean).join(' | ')
+    const { error } = await supabase.from('devoluciones').update({
+      estado: action,
+      notas_admin: notaFormateada,
+      updated_at: new Date().toISOString(),
+    }).eq('id', dev.id)
+    setGuardandoService(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(action === 'aprobado' ? '✅ Service aprobado' : '❌ Service rechazado')
+    setModalService(null)
+    setServiceModelo('')
+    setServiceNotas('')
+    setExpandido(null)
     cargar()
   }
 
@@ -178,7 +207,9 @@ export default function AdminDevoluciones() {
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: tcfg.bg, color: tcfg.color, border: `1px solid ${tcfg.border}` }}>{tcfg.emoji} {tcfg.label}</span>
                   {dev.origen === 'garantia' && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', border: '1px solid rgba(167,139,250,0.35)' }}>🔧 Garantía</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: esService(dev) ? 'rgba(251,146,60,0.12)' : 'rgba(167,139,250,0.12)', color: esService(dev) ? '#fb923c' : '#b39dfa', border: `1px solid ${esService(dev) ? 'rgba(251,146,60,0.35)' : 'rgba(167,139,250,0.35)'}` }}>
+                      {esService(dev) ? '🔧 Service' : '🔧 Garantía'}
+                    </span>
                   )}
                   <span style={{ fontSize: 12, color: 'var(--text3)', marginLeft: 'auto' }}>
                     {formatDistanceToNow(new Date(dev.created_at), { addSuffix: true, locale: es })}
@@ -273,16 +304,29 @@ export default function AdminDevoluciones() {
 
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {dev.estado === 'pendiente' && (
-                        <>
-                          <button onClick={() => cambiarEstado(dev.id, 'aprobado')} disabled={guardando}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                            ✅ Aprobar devolución
-                          </button>
-                          <button onClick={() => cambiarEstado(dev.id, 'rechazado')} disabled={guardando}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                            ❌ Rechazar
-                          </button>
-                        </>
+                        esService(dev) ? (
+                          <>
+                            <button onClick={() => { setServiceModelo(dev.items?.[0]?.modelo || ''); setServiceNotas(''); setModalService({ dev, action: 'aprobado' }) }} disabled={guardando}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ✅ Aprobar Service
+                            </button>
+                            <button onClick={() => { setServiceModelo(dev.items?.[0]?.modelo || ''); setServiceNotas(''); setModalService({ dev, action: 'rechazado' }) }} disabled={guardando}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ❌ Rechazar Service
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => cambiarEstado(dev.id, 'aprobado')} disabled={guardando}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ✅ Aprobar devolución
+                            </button>
+                            <button onClick={() => cambiarEstado(dev.id, 'rechazado')} disabled={guardando}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                              ❌ Rechazar
+                            </button>
+                          </>
+                        )
                       )}
                       {dev.estado === 'aprobado' && (
                         confirmRecibido === dev.id ? (
@@ -328,6 +372,51 @@ export default function AdminDevoluciones() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal Service */}
+      {modalService && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) { setModalService(null) } }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 28, width: '100%', maxWidth: 480 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, marginBottom: 6 }}>
+              {modalService.action === 'aprobado' ? '✅ Aprobar Service' : '❌ Rechazar Service'}
+            </div>
+            {modalService.dev.items?.[0] && (
+              <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 18 }}>
+                {modalService.dev.items[0].nombre}
+                {modalService.dev.items[0].codigo && <span style={{ fontFamily: 'monospace', marginLeft: 6, color: '#7b9fff' }}>#{modalService.dev.items[0].codigo}</span>}
+              </div>
+            )}
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Modelo</label>
+              <input value={serviceModelo} onChange={e => setServiceModelo(e.target.value)}
+                placeholder="Ej: 550W ATX, 24 pulgadas FHD..."
+                style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                {modalService.action === 'aprobado' ? '¿Qué hay que hacer?' : '¿Por qué se rechaza?'}
+              </label>
+              <textarea rows={3} value={serviceNotas} onChange={e => setServiceNotas(e.target.value)}
+                placeholder={modalService.action === 'aprobado' ? 'Ej: Cambio de fuente interna, limpiar ventiladores...' : 'Ej: Fuera de garantía de fabricante, daño por usuario...'}
+                style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModalService(null)}
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarService} disabled={guardandoService}
+                style={{ background: modalService.action === 'aprobado' ? 'rgba(61,214,140,0.15)' : 'rgba(255,85,119,0.15)', border: `1px solid ${modalService.action === 'aprobado' ? 'rgba(61,214,140,0.4)' : 'rgba(255,85,119,0.4)'}`, borderRadius: 'var(--radius)', padding: '8px 20px', fontSize: 13, fontWeight: 700, color: modalService.action === 'aprobado' ? '#3dd68c' : '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                {guardandoService ? 'Guardando...' : (modalService.action === 'aprobado' ? '✅ Confirmar aprobación' : '❌ Confirmar rechazo')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

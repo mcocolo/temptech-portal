@@ -360,15 +360,18 @@ export default function IngresoEgresoPT() {
     }
 
     // Actualizar cantidad_retirada en la preventa si corresponde
-    if (pedidoSel.tipo === 'preventa' && pedidoSel.preventa_id) {
-      const { data: pv } = await supabase.from('preventas').select('items').eq('id', pedidoSel.preventa_id).single()
-      if (pv?.items) {
+    if (pedidoSel.preventa_id) {
+      const { data: pv, error: pvReadErr } = await supabase.from('preventas').select('items').eq('id', pedidoSel.preventa_id).single()
+      if (pvReadErr) {
+        toast.error('⚠️ Stock descontado pero no se pudo leer la preventa para actualizar el saldo')
+      } else if (pv?.items) {
         const updatedItems = pv.items.map(pvItem => {
-          const entregado = pItems.find(i => i.codigo === pvItem.codigo)
+          const entregado = itemsAEntregar.find(i => i.codigo === pvItem.codigo)
           if (!entregado || !entregado.cantidad) return pvItem
           return { ...pvItem, cantidad_retirada: (pvItem.cantidad_retirada || 0) + entregado.cantidad }
         })
-        await supabase.from('preventas').update({ items: updatedItems }).eq('id', pedidoSel.preventa_id)
+        const { error: pvWriteErr } = await supabase.from('preventas').update({ items: updatedItems }).eq('id', pedidoSel.preventa_id)
+        if (pvWriteErr) toast.error('⚠️ Stock descontado pero no se pudo actualizar el saldo de preventa')
       }
     }
 
