@@ -95,14 +95,14 @@ serve(async (req) => {
     else if (type === 'new_reclamo') {
       ok = await sendEmail({
         to: ADMIN_EMAIL,
-        subject: `⚠️ Nuevo reclamo [${data.priority?.toUpperCase()}]: ${data.title}`,
+        subject: `⚠️ Nuevo caso [${data.priority?.toUpperCase()}]: ${data.title}`,
         html: baseTemplate(`
           <div class="card">
-            <h2>Nuevo reclamo registrado</h2>
-            <p>El cliente <span class="highlight">${data.authorName}</span> registró un nuevo reclamo.</p>
+            <h2>Nuevo caso registrado</h2>
+            <p>El cliente <span class="highlight">${data.authorName}</span> registró un nuevo caso.</p>
             <p><strong>Tipo:</strong> ${data.title}</p>
             <p><strong>Prioridad:</strong> <span style="color:${data.priority === 'high' ? '#ff4d6d' : data.priority === 'medium' ? '#ffd166' : '#9196a8'}">${data.priority}</span></p>
-            <a href="${APP_URL}/admin" class="btn">Gestionar reclamo →</a>
+            <a href="${APP_URL}/admin" class="btn">Gestionar caso →</a>
           </div>
         `),
       })

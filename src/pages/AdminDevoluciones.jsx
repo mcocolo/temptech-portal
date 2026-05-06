@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { usePersistedState } from '@/hooks/usePersistedState'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -28,10 +29,10 @@ export default function AdminDevoluciones() {
 
   const [devoluciones, setDevoluciones] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState('pendiente')
-  const [busqueda, setBusqueda] = useState('')
-  const [sortOrder, setSortOrder] = useState('newest')
-  const [expandido, setExpandido] = useState(null)
+  const [filtro, setFiltro] = usePersistedState('adev_filtro', 'pendiente')
+  const [busqueda, setBusqueda] = usePersistedState('adev_busqueda', '')
+  const [sortOrder, setSortOrder] = usePersistedState('adev_sort', 'newest')
+  const [expandido, setExpandido] = usePersistedState('adev_expandido', null)
   const [notaAdmin, setNotaAdmin] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [confirmRecibido, setConfirmRecibido] = useState(null)

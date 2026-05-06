@@ -451,6 +451,25 @@ export default function Reclamos() {
           </div>
         )}
 
+        {/* Archivos adjuntos de resolución (etiqueta, instrucciones, etc.) */}
+        {selected.archivos_resolucion?.length > 0 && (
+          <div style={{ padding: '14px 16px', background: 'rgba(123,159,255,0.06)', border: '1px solid rgba(123,159,255,0.25)', borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.8px' }}>📎 Archivos adjuntos</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {selected.archivos_resolucion.map((url, i) => {
+                const nombre = url.split('/').pop()?.split('?')[0] || `Archivo ${i + 1}`
+                return (
+                  <a key={i} href={url} target="_blank" rel="noreferrer" download
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#7b9fff', background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 8, padding: '8px 14px', textDecoration: 'none', width: 'fit-content' }}>
+                    📄 {nombre.length > 40 ? nombre.slice(0, 40) + '…' : nombre}
+                    <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)' }}>↓ Descargar</span>
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Datos de envío con link de tracking */}
         {(selected.empresa_envio || selected.codigo_seguimiento || selected.fecha_envio) && (
           <div style={{ padding: '14px 16px', background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 10, marginBottom: 16 }}>

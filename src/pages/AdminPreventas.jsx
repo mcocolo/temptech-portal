@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { usePersistedState } from '@/hooks/usePersistedState'
 import toast from 'react-hot-toast'
 import { imprimirPreventa, exportarPreventaExcel } from '@/utils/exportDoc'
 
@@ -21,8 +22,8 @@ export default function AdminPreventas() {
   const [loading, setLoading] = useState(true)
   const [distribuidores, setDistribuidores] = useState([])
   const [precios, setPrecios] = useState([])
-  const [filtroEstado, setFiltroEstado] = useState('activa')
-  const [expandida, setExpandida] = useState(null)
+  const [filtroEstado, setFiltroEstado] = usePersistedState('apv_filtro', 'activa')
+  const [expandida, setExpandida] = usePersistedState('apv_expandida', null)
 
   // Form nueva preventa
   const [distId, setDistId] = useState('')

@@ -775,16 +775,28 @@ export default function Pedidos() {
                     </div>
                   )}
 
-                  {/* Factura */}
-                  {p.factura_url && (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Factura</div>
-                      <a href={p.factura_url} target="_blank" rel="noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none' }}>
-                        📄 Ver factura
-                      </a>
-                    </div>
-                  )}
+                  {/* Facturas */}
+                  {(() => {
+                    const urls = Array.isArray(p.factura_urls) && p.factura_urls.length > 0
+                      ? p.factura_urls
+                      : p.factura_url ? [p.factura_url] : []
+                    if (!urls.length) return null
+                    return (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
+                          Factura{urls.length > 1 ? 's' : ''} ({urls.length})
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {urls.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noreferrer"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', textDecoration: 'none', width: 'fit-content' }}>
+                              📄 {urls.length > 1 ? `Factura ${i + 1}` : 'Ver factura'}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* Comprobante de pago */}
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(61,214,140,0.15)' }}>

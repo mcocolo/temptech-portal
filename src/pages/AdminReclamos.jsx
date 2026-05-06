@@ -804,6 +804,7 @@ export default function AdminReclamos({ openTracking } = {}) {
       fecha_envio: empresa === 'Logistica Propia' ? fechaEnvio : null,
       fecha_resolucion: new Date().toISOString(),
       notas: unirNotas(item.notas, nuevaNota),
+      ...(adjuntosUrls?.length > 0 ? { archivos_resolucion: adjuntosUrls } : {}),
     }).eq('id', item.id)
 
     if (error) { alert(`Error al guardar ${tipo}`); return }

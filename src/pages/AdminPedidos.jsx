@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { usePersistedState } from '@/hooks/usePersistedState'
 import toast from 'react-hot-toast'
 import { imprimirPresupuesto, exportarPresupuestoExcel } from '@/utils/exportDoc'
 
@@ -90,11 +91,11 @@ export default function AdminPedidos() {
   const [vista, setVista] = useState('lista')          // 'lista' | 'nuevo'
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState('pendiente')
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroFecha, setFiltroFecha] = useState(() => new Date().toISOString().split('T')[0])
-  const [sortOrder, setSortOrder] = useState('newest')
-  const [editando, setEditando] = useState(null)
+  const [filtro, setFiltro] = usePersistedState('ap_filtro', 'pendiente')
+  const [busqueda, setBusqueda] = usePersistedState('ap_busqueda', '')
+  const [filtroFecha, setFiltroFecha] = usePersistedState('ap_fecha', new Date().toISOString().split('T')[0])
+  const [sortOrder, setSortOrder] = usePersistedState('ap_sort', 'newest')
+  const [editando, setEditando] = usePersistedState('ap_editando', null)
   const [itemsEdit, setItemsEdit] = useState([])
   const [notaAdmin, setNotaAdmin] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState('')
@@ -556,7 +557,7 @@ export default function AdminPedidos() {
       updated_at: new Date().toISOString(),
     }).eq('id', pedido.id)
     setSubiendoFactura(null)
-    if (error) { toast.error('Error al guardar factura'); return }
+    if (error) { toast.error('Error al guardar factura: ' + error.message); return }
     toast.success(`${nuevas.length} factura${nuevas.length > 1 ? 's' : ''} adjuntada${nuevas.length > 1 ? 's' : ''} ✅`)
     if (actuales.length === 0) await enviarEmailPedido(pedido, 'factura')
     cargar()

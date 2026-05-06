@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { usePersistedState } from '@/hooks/usePersistedState'
 import { Spinner } from '@/components/ui'
 import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload, FileText, Info, Bell, Briefcase } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -75,7 +76,7 @@ const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px sol
 
 export default function IngresoEgresoPT() {
   const { user, profile, isAdmin, isAdmin2 } = useAuth()
-  const [view, setView]         = useState('pedidos')  // 'stock' | 'historial'
+  const [view, setView]         = usePersistedState('iept_view', 'pedidos')  // 'stock' | 'historial'
   const [stock, setStock]       = useState({})         // { [codigo]: { stock_inicial, stock_actual } }
   const [movs, setMovs]         = useState([])
   const [loading, setLoading]   = useState(true)
