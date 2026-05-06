@@ -197,7 +197,7 @@ export default function AdminPrecios() {
           📄 Listas de Precios — Descarga PDF
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <a href="https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/listas-precios/lista-precios-calefaccion.pdf" target="_blank" rel="noreferrer" download="Lista Precios Calefacción Eléctrica.pdf"
+          <a href="https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/listas-precios/lista-precios-calefones-calderas.pdf" target="_blank" rel="noreferrer" download="Lista Precios Calefacción Eléctrica.pdf"
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '10px 18px', textDecoration: 'none', color: '#ffd166', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600, transition: 'all .15s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,209,102,0.16)'; e.currentTarget.style.borderColor = 'rgba(255,209,102,0.5)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,209,102,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,209,102,0.3)' }}>
@@ -205,7 +205,7 @@ export default function AdminPrecios() {
             Calefacción Eléctrica
             <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>↓ PDF</span>
           </a>
-          <a href="https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/listas-precios/lista-precios-calefones-calderas.pdf" target="_blank" rel="noreferrer" download="Lista Precios Calefones-Calderas.pdf"
+          <a href="https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/listas-precios/lista-precios-calefaccion.pdf" target="_blank" rel="noreferrer" download="Lista Precios Calefones-Calderas.pdf"
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,107,43,0.08)', border: '1px solid rgba(255,107,43,0.3)', borderRadius: 'var(--radius)', padding: '10px 18px', textDecoration: 'none', color: '#ff6b2b', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600, transition: 'all .15s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,107,43,0.16)'; e.currentTarget.style.borderColor = 'rgba(255,107,43,0.5)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,107,43,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,107,43,0.3)' }}>
