@@ -57,7 +57,7 @@ const CATALOGO = [
       { codigo: 'DT4',    nombre: 'Anafe Infrarrojo + Extractor', modelo: '4 Hornallas Touch', precio: 424768.60, imagen: `${IMG}DT4.png` },
       { codigo: 'DT4W',   nombre: 'Anafe Infrarrojo + Extractor', modelo: '4 Hornallas Knob',  precio: 424768.60, imagen: `${IMG}DT4W.png` },
       { codigo: 'K1002',  nombre: 'Anafe Inducción',              modelo: '2 Hornallas Touch', precio: 137184.52, imagen: `${IMG}K1002.png` },
-      { codigo: 'K2002',  nombre: 'Anafe Infrarrojo',             modelo: '2 Hornallas Touch', precio: 125857.36, imagen: `${IMG}K2002.png` },
+      { codigo: 'K2002',  nombre: 'Anafe Infrarrojo',             modelo: '2 Hornallas Knob', precio: 125857.36, imagen: `${IMG}K2002.png` },
       { codigo: 'DT4-1',  nombre: 'Anafe Inducción',              modelo: '4 Hornallas Touch', precio: 245421.86, imagen: `${IMG}DT4-1.png` },
     ],
   },
