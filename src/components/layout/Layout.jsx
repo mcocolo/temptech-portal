@@ -22,6 +22,7 @@ const NAV = [
   { section: 'Recursos' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
+  { label: 'Lista de Precios',  icon: Tags,            path: '/admin-precios',     isDistributor: true },
   { label: 'Documentación',     icon: ClipboardList,   path: '/documentacion',     isDistributor: true },
   { label: 'Contenido Digital',          icon: Package,      path: '/contenido-digital',          isDistributor: true },
   { label: 'Especificaciones Técnicas',  icon: Ruler,        path: '/especificaciones-tecnicas' },
@@ -120,6 +121,7 @@ const NAV_VENDEDOR = [
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
   { label: 'Documentación',     icon: ClipboardList,   path: '/documentacion' },
+  { label: 'Contenido Digital', icon: Package,         path: '/contenido-digital' },
   { label: 'Especificaciones Técnicas', icon: Ruler,   path: '/especificaciones-tecnicas' },
 ]
 

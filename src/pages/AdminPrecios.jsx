@@ -53,7 +53,7 @@ function parsearCSV(texto) {
 }
 
 export default function AdminPrecios() {
-  const { isAdmin, isVendedor } = useAuth()
+  const { isAdmin, isVendedor, isDistributor } = useAuth()
   const [precios, setPrecios] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroCat, setFiltroCat] = useState('todos')
@@ -65,7 +65,7 @@ export default function AdminPrecios() {
   const [guardandoNuevo, setGuardandoNuevo] = useState(false)
   const fileRef = useRef()
 
-  useEffect(() => { if (isAdmin || isVendedor) cargar() }, [isAdmin, isVendedor])
+  useEffect(() => { if (isAdmin || isVendedor || isDistributor) cargar() }, [isAdmin, isVendedor, isDistributor])
 
   async function cargar() {
     setLoading(true)
@@ -154,7 +154,7 @@ export default function AdminPrecios() {
 
   const preciosFiltrados = filtroCat === 'todos' ? precios : precios.filter(p => p.categoria === filtroCat)
 
-  if (!isAdmin && !isVendedor) return null
+  if (!isAdmin && !isVendedor && !isDistributor) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -188,6 +188,31 @@ export default function AdminPrecios() {
               <input ref={fileRef} type="file" accept=".csv" onChange={handleArchivo} style={{ display: 'none' }} />
             </>
           )}
+        </div>
+      </div>
+
+      {/* Descarga PDFs */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px', marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>
+          📄 Listas de Precios — Descarga PDF
+        </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <a href="/lista-precios-calefaccion.pdf" download="Lista Precios Calefacción Eléctrica.pdf"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '10px 18px', textDecoration: 'none', color: '#ffd166', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600, transition: 'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,209,102,0.16)'; e.currentTarget.style.borderColor = 'rgba(255,209,102,0.5)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,209,102,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,209,102,0.3)' }}>
+            <FileText size={16} />
+            Calefacción Eléctrica
+            <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>↓ PDF</span>
+          </a>
+          <a href="/lista-precios-calefones-calderas.pdf" download="Lista Precios Calefones-Calderas.pdf"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,107,43,0.08)', border: '1px solid rgba(255,107,43,0.3)', borderRadius: 'var(--radius)', padding: '10px 18px', textDecoration: 'none', color: '#ff6b2b', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600, transition: 'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,107,43,0.16)'; e.currentTarget.style.borderColor = 'rgba(255,107,43,0.5)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,107,43,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,107,43,0.3)' }}>
+            <FileText size={16} />
+            Calefones / Calderas
+            <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>↓ PDF</span>
+          </a>
         </div>
       </div>
 
