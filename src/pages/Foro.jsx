@@ -272,11 +272,34 @@ export default function Foro() {
   async function submitPost() {
     if (!form.title.trim() || !form.body.trim()) return toast.error('Completá todos los campos')
     setSubmitting(true)
+
+    // Ensure session is still valid (can expire on mobile when app is backgrounded)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      toast.error('Tu sesión expiró. Por favor, volvé a iniciar sesión.')
+      setSubmitting(false)
+      return
+    }
+
+    // Ensure profile row exists (required by FK on posts.user_id → profiles.id)
+    if (!profile) {
+      await supabase.from('profiles').upsert({
+        id: session.user.id,
+        email: session.user.email,
+        full_name: session.user.user_metadata?.full_name || session.user.email,
+      }, { onConflict: 'id', ignoreDuplicates: true })
+    }
+
     const { data, error } = await supabase.from('posts').insert({
       title: form.title.trim(), body: form.body.trim(),
-      category: form.category, user_id: user.id, status: 'open',
+      category: form.category, user_id: session.user.id, status: 'open',
     }).select().single()
-    if (error) { toast.error('Error al publicar'); setSubmitting(false); return }
+    if (error) {
+      console.error('Error al publicar consulta:', error)
+      toast.error('Error al publicar: ' + error.message)
+      setSubmitting(false)
+      return
+    }
     toast.success('¡Consulta publicada!')
     await notifyNewPost({ postId: data.id, title: data.title, authorName: profile?.full_name, category: data.category })
     setNewPostOpen(false)
@@ -288,8 +311,19 @@ export default function Foro() {
   async function submitReply() {
     if (!replyText.trim()) return
     setSubmitting(true)
-    const { error } = await supabase.from('replies').insert({ post_id: selected.id, user_id: user.id, body: replyText.trim(), is_official: isAdmin })
-    if (error) { toast.error('Error al responder'); setSubmitting(false); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      toast.error('Tu sesión expiró. Por favor, volvé a iniciar sesión.')
+      setSubmitting(false)
+      return
+    }
+    const { error } = await supabase.from('replies').insert({ post_id: selected.id, user_id: session.user.id, body: replyText.trim(), is_official: isAdmin })
+    if (error) {
+      console.error('Error al responder:', error)
+      toast.error('Error al responder: ' + error.message)
+      setSubmitting(false)
+      return
+    }
     toast.success('Respuesta publicada')
     if (isAdmin) await supabase.from('posts').update({ status: 'resolved' }).eq('id', selected.id)
     const { data: postData } = await supabase.from('posts').select('*, profiles(email)').eq('id', selected.id).single()

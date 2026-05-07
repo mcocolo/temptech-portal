@@ -436,6 +436,12 @@ export default function IngresoEgresoPT() {
     cargar(); cargarEgresosGarantia()
   }
 
+  function fmtNota(tipo, texto) {
+    const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return `${fecha} - ${tipo}: ${texto}`.trim()
+  }
+  function appendNota(existing, linea) { return (!existing || !existing.trim()) ? linea : `${existing}\n${linea}` }
+
   async function confirmarDevGarantia() {
     if (!devGarSel) return
     setConfirmandoDevGar(true)
@@ -460,6 +466,20 @@ export default function IngresoEgresoPT() {
       }
     }
     await supabase.from('devoluciones').update({ stock_ingresado: true }).eq('id', devGarSel.id)
+
+    // Agregar nota al caso original (AdminReclamos)
+    const idMatch = devGarSel.notas?.match(/ID:([a-f0-9-]{36})/i)
+    if (idMatch?.[1]) {
+      const { data: casoOriginal } = await supabase.from('devoluciones').select('notas').eq('id', idMatch[1]).single()
+      if (casoOriginal) {
+        const resumen = devGarRecuperable && items.length > 0
+          ? `Stock ingresado — ${items.map(it => `${it.codigo} x${it.cantidad}`).join(', ')} — por ${profile?.full_name || user.email}`
+          : `Panel recibido sin ingreso a stock (no recuperable) — por ${profile?.full_name || user.email}`
+        const linea = fmtNota('DEV. ENTRADA', resumen)
+        await supabase.from('devoluciones').update({ notas: appendNota(casoOriginal.notas, linea) }).eq('id', idMatch[1])
+      }
+    }
+
     toast.success(devGarRecuperable ? '✅ Stock ingresado — devolución confirmada' : '✅ Devolución cerrada — sin cambios en stock')
     setConfirmandoDevGar(false)
     setModalDevGar(false); setDevGarSel(null); setDevGarItemsEdit([]); setDevGarRecuperable(true)

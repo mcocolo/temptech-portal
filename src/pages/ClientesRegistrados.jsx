@@ -360,22 +360,42 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                 <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
               </div>
             )
+          ) : isDistrib ? (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px 28px' }}>
+                {[
+                  { label: 'Email',               val: u.email || cl?.email },
+                  { label: 'Teléfono',            val: u.telefono || cl?.telefono },
+                  { label: 'CUIT',                val: cl?.cuit },
+                  { label: 'Dirección',           val: cl?.direccion || '—' },
+                  { label: 'Localidad',           val: cl?.localidad || '—' },
+                  { label: 'Provincia',           val: cl?.provincia || '—' },
+                  { label: 'Desc. Calefones/Calderas', val: u.descuentos?.calefones_calderas != null ? `${u.descuentos.calefones_calderas}%` : null },
+                  { label: 'Desc. Paneles',       val: u.descuentos?.paneles_calefactores != null ? `${u.descuentos.paneles_calefactores}%` : null },
+                  { label: 'Desc. Anafes',        val: u.descuentos?.anafes != null ? `${u.descuentos.anafes}%` : null },
+                  { label: 'Dirección de entrega',val: cl?.direccion_entrega },
+                  { label: 'Horario de entrega',  val: cl?.horario_entrega },
+                  { label: 'Persona de contacto', val: cl?.persona_contacto },
+                ].map(f => <Field key={f.label} {...f} />)}
+              </div>
+              {(u.direcciones_entrega || []).filter(d => d?.direccion?.trim()).length > 0 && (
+                <div style={{ marginTop: 18 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 10 }}>Direcciones alternativas</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(u.direcciones_entrega || []).filter(d => d?.direccion?.trim()).map((d, i) => (
+                      <div key={i} style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 12, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {d.nombre && <span style={{ color: '#7b9fff', fontWeight: 600, minWidth: 120 }}>{d.nombre}</span>}
+                        <span style={{ color: 'var(--text2)' }}>{d.direccion}</span>
+                        {d.localidad && <span style={{ color: 'var(--text3)' }}>{d.localidad}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px 28px' }}>
-              {isDistrib ? [
-                { label: 'Email',               val: u.email || cl?.email },
-                { label: 'Teléfono',            val: u.telefono || cl?.telefono },
-                { label: 'CUIT',                val: cl?.cuit },
-                { label: 'Dirección',           val: cl?.direccion || '—' },
-                { label: 'Localidad',           val: cl?.localidad || '—' },
-                { label: 'Provincia',           val: cl?.provincia || '—' },
-                { label: 'Desc. Calefones/Calderas', val: u.descuentos?.calefones_calderas != null ? `${u.descuentos.calefones_calderas}%` : null },
-                { label: 'Desc. Paneles',       val: u.descuentos?.paneles_calefactores != null ? `${u.descuentos.paneles_calefactores}%` : null },
-                { label: 'Desc. Anafes',        val: u.descuentos?.anafes != null ? `${u.descuentos.anafes}%` : null },
-                { label: 'Dirección de entrega',val: cl?.direccion_entrega },
-                { label: 'Horario de entrega',  val: cl?.horario_entrega },
-                { label: 'Persona de contacto', val: cl?.persona_contacto },
-              ].map(f => <Field key={f.label} {...f} />) : [
+              {[
                 { label: 'Email',               val: u.email || cl?.email },
                 { label: 'Teléfono',            val: u.telefono || cl?.telefono },
                 { label: 'Dirección',           val: cl?.direccion },
