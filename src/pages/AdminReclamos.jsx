@@ -1222,7 +1222,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
                             <span style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Teléfono</span>
                             <a
-                              href={`https://wa.me/${item.telefono.replace(/\D/g, '')}?text=${encodeURIComponent('Hola como estas. Nos comunicamos del area de Post Venta de TEMPTECH')}`}
+                              href={`https://wa.me/${item.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola como estas. Nos comunicamos del area de Post Venta de TEMPTECH por tu caso ${item.tracking_id || ''}.`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{ color: '#25D366', textDecoration: 'none', fontWeight: 600 }}
