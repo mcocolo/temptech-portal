@@ -550,6 +550,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
   const [modelo, setModelo] = useState(inicial?.modelo || '')
   const [cantidad, setCantidad] = useState(1)
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  const [tipoEnvio, setTipoEnvio] = useState('Logística')
   const [guardando, setGuardando] = useState(false)
 
   function handleSelect(e) {
@@ -563,7 +564,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
     if (!selCodigo.trim()) { alert('Seleccioná o ingresá el código del producto'); return }
     if (cantidad < 1) { alert('La cantidad debe ser mayor a 0'); return }
     setGuardando(true)
-    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo, cantidad, fecha })
+    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo, cantidad, fecha, tipoEnvio })
     setGuardando(false)
   }
 
@@ -602,9 +603,20 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
       </div>
 
       {isEnviado && (
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Fecha de envío</label>
-          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={{ ...inputSt, maxWidth: 180 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10, marginBottom: 14 }}>
+          <div>
+            <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Modalidad de envío *</label>
+            <select value={tipoEnvio} onChange={e => setTipoEnvio(e.target.value)} style={{ ...inputSt, cursor: 'pointer' }}>
+              <option value="Logística">🚚 Logística</option>
+              <option value="Correo Argentino">📮 Correo Argentino</option>
+              <option value="Andreani">📦 Andreani</option>
+              <option value="Retiro en fábrica">🏭 Retiro en fábrica</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Fecha de envío</label>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inputSt} />
+          </div>
         </div>
       )}
 
@@ -912,7 +924,7 @@ export default function AdminReclamos({ openTracking } = {}) {
     await cargar()
   }
 
-  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad, fecha }) {
+  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad, fecha, tipoEnvio }) {
     const isEnviado = panelStockAbierto?.tipo === 'enviado'
     const clienteNombre = item.nombre_apellido || item.nombre || item.email || ''
     const reclamoRef = item.tracking_id || String(item.id).slice(0,8).toUpperCase()
@@ -924,10 +936,11 @@ export default function AdminReclamos({ openTracking } = {}) {
         referencia_nombre: clienteNombre || null,
         observacion: `Reclamo ${reclamoRef}`,
         fecha_envio: fecha || null,
+        tipo_envio: tipoEnvio || null,
         usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
       })
       if (error) { alert('Error: ' + error.message); return }
-      const nuevaNota = armarLineaNota('ENVIAR PANEL', `Pendiente de egreso · Cód: ${codigo} · Cant: ${cantidad}`)
+      const nuevaNota = armarLineaNota('ENVIAR PANEL', `Pendiente de egreso · Cód: ${codigo} · Cant: ${cantidad} · ${tipoEnvio || ''}`)
       await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
       setPanelStockAbierto(null)
       await cargar()

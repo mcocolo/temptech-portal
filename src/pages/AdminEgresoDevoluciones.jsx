@@ -183,6 +183,19 @@ export default function AdminEgresoDevoluciones() {
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
                   <span style={{ fontSize: 11, fontWeight: 600, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', padding: '2px 8px', borderRadius: 20 }}>🔧 Garantía</span>
+                  {it.tipo_envio && (() => {
+                    const cfg = {
+                      'Logística':          { icon: '🚚', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)'  },
+                      'Correo Argentino':   { icon: '📮', color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)'  },
+                      'Andreani':           { icon: '📦', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' },
+                      'Retiro en fábrica':  { icon: '🏭', color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)'  },
+                    }[it.tipo_envio] || { icon: '🚚', color: '#fb923c', bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.35)' }
+                    return (
+                      <span style={{ fontSize: 11, fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, padding: '2px 10px', borderRadius: 20 }}>
+                        {cfg.icon} {it.tipo_envio}
+                      </span>
+                    )
+                  })()}
                   {it.fecha_envio ? (
                     <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.4)', padding: '3px 10px', borderRadius: 20 }}>
                       📅 Enviar: {new Date(it.fecha_envio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
