@@ -27,6 +27,9 @@ export default function AdminEgresoDevoluciones() {
   const [notaEdit, setNotaEdit]       = useState({})
   const [guardandoNota, setGuardandoNota] = useState(false)
   const [subiendoEtiqueta, setSubiendoEtiqueta] = useState(null) // item id
+  const [editandoId, setEditandoId]     = useState(null)
+  const [editForm, setEditForm]         = useState({})
+  const [guardandoEdit, setGuardandoEdit] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -88,6 +91,39 @@ export default function AdminEgresoDevoluciones() {
     setSubiendoEtiqueta(null)
     if (error) { toast.error('Error al guardar etiqueta: ' + error.message); return }
     toast.success(`${nuevas.length} etiqueta${nuevas.length > 1 ? 's' : ''} adjuntada${nuevas.length > 1 ? 's' : ''} ✅`)
+    cargar()
+  }
+
+  function abrirEdicion(it) {
+    setEditForm({
+      codigo: it.codigo || '',
+      nombre: it.nombre || '',
+      modelo: it.modelo || '',
+      cantidad: it.cantidad ?? 1,
+      fecha_envio: it.fecha_envio || '',
+      tipo_envio: it.tipo_envio || '',
+      referencia_nombre: it.referencia_nombre || '',
+      observacion: it.observacion || '',
+    })
+    setEditandoId(it.id)
+  }
+
+  async function guardarEdicion(it) {
+    setGuardandoEdit(true)
+    const { error } = await supabase.from('egresos_garantia').update({
+      codigo: editForm.codigo,
+      nombre: editForm.nombre,
+      modelo: editForm.modelo || null,
+      cantidad: Number(editForm.cantidad) || 1,
+      fecha_envio: editForm.fecha_envio || null,
+      tipo_envio: editForm.tipo_envio || null,
+      referencia_nombre: editForm.referencia_nombre || null,
+      observacion: editForm.observacion || null,
+    }).eq('id', it.id)
+    setGuardandoEdit(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Item actualizado ✅')
+    setEditandoId(null)
     cargar()
   }
 
@@ -210,35 +246,91 @@ export default function AdminEgresoDevoluciones() {
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 10 }}>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Producto</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '2px 6px', borderRadius: 4 }}>{it.codigo}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{it.nombre}</span>
-                      {it.modelo && it.modelo !== it.nombre && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{it.modelo}</span>}
+                {editandoId === it.id ? (
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', marginBottom: 10 }}>✏ Editar item</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px,1fr))', gap: 10, marginBottom: 12 }}>
+                      {[
+                        { label: 'Código',    key: 'codigo' },
+                        { label: 'Nombre',    key: 'nombre' },
+                        { label: 'Modelo',    key: 'modelo' },
+                        { label: 'Cliente',   key: 'referencia_nombre' },
+                        { label: 'Observación', key: 'observacion' },
+                      ].map(({ label, key }) => (
+                        <div key={key}>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+                          <input style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
+                            value={editForm[key]}
+                            onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} />
+                        </div>
+                      ))}
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Cantidad</div>
+                        <input type="number" min={1} style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
+                          value={editForm.cantidad}
+                          onChange={e => setEditForm(f => ({ ...f, cantidad: e.target.value }))} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Fecha de envío</div>
+                        <input type="date" style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
+                          value={editForm.fecha_envio}
+                          onChange={e => setEditForm(f => ({ ...f, fecha_envio: e.target.value }))} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Modalidad de envío</div>
+                        <select style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
+                          value={editForm.tipo_envio}
+                          onChange={e => setEditForm(f => ({ ...f, tipo_envio: e.target.value }))}>
+                          <option value="">— Sin especificar —</option>
+                          <option value="Logística">🚚 Logística</option>
+                          <option value="Correo Argentino">📮 Correo Argentino</option>
+                          <option value="Andreani">📦 Andreani</option>
+                          <option value="Retiro en fábrica">🏭 Retiro en fábrica</option>
+                        </select>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Cantidad: <strong style={{ color: 'var(--text)' }}>{it.cantidad}</strong></div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => guardarEdicion(it)} disabled={guardandoEdit}
+                        style={{ background: '#7b9fff', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        {guardandoEdit ? 'Guardando...' : 'Guardar cambios'}
+                      </button>
+                      <button onClick={() => setEditandoId(null)}
+                        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 12px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ minWidth: 180 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Cliente</div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{it.referencia_nombre || '—'}</div>
-                    {it.observacion && (() => {
-                      const tracking = it.observacion?.match(/Reclamo (DEV-[\w-]+)/)?.[1]
-                      return tracking
-                        ? <div style={{ fontSize: 11, marginTop: 2 }}>
-                            <Link to={`/reclamos?tracking=${tracking}`} style={{ color: '#7b9fff', textDecoration: 'underline', cursor: 'pointer' }}>
-                              {it.observacion} ↗
-                            </Link>
-                          </div>
-                        : <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{it.observacion}</div>
-                    })()}
+                ) : (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Producto</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', background: 'rgba(255,209,102,0.1)', padding: '2px 6px', borderRadius: 4 }}>{it.codigo}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{it.nombre}</span>
+                        {it.modelo && it.modelo !== it.nombre && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{it.modelo}</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Cantidad: <strong style={{ color: 'var(--text)' }}>{it.cantidad}</strong></div>
+                    </div>
+                    <div style={{ minWidth: 180 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Cliente</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{it.referencia_nombre || '—'}</div>
+                      {it.observacion && (() => {
+                        const tracking = it.observacion?.match(/Reclamo (DEV-[\w-]+)/)?.[1]
+                        return tracking
+                          ? <div style={{ fontSize: 11, marginTop: 2 }}>
+                              <Link to={`/reclamos?tracking=${tracking}`} style={{ color: '#7b9fff', textDecoration: 'underline', cursor: 'pointer' }}>
+                                {it.observacion} ↗
+                              </Link>
+                            </div>
+                          : <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{it.observacion}</div>
+                      })()}
+                    </div>
+                    <div style={{ minWidth: 140 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Operador</div>
+                      <div style={{ fontSize: 12 }}>{it.usuario_nombre || '—'}</div>
+                    </div>
                   </div>
-                  <div style={{ minWidth: 140 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Operador</div>
-                    <div style={{ fontSize: 12 }}>{it.usuario_nombre || '—'}</div>
-                  </div>
-                </div>
+                )}
 
                 {/* Nota interna */}
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 10 }}>
@@ -296,6 +388,12 @@ export default function AdminEgresoDevoluciones() {
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {editandoId !== it.id && (
+                    <button onClick={() => abrirEdicion(it)}
+                      style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                      ✏ Editar
+                    </button>
+                  )}
                   {it.estado === 'pendiente' && (
                     <>
                       <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flex: 1 }}>📋 Pendiente de preparar</span>
