@@ -125,6 +125,21 @@ serve(async (req) => {
       })
     }
 
+    else if (type === 'nota_caso') {
+      ok = await sendEmail({
+        to: data.recipientEmail,
+        subject: `📋 Actualización en tu caso de garantía — ${data.trackingId}`,
+        html: baseTemplate(`
+          <div class="card">
+            <h2>Hay una actualización en tu caso</h2>
+            <p>El equipo de <span class="highlight">TEMPTECH</span> agregó una nota a tu caso <span class="highlight">${data.trackingId}</span>.</p>
+            <p style="background:#1e2130;padding:16px;border-radius:8px;color:#c8cad4;line-height:1.8">${data.nota}</p>
+            <a href="${APP_URL}/reclamos" class="btn">Ver mi caso →</a>
+          </div>
+        `),
+      })
+    }
+
     return new Response(JSON.stringify({ ok }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

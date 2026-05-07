@@ -980,6 +980,19 @@ export default function AdminReclamos({ openTracking } = {}) {
     const { error } = await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
     if (error) { alert('Error al guardar la nota'); return }
     setNotasInput(prev => ({ ...prev, [item.id]: '' }))
+    const email = (item.email || '').trim()
+    if (email) {
+      await supabase.functions.invoke('send-email', {
+        body: {
+          type: 'nota_caso',
+          data: {
+            recipientEmail: email,
+            trackingId: item.tracking_id || String(item.id).slice(0, 8).toUpperCase(),
+            nota: texto,
+          },
+        },
+      })
+    }
     await cargar()
   }
 
@@ -1293,7 +1306,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             rows={2}
                             style={{ flex: 1, background: T.surface3, border: `1px solid ${T.border2}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 12, fontFamily: T.font, resize: 'vertical', outline: 'none', lineHeight: 1.6 }}
                           />
-                          <Btn variant="ghost" onClick={() => guardarNotaManual(item)}>💾 Guardar nota</Btn>
+                          <Btn variant="ghost" onClick={() => guardarNotaManual(item)}>📨 Enviar Nota</Btn>
                         </div>
 
                         {/* Nota interna — solo admins */}
