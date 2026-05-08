@@ -69,7 +69,7 @@ const PROVINCIAS = [
 const USER_TYPES = [
   { value: 'client',       label: 'Soy Usuario',          emoji: '👤', desc: 'Compro productos TEMPTECH para uso personal',      color: '#7b9fff', bg: 'rgba(74,108,247,0.1)',   border: 'rgba(74,108,247,0.35)' },
   { value: 'distributor',  label: 'Soy Distribuidor',      emoji: '🏪', desc: 'Distribuyo o comercializo productos TEMPTECH',     color: '#ffd166', bg: 'rgba(255,209,102,0.1)', border: 'rgba(255,209,102,0.35)' },
-  { value: 'tech_service', label: 'Soy Servicio Técnico',  emoji: '🔧', desc: 'Realizo instalaciones y reparaciones TEMPTECH',    color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
+  { value: 'tecnico', label: 'Soy Servicio Técnico',  emoji: '🔧', desc: 'Realizo instalaciones y reparaciones TEMPTECH',    color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
 ]
 
 // ── Helpers de UI ──
@@ -406,7 +406,7 @@ export default function Auth() {
             <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Resumen de tu cuenta:</div>
             <div>Tipo: <span style={{ color: USER_TYPES.find(t => t.value === userType)?.color }}>{USER_TYPES.find(t => t.value === userType)?.emoji} {USER_TYPES.find(t => t.value === userType)?.label}</span></div>
             <div>Nombre: {userType === 'client' ? clientData.full_name : bizData.full_name}</div>
-            {(userType === 'distributor' || userType === 'tech_service') && <div>Razón Social: {bizData.razon_social}</div>}
+            {(userType === 'distributor' || userType === 'tecnico') && <div>Razón Social: {bizData.razon_social}</div>}
           </div>
           <button onClick={() => { setMode('login'); setRegistered(false) }} style={{
             background: 'var(--brand-gradient)', border: 'none', borderRadius: 'var(--radius)',
@@ -673,7 +673,7 @@ export default function Auth() {
                 <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Tu cuenta</div>
                 <div>Tipo: <span style={{ color: USER_TYPES.find(t => t.value === userType)?.color }}>{USER_TYPES.find(t => t.value === userType)?.emoji} {USER_TYPES.find(t => t.value === userType)?.label}</span></div>
                 <div>Nombre: {userType === 'client' ? clientData.full_name : bizData.full_name}</div>
-                {(userType === 'distributor' || userType === 'tech_service') && <div>Razón Social: {bizData.razon_social}</div>}
+                {(userType === 'distributor' || userType === 'tecnico') && <div>Razón Social: {bizData.razon_social}</div>}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
                 <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer' }}>← Atrás</button>

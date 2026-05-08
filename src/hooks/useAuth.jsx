@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
   const isChofer      = profile?.role === 'chofer'
   const isClient      = profile?.user_type === 'client'      || profile?.clientes?.user_type === 'client'
   const isDistributor = profile?.user_type === 'distributor'  || profile?.clientes?.user_type === 'distributor'
-  const isTechService = profile?.user_type === 'tech_service' || profile?.clientes?.user_type === 'tech_service'
+  const isTechService = profile?.user_type === 'tecnico' || profile?.clientes?.user_type === 'tecnico'
   const clientCode    = profile?.clientes?.client_code || profile?.client_code
 
   return (

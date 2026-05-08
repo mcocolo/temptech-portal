@@ -105,6 +105,22 @@ const NAV_CHOFER = [
   { label: 'Logística Diaria', icon: Truck, path: '/logistica' },
 ]
 
+// Nav para Servicio Técnico
+const NAV_TECNICO = [
+  { section: 'Principal' },
+  { label: 'Panel',                        icon: LayoutDashboard, path: '/dashboard' },
+  { label: 'Novedades',                    icon: Newspaper,       path: '/novedades' },
+  { label: 'Foro de Consultas',            icon: MessageSquare,   path: '/foro' },
+  { section: 'Service' },
+  { label: 'Service / Garantía',           icon: AlertTriangle,   path: '/reclamos' },
+  { section: 'Recursos' },
+  { label: 'Videos',                       icon: Video,           path: '/videos' },
+  { label: 'Manuales',                     icon: BookOpen,        path: '/manuales' },
+  { label: 'Especificaciones Técnicas',    icon: Ruler,           path: '/especificaciones-tecnicas' },
+  { section: 'Mi Cuenta' },
+  { label: 'Mis Consultas',               icon: ClipboardList,   path: '/mis-consultas' },
+]
+
 // Nav para vendedor
 const NAV_VENDEDOR = [
   { section: 'Principal' },
@@ -131,7 +147,7 @@ const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', p
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [openSubmenus, setOpenSubmenus] = useState({ produccion: true })
-  const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor } = useAuth()
+  const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor, isTechService } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -210,6 +226,8 @@ export default function Layout({ children }) {
     ? NAV_VENDEDOR
     : isChofer
     ? NAV_CHOFER
+    : isTechService
+    ? NAV_TECNICO
     : baseNav
 
   function handleNav(path) {
@@ -437,8 +455,8 @@ export default function Layout({ children }) {
               <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {profile?.full_name || 'Usuario'}
               </div>
-              <div style={{ fontSize: 11, color: isAdmin ? '#7b9fff' : isAdmin2 ? '#fb923c' : isChofer ? '#3dd68c' : 'var(--text3)' }}>
-                {isAdmin ? '⭐ Admin' : isAdmin2 ? '📦 Control Físico' : isChofer ? '🚚 Chofer' : 'Cliente'}
+              <div style={{ fontSize: 11, color: isAdmin ? '#7b9fff' : isAdmin2 ? '#fb923c' : isChofer ? '#3dd68c' : isTechService ? '#2dd4bf' : 'var(--text3)' }}>
+                {isAdmin ? '⭐ Admin' : isAdmin2 ? '📦 Control Físico' : isChofer ? '🚚 Chofer' : isTechService ? '🔧 Servicio Técnico' : 'Cliente'}
               </div>
             </div>
             <button

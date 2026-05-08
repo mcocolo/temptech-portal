@@ -616,9 +616,9 @@ export default function AdminPedidos() {
     }
     if (nuevasUrls.length === 0) { setSubiendoPago(null); return }
     const nuevosArchivos = [...archivosActuales, ...nuevasUrls]
-    const { error } = await supabase.from('pedidos').update({ pago_archivos: nuevosArchivos, pago_url: nuevosArchivos[nuevosArchivos.length - 1], updated_at: new Date().toISOString() }).eq('id', pedido.id)
+    const { error, count } = await supabase.from('pedidos').update({ pago_archivos: nuevosArchivos, pago_url: nuevosArchivos[nuevosArchivos.length - 1], updated_at: new Date().toISOString() }).eq('id', pedido.id).select()
     setSubiendoPago(null)
-    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    if (error) { toast.error('Sin permiso para guardar: ' + error.message); return }
     toast.success(`${nuevasUrls.length} comprobante${nuevasUrls.length > 1 ? 's' : ''} subido${nuevasUrls.length > 1 ? 's' : ''} ✅`)
     cargar()
   }

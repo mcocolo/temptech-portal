@@ -64,7 +64,7 @@ const PRODUCT_CATALOG = [
 const USER_TYPES = [
   { value: 'client',       label: 'Soy Usuario',         emoji: '👤', desc: 'Uso personal',          color: '#7b9fff', bg: 'rgba(74,108,247,0.1)',   border: 'rgba(74,108,247,0.35)' },
   { value: 'distributor',  label: 'Soy Distribuidor',     emoji: '🏪', desc: 'Distribuidor comercial', color: '#ffd166', bg: 'rgba(255,209,102,0.1)', border: 'rgba(255,209,102,0.35)' },
-  { value: 'tech_service', label: 'Soy Servicio Técnico', emoji: '🔧', desc: 'Técnico instalador',     color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
+  { value: 'tecnico', label: 'Soy Servicio Técnico', emoji: '🔧', desc: 'Técnico instalador',     color: '#3dd68c', bg: 'rgba(61,214,140,0.1)',  border: 'rgba(61,214,140,0.35)' },
 ]
 
 function Field({ label, required, ...props }) {
@@ -211,8 +211,8 @@ export default function AuthCallback() {
   async function saveData() {
     if (!userType) return toast.error('Seleccioná tu tipo de cuenta')
     if (!telefono.trim()) return toast.error('Ingresá tu teléfono')
-    if ((userType === 'distributor' || userType === 'tech_service') && !razonSocial.trim()) return toast.error('Ingresá la razón social')
-    if ((userType === 'distributor' || userType === 'tech_service') && !cuit.trim()) return toast.error('Ingresá el CUIT')
+    if ((userType === 'distributor' || userType === 'tecnico') && !razonSocial.trim()) return toast.error('Ingresá la razón social')
+    if ((userType === 'distributor' || userType === 'tecnico') && !cuit.trim()) return toast.error('Ingresá el CUIT')
 
     setSaving(true)
 
@@ -366,7 +366,7 @@ export default function AuthCallback() {
                 )}
 
                 {/* Distribuidor / Técnico: razón social + CUIT */}
-                {(userType === 'distributor' || userType === 'tech_service') && (
+                {(userType === 'distributor' || userType === 'tecnico') && (
                   <>
                     <Field label="Razón Social" required placeholder="Mi Empresa S.A." value={razonSocial} onChange={e => setRazonSocial(e.target.value)} />
                     <Field label="CUIT" required placeholder="20-12345678-9" value={cuit} onChange={e => setCuit(e.target.value)} />
