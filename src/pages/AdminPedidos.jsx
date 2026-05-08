@@ -1537,9 +1537,9 @@ export default function AdminPedidos() {
                                   📎 Remito {archivosRemito.length > 1 ? i + 1 : ''}
                                 </a>
                               ))}
-                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.06)', border: '1px dashed rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: subiendoRemito === pedido.id ? 'not-allowed' : 'pointer', opacity: subiendoRemito === pedido.id ? 0.6 : 1 }}>
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.06)', border: '1px dashed rgba(255,209,102,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: subiendoRemito === pedido.id ? 'not-allowed' : 'pointer', opacity: subiendoRemito === pedido.id ? 0.6 : 1, position: 'relative', overflow: 'visible' }}>
                                 {subiendoRemito === pedido.id ? '⏳ Subiendo...' : '+ Adjuntar remito'}
-                                <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} disabled={subiendoRemito === pedido.id}
+                                <input type="file" accept="image/*,application/pdf" multiple style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }} disabled={subiendoRemito === pedido.id}
                                   onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirRemitoMultiple(pedido, f) }} />
                               </label>
                             </div>
@@ -1574,9 +1574,9 @@ export default function AdminPedidos() {
                             ))
                           })()}
                           {isAdmin && (
-                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,209,102,0.06)', border: '1px dashed rgba(255,209,102,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer', alignSelf: 'flex-start' }}>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,209,102,0.06)', border: '1px dashed rgba(255,209,102,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer', alignSelf: 'flex-start', position: 'relative', overflow: 'visible' }}>
                               {subiendoFactura === pedido.id ? '⏳ Subiendo...' : '+ Adjuntar factura'}
-                              <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }}
+                              <input type="file" accept="image/*,application/pdf" multiple style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
                                 onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirFactura(pedido, f) }} />
                             </label>
                           )}
@@ -1604,9 +1604,9 @@ export default function AdminPedidos() {
                                     style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>✕</button>
                                 </div>
                               ))}
-                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', marginTop: archivos.length ? 4 : 0 }}>
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(61,214,140,0.08)', border: '1px dashed rgba(61,214,140,0.4)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', marginTop: archivos.length ? 4 : 0, position: 'relative', overflow: 'visible' }}>
                                 {subiendoPago === pedido.id ? '⏳ Subiendo...' : '+ Agregar comprobante'}
-                                <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }}
+                                <input type="file" accept="image/*,application/pdf" multiple style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
                                   onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirPagoMultiple(pedido, f) }} />
                               </label>
                             </div>
