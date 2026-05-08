@@ -837,15 +837,14 @@ export default function AdminReclamos({ openTracking } = {}) {
     if (error) { alert(`Error al guardar ${tipo}`); return }
 
     try {
-      const { error: emailError } = await supabase.functions.invoke('enviar-email-resolucion', {
+      const { error: emailError } = await supabase.functions.invoke('send-email', {
         body: {
-          to: String(item.email || '').trim(),
-          subject: `TEMPTECH - ${tipo === 'Devolucion' ? 'Devolución' : 'Resolución'} de caso ${item.tracking_id}`,
-          text: textoFinal,
-          tracking_id: item.tracking_id || '',
-          empresa: empresa || '',
-          tracking: empresa !== 'Logistica Propia' ? codigo : '',
-          fecha: empresa === 'Logistica Propia' ? fechaEnvio : '',
+          type: 'resolucion',
+          data: {
+            to: String(item.email || '').trim(),
+            subject: `TEMPTECH - ${tipo === 'Devolucion' ? 'Devolución' : 'Resolución'} de caso ${item.tracking_id}`,
+            text: textoFinal,
+          },
         },
       })
       if (emailError) alert(`Se guardó pero falló el email: ${emailError.message}`)

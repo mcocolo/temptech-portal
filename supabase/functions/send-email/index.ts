@@ -125,6 +125,20 @@ serve(async (req) => {
       })
     }
 
+    else if (type === 'resolucion') {
+      ok = await sendEmail({
+        to: data.to,
+        subject: data.subject,
+        html: baseTemplate(`
+          <div class="card">
+            <h2>${data.subject}</h2>
+            <p style="background:#1e2130;padding:16px;border-radius:8px;color:#c8cad4;line-height:1.8;white-space:pre-line">${data.text}</p>
+            <a href="${APP_URL}/reclamos" class="btn">Ver mi caso →</a>
+          </div>
+        `),
+      })
+    }
+
     else if (type === 'nota_caso') {
       ok = await sendEmail({
         to: data.recipientEmail,
