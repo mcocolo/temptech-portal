@@ -551,6 +551,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
   const [cantidad, setCantidad] = useState(1)
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
   const [tipoEnvio, setTipoEnvio] = useState('Logística')
+  const [canal, setCanal]         = useState('Garantía')
   const [guardando, setGuardando] = useState(false)
 
   function handleSelect(e) {
@@ -564,7 +565,7 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
     if (!selCodigo.trim()) { alert('Seleccioná o ingresá el código del producto'); return }
     if (cantidad < 1) { alert('La cantidad debe ser mayor a 0'); return }
     setGuardando(true)
-    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo, cantidad, fecha, tipoEnvio })
+    await onGuardar({ codigo: selCodigo.trim(), nombre, modelo, cantidad, fecha, tipoEnvio, canal })
     setGuardando(false)
   }
 
@@ -582,6 +583,20 @@ function PanelStock({ item, tipo, onClose, onGuardar, catalogo = [] }) {
         {isEnviado
           ? 'Se registra como egreso pendiente — el stock se descuenta cuando Admin confirma en Ingreso/Egreso PT.'
           : 'Se registra como devolución pendiente — el stock ingresa cuando Admin confirma en Ingreso/Egreso PT.'}
+      </div>
+
+      {/* Toggle Garantía / Service */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {['Garantía', 'Service'].map(opt => (
+          <button key={opt} type="button" onClick={() => setCanal(opt)}
+            style={{ padding: '5px 16px', fontSize: 12, fontWeight: 700, borderRadius: 20, cursor: 'pointer', fontFamily: T.font,
+              background: canal === opt ? (opt === 'Service' ? 'rgba(45,212,191,0.15)' : 'rgba(167,139,250,0.15)') : T.surface2,
+              color: canal === opt ? (opt === 'Service' ? T.teal : '#b39dfa') : T.text3,
+              border: `1px solid ${canal === opt ? (opt === 'Service' ? T.teal : '#b39dfa') : T.border}`,
+            }}>
+            {opt === 'Garantía' ? '🔧 Garantía' : '⚙️ Service'}
+          </button>
+        ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 10, marginBottom: 10 }}>
@@ -924,15 +939,16 @@ export default function AdminReclamos({ openTracking } = {}) {
     await cargar()
   }
 
-  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad, fecha, tipoEnvio }) {
+  async function guardarPanelStock(item, { codigo, nombre, modelo, cantidad, fecha, tipoEnvio, canal }) {
     const isEnviado = panelStockAbierto?.tipo === 'enviado'
     const clienteNombre = item.nombre_apellido || item.nombre || item.email || ''
     const reclamoRef = item.tracking_id || String(item.id).slice(0,8).toUpperCase()
+    const canalFinal = canal || 'Garantía'
 
     if (isEnviado) {
       const { error } = await supabase.from('egresos_garantia').insert({
         codigo, nombre, modelo: modelo || null, categoria: '',
-        cantidad, canal: 'Garantía', estado: 'pendiente',
+        cantidad, canal: canalFinal, estado: 'pendiente',
         referencia_nombre: clienteNombre || null,
         observacion: `Reclamo ${reclamoRef}`,
         fecha_envio: fecha || null,
@@ -940,14 +956,15 @@ export default function AdminReclamos({ openTracking } = {}) {
         usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
       })
       if (error) { alert('Error: ' + error.message); return }
-      const nuevaNota = armarLineaNota('ENVIAR PANEL', `Pendiente de egreso · Cód: ${codigo} · Cant: ${cantidad} · ${tipoEnvio || ''}`)
+      const nuevaNota = armarLineaNota('ENVIAR PANEL', `Pendiente de egreso · Cód: ${codigo} · Cant: ${cantidad} · ${tipoEnvio || ''} · ${canalFinal}`)
       await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
       setPanelStockAbierto(null)
       await cargar()
       alert('✅ Envío registrado como pendiente — se descuenta en Ingreso/Egreso PT.')
     } else {
+      const origenVal = canalFinal === 'Service' ? 'service' : 'garantia'
       const { error } = await supabase.from('devoluciones').insert({
-        origen: 'garantia',
+        origen: origenVal,
         estado: 'pendiente',
         tipo: 'falla',
         items: [{ codigo, nombre, modelo: modelo || null, cantidad }],
@@ -956,8 +973,10 @@ export default function AdminReclamos({ openTracking } = {}) {
         dias_garantia: item.dias_garantia ?? null,
       })
       if (error) { alert('Error: ' + error.message); return }
-      const nuevaNota = armarLineaNota('RECIBIR PANEL', `Pendiente de ingreso · Cód: ${codigo} · Cant: ${cantidad}`)
-      await supabase.from('devoluciones').update({ notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
+      const nuevaNota = armarLineaNota('RECIBIR PANEL', `Pendiente de ingreso · Cód: ${codigo} · Cant: ${cantidad}${canalFinal === 'Service' ? ' · SERVICE' : ''}`)
+      const updatePayload = { notas: unirNotas(item.notas, nuevaNota) }
+      if (canalFinal === 'Service') updatePayload.realizar_service = true
+      await supabase.from('devoluciones').update(updatePayload).eq('id', item.id)
       setPanelStockAbierto(null)
       await cargar()
       alert('✅ Recepción registrada como pendiente — el stock ingresa en Ingreso/Egreso PT.')
@@ -1263,6 +1282,12 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             <span style={{ color: T.text3 }}>—</span>
                           )}
                         </div>
+                        <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5 }}>
+                          <span className="ar-info-lbl" style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Realizar Service</span>
+                          {item.realizar_service
+                            ? <span style={{ color: T.green, fontWeight: 700, fontSize: 15 }}>✓</span>
+                            : <span style={{ color: T.text3 }}>—</span>}
+                        </div>
                         <InfoRow label="Fecha ingreso" value={
                           /^\d{4}-\d{2}-\d{2}$/.test(String(item.fecha_ingreso || ''))
                             ? formatearFecha(item.fecha_creacion || item.fecha_ingreso)
@@ -1297,6 +1322,12 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           ) : (
                             <span style={{ color: T.text3 }}>NO</span>
                           )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 5, alignItems: 'center' }}>
+                          <span className="ar-info-lbl" style={{ color: T.text3, minWidth: 140, flexShrink: 0 }}>Realizar Service</span>
+                          {item.realizar_service
+                            ? <span style={{ color: T.green, fontWeight: 700, fontSize: 15 }}>✓</span>
+                            : <span style={{ color: T.text3 }}>NO</span>}
                         </div>
                       </div>
                     </div>

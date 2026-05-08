@@ -399,7 +399,7 @@ export default function IngresoEgresoPT() {
     const { data } = await supabase
       .from('devoluciones')
       .select('*')
-      .eq('origen', 'garantia')
+      .in('origen', ['garantia', 'service'])
       .eq('estado', 'recibido')
       .not('stock_ingresado', 'eq', true)
       .order('created_at', { ascending: false })

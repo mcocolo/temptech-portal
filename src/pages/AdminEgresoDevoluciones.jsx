@@ -30,6 +30,9 @@ export default function AdminEgresoDevoluciones() {
   const [editandoId, setEditandoId]     = useState(null)
   const [editForm, setEditForm]         = useState({})
   const [guardandoEdit, setGuardandoEdit] = useState(false)
+  const [productos, setProductos]       = useState([])
+  const [sugsProducto, setSugsProducto] = useState([])
+  const [sugsCampo, setSugsCampo]       = useState(null)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -94,7 +97,43 @@ export default function AdminEgresoDevoluciones() {
     cargar()
   }
 
+  async function cargarProductos() {
+    if (productos.length > 0) return
+    const { data } = await supabase.from('precios').select('codigo,nombre,modelo').order('codigo')
+    if (data) setProductos(data)
+  }
+
+  function handleCodigoChange(val) {
+    setEditForm(f => ({ ...f, codigo: val }))
+    if (val.length >= 2) {
+      const q = val.toUpperCase()
+      setSugsProducto(productos.filter(p => p.codigo?.toUpperCase().includes(q)).slice(0, 8))
+      setSugsCampo('codigo')
+    } else { setSugsProducto([]); setSugsCampo(null) }
+  }
+
+  function handleModeloChange(val) {
+    setEditForm(f => ({ ...f, modelo: val }))
+    if (val.length >= 2) {
+      const q = val.toLowerCase()
+      setSugsProducto(productos.filter(p =>
+        p.modelo?.toLowerCase().includes(q) || p.nombre?.toLowerCase().includes(q)
+      ).slice(0, 8))
+      setSugsCampo('modelo')
+    } else { setSugsProducto([]); setSugsCampo(null) }
+  }
+
+  function seleccionarProducto(p) {
+    setEditForm(f => ({ ...f, codigo: p.codigo || '', nombre: p.nombre || '', modelo: p.modelo || '' }))
+    setSugsProducto([]); setSugsCampo(null)
+  }
+
+  function ocultarSugs(campo) {
+    setTimeout(() => { if (sugsCampo === campo) { setSugsProducto([]); setSugsCampo(null) } }, 150)
+  }
+
   function abrirEdicion(it) {
+    cargarProductos()
     setEditForm({
       codigo: it.codigo || '',
       nombre: it.nombre || '',
@@ -218,7 +257,9 @@ export default function AdminEgresoDevoluciones() {
                     #{String(it.id).slice(0,8).toUpperCase()}
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', padding: '2px 8px', borderRadius: 20 }}>🔧 Garantía</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, background: it.canal === 'Service' ? 'rgba(45,212,191,0.12)' : 'rgba(167,139,250,0.12)', color: it.canal === 'Service' ? '#2dd4bf' : '#b39dfa', padding: '2px 8px', borderRadius: 20 }}>
+                    {it.canal === 'Service' ? '⚙️ Service' : '🔧 Garantía'}
+                  </span>
                   {it.tipo_envio && (() => {
                     const cfg = {
                       'Logística':          { icon: '🚚', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)'  },
@@ -250,11 +291,61 @@ export default function AdminEgresoDevoluciones() {
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 10 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', marginBottom: 10 }}>✏ Editar item</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px,1fr))', gap: 10, marginBottom: 12 }}>
+                      {/* Código — autocomplete */}
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Código</div>
+                        <input style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
+                          value={editForm.codigo}
+                          onChange={e => handleCodigoChange(e.target.value)}
+                          onBlur={() => ocultarSugs('codigo')}
+                          placeholder="Ej: F1400SMARTBL" />
+                        {sugsCampo === 'codigo' && sugsProducto.length > 0 && (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto', marginTop: 2 }}>
+                            {sugsProducto.map((p, i) => (
+                              <div key={i} onMouseDown={() => seleccionarProducto(p)}
+                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', fontSize: 11 }}>{p.codigo}</span>
+                                <span style={{ color: 'var(--text2)', fontSize: 11 }}>{p.nombre}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {/* Nombre — solo lectura si se seleccionó del buscador, editable igual */}
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Nombre</div>
+                        <input style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
+                          value={editForm.nombre}
+                          onChange={e => setEditForm(f => ({ ...f, nombre: e.target.value }))} />
+                      </div>
+                      {/* Modelo — autocomplete */}
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Modelo</div>
+                        <input style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
+                          value={editForm.modelo}
+                          onChange={e => handleModeloChange(e.target.value)}
+                          onBlur={() => ocultarSugs('modelo')}
+                          placeholder="Buscar por nombre o modelo..." />
+                        {sugsCampo === 'modelo' && sugsProducto.length > 0 && (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto', marginTop: 2 }}>
+                            {sugsProducto.map((p, i) => (
+                              <div key={i} onMouseDown={() => seleccionarProducto(p)}
+                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', fontSize: 11 }}>{p.codigo}</span>
+                                <span style={{ color: 'var(--text2)', fontSize: 11 }}>{p.nombre}</span>
+                                {p.modelo && p.modelo !== p.nombre && <span style={{ color: 'var(--text3)', fontSize: 11 }}>{p.modelo}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {/* Resto de campos */}
                       {[
-                        { label: 'Código',    key: 'codigo' },
-                        { label: 'Nombre',    key: 'nombre' },
-                        { label: 'Modelo',    key: 'modelo' },
-                        { label: 'Cliente',   key: 'referencia_nombre' },
+                        { label: 'Cliente',     key: 'referencia_nombre' },
                         { label: 'Observación', key: 'observacion' },
                       ].map(({ label, key }) => (
                         <div key={key}>
