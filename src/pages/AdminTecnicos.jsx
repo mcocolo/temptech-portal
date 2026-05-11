@@ -8,7 +8,7 @@ export default function AdminTecnicos() {
   const { isAdmin, isAdmin2 } = useAuth()
   const [tecnicos, setTecnicos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [busqueda, setBusqueda] = useState([])
+  const [busqueda, setBusqueda] = useState('')
 
   useEffect(() => {
     if (isAdmin || isAdmin2) cargar()
