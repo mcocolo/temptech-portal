@@ -330,6 +330,8 @@ export default function Reclamos() {
       localidad: editForm.localidad,
       provincia: editForm.provincia,
       codigo_postal: editForm.codigo_postal,
+      edited_at: new Date().toISOString(),
+      edited_by_name: profile?.full_name || profile?.razon_social || user?.email || 'Admin',
     }).eq('id', selected.id)
     setEditSubmitting(false)
     if (error) { toast.error('Error al guardar los cambios'); return }
@@ -374,7 +376,7 @@ export default function Reclamos() {
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <StatusBadge estado={selected.estado} />
-            {selected.estado === 'Ingresado' && (
+            {(isAdmin || isAdmin2) && selected.estado === 'Ingresado' && (
               <button
                 onClick={() => abrirEdicion(selected)}
                 style={{ background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#7b9fff', cursor: 'pointer' }}
@@ -394,6 +396,7 @@ export default function Reclamos() {
             { label: 'Fecha de compra', val: selected.fecha_compra ? new Date(selected.fecha_compra).toLocaleDateString('es-AR') : null },
             { label: 'Días de garantía', val: selected.dias_garantia != null ? `${selected.dias_garantia} días` : null },
             { label: 'Fecha de ingreso', val: selected.fecha_ingreso ? new Date(selected.fecha_ingreso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null },
+            { label: 'Última edición', val: selected.edited_at ? `${new Date(selected.edited_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} — ${selected.edited_by_name}` : null },
           ].filter(r => r.val).map(r => (
             <div key={r.label}>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{r.label}</div>
