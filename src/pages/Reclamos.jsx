@@ -10,55 +10,12 @@ import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ChevronLeft, AlertTriangle, Package, Upload, X } from 'lucide-react'
 
-// ── Catálogo de productos (igual que en Auth.jsx) ──
-const PRODUCT_CATALOG = [
-  {
-    group: 'Paneles Calefactores', emoji: '🔆',
-    subs: [
-      { label: 'Slim', products: [
-        'Panel Calefactor Eléctrico TEMPTECH Slim 250w',
-        'Panel Calefactor Eléctrico Toallero Simple TEMPTECH Slim 250w',
-        'Panel Calefactor Eléctrico Toallero Doble TEMPTECH Slim 250w',
-        'Panel Calefactor Eléctrico TEMPTECH Slim 500w',
-        'Panel Calefactor Eléctrico Toallero Simple TEMPTECH Slim 500w',
-        'Panel Calefactor Eléctrico Toallero Doble TEMPTECH Slim 500w',
-        'Panel Calefactor Eléctrico TEMPTECH Slim 500w Madera Blanca',
-      ]},
-      { label: 'Firenze', products: [
-        'Panel Calefactor TEMPTECH Firenze 1400w Blanco',
-        'Panel Calefactor TEMPTECH Firenze 1400w Madera Veteada',
-        'Panel Calefactor TEMPTECH Firenze 1400w Piedra Azteca',
-        'Panel Calefactor TEMPTECH Firenze 1400w Piedra Romana',
-        'Panel Calefactor TEMPTECH Firenze 1400w Mármol Traviatta Gris',
-        'Panel Calefactor TEMPTECH Firenze 1400w Piedra Cantera Luna',
-        'Panel Calefactor TEMPTECH Firenze 1400w Mármol Calacatta Ocre',
-        'Panel Calefactor TEMPTECH Firenze 1400w SMART WIFI Blanco',
-      ]},
-    ],
-  },
-  {
-    group: 'Calefones', emoji: '🔥',
-    subs: [{ label: 'Calefones Eléctricos', products: [
-      'Calefón Eléctrico TEMPTECH One 3,5/5,5/7Kw 220V Silver',
-      'Calefón Eléctrico TEMPTECH Nova 6/8/9/13,5Kw 220V Blanco',
-      'Calefón Eléctrico TEMPTECH Nova 6/8/9/13,5Kw 220V Black',
-      'Calefón Eléctrico TEMPTECH Nova 6/8/9/13,5Kw 220V Silver',
-      'Calefón Eléctrico TEMPTECH Pulse 9/13,5/18Kw 380V Blanco',
-      'Calefón Eléctrico TEMPTECH Pulse 12/18/24Kw 380V Blanco',
-    ]}],
-  },
-  {
-    group: 'Calderas', emoji: '⚡',
-    subs: [{ label: 'Calderas Duales', products: [
-      'Caldera Eléctrica Dual TEMPTECH Core 220-380V 14,4 Kw Blanco',
-      'Caldera Eléctrica Dual TEMPTECH Core 380V 23 Kw Blanco',
-    ]}],
-  },
-  {
-    group: 'Anafes Vitro', emoji: '🍳',
-    subs: [{ label: 'Anafes', products: ['Anafe Vitro (consulta general)'] }],
-  },
-]
+const EMOJI_CATEGORIA = {
+  'Paneles Calefactores': '🔆',
+  'Calefones': '🔥',
+  'Calderas': '⚡',
+  'Anafes Vitro': '🍳',
+}
 
 const CANALES = ['Mercado Libre', 'Tienda Nube', 'WhatsApp', 'Instagram', 'Distribuidor', 'Otro']
 
@@ -83,12 +40,21 @@ const MOTIVOS_POR_CATEGORIA = {
   ],
 }
 
-function getMotivos(producto) {
+function getMotivos(producto, catalogo) {
   if (!producto) return ['Seleccioná el motivo...']
-  const cat = PRODUCT_CATALOG.find(g => g.subs.flatMap(s => s.products).includes(producto))
-  return MOTIVOS_POR_CATEGORIA[cat?.group] || [
+  const item = catalogo.find(p => p.nombre === producto)
+  return MOTIVOS_POR_CATEGORIA[item?.categoria] || [
     'No enciende', 'No calienta', 'Golpe de transporte', 'Falta de piezas', 'Ruido anormal', 'Otro',
   ]
+}
+
+function groupByCat(catalogo) {
+  const grupos = {}
+  catalogo.forEach(p => {
+    if (!grupos[p.categoria]) grupos[p.categoria] = []
+    grupos[p.categoria].push(p.nombre)
+  })
+  return grupos
 }
 
 const STATUS_CONFIG = {
@@ -145,6 +111,7 @@ export default function Reclamos() {
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [editSubmitting, setEditSubmitting] = useState(false)
+  const [catalogo, setCatalogo] = useState([])
 
   const [form, setForm] = useState({
     // Paso 1 — Producto
@@ -182,6 +149,10 @@ export default function Reclamos() {
   }, [modalOpen, profile])
 
   useEffect(() => { if (user) load() }, [user])
+
+  useEffect(() => {
+    supabase.from('precios').select('nombre,categoria').order('categoria').order('nombre').then(({ data }) => setCatalogo(data || []))
+  }, [])
 
   async function load() {
     setLoading(true)
@@ -598,9 +569,9 @@ export default function Reclamos() {
           <Field label="Producto *">
             <select value={editForm.producto} onChange={e => setEditForm(p => ({ ...p, producto: e.target.value }))} style={inputStyle}>
               <option value="">Seleccioná el producto...</option>
-              {PRODUCT_CATALOG.map(g => (
-                <optgroup key={g.group} label={`${g.emoji} ${g.group}`}>
-                  {g.subs.flatMap(s => s.products).map(p => (
+              {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => (
+                <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
+                  {prods.map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </optgroup>
@@ -627,7 +598,7 @@ export default function Reclamos() {
           <Field label="Motivo del caso *">
             <select value={editForm.motivo} onChange={e => setEditForm(p => ({ ...p, motivo: e.target.value }))} style={inputStyle}>
               <option value="">Seleccioná el motivo...</option>
-              {getMotivos(editForm.producto).map(m => <option key={m} value={m}>{m}</option>)}
+              {getMotivos(editForm.producto, catalogo).map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </Field>
 
@@ -704,9 +675,9 @@ export default function Reclamos() {
             <Field label="Producto *">
               <select value={form.producto} onChange={e => setF('producto', e.target.value)} style={inputStyle}>
                 <option value="">Seleccioná el producto...</option>
-                {PRODUCT_CATALOG.map(g => (
-                  <optgroup key={g.group} label={`${g.emoji} ${g.group}`}>
-                    {g.subs.flatMap(s => s.products).map(p => (
+                {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => (
+                  <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
+                    {prods.map(p => (
                       <option key={p} value={p}>{p}</option>
                     ))}
                   </optgroup>
@@ -743,7 +714,7 @@ export default function Reclamos() {
             <Field label="Motivo del caso *">
               <select value={form.motivo} onChange={e => setF('motivo', e.target.value)} style={inputStyle}>
                 <option value="">Seleccioná el motivo...</option>
-                {getMotivos(form.producto).map(m => <option key={m} value={m}>{m}</option>)}
+                {getMotivos(form.producto, catalogo).map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </Field>
 
