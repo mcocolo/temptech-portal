@@ -4,11 +4,20 @@ import { useAuth } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui'
 import toast from 'react-hot-toast'
 
+const inputSt = {
+  width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)',
+  fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box',
+}
+
 export default function AdminTecnicos() {
   const { isAdmin, isAdmin2 } = useAuth()
   const [tecnicos, setTecnicos] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
+  const [editando, setEditando] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     if (isAdmin || isAdmin2) cargar()
@@ -24,6 +33,30 @@ export default function AdminTecnicos() {
     if (error) toast.error('Error al cargar')
     else setTecnicos(data || [])
     setLoading(false)
+  }
+
+  function abrirEdicion(t) {
+    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '' })
+    setEditando(t.id)
+  }
+
+  async function guardar(id) {
+    setGuardando(true)
+    const { error } = await supabase.from('profiles').update({
+      full_name: editForm.full_name.trim() || null,
+      razon_social: editForm.razon_social.trim() || null,
+      telefono: editForm.telefono.trim() || null,
+      localidad: editForm.localidad.trim() || null,
+      provincia: editForm.provincia.trim() || null,
+    }).eq('id', id)
+    if (error) {
+      toast.error('Error al guardar')
+    } else {
+      toast.success('Datos guardados ✅')
+      setTecnicos(prev => prev.map(t => t.id === id ? { ...t, ...editForm } : t))
+      setEditando(null)
+    }
+    setGuardando(false)
   }
 
   async function eliminar(id, nombre) {
@@ -71,27 +104,79 @@ export default function AdminTecnicos() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtrados.map(t => (
-            <div key={t.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🔧</div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{t.razon_social || t.full_name || 'Sin nombre'}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <span>{t.email}</span>
-                    {t.telefono && <span>📞 {t.telefono}</span>}
-                    {(t.localidad || t.provincia) && <span>📍 {[t.localidad, t.provincia].filter(Boolean).join(', ')}</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                    Registrado: {new Date(t.created_at).toLocaleDateString('es-AR')}
+            <div key={t.id} style={{ background: 'var(--surface)', border: `1px solid ${editando === t.id ? 'rgba(45,212,191,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden', transition: 'border-color .2s' }}>
+
+              {/* Info */}
+              <div style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🔧</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{t.razon_social || t.full_name || 'Sin nombre'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <span>{t.email}</span>
+                      {t.telefono && <span>📞 {t.telefono}</span>}
+                      {(t.localidad || t.provincia) && <span>📍 {[t.localidad, t.provincia].filter(Boolean).join(', ')}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                      Registrado: {new Date(t.created_at).toLocaleDateString('es-AR')}
+                    </div>
                   </div>
                 </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => editando === t.id ? setEditando(null) : abrirEdicion(t)}
+                    style={{ background: editando === t.id ? 'var(--surface3)' : 'rgba(45,212,191,0.1)', border: `1px solid ${editando === t.id ? 'var(--border)' : 'rgba(45,212,191,0.35)'}`, color: editando === t.id ? 'var(--text2)' : '#2dd4bf', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                  >
+                    {editando === t.id ? 'Cancelar' : '✏️ Editar'}
+                  </button>
+                  <button
+                    onClick={() => eliminar(t.id, t.razon_social || t.full_name || t.email)}
+                    style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', color: '#ff5577', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => eliminar(t.id, t.razon_social || t.full_name || t.email)}
-                style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', color: '#ff5577', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
-              >
-                Eliminar
-              </button>
+
+              {/* Panel edición */}
+              {editando === t.id && (
+                <div style={{ borderTop: '1px solid var(--border)', padding: '20px 22px', background: 'rgba(45,212,191,0.03)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Nombre</label>
+                      <input value={editForm.full_name} onChange={e => setEditForm(p => ({ ...p, full_name: e.target.value }))} placeholder="Nombre completo" style={inputSt} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Razón social / Empresa</label>
+                      <input value={editForm.razon_social} onChange={e => setEditForm(p => ({ ...p, razon_social: e.target.value }))} placeholder="Ej: Giga Service" style={inputSt} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Teléfono</label>
+                      <input value={editForm.telefono} onChange={e => setEditForm(p => ({ ...p, telefono: e.target.value }))} placeholder="+54 11 1234-5678" style={inputSt} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Localidad</label>
+                      <input value={editForm.localidad} onChange={e => setEditForm(p => ({ ...p, localidad: e.target.value }))} placeholder="Ej: Lanus Oeste" style={inputSt} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Provincia</label>
+                      <input value={editForm.provincia} onChange={e => setEditForm(p => ({ ...p, provincia: e.target.value }))} placeholder="Ej: Buenos Aires" style={inputSt} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => guardar(t.id)}
+                      disabled={guardando}
+                      style={{ background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 'var(--radius)', padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.6 : 1, fontFamily: 'var(--font)' }}
+                    >
+                      {guardando ? 'Guardando...' : '💾 Guardar'}
+                    </button>
+                    <button onClick={() => setEditando(null)} style={{ background: 'var(--surface3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
