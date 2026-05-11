@@ -1431,6 +1431,28 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             </div>
                           )
                         })()}
+
+                        {/* Etiqueta / archivos de resolución */}
+                        {item.archivos_resolucion?.length > 0 && (
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ fontSize: 11, color: '#7b9fff', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                              📎 Etiqueta / Archivos ({item.archivos_resolucion.length})
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {item.archivos_resolucion.map((url, i) => {
+                                const nombre = decodeURIComponent(url.split('/').pop()?.split('?')[0] || `Archivo ${i + 1}`)
+                                const isPdf = nombre.toLowerCase().endsWith('.pdf')
+                                return (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer" download
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#7b9fff', background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 8, padding: '8px 14px', textDecoration: 'none', width: 'fit-content' }}>
+                                    {isPdf ? '📄' : '🖼️'} {nombre.length > 45 ? nombre.slice(0, 45) + '…' : nombre}
+                                    <span style={{ fontSize: 11, fontWeight: 400, color: T.text3 }}>↓ Descargar</span>
+                                  </a>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                     {/* Acciones */}

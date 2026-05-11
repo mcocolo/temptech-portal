@@ -41,6 +41,7 @@ const ADMIN_NAV = [
   { label: 'Panel Admin', icon: Shield, path: '/admin', isAdmin: true },
   { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
   { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
+  { label: 'Servicios Técnicos', icon: Wrench, path: '/admin-tecnicos', isAdmin: true },
   { label: 'Pedidos Distribuidores', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
   { label: 'Devoluciones',         icon: RotateCcw,   path: '/admin-devoluciones',      isAdmin: true },
   { label: 'Egreso Devoluciones',  icon: ShoppingBag, path: '/egreso-devoluciones',     isAdmin: true },

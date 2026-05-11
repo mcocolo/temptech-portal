@@ -15,6 +15,7 @@ import Admin from '@/pages/Admin'
 import '@/styles/globals.css'
 import RegistroProducto from '@/pages/RegistroProducto'
 import ClientesRegistrados from '@/pages/ClientesRegistrados'
+import AdminTecnicos from '@/pages/AdminTecnicos'
 import Distribuidores from '@/pages/Distribuidores'
 import Pedidos from '@/pages/Pedidos'
 import AdminPedidos from '@/pages/AdminPedidos'
@@ -81,6 +82,7 @@ function AppRoutes() {
               <Route path="/admin"         element={<Admin />} />
               <Route path="/registro-producto" element={<RegistroProducto />} />
               <Route path="/clientes-registrados" element={<ClientesRegistrados />} />
+              <Route path="/admin-tecnicos" element={<AdminTecnicos />} />
               <Route path="/distribuidores" element={<Distribuidores />} />
               <Route path="/presupuesto" element={<Presupuesto />} />
               <Route path="/pedidos" element={<Pedidos />} />
