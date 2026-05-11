@@ -27,7 +27,7 @@ export default function AdminTecnicos() {
     setLoading(true)
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, razon_social, telefono, localidad, provincia, created_at')
+      .select('id, email, full_name, razon_social, telefono, localidad, provincia, domicilio, created_at')
       .eq('user_type', 'tecnico')
       .order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar')
@@ -36,7 +36,7 @@ export default function AdminTecnicos() {
   }
 
   function abrirEdicion(t) {
-    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '' })
+    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '', domicilio: t.domicilio || '' })
     setEditando(t.id)
   }
 
@@ -48,6 +48,7 @@ export default function AdminTecnicos() {
       telefono: editForm.telefono.trim() || null,
       localidad: editForm.localidad.trim() || null,
       provincia: editForm.provincia.trim() || null,
+      domicilio: editForm.domicilio.trim() || null,
     }).eq('id', id)
     if (error) {
       toast.error('Error al guardar')
@@ -116,6 +117,7 @@ export default function AdminTecnicos() {
                       <span>{t.email}</span>
                       {t.telefono && <span>📞 {t.telefono}</span>}
                       {(t.localidad || t.provincia) && <span>📍 {[t.localidad, t.provincia].filter(Boolean).join(', ')}</span>}
+                      {t.domicilio && <span>🏠 {t.domicilio}</span>}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                       Registrado: {new Date(t.created_at).toLocaleDateString('es-AR')}
@@ -161,6 +163,10 @@ export default function AdminTecnicos() {
                     <div>
                       <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Provincia</label>
                       <input value={editForm.provincia} onChange={e => setEditForm(p => ({ ...p, provincia: e.target.value }))} placeholder="Ej: Buenos Aires" style={inputSt} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Dirección</label>
+                      <input value={editForm.domicilio} onChange={e => setEditForm(p => ({ ...p, domicilio: e.target.value }))} placeholder="Ej: Av. Corrientes 1234, CABA" style={inputSt} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
