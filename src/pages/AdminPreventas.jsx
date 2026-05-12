@@ -73,12 +73,13 @@ export default function AdminPreventas() {
   const [saldoInput, setSaldoInput] = useState('')
 
   async function recalcularSaldoPreventa(pv) {
+    if (!window.confirm('¿Recalcular el saldo? Esto reemplazará las cantidades retiradas actuales con los datos de los pedidos entregados/finalizados.')) return
     setRecalculando(pv.id)
     const { data: peds, error } = await supabase
       .from('pedidos')
-      .select('items, items_pendientes')
+      .select('items, items_pendientes, estado, stock_descontado')
       .eq('preventa_id', pv.id)
-      .eq('stock_descontado', true)
+      .or('stock_descontado.eq.true,estado.in.(entregado,finalizado)')
     if (error) { toast.error('Error al leer pedidos: ' + error.message); setRecalculando(null); return }
 
     const retirado = {}
