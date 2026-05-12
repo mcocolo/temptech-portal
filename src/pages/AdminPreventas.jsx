@@ -68,6 +68,10 @@ export default function AdminPreventas() {
 
   const [recalculando, setRecalculando] = useState(null) // preventa id en recalculo
 
+  // Historial de entregas (pedidos ligados a la preventa)
+  const [pedidosPorPreventa, setPedidosPorPreventa] = useState({})
+  const [cargandoPedidosPv, setCargandoPedidosPv] = useState({})
+
   // Edición saldo cobrado inline (legacy, mantenido para retrocompatibilidad)
   const [editandoSaldo, setEditandoSaldo] = useState(null)
   const [saldoInput, setSaldoInput] = useState('')
@@ -240,6 +244,21 @@ export default function AdminPreventas() {
   }
 
   useEffect(() => { if (isAdmin || isVendedor) cargar() }, [filtroEstado])
+
+  useEffect(() => {
+    if (expandida) cargarPedidosDePreventa(expandida)
+  }, [expandida])
+
+  async function cargarPedidosDePreventa(pvId) {
+    setCargandoPedidosPv(prev => ({ ...prev, [pvId]: true }))
+    const { data } = await supabase
+      .from('pedidos')
+      .select('id, estado, created_at, items, items_pendientes, stock_descontado, notas')
+      .eq('preventa_id', pvId)
+      .order('created_at', { ascending: false })
+    setPedidosPorPreventa(prev => ({ ...prev, [pvId]: data || [] }))
+    setCargandoPedidosPv(prev => ({ ...prev, [pvId]: false }))
+  }
 
   async function cargarDists() {
     const { data } = await supabase
@@ -1441,6 +1460,62 @@ export default function AdminPreventas() {
                                   onChange={e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) subirFacturaPv(pv, f) }} />
                               </label>
                             </div>
+
+                            {/* Historial de entregas */}
+                            {(() => {
+                              const peds = pedidosPorPreventa[pv.id] || []
+                              const loadingPeds = cargandoPedidosPv[pv.id]
+                              const ESTADO_PED = { pendiente: { label: 'Pendiente', color: '#ffd166' }, confirmado: { label: 'Confirmado', color: '#7b9fff' }, en_camino: { label: 'En camino', color: '#fb923c' }, entregado: { label: 'Entregado', color: '#3dd68c' }, finalizado: { label: 'Finalizado', color: '#3dd68c' }, cancelado: { label: 'Cancelado', color: '#888' } }
+                              return (
+                                <div style={{ marginBottom: 16 }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+                                    📦 Historial de entregas {peds.length > 0 && <span style={{ fontWeight: 400 }}>({peds.length})</span>}
+                                  </div>
+                                  {loadingPeds ? (
+                                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>Cargando...</div>
+                                  ) : peds.length === 0 ? (
+                                    <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Sin entregas registradas aún.</div>
+                                  ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                      {peds.map(ped => {
+                                        const cfg = ESTADO_PED[ped.estado] || { label: ped.estado, color: '#888' }
+                                        return (
+                                          <div key={ped.id} style={{ background: 'var(--surface2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '10px 14px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                              <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(123,159,255,0.1)', padding: '2px 8px', borderRadius: 4 }}>
+                                                #{ped.id.slice(0, 8).toUpperCase()}
+                                              </span>
+                                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(ped.created_at).toLocaleDateString('es-AR')}</span>
+                                                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 10, background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}40` }}>{cfg.label}</span>
+                                              </div>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                              {(ped.items || []).map((item, i) => {
+                                                const pend = (ped.items_pendientes || []).find(p => p.codigo === item.codigo)
+                                                const entregado = Math.max(0, item.cantidad - (pend?.cantidad || 0))
+                                                const totalItem = item.cantidad
+                                                return (
+                                                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', minWidth: 80 }}>{item.codigo}</span>
+                                                    <span style={{ flex: 1, color: 'var(--text2)' }}>{item.nombre || item.descripcion || ''}</span>
+                                                    <span style={{ fontWeight: 700, color: entregado === totalItem ? '#3dd68c' : '#ffd166' }}>
+                                                      {entregado}/{totalItem}
+                                                    </span>
+                                                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{item.unidad || 'u'}</span>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                            {ped.notas && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>Notas: {ped.notas}</div>}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
 
                             {/* Acciones */}
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
