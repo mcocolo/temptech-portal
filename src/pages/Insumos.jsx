@@ -123,7 +123,6 @@ export default function Insumos() {
     const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
     if (error) { toast.error('Error al subir imagen: ' + error.message); setSubiendoImg(false); return }
     const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
-    console.log('imagen URL generada:', publicUrl)
     setForm(p => ({ ...p, imagen_url: publicUrl }))
     setSubiendoImg(false)
     toast.success('Imagen subida ✅')
@@ -144,7 +143,6 @@ export default function Insumos() {
       imagen_url: form.imagen_url || null,
       updated_at: new Date().toISOString(),
     }
-    console.log('payload imagen_url al guardar:', payload.imagen_url)
     const { error } = editando
       ? await supabase.from('insumos').update(payload).eq('id', editando.id)
       : await supabase.from('insumos').insert(payload)
