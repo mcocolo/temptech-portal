@@ -41,7 +41,6 @@ const ADMIN_NAV = [
   { label: 'Panel Admin', icon: Shield, path: '/admin', isAdmin: true },
   { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
   { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
-  { label: 'Servicios Técnicos', icon: Wrench, path: '/admin-tecnicos', isAdmin: true },
   { label: 'Pedidos Distribuidores', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
   { label: 'Devoluciones',         icon: RotateCcw,   path: '/admin-devoluciones',      isAdmin: true },
   { label: 'Egreso Devoluciones',  icon: ShoppingBag, path: '/egreso-devoluciones',     isAdmin: true },
@@ -53,6 +52,8 @@ const ADMIN_NAV = [
   { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,      path: '/logistica',          isAdmin: true },
   { label: 'Reportes',           icon: BarChart2,  path: '/reportes',           isAdmin: true },
+  { section: 'PostVenta' },
+  { label: 'Servicios Técnicos', icon: Wrench, path: '/admin-tecnicos', isAdmin: true },
   { label: 'Ingreso en Tránsito', icon: Archive, isAdmin: true, submenu: 'transito', children: [
     { label: 'Mercado Libre', icon: ShoppingBag, path: '/ingreso-transito/meli' },
     { label: 'Página Web',    icon: Globe,       path: '/ingreso-transito/pagina' },
