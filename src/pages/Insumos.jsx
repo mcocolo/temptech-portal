@@ -361,20 +361,8 @@ export default function Insumos() {
                       ))}
                     </div>
 
-                    {/* Imagen del insumo */}
-                    {ins.imagen_url && (
-                      <div style={{ marginBottom: 14 }}>
-                        <img src={ins.imagen_url} alt={ins.descripcion}
-                          style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', background: 'rgba(0,0,0,0.3)', display: 'block' }}
-                          onClick={() => window.open(ins.imagen_url, '_blank')}
-                          title="Ver imagen completa"
-                          onError={e => { e.currentTarget.style.display = 'none'; console.warn('imagen no cargó:', ins.imagen_url) }}
-                        />
-                      </div>
-                    )}
-
                     {tabDetalle === 'info' && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: ins.imagen_url ? '1fr 200px 1fr' : '1fr 1fr', gap: 16, alignItems: 'start' }}>
                         {/* Proveedor */}
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>📦 Proveedor</div>
@@ -392,6 +380,15 @@ export default function Insumos() {
                           ) : null)}
                           {!ins.proveedor_nombre && <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Sin datos de proveedor</div>}
                         </div>
+                        {/* Imagen central */}
+                        {ins.imagen_url && (
+                          <img src={ins.imagen_url} alt={ins.descripcion}
+                            style={{ width: 200, height: 170, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', background: 'rgba(0,0,0,0.25)', display: 'block' }}
+                            onClick={() => window.open(ins.imagen_url, '_blank')}
+                            title="Ver imagen completa"
+                            onError={e => { e.currentTarget.style.display = 'none' }}
+                          />
+                        )}
                         {/* Stock info */}
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>📊 Stock</div>
