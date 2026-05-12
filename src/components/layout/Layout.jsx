@@ -159,9 +159,22 @@ export default function Layout({ children }) {
   // Save & restore scroll position per route
   useEffect(() => {
     currentPathname.current = location.pathname
-    if (mainContentRef.current) {
-      mainContentRef.current.scrollTop = scrollPositions.current[location.pathname] ?? 0
+    const target = scrollPositions.current[location.pathname] ?? 0
+
+    if (!mainContentRef.current) return
+    if (target === 0) { mainContentRef.current.scrollTop = 0; return }
+
+    // Retry until content is tall enough (page may still be loading data)
+    let attempts = 0
+    const tryRestore = () => {
+      if (!mainContentRef.current) return
+      mainContentRef.current.scrollTop = target
+      if (mainContentRef.current.scrollTop < target - 50 && attempts < 25) {
+        attempts++
+        setTimeout(tryRestore, 80)
+      }
     }
+    tryRestore()
   }, [location.pathname])
 
   // Notificaciones (admin + admin2)
