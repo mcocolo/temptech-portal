@@ -152,6 +152,12 @@ export default function Layout({ children }) {
   const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor, isTechService } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
+  const mainContentRef = useRef(null)
+
+  // Reset main content scroll to top on every navigation
+  useEffect(() => {
+    if (mainContentRef.current) mainContentRef.current.scrollTop = 0
+  }, [location.pathname])
 
   // Notificaciones (admin + admin2)
   const [notifs, setNotifs]           = useState([])
@@ -475,7 +481,7 @@ export default function Layout({ children }) {
       </aside>
 
       {/* ── MAIN ── */}
-      <div className="main-content" style={{ marginLeft: 228, flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div ref={mainContentRef} className="main-content" style={{ marginLeft: 228, flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto' }}>
 
         {/* Topbar */}
         <header style={{
@@ -647,7 +653,7 @@ export default function Layout({ children }) {
           aside { transform: translateX(-100%); }
           aside.open { transform: translateX(0) !important; }
           .mobile-menu-btn { display: flex !important; }
-          .main-content { margin-left: 0 !important; }
+          .main-content { margin-left: 0 !important; height: 100dvh !important; }
           .main-content header { padding: 0 16px !important; }
           .main-content main { padding: 16px !important; }
           .main-content footer { padding: 12px 16px !important; flex-direction: column; gap: 6px; text-align: center; }
