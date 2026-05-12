@@ -123,6 +123,7 @@ export default function Insumos() {
     const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
     if (error) { toast.error('Error al subir imagen: ' + error.message); setSubiendoImg(false); return }
     const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
+    console.log('imagen URL generada:', publicUrl)
     setForm(p => ({ ...p, imagen_url: publicUrl }))
     setSubiendoImg(false)
     toast.success('Imagen subida ✅')
@@ -143,6 +144,7 @@ export default function Insumos() {
       imagen_url: form.imagen_url || null,
       updated_at: new Date().toISOString(),
     }
+    console.log('payload imagen_url al guardar:', payload.imagen_url)
     const { error } = editando
       ? await supabase.from('insumos').update(payload).eq('id', editando.id)
       : await supabase.from('insumos').insert(payload)
@@ -349,24 +351,27 @@ export default function Insumos() {
                 {/* Detalle expandido */}
                 {isExp && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '14px 16px' }}>
-                    {/* Tabs + imagen */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {['info', 'historial'].map(t => (
-                          <button key={t} onClick={() => { setTabDetalle(t); if (t === 'historial') cargarHistorial(ins.id) }}
-                            style={{ padding: '5px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: tabDetalle === t ? `${color}20` : 'var(--surface2)', color: tabDetalle === t ? color : 'var(--text3)', border: tabDetalle === t ? `1px solid ${color}50` : '1px solid var(--border)' }}>
-                            {t === 'info' ? '📋 Info' : '📜 Historial'}
-                          </button>
-                        ))}
-                      </div>
-                      {ins.imagen_url && (
+                    {/* Tabs */}
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                      {['info', 'historial'].map(t => (
+                        <button key={t} onClick={() => { setTabDetalle(t); if (t === 'historial') cargarHistorial(ins.id) }}
+                          style={{ padding: '5px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: tabDetalle === t ? `${color}20` : 'var(--surface2)', color: tabDetalle === t ? color : 'var(--text3)', border: tabDetalle === t ? `1px solid ${color}50` : '1px solid var(--border)' }}>
+                          {t === 'info' ? '📋 Info' : '📜 Historial'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Imagen del insumo */}
+                    {ins.imagen_url && (
+                      <div style={{ marginBottom: 14 }}>
                         <img src={ins.imagen_url} alt={ins.descripcion}
-                          style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', flexShrink: 0, cursor: 'pointer' }}
+                          style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', background: 'rgba(0,0,0,0.3)', display: 'block' }}
                           onClick={() => window.open(ins.imagen_url, '_blank')}
                           title="Ver imagen completa"
+                          onError={e => { e.currentTarget.style.display = 'none'; console.warn('imagen no cargó:', ins.imagen_url) }}
                         />
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {tabDetalle === 'info' && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
