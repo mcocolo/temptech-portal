@@ -1233,9 +1233,16 @@ export default function AdminPedidos() {
                     </span>
                     <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{cfg.label}</span>
                     {pedido.tipo === 'preventa' && (
-                      <span style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.4)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
-                        📦 RETIRO DE PREVENTA
-                      </span>
+                      <>
+                        <span style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.4)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                          📦 RETIRO DE PREVENTA
+                        </span>
+                        {pedido.preventa_id && (
+                          <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', padding: '3px 8px', borderRadius: 6 }}>
+                            #{pedido.preventa_id.slice(0, 8).toUpperCase()}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
