@@ -19,6 +19,7 @@ const EMPTY_FORM = {
   codigo: '', descripcion: '', unidad: 'unidades',
   proveedor_nombre: '', proveedor_direccion: '', proveedor_telefono: '', proveedor_horario: '', proveedor_contacto: '',
   sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '',
+  es_repuesto: false, precio_tecnico: '',
 }
 
 function stockColor(actual, minimo) {
@@ -106,6 +107,7 @@ export default function Insumos() {
       proveedor_telefono: ins.proveedor_telefono || '', proveedor_horario: ins.proveedor_horario || '',
       proveedor_contacto: ins.proveedor_contacto || '',
       sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '',
+      es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
     })
     setModal(true)
   }
@@ -120,6 +122,8 @@ export default function Insumos() {
       tipo,
       stock_actual: parseFloat(form.stock_actual) || 0,
       stock_minimo: parseFloat(form.stock_minimo) || 0,
+      es_repuesto: form.es_repuesto,
+      precio_tecnico: form.es_repuesto ? (parseFloat(form.precio_tecnico) || null) : null,
       updated_at: new Date().toISOString(),
     }
     const { error } = editando
@@ -309,6 +313,7 @@ export default function Insumos() {
                       {(ins.sectores || []).map(s => (
                         <span key={s} style={{ fontSize: 10, background: `${color}15`, border: `1px solid ${color}30`, color, borderRadius: 3, padding: '1px 6px' }}>{s}</span>
                       ))}
+                      {ins.es_repuesto && <span style={{ fontSize: 10, background: 'rgba(45,212,191,0.15)', border: '1px solid rgba(45,212,191,0.4)', color: '#2dd4bf', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🔩 Repuesto</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -536,6 +541,28 @@ export default function Insumos() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Repuesto para Servicios Técnicos */}
+              <div style={{ background: form.es_repuesto ? 'rgba(45,212,191,0.06)' : 'var(--surface2)', border: `1px solid ${form.es_repuesto ? 'rgba(45,212,191,0.35)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '14px 16px', transition: 'all .2s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: form.es_repuesto ? 12 : 0 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: form.es_repuesto ? '#2dd4bf' : 'var(--text2)' }}>🔩 Disponible como repuesto</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Los servicios técnicos pueden verlo y pedirlo</div>
+                  </div>
+                  <div
+                    onClick={() => setForm(p => ({ ...p, es_repuesto: !p.es_repuesto }))}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: form.es_repuesto ? '#2dd4bf' : 'var(--surface3)', cursor: 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0 }}
+                  >
+                    <div style={{ position: 'absolute', top: 3, left: form.es_repuesto ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                  </div>
+                </div>
+                {form.es_repuesto && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Precio para técnicos</label>
+                    <input type="number" min="0" value={form.precio_tecnico} onChange={e => setForm(p => ({ ...p, precio_tecnico: e.target.value }))} placeholder="Ej: 15000 (dejar vacío si es sin cargo)" style={inputSt} />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>

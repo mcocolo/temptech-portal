@@ -37,6 +37,7 @@ import IngresoTransito from '@/pages/IngresoTransito'
 import MisPreventas from '@/pages/MisPreventas'
 import AdminReportes from '@/pages/AdminReportes'
 import Presupuesto from '@/pages/Presupuesto'
+import Repuestos from '@/pages/Repuestos'
 
 
 
@@ -106,6 +107,7 @@ function AppRoutes() {
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
               <Route path="/reportes"                   element={<AdminReportes />} />
+              <Route path="/repuestos"                  element={<Repuestos />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal key="meli" />} />
               <Route path="/pedidos-pagina"            element={<PedidosCanal key="pagina" />} />
               <Route path="/pedidos-vo"                element={<PedidosCanal key="vo" />} />
