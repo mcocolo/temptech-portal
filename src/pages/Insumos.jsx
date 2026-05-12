@@ -20,6 +20,7 @@ const EMPTY_FORM = {
   proveedor_nombre: '', proveedor_direccion: '', proveedor_telefono: '', proveedor_horario: '', proveedor_contacto: '',
   sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '',
   es_repuesto: false, precio_tecnico: '',
+  imagen_url: '',
 }
 
 function stockColor(actual, minimo) {
@@ -53,6 +54,7 @@ export default function Insumos() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [guardando, setGuardando] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [subiendoImg, setSubiendoImg] = useState(false)
 
   // Modal stock
   const [modalStock, setModalStock] = useState(null) // insumo obj
@@ -108,8 +110,22 @@ export default function Insumos() {
       proveedor_contacto: ins.proveedor_contacto || '',
       sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
+      imagen_url: ins.imagen_url || '',
     })
     setModal(true)
+  }
+
+  async function subirImagen(file) {
+    if (!file) return
+    setSubiendoImg(true)
+    const ext = file.name.split('.').pop()
+    const path = `insumos/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
+    if (error) { toast.error('Error al subir imagen: ' + error.message); setSubiendoImg(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
+    setForm(p => ({ ...p, imagen_url: publicUrl }))
+    setSubiendoImg(false)
+    toast.success('Imagen subida ✅')
   }
 
   async function guardar() {
@@ -124,6 +140,7 @@ export default function Insumos() {
       stock_minimo: parseFloat(form.stock_minimo) || 0,
       es_repuesto: form.es_repuesto,
       precio_tecnico: form.es_repuesto ? (parseFloat(form.precio_tecnico) || null) : null,
+      imagen_url: form.imagen_url || null,
       updated_at: new Date().toISOString(),
     }
     const { error } = editando
@@ -332,14 +349,23 @@ export default function Insumos() {
                 {/* Detalle expandido */}
                 {isExp && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '14px 16px' }}>
-                    {/* Tabs */}
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                      {['info', 'historial'].map(t => (
-                        <button key={t} onClick={() => { setTabDetalle(t); if (t === 'historial') cargarHistorial(ins.id) }}
-                          style={{ padding: '5px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: tabDetalle === t ? `${color}20` : 'var(--surface2)', color: tabDetalle === t ? color : 'var(--text3)', border: tabDetalle === t ? `1px solid ${color}50` : '1px solid var(--border)' }}>
-                          {t === 'info' ? '📋 Info' : '📜 Historial'}
-                        </button>
-                      ))}
+                    {/* Tabs + imagen */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {['info', 'historial'].map(t => (
+                          <button key={t} onClick={() => { setTabDetalle(t); if (t === 'historial') cargarHistorial(ins.id) }}
+                            style={{ padding: '5px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: tabDetalle === t ? `${color}20` : 'var(--surface2)', color: tabDetalle === t ? color : 'var(--text3)', border: tabDetalle === t ? `1px solid ${color}50` : '1px solid var(--border)' }}>
+                            {t === 'info' ? '📋 Info' : '📜 Historial'}
+                          </button>
+                        ))}
+                      </div>
+                      {ins.imagen_url && (
+                        <img src={ins.imagen_url} alt={ins.descripcion}
+                          style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', flexShrink: 0, cursor: 'pointer' }}
+                          onClick={() => window.open(ins.imagen_url, '_blank')}
+                          title="Ver imagen completa"
+                        />
+                      )}
                     </div>
 
                     {tabDetalle === 'info' && (
@@ -540,6 +566,26 @@ export default function Insumos() {
                       <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} style={inputSt} />
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Imagen */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Imagen del insumo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {form.imagen_url ? (
+                    <div style={{ position: 'relative' }}>
+                      <img src={form.imagen_url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                      <button onClick={() => setForm(p => ({ ...p, imagen_url: '' }))}
+                        style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ff5577', border: 'none', color: '#fff', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
+                    </div>
+                  ) : (
+                    <div style={{ width: 72, height: 72, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 22 }}>📷</div>
+                  )}
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendoImg ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', opacity: subiendoImg ? 0.6 : 1 }}>
+                    {subiendoImg ? '⏳ Subiendo...' : '📁 Subir imagen'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} disabled={subiendoImg} onChange={e => subirImagen(e.target.files?.[0])} />
+                  </label>
                 </div>
               </div>
 
