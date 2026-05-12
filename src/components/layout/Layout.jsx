@@ -152,11 +152,16 @@ export default function Layout({ children }) {
   const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor, isTechService } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
-  const mainContentRef = useRef(null)
+  const mainContentRef    = useRef(null)
+  const scrollPositions   = useRef({})
+  const currentPathname   = useRef(location.pathname)
 
-  // Reset main content scroll to top on every navigation
+  // Save & restore scroll position per route
   useEffect(() => {
-    if (mainContentRef.current) mainContentRef.current.scrollTop = 0
+    currentPathname.current = location.pathname
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = scrollPositions.current[location.pathname] ?? 0
+    }
   }, [location.pathname])
 
   // Notificaciones (admin + admin2)
@@ -481,7 +486,12 @@ export default function Layout({ children }) {
       </aside>
 
       {/* ── MAIN ── */}
-      <div ref={mainContentRef} className="main-content" style={{ marginLeft: 228, flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto' }}>
+      <div
+        ref={mainContentRef}
+        className="main-content"
+        onScroll={e => { scrollPositions.current[currentPathname.current] = e.currentTarget.scrollTop }}
+        style={{ marginLeft: 228, flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflowY: 'auto' }}
+      >
 
         {/* Topbar */}
         <header style={{
