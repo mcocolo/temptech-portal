@@ -154,6 +154,51 @@ serve(async (req) => {
       })
     }
 
+    else if (type === 'alta_reclamo') {
+      const filas = [
+        data.producto   && `<tr><td style="color:#9196a8;padding:6px 0">Producto</td><td style="color:#e8eaf0;font-weight:600;padding:6px 0 6px 16px">${data.producto}</td></tr>`,
+        data.motivo     && `<tr><td style="color:#9196a8;padding:6px 0">Motivo</td><td style="color:#e8eaf0;padding:6px 0 6px 16px">${data.motivo}</td></tr>`,
+        data.canal      && `<tr><td style="color:#9196a8;padding:6px 0">Canal de compra</td><td style="color:#e8eaf0;padding:6px 0 6px 16px">${data.canal}</td></tr>`,
+        data.ventaManual && `<tr><td style="color:#9196a8;padding:6px 0">N° de venta</td><td style="color:#e8eaf0;padding:6px 0 6px 16px">${data.ventaManual}</td></tr>`,
+        data.fechaCompra && `<tr><td style="color:#9196a8;padding:6px 0">Fecha de compra</td><td style="color:#e8eaf0;padding:6px 0 6px 16px">${data.fechaCompra}</td></tr>`,
+        data.diasGarantia != null && `<tr><td style="color:#9196a8;padding:6px 0">Días en garantía</td><td style="color:#e8eaf0;padding:6px 0 6px 16px">${data.diasGarantia} días</td></tr>`,
+        data.telefono   && `<tr><td style="color:#9196a8;padding:6px 0">Teléfono</td><td style="color:#e8eaf0;padding:6px 0 6px 16px">${data.telefono}</td></tr>`,
+        data.localidad  && `<tr><td style="color:#9196a8;padding:6px 0">Localidad</td><td style="color:#e8eaf0;padding:6px 0 6px 16px">${data.localidad}${data.provincia ? `, ${data.provincia}` : ''}</td></tr>`,
+      ].filter(Boolean).join('')
+      ok = await sendEmail({
+        to: data.email,
+        subject: `✅ Caso registrado — ${data.trackingId}`,
+        html: baseTemplate(`
+          <div class="card">
+            <h2>Tu caso fue registrado ✅</h2>
+            <p>Hola <span class="highlight">${data.nombre || ''}</span>, recibimos tu caso de garantía y lo estamos procesando.</p>
+            <div style="background:#1e2130;border-radius:10px;padding:16px 20px;margin:16px 0">
+              <div style="font-size:12px;color:#555b70;margin-bottom:4px">N° de seguimiento</div>
+              <div style="font-family:monospace;font-size:22px;font-weight:800;color:#ff6b2b;letter-spacing:2px">${data.trackingId}</div>
+              <div style="font-size:12px;color:#555b70;margin-top:8px">Ingresado el ${data.fechaIngreso || ''}</div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px">${filas}</table>
+            ${data.descripcion ? `<div style="background:#1e2130;padding:14px;border-radius:8px;color:#c8cad4;font-size:13px;line-height:1.7;margin-bottom:12px"><strong style="color:#9196a8">Descripción:</strong><br>${data.descripcion}</div>` : ''}
+            <p style="font-size:13px">Te notificaremos cuando haya novedades. Podés seguir el estado de tu caso en el portal.</p>
+            <a href="${APP_URL}/reclamos" class="btn">Ver mi caso →</a>
+          </div>
+        `),
+      })
+      // Notificar al equipo admin también
+      await sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `⚠️ Nuevo caso de garantía — ${data.trackingId}`,
+        html: baseTemplate(`
+          <div class="card">
+            <h2>Nuevo caso ingresado</h2>
+            <p><span class="highlight">${data.nombre || data.email}</span> registró un caso de garantía.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">${filas}</table>
+            <a href="${APP_URL}/admin" class="btn">Ver en panel admin →</a>
+          </div>
+        `),
+      })
+    }
+
     return new Response(JSON.stringify({ ok }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
