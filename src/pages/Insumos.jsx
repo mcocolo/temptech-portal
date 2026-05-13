@@ -21,6 +21,7 @@ const EMPTY_FORM = {
   sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '',
   es_repuesto: false, precio_tecnico: '',
   imagen_url: '',
+  es_kit: false, componentes: [],
 }
 
 function stockColor(actual, minimo) {
@@ -55,6 +56,9 @@ export default function Insumos() {
   const [guardando, setGuardando] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
   const [subiendoImg, setSubiendoImg] = useState(false)
+  const [busquedaComp, setBusquedaComp] = useState('')
+  const [resultadosComp, setResultadosComp] = useState([])
+  const [buscandoComp, setBuscandoComp] = useState(false)
 
   // Modal stock
   const [modalStock, setModalStock] = useState(null) // insumo obj
@@ -111,8 +115,35 @@ export default function Insumos() {
       sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
       imagen_url: ins.imagen_url || '',
+      es_kit: ins.es_kit || false, componentes: ins.componentes || [],
     })
     setModal(true)
+  }
+
+  async function buscarComponentes(q) {
+    if (!q.trim()) { setResultadosComp([]); return }
+    setBuscandoComp(true)
+    const { data } = await supabase
+      .from('insumos')
+      .select('id, codigo, descripcion, unidad')
+      .eq('es_kit', false)
+      .or(`codigo.ilike.%${q}%,descripcion.ilike.%${q}%`)
+      .limit(12)
+    setResultadosComp((data || []).filter(r => !form.componentes.find(c => c.insumo_id === r.id)))
+    setBuscandoComp(false)
+  }
+
+  function agregarComponente(ins) {
+    setForm(p => ({ ...p, componentes: [...p.componentes, { insumo_id: ins.id, codigo: ins.codigo, descripcion: ins.descripcion, unidad: ins.unidad, cantidad: 1 }] }))
+    setBusquedaComp(''); setResultadosComp([])
+  }
+
+  function actualizarCantComp(idx, val) {
+    setForm(p => ({ ...p, componentes: p.componentes.map((c, i) => i === idx ? { ...c, cantidad: Math.max(1, parseInt(val) || 1) } : c) }))
+  }
+
+  function quitarComponente(idx) {
+    setForm(p => ({ ...p, componentes: p.componentes.filter((_, i) => i !== idx) }))
   }
 
   async function subirImagen(file) {
@@ -141,6 +172,8 @@ export default function Insumos() {
       es_repuesto: form.es_repuesto,
       precio_tecnico: form.es_repuesto ? (parseFloat(form.precio_tecnico) || null) : null,
       imagen_url: form.imagen_url || null,
+      es_kit: form.es_kit,
+      componentes: form.es_kit ? form.componentes : [],
       updated_at: new Date().toISOString(),
     }
     const { error } = editando
@@ -331,6 +364,7 @@ export default function Insumos() {
                         <span key={s} style={{ fontSize: 10, background: `${color}15`, border: `1px solid ${color}30`, color, borderRadius: 3, padding: '1px 6px' }}>{s}</span>
                       ))}
                       {ins.es_repuesto && <span style={{ fontSize: 10, background: 'rgba(45,212,191,0.15)', border: '1px solid rgba(45,212,191,0.4)', color: '#2dd4bf', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🔩 Repuesto</span>}
+                      {ins.es_kit && <span style={{ fontSize: 10, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🔧 Kit ({(ins.componentes||[]).length})</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -386,6 +420,21 @@ export default function Insumos() {
                             title="Ver imagen completa"
                             onError={e => { e.currentTarget.style.display = 'none' }}
                           />
+                        )}
+                        {/* Componentes del kit */}
+                        {ins.es_kit && (ins.componentes || []).length > 0 && (
+                          <div style={{ gridColumn: ins.imagen_url ? 'span 1' : 'span 2' }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>🔧 Componentes del kit</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {(ins.componentes || []).map((c, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '5px 8px', background: 'var(--surface2)', borderRadius: 6 }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#fbbf24', minWidth: 70 }}>{c.codigo}</span>
+                                  <span style={{ flex: 1, color: 'var(--text2)' }}>{c.descripcion}</span>
+                                  <span style={{ fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>× {c.cantidad} {c.unidad}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
                         {/* Stock info */}
                         <div>
@@ -607,6 +656,71 @@ export default function Insumos() {
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Precio para técnicos</label>
                     <input type="number" min="0" value={form.precio_tecnico} onChange={e => setForm(p => ({ ...p, precio_tecnico: e.target.value }))} placeholder="Ej: 15000 (dejar vacío si es sin cargo)" style={inputSt} />
+                  </div>
+                )}
+              </div>
+
+              {/* Kit / Conjunto armado */}
+              <div style={{ background: form.es_kit ? 'rgba(251,191,36,0.06)' : 'var(--surface2)', border: `1px solid ${form.es_kit ? 'rgba(251,191,36,0.35)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '14px 16px', transition: 'all .2s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: form.es_kit ? 14 : 0 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: form.es_kit ? '#fbbf24' : 'var(--text2)' }}>🔧 Es un kit / conjunto armado</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Compuesto por varios insumos individuales</div>
+                  </div>
+                  <div onClick={() => setForm(p => ({ ...p, es_kit: !p.es_kit, componentes: p.es_kit ? [] : p.componentes }))}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: form.es_kit ? '#fbbf24' : 'var(--surface3)', cursor: 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0 }}>
+                    <div style={{ position: 'absolute', top: 3, left: form.es_kit ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                  </div>
+                </div>
+                {form.es_kit && (
+                  <div>
+                    {form.componentes.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                        {form.componentes.map((c, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', borderRadius: 6, padding: '7px 10px', fontSize: 12 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#fbbf24', minWidth: 70 }}>{c.codigo}</span>
+                            <span style={{ flex: 1, color: 'var(--text2)' }}>{c.descripcion}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <button onClick={() => actualizarCantComp(i, c.cantidad - 1)}
+                                style={{ width: 22, height: 22, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' }}>−</button>
+                              <input type="number" min="1" value={c.cantidad} onChange={e => actualizarCantComp(i, e.target.value)}
+                                style={{ width: 40, textAlign: 'center', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 4px', color: 'var(--text)', fontSize: 12, outline: 'none' }} />
+                              <button onClick={() => actualizarCantComp(i, c.cantidad + 1)}
+                                style={{ width: 22, height: 22, borderRadius: 4, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', fontSize: 13, cursor: 'pointer' }}>+</button>
+                              <span style={{ fontSize: 11, color: 'var(--text3)', minWidth: 40 }}>{c.unidad}</span>
+                            </div>
+                            <button onClick={() => quitarComponente(i)}
+                              style={{ background: 'rgba(255,85,119,0.1)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 4, padding: '3px 7px', fontSize: 11, color: '#ff5577', cursor: 'pointer' }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        value={busquedaComp}
+                        onChange={e => { setBusquedaComp(e.target.value); buscarComponentes(e.target.value) }}
+                        placeholder="🔍 Buscar insumo para agregar..."
+                        style={{ ...inputSt, background: 'var(--surface)' }}
+                      />
+                      {(buscandoComp || resultadosComp.length > 0) && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', zIndex: 50, maxHeight: 200, overflowY: 'auto', marginTop: 4 }}>
+                          {buscandoComp && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text3)' }}>Buscando...</div>}
+                          {resultadosComp.map(r => (
+                            <button key={r.id} onClick={() => agregarComponente(r)}
+                              style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                              <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#fbbf24', minWidth: 80 }}>{r.codigo}</span>
+                              <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{r.descripcion}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text3)' }}>{r.unidad}</span>
+                            </button>
+                          ))}
+                          {!buscandoComp && resultadosComp.length === 0 && busquedaComp && (
+                            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text3)' }}>Sin resultados</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

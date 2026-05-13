@@ -25,6 +25,7 @@ function formatPrecio(n) {
 export default function Repuestos() {
   const { user, profile, isAdmin, isAdmin2, isTechService } = useAuth()
   const [tab, setTab] = useState('catalogo')
+  const [subTab, setSubTab] = useState('individual') // 'individual' | 'kit'
 
   // Catálogo
   const [repuestos, setRepuestos] = useState([])
@@ -53,7 +54,7 @@ export default function Repuestos() {
     setLoading(true)
     const { data } = await supabase
       .from('insumos')
-      .select('id, codigo, descripcion, unidad, stock_actual, es_repuesto, precio_tecnico, modelo, imagen_url')
+      .select('id, codigo, descripcion, unidad, stock_actual, es_repuesto, precio_tecnico, modelo, imagen_url, es_kit, componentes')
       .eq('es_repuesto', true)
       .order('descripcion')
     setRepuestos(data || [])
@@ -124,6 +125,8 @@ export default function Repuestos() {
   }
 
   const filtrados = repuestos.filter(r => {
+    if (subTab === 'individual' && r.es_kit) return false
+    if (subTab === 'kit' && !r.es_kit) return false
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
     return r.codigo.toLowerCase().includes(q) || r.descripcion.toLowerCase().includes(q)
@@ -170,6 +173,16 @@ export default function Repuestos() {
       {/* ── CATÁLOGO ── */}
       {tab === 'catalogo' && (
         <>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+            {[['individual', '🔩 Repuestos'], ['kit', '🔧 Repuestos Completos']].map(([val, label]) => (
+              <button key={val} onClick={() => setSubTab(val)} style={{
+                padding: '7px 18px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+                background: subTab === val ? (val === 'kit' ? 'rgba(251,191,36,0.15)' : 'rgba(45,212,191,0.15)') : 'var(--surface)',
+                color: subTab === val ? (val === 'kit' ? '#fbbf24' : '#2dd4bf') : 'var(--text3)',
+                border: subTab === val ? `1px solid ${val === 'kit' ? 'rgba(251,191,36,0.4)' : 'rgba(45,212,191,0.4)'}` : '1px solid var(--border)',
+              }}>{label}</button>
+            ))}
+          </div>
           <div style={{ marginBottom: 20 }}>
             <input
               type="text"
@@ -214,6 +227,19 @@ export default function Repuestos() {
                         </div>
                       )}
                     </div>
+
+                    {r.es_kit && (r.componentes || []).length > 0 && (
+                      <div style={{ marginTop: 10, marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', marginBottom: 4 }}>Incluye:</div>
+                        {(r.componentes || []).map((c, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 6, fontSize: 11, color: 'var(--text3)' }}>
+                            <span style={{ fontFamily: 'monospace', color: '#fbbf24', minWidth: 70 }}>{c.codigo}</span>
+                            <span style={{ flex: 1 }}>{c.descripcion}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text2)' }}>×{c.cantidad}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: r.precio_tecnico ? '#2dd4bf' : 'var(--text3)' }}>
