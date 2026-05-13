@@ -45,6 +45,12 @@ export default function Repuestos() {
   const [notasAdmin, setNotasAdmin] = useState('')
   const [guardandoAdmin, setGuardandoAdmin] = useState(false)
 
+  // Envío
+  const [envioEmpresa, setEnvioEmpresa] = useState('Correo Argentino')
+  const [envioTracking, setEnvioTracking] = useState('')
+  const [envioGuiaFile, setEnvioGuiaFile] = useState(null)
+  const [subiendoGuia, setSubiendoGuia] = useState(false)
+
   const esAdmin = isAdmin || isAdmin2
 
   useEffect(() => { cargarRepuestos() }, [])
@@ -100,6 +106,14 @@ export default function Repuestos() {
     })
     setEnviando(false)
     if (error) { toast.error('Error al enviar: ' + error.message); return }
+    await supabase.from('notificaciones').insert({
+      tipo: 'pedido',
+      titulo: '🔩 Nuevo pedido de repuestos',
+      mensaje: `${profile?.full_name || user.email} solicitó ${items.length} repuesto${items.length !== 1 ? 's' : ''}: ${items.map(i => i.descripcion).join(', ')}`,
+      leida: false,
+      link: '/repuestos',
+      user_id: null,
+    })
     toast.success('Pedido enviado ✅ — TEMPTECH lo revisará a la brevedad')
     setCarrito({})
     setNotasPedido('')
@@ -121,6 +135,30 @@ export default function Repuestos() {
     setGuardandoAdmin(false)
     if (error) { toast.error('Error'); return }
     toast.success('Notas guardadas')
+    cargarPedidos()
+  }
+
+  async function guardarEnvio(pedidoId) {
+    setSubiendoGuia(true)
+    let guiaUrl = pedidos.find(p => p.id === pedidoId)?.envio_guia_url || null
+    if (envioGuiaFile) {
+      const safeName = envioGuiaFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `guias-repuestos/${pedidoId}/${Date.now()}_${safeName}`
+      const { error: uploadError } = await supabase.storage.from('Imagenes').upload(path, envioGuiaFile, { upsert: true })
+      if (uploadError) { toast.error('Error al subir guía: ' + uploadError.message); setSubiendoGuia(false); return }
+      const { data: urlData } = supabase.storage.from('Imagenes').getPublicUrl(path)
+      guiaUrl = urlData.publicUrl
+    }
+    const { error } = await supabase.from('pedidos_repuestos').update({
+      envio_empresa: envioEmpresa || null,
+      envio_tracking: envioTracking.trim() || null,
+      envio_guia_url: guiaUrl,
+      updated_at: new Date().toISOString(),
+    }).eq('id', pedidoId)
+    setSubiendoGuia(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Datos de envío guardados ✅')
+    setEnvioGuiaFile(null)
     cargarPedidos()
   }
 
@@ -278,7 +316,13 @@ export default function Repuestos() {
                 return (
                   <div key={p.id} style={{ background: 'var(--surface)', border: `1px solid ${abierto ? 'rgba(45,212,191,0.35)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
                     <div
-                      onClick={() => { setPedidoAbierto(abierto ? null : p.id); setNotasAdmin(p.notas_admin || '') }}
+                      onClick={() => {
+                        setPedidoAbierto(abierto ? null : p.id)
+                        setNotasAdmin(p.notas_admin || '')
+                        setEnvioEmpresa(p.envio_empresa || 'Correo Argentino')
+                        setEnvioTracking(p.envio_tracking || '')
+                        setEnvioGuiaFile(null)
+                      }}
                       style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', flexWrap: 'wrap' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -346,6 +390,39 @@ export default function Repuestos() {
                                 </button>
                               </div>
                             </div>
+
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>📦 Datos de envío</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                  <select value={envioEmpresa} onChange={e => setEnvioEmpresa(e.target.value)}
+                                    style={{ ...inputSt, flex: '0 0 200px', cursor: 'pointer' }}>
+                                    <option value="Correo Argentino">📮 Correo Argentino</option>
+                                    <option value="Andreani">📦 Andreani</option>
+                                    <option value="Logística Propia">🚚 Logística Propia</option>
+                                    <option value="Otro">Otro</option>
+                                  </select>
+                                  <input type="text" placeholder="N° de seguimiento" value={envioTracking} onChange={e => setEnvioTracking(e.target.value)}
+                                    style={{ ...inputSt, flex: 1 }} />
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                  <label style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', fontSize: 13, color: envioGuiaFile ? 'var(--text)' : 'var(--text3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    📎 {envioGuiaFile ? envioGuiaFile.name : (p.envio_guia_url ? 'Reemplazar guía PDF...' : 'Adjuntar guía PDF...')}
+                                    <input type="file" accept=".pdf,image/*" onChange={e => setEnvioGuiaFile(e.target.files[0] || null)} style={{ display: 'none' }} />
+                                  </label>
+                                  {p.envio_guia_url && !envioGuiaFile && (
+                                    <a href={p.envio_guia_url} target="_blank" rel="noreferrer"
+                                      style={{ color: '#7b9fff', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                      Ver guía ↗
+                                    </a>
+                                  )}
+                                  <button onClick={() => guardarEnvio(p.id)} disabled={subiendoGuia}
+                                    style={{ background: 'rgba(123,159,255,0.12)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.35)', borderRadius: 'var(--radius)', padding: '0 14px', fontSize: 12, fontWeight: 700, cursor: subiendoGuia ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', height: 38, opacity: subiendoGuia ? 0.6 : 1 }}>
+                                    {subiendoGuia ? '⏳...' : '💾 Guardar'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
 
@@ -353,6 +430,39 @@ export default function Repuestos() {
                         {!esAdmin && p.notas_admin && (
                           <div style={{ padding: '10px 12px', background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 6, fontSize: 13 }}>
                             <span style={{ fontWeight: 700, color: '#2dd4bf' }}>Respuesta TEMPTECH: </span>{p.notas_admin}
+                          </div>
+                        )}
+
+                        {/* Tech: info de envío */}
+                        {!esAdmin && (p.envio_empresa || p.envio_tracking || p.envio_guia_url) && (
+                          <div style={{ padding: '12px 14px', background: 'rgba(123,159,255,0.06)', border: '1px solid rgba(123,159,255,0.25)', borderRadius: 6, fontSize: 13, marginTop: 8 }}>
+                            <div style={{ fontWeight: 700, color: '#7b9fff', marginBottom: 8 }}>📦 Información de envío</div>
+                            {p.envio_empresa && (
+                              <div style={{ marginBottom: 4 }}>Empresa: <b>{p.envio_empresa}</b></div>
+                            )}
+                            {p.envio_tracking && (
+                              <div style={{ marginBottom: 4 }}>
+                                Seguimiento:{' '}
+                                <a href={
+                                  p.envio_empresa === 'Correo Argentino'
+                                    ? `https://www.correoargentino.com.ar/formularios/e-commerce?id=${p.envio_tracking}`
+                                    : p.envio_empresa === 'Andreani'
+                                    ? `https://www.andreani.com/#!/informacionEnvio/${p.envio_tracking}`
+                                    : '#'
+                                } target="_blank" rel="noreferrer"
+                                  style={{ color: '#7b9fff', fontWeight: 700 }}>
+                                  {p.envio_tracking} ↗
+                                </a>
+                              </div>
+                            )}
+                            {p.envio_guia_url && (
+                              <div>
+                                <a href={p.envio_guia_url} target="_blank" rel="noreferrer"
+                                  style={{ color: '#2dd4bf', fontWeight: 700, textDecoration: 'none' }}>
+                                  📎 Descargar guía ↗
+                                </a>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
