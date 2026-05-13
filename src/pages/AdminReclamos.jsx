@@ -1030,7 +1030,8 @@ export default function AdminReclamos({ openTracking } = {}) {
   async function guardarNotaInterna(item) {
     const texto = (notasInternas[item.id] || '').trim()
     if (!texto) { alert('Escribí una nota interna antes de guardar'); return }
-    const nuevaNota = armarLineaNota('INTERNO', texto)
+    const autorNota = profile?.full_name || user?.email || 'INTERNO'
+    const nuevaNota = armarLineaNota(autorNota, texto)
     const { error } = await supabase.from('devoluciones').update({ notas_internas: unirNotas(item.notas_internas, nuevaNota) }).eq('id', item.id)
     if (error) { alert('Error al guardar la nota interna'); return }
     setNotasInternas(prev => ({ ...prev, [item.id]: '' }))

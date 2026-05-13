@@ -53,7 +53,7 @@ export default function Repuestos() {
     setLoading(true)
     const { data } = await supabase
       .from('insumos')
-      .select('id, codigo, descripcion, unidad, stock_actual, es_repuesto, precio_tecnico, modelo')
+      .select('id, codigo, descripcion, unidad, stock_actual, es_repuesto, precio_tecnico, modelo, imagen_url')
       .eq('es_repuesto', true)
       .order('descripcion')
     setRepuestos(data || [])
@@ -196,6 +196,13 @@ export default function Repuestos() {
                     background: 'var(--surface)', border: `1px solid ${cant > 0 ? 'rgba(45,212,191,0.4)' : 'var(--border)'}`,
                     borderRadius: 'var(--radius-lg)', padding: '16px 18px', transition: 'border-color .2s',
                   }}>
+                    {r.imagen_url && (
+                      <img src={r.imagen_url} alt={r.descripcion}
+                        style={{ width: '100%', height: 140, objectFit: 'contain', borderRadius: 8, background: 'rgba(0,0,0,0.2)', marginBottom: 12, display: 'block', cursor: 'pointer' }}
+                        onClick={() => window.open(r.imagen_url, '_blank')}
+                        onError={e => { e.currentTarget.style.display = 'none' }}
+                      />
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                       <div>
                         <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', marginBottom: 4 }}>{r.codigo}</div>
