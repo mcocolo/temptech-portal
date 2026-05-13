@@ -113,6 +113,11 @@ export default function Reclamos() {
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [catalogo, setCatalogo] = useState([])
 
+  // Adjuntar comprobantes
+  const [modalComprobantes, setModalComprobantes] = useState(false)
+  const [comprobantesNuevos, setComprobantesNuevos] = useState([])
+  const [subiendoComprobantes, setSubiendoComprobantes] = useState(false)
+
   const [form, setForm] = useState({
     // Paso 1 — Producto
     producto: '',
@@ -342,6 +347,40 @@ export default function Reclamos() {
     setSelected(prev => ({ ...prev, ...editForm }))
   }
 
+  async function guardarComprobantes() {
+    if (!comprobantesNuevos.length) return toast.error('Seleccioná al menos un archivo')
+    setSubiendoComprobantes(true)
+    try {
+      const urls = await Promise.all(comprobantesNuevos.map(f => uploadFile(f, 'comprobantes')))
+      const nuevasUrls = [...(selected.comprobantes_urls || []), ...urls]
+
+      const ahora = new Date()
+      const fechaHora = ahora.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      const autor = profile?.full_name || profile?.razon_social || user?.email || 'Cliente'
+      const notaAudit = `${fechaHora} - ${autor}: adjuntó ${urls.length} comprobante${urls.length !== 1 ? 's' : ''}`
+
+      const notasActuales = selected.notas_internas || ''
+      const nuevasNotas = notasActuales ? `${notasActuales}\n${notaAudit}` : notaAudit
+
+      const { error } = await supabase.from('devoluciones').update({
+        comprobantes_urls: nuevasUrls,
+        notas_internas: nuevasNotas,
+        edited_at: ahora.toISOString(),
+        edited_by_name: autor,
+      }).eq('id', selected.id)
+
+      if (error) throw error
+      toast.success(`${urls.length} archivo${urls.length !== 1 ? 's' : ''} adjuntado${urls.length !== 1 ? 's' : ''} ✅`)
+      setModalComprobantes(false)
+      setComprobantesNuevos([])
+      await load()
+      setSelected(prev => ({ ...prev, comprobantes_urls: nuevasUrls, notas_internas: nuevasNotas, edited_at: ahora.toISOString(), edited_by_name: autor }))
+    } catch (err) {
+      toast.error('Error al subir: ' + err.message)
+    }
+    setSubiendoComprobantes(false)
+  }
+
   function resetForm() {
     setForm({ producto: '', modelo: '', canal: '', numero_venta_manual: '', fecha_compra: '', motivo: '', descripcion_falla: '', direccion: '', localidad: '', provincia: '', codigo_postal: '', telefono: '', imagenes: [], comprobantes: [] })
     setStep(1)
@@ -384,6 +423,14 @@ export default function Reclamos() {
                 ✏️ Editar
               </button>
             )}
+            {!isAdmin && !isAdmin2 && !isVendedor && !['cerrado', 'rechazado'].includes(selected.estado) && (
+              <button
+                onClick={() => { setModalComprobantes(true); setComprobantesNuevos([]) }}
+                style={{ background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#2dd4bf', cursor: 'pointer' }}
+              >
+                📎 Adjuntar comprobantes
+              </button>
+            )}
           </div>
         </div>
 
@@ -412,6 +459,35 @@ export default function Reclamos() {
             {selected.descripcion_falla}
           </div>
         </div>
+
+        {/* Comprobantes del cliente */}
+        {(selected.comprobantes_urls?.length > 0 || selected.imagenes_producto_urls?.length > 0) && (
+          <div style={{ padding: '14px 16px', background: 'rgba(45,212,191,0.04)', border: '1px solid rgba(45,212,191,0.2)', borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#2dd4bf', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.8px' }}>📎 Archivos adjuntados por vos</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(selected.comprobantes_urls || []).map((url, i) => {
+                const nombre = decodeURIComponent(url.split('/').pop()?.split('?')[0] || `Comprobante ${i + 1}`).replace(/^\d+_/, '')
+                return (
+                  <a key={`comp-${i}`} href={url} target="_blank" rel="noreferrer" download
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#2dd4bf', background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 8, padding: '7px 12px', textDecoration: 'none', width: 'fit-content' }}>
+                    📄 {nombre.length > 40 ? nombre.slice(0, 40) + '…' : nombre}
+                    <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)' }}>↓</span>
+                  </a>
+                )
+              })}
+              {(selected.imagenes_producto_urls || []).map((url, i) => {
+                const nombre = decodeURIComponent(url.split('/').pop()?.split('?')[0] || `Foto ${i + 1}`).replace(/^\d+_/, '')
+                return (
+                  <a key={`img-${i}`} href={url} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#2dd4bf', background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 8, padding: '7px 12px', textDecoration: 'none', width: 'fit-content' }}>
+                    🖼 {nombre.length > 40 ? nombre.slice(0, 40) + '…' : nombre}
+                    <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)' }}>↓</span>
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Novedades / notas del equipo */}
         {selected.notas && (
@@ -561,6 +637,39 @@ export default function Reclamos() {
           ))}
         </div>
       )}
+
+      {/* ── Modal adjuntar comprobantes (cliente) ── */}
+      <Modal open={modalComprobantes} onClose={() => { setModalComprobantes(false); setComprobantesNuevos([]) }} title="📎 Adjuntar comprobantes / factura">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ padding: '10px 14px', background: 'rgba(45,212,191,0.07)', border: '1px solid rgba(45,212,191,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
+            Podés adjuntar la factura de compra, ticket, o cualquier comprobante que respalde tu caso.
+          </div>
+
+          {comprobantesNuevos.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {comprobantesNuevos.map((f, i) => (
+                <div key={i} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                  📄 <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text2)' }}>{f.name}</span>
+                  <button onClick={() => setComprobantesNuevos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: 'var(--surface2)', border: '1px dashed var(--border2)', borderRadius: 'var(--radius)', padding: '12px 16px', fontSize: 13, color: 'var(--text2)', width: '100%', justifyContent: 'center' }}>
+            <Upload size={16} /> Seleccionar archivos (imágenes o PDF)
+            <input type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
+              onChange={e => setComprobantesNuevos(prev => [...prev, ...Array.from(e.target.files)])} />
+          </label>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+            <Button variant="ghost" onClick={() => { setModalComprobantes(false); setComprobantesNuevos([]) }}>Cancelar</Button>
+            <Button onClick={guardarComprobantes} loading={subiendoComprobantes} disabled={!comprobantesNuevos.length}>
+              📤 Adjuntar
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── Modal editar reclamo ── */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="✏️ Editar Caso">

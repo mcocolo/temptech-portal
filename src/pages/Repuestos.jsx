@@ -258,6 +258,7 @@ export default function Repuestos() {
                       <div>
                         <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', marginBottom: 4 }}>{r.codigo}</div>
                         <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.4 }}>{r.descripcion}</div>
+                        {r.modelo && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Modelo: <span style={{ color: 'var(--text2)', fontWeight: 600 }}>{r.modelo}</span></div>}
                       </div>
                       {esAdmin && (
                         <div style={{ fontSize: 11, fontWeight: 700, color: sinStock ? '#ff5577' : '#3dd68c', background: sinStock ? 'rgba(255,85,119,0.1)' : 'rgba(61,214,140,0.1)', border: `1px solid ${sinStock ? 'rgba(255,85,119,0.3)' : 'rgba(61,214,140,0.3)'}`, borderRadius: 4, padding: '2px 8px', flexShrink: 0 }}>
