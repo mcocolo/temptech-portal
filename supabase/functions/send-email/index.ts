@@ -22,7 +22,11 @@ async function sendEmail({ to, subject, html }: { to: string; subject: string; h
     },
     body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
   })
-  return res.ok
+  if (!res.ok) {
+    const errBody = await res.text()
+    throw new Error(`Resend ${res.status}: ${errBody}`)
+  }
+  return true
 }
 
 function baseTemplate(content: string) {
