@@ -737,8 +737,10 @@ export default function AdminReclamos({ openTracking } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: (item.email || '').trim(), nombre: item.nombre_apellido || item.nombre || '', apellido: '', tracking_id: item.tracking_id || '' })
       })
-      if (!respAprobado.ok) console.warn('Error mail aprobado: HTTP', respAprobado.status)
-    } catch { console.warn('Se aprobó, pero falló el envío del mail') }
+      const resData = await respAprobado.json().catch(() => ({}))
+      if (!respAprobado.ok) alert('Error al enviar email: ' + JSON.stringify(resData))
+      else alert('Email enviado OK')
+    } catch (e) { alert('Excepción: ' + e.message) }
     await cargar()
   }
 
