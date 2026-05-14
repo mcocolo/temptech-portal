@@ -732,7 +732,7 @@ export default function AdminReclamos({ openTracking } = {}) {
     const { error } = await supabase.from('devoluciones').update({ aprobado: 'SI', estado: 'pendiente', fecha_aprobado: new Date().toISOString(), fecha_desaprobado: null, motivo_rechazo: null, notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
     if (error) { alert('No se pudo actualizar el aprobado'); return }
     try {
-      const respAprobado = await fetch('https://vite-latest-temptech-rma.vercel.app/api/enviar-aprobado', {
+      const respAprobado = await fetch('/api/enviar-aprobado', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: (item.email || '').trim(), nombre: item.nombre_apellido || item.nombre || '', apellido: '', tracking_id: item.tracking_id || '' })
@@ -755,7 +755,7 @@ export default function AdminReclamos({ openTracking } = {}) {
     const nuevaNota = armarLineaNota('DESAPROBADO', notaDesaprobar)
     const { error } = await supabase.from('devoluciones').update({ estado: 'Ingresado', aprobado: 'NO', fecha_aprobado: null, fecha_desaprobado: new Date().toISOString(), motivo_rechazo: null, notas: unirNotas(item.notas, nuevaNota) }).eq('id', item.id)
     if (error) { alert('Error al desaprobar'); return }
-    await fetch('https://vite-latest-temptech-rma.vercel.app/api/enviar-desaprobado', {
+    await fetch('/api/enviar-desaprobado', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: (item.email || '').trim(), nombre: item.nombre_apellido || item.nombre || '', tracking_id: item.tracking_id || '', texto: textoDesaprobar })
