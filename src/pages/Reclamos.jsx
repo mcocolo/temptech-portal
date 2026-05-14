@@ -52,7 +52,7 @@ function groupByCat(catalogo) {
   const grupos = {}
   catalogo.forEach(p => {
     if (!grupos[p.categoria]) grupos[p.categoria] = []
-    grupos[p.categoria].push(p.nombre)
+    grupos[p.categoria].push(p)
   })
   return grupos
 }
@@ -156,7 +156,7 @@ export default function Reclamos() {
   useEffect(() => { if (user) load() }, [user])
 
   useEffect(() => {
-    supabase.from('precios').select('nombre,categoria').order('categoria').order('nombre').then(({ data }) => setCatalogo(data || []))
+    supabase.from('precios').select('nombre,modelo,categoria').order('categoria').order('nombre').then(({ data }) => setCatalogo(data || []))
   }, [])
 
   async function load() {
@@ -679,12 +679,16 @@ export default function Reclamos() {
           </div>
 
           <Field label="Producto *">
-            <select value={editForm.producto} onChange={e => setEditForm(p => ({ ...p, producto: e.target.value }))} style={inputStyle}>
+            <select value={editForm.producto} onChange={e => {
+              const nombre = e.target.value
+              const item = catalogo.find(p => p.nombre === nombre)
+              setEditForm(p => ({ ...p, producto: nombre, modelo: item?.modelo || nombre }))
+            }} style={inputStyle}>
               <option value="">Seleccioná el producto...</option>
               {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => (
                 <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
                   {prods.map(p => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p.nombre} value={p.nombre}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
                   ))}
                 </optgroup>
               ))}
@@ -704,7 +708,7 @@ export default function Reclamos() {
           </div>
 
           <Field label="Fecha de compra">
-            <input type="date" value={editForm.fecha_compra} onChange={e => setEditForm(p => ({ ...p, fecha_compra: e.target.value }))} style={{ ...inputStyle, colorScheme: 'dark' }} />
+            <input type="date" value={editForm.fecha_compra} max={new Date().toISOString().split('T')[0]} onChange={e => setEditForm(p => ({ ...p, fecha_compra: e.target.value }))} style={{ ...inputStyle, colorScheme: 'dark' }} />
           </Field>
 
           <Field label="Motivo del caso *">
@@ -785,12 +789,16 @@ export default function Reclamos() {
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Field label="Producto *">
-              <select value={form.producto} onChange={e => setF('producto', e.target.value)} style={inputStyle}>
+              <select value={form.producto} onChange={e => {
+                const nombre = e.target.value
+                const item = catalogo.find(p => p.nombre === nombre)
+                setForm(prev => ({ ...prev, producto: nombre, modelo: item?.modelo || nombre }))
+              }} style={inputStyle}>
                 <option value="">Seleccioná el producto...</option>
                 {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => (
                   <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
                     {prods.map(p => (
-                      <option key={p} value={p}>{p}</option>
+                      <option key={p.nombre} value={p.nombre}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
                     ))}
                   </optgroup>
                 ))}
@@ -810,7 +818,7 @@ export default function Reclamos() {
             </div>
 
             <Field label="Fecha de compra">
-              <input type="date" value={form.fecha_compra} onChange={e => setF('fecha_compra', e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+              <input type="date" value={form.fecha_compra} max={new Date().toISOString().split('T')[0]} onChange={e => setF('fecha_compra', e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
             </Field>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
