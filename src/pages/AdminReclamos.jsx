@@ -671,6 +671,7 @@ export default function AdminReclamos({ openTracking } = {}) {
   const [notasInternas, setNotasInternas] = useState({})
   const [editandoId, setEditandoId] = useState(null)
   const [editForm, setEditForm] = useState({})
+  const [editArchivos, setEditArchivos] = useState({ comprobantes: [], imagenes: [] })
   const [supervisionAbierto, setSupervisionAbierto] = useState(null)  // item abierto para cargar
   const [supervisionVer, setSupervisionVer] = useState(null)           // item para ver resultado
   const [panelStockAbierto, setPanelStockAbierto] = useState(null)     // { id, tipo } | null
@@ -904,10 +905,28 @@ export default function AdminReclamos({ openTracking } = {}) {
       numero_venta_manual: item.numero_venta_manual || '',
       fecha_compra: item.fecha_compra ? item.fecha_compra.slice(0, 10) : '',
     })
+    setEditArchivos({ comprobantes: [], imagenes: [] })
     setEditandoId(item.id)
   }
 
   async function guardarEdicion(item) {
+    const uploadExtra = async (files, folder) => {
+      const urls = []
+      for (const f of files) {
+        const safeName = sanitizeFileName(f.name)
+        const path = `${folder}/${item.id}/${Date.now()}_${safeName}`
+        const { error } = await supabase.storage.from('devoluciones').upload(path, f, { upsert: false })
+        if (!error) {
+          const { data } = supabase.storage.from('devoluciones').getPublicUrl(path)
+          urls.push(data.publicUrl)
+        }
+      }
+      return urls
+    }
+    const nuevosComprobantes = await uploadExtra(editArchivos.comprobantes, 'comprobantes')
+    const nuevasImagenes = await uploadExtra(editArchivos.imagenes, 'imagenes')
+    const comprobantes_urls = [...(item.comprobantes_urls || []), ...nuevosComprobantes]
+    const imagenes_producto_urls = [...(item.imagenes_producto_urls || []), ...nuevasImagenes]
     const { error } = await supabase.from('devoluciones').update({
       nombre_apellido: editForm.nombre_apellido,
       email: editForm.email,
@@ -923,8 +942,11 @@ export default function AdminReclamos({ openTracking } = {}) {
       canal: editForm.canal,
       numero_venta_manual: editForm.numero_venta_manual,
       fecha_compra: editForm.fecha_compra || null,
+      comprobantes_urls,
+      imagenes_producto_urls,
     }).eq('id', item.id)
     if (error) { alert('Error al guardar los cambios'); return }
+    setEditArchivos({ comprobantes: [], imagenes: [] })
     setEditandoId(null)
     await cargar()
   }
@@ -1577,9 +1599,21 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Descripción de la falla</label>
                           <textarea value={editForm.descripcion_falla} onChange={e => setEditForm(f => ({ ...f, descripcion_falla: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, padding: '7px 10px', fontSize: 12 }} />
                         </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                          <div>
+                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Adjuntar comprobantes</label>
+                            <input type="file" multiple accept="image/*,application/pdf" onChange={e => setEditArchivos(p => ({ ...p, comprobantes: Array.from(e.target.files) }))} style={{ fontSize: 12, color: T.text2 }} />
+                            {editArchivos.comprobantes.length > 0 && <div style={{ fontSize: 11, color: T.text3, marginTop: 4 }}>{editArchivos.comprobantes.length} archivo(s) seleccionado(s)</div>}
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Adjuntar fotos del producto</label>
+                            <input type="file" multiple accept="image/*" onChange={e => setEditArchivos(p => ({ ...p, imagenes: Array.from(e.target.files) }))} style={{ fontSize: 12, color: T.text2 }} />
+                            {editArchivos.imagenes.length > 0 && <div style={{ fontSize: 11, color: T.text3, marginTop: 4 }}>{editArchivos.imagenes.length} foto(s) seleccionada(s)</div>}
+                          </div>
+                        </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <Btn variant="primary" onClick={() => guardarEdicion(item)}>💾 Guardar cambios</Btn>
-                          <Btn onClick={() => setEditandoId(null)}>Cancelar</Btn>
+                          <Btn onClick={() => { setEditandoId(null); setEditArchivos({ comprobantes: [], imagenes: [] }) }}>Cancelar</Btn>
                         </div>
                       </div>
                     )}
