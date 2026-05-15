@@ -678,6 +678,7 @@ export default function AdminPedidos() {
       nro_remito: pedido.nro_remito || null,
       notas_internas: pedido.notas_internas || null,
       updated_at: new Date().toISOString(),
+      ...(nuevoEstado === 'aprobado' ? { aprobado_por: profile?.full_name || user?.email || null } : {}),
     }).eq('id', pedido.id)
 
     if (error) { toast.error('Error al guardar: ' + error.message); setGuardando(false); return }
@@ -1528,6 +1529,12 @@ export default function AdminPedidos() {
                                 {pedido.nro_remito || '—'}
                               </div>
                             </div>
+                            {pedido.aprobado_por && (
+                              <div>
+                                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Aprobado por</div>
+                                <div style={{ fontSize: 13, color: 'var(--text)' }}>{pedido.aprobado_por}</div>
+                              </div>
+                            )}
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>Notas internas</div>
                               <div style={{ fontSize: 12, color: pedido.notas_internas ? 'var(--text2)' : 'var(--text3)' }}>
