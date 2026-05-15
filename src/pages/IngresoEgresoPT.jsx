@@ -231,11 +231,20 @@ export default function IngresoEgresoPT() {
     if (!ventaSel) return
     setConfirmandoVenta(true)
 
+    // Verificar stock suficiente
+    const vItemsValidos = vItems.filter(i => i.codigo && i.cantidad)
+    const vSinStock = vItemsValidos.filter(i => (i.cantidad) > (stock[i.codigo]?.stock_actual ?? 0))
+    if (vSinStock.length > 0) {
+      const detalle = vSinStock.map(i => `${i.nombre} (disponible: ${stock[i.codigo]?.stock_actual ?? 0}, pedido: ${i.cantidad})`).join('\n')
+      toast.error(`Stock insuficiente:\n${detalle}`, { duration: 6000 })
+      setConfirmandoVenta(false); return
+    }
+
     // Descontar stock por items de la venta
     for (const item of vItems) {
       if (!item.codigo || !item.cantidad) continue
       const actual = stock[item.codigo]?.stock_actual ?? 0
-      const nuevo = Math.max(0, actual - item.cantidad)
+      const nuevo = actual - item.cantidad
       await supabase.from('stock_pt').upsert({
         codigo: item.codigo, nombre: item.nombre || '', modelo: item.modelo || '', categoria: item.categoria || '',
         stock_actual: nuevo, stock_inicial: stock[item.codigo]?.stock_inicial ?? 0,
@@ -332,10 +341,21 @@ export default function IngresoEgresoPT() {
     // Guardar saldo pendiente (requiere columna items_pendientes)
     await supabase.from('pedidos').update({ items_pendientes: newPending }).eq('id', pedidoSel.id)
 
+    // Verificar stock suficiente antes de descontar
+    const sinStock = itemsAEntregar.filter(item => {
+      const actual = stock[item.codigo]?.stock_actual ?? 0
+      return item.cantidad > actual
+    })
+    if (sinStock.length > 0) {
+      const detalle = sinStock.map(i => `${i.nombre} (disponible: ${stock[i.codigo]?.stock_actual ?? 0}, pedido: ${i.cantidad})`).join('\n')
+      toast.error(`Stock insuficiente:\n${detalle}`, { duration: 6000 })
+      setConfirmandoPed(false); confirmingPedRef.current = false; return
+    }
+
     // Descontar stock por las cantidades efectivamente entregadas
     for (const item of itemsAEntregar) {
       const actual = stock[item.codigo]?.stock_actual ?? 0
-      const nuevo = Math.max(0, actual - item.cantidad)
+      const nuevo = actual - item.cantidad
       const { error: stockErr } = await supabase.from('stock_pt').upsert({
         codigo: item.codigo,
         nombre: item.nombre || '',
@@ -412,7 +432,11 @@ export default function IngresoEgresoPT() {
     setConfirmandoEgresoGar(true)
     const { codigo, nombre, modelo, categoria, cantidad, referencia_nombre, observacion } = egresoGarSel
     const actual = stock[codigo]?.stock_actual ?? 0
-    const nuevo = Math.max(0, actual - cantidad)
+    if (cantidad > actual) {
+      toast.error(`Stock insuficiente para ${nombre}. Disponible: ${actual}`)
+      setConfirmandoEgresoGar(false); return
+    }
+    const nuevo = actual - cantidad
     await supabase.from('stock_pt').upsert({
       codigo, nombre, modelo: modelo || '', categoria: categoria || '',
       stock_actual: nuevo,
