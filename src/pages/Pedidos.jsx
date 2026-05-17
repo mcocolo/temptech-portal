@@ -179,7 +179,44 @@ export default function Pedidos() {
 
   async function enviarRetiro() {
     if (!prevActiva) return
-    const itemsRetiro = prevActiva.items
+    setEnviandoPrev(true)
+
+    // Re-fetch preventa fresca para validar contra el estado actual en BD
+    const { data: pvFresh, error: pvErr } = await supabase
+      .from('preventas')
+      .select('*')
+      .eq('id', prevActiva.id)
+      .eq('distribuidor_id', user.id)
+      .eq('estado', 'activa')
+      .single()
+
+    if (pvErr || !pvFresh) {
+      toast.error('No se pudo verificar la preventa. Actualizá la página e intentá de nuevo.')
+      setEnviandoPrev(false); return
+    }
+
+    // Validar que todos los productos solicitados existen en ESTA preventa
+    const codigosPreventa = new Set((pvFresh.items || []).map(i => i.codigo))
+    const fueraDesPreventa = Object.entries(cantsPrev)
+      .filter(([cod, cant]) => cant > 0 && !codigosPreventa.has(cod))
+    if (fueraDesPreventa.length > 0) {
+      toast.error('Solo podés solicitar productos incluidos en esta preventa.')
+      setEnviandoPrev(false); setCantsPrev({}); setPrevActiva(pvFresh); return
+    }
+
+    // Validar que las cantidades no superen el disponible (pendiente) en cada item
+    const excedidos = (pvFresh.items || []).filter(i => {
+      const pedida = cantsPrev[i.codigo] || 0
+      const pendiente = (i.cantidad_total || 0) - (i.cantidad_retirada || 0)
+      return pedida > pendiente
+    })
+    if (excedidos.length > 0) {
+      const detalle = excedidos.map(i => `${i.nombre}: pedís ${cantsPrev[i.codigo]}, disponible ${(i.cantidad_total||0)-(i.cantidad_retirada||0)}`).join('\n')
+      toast.error(`Cantidad superior al saldo disponible:\n${detalle}`, { duration: 6000 })
+      setEnviandoPrev(false); setCantsPrev({}); setPrevActiva(pvFresh); return
+    }
+
+    const itemsRetiro = (pvFresh.items || [])
       .filter(i => (cantsPrev[i.codigo] || 0) > 0)
       .map(i => ({
         codigo: i.codigo, nombre: i.nombre, modelo: i.modelo,
@@ -190,17 +227,16 @@ export default function Pedidos() {
         cantidad: cantsPrev[i.codigo],
         subtotal: i.precio_unitario * cantsPrev[i.codigo],
       }))
-    if (itemsRetiro.length === 0) { toast.error('Indicá al menos una cantidad a retirar'); return }
+    if (itemsRetiro.length === 0) { toast.error('Indicá al menos una cantidad a retirar'); setEnviandoPrev(false); return }
     const totalNetoRetiro = itemsRetiro.reduce((s, i) => s + i.subtotal, 0)
     const ivaMontoRetiro = incluirIVAPrev ? totalNetoRetiro * IVA_PCT : 0
     const totalRetiro = totalNetoRetiro + ivaMontoRetiro
 
-    setEnviandoPrev(true)
     const { error } = await supabase.from('pedidos').insert({
       distribuidor_id: user.id,
       estado: 'pendiente',
       tipo: 'preventa',
-      preventa_id: prevActiva.id,
+      preventa_id: pvFresh.id,
       items: itemsRetiro,
       total: totalRetiro,
       iva_monto: ivaMontoRetiro,

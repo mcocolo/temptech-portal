@@ -386,6 +386,11 @@ export default function IngresoEgresoPT() {
       if (pvReadErr) {
         toast.error('⚠️ Stock descontado pero no se pudo leer la preventa para actualizar el saldo')
       } else if (pv?.items) {
+        const codigosPreventa = new Set(pv.items.map(i => i.codigo))
+        const fueraDesPreventa = itemsAEntregar.filter(i => !codigosPreventa.has(i.codigo))
+        if (fueraDesPreventa.length > 0) {
+          toast.error(`⚠️ Atención: los siguientes productos no están en la preventa y no se descontaron del saldo: ${fueraDesPreventa.map(i => i.nombre || i.codigo).join(', ')}`, { duration: 8000 })
+        }
         const updatedItems = pv.items.map(pvItem => {
           const entregado = itemsAEntregar.find(i => i.codigo === pvItem.codigo)
           if (!entregado || !entregado.cantidad) return pvItem

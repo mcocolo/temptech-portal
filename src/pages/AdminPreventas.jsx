@@ -501,7 +501,37 @@ export default function AdminPreventas() {
   }
 
   async function enviarSolicitudRetiro(pv) {
-    const itemsRetiro = pv.items
+    setEnviandoRetiro(true)
+
+    // Re-fetch preventa fresca para validar contra el estado actual en BD
+    const { data: pvFresh, error: pvErr } = await supabase
+      .from('preventas').select('*').eq('id', pv.id).single()
+    if (pvErr || !pvFresh) {
+      toast.error('No se pudo verificar la preventa.')
+      setEnviandoRetiro(false); return
+    }
+
+    // Validar que los productos solicitados están en esta preventa
+    const codigosPreventa = new Set((pvFresh.items || []).map(i => i.codigo))
+    const fuera = Object.entries(cantRetiro).filter(([cod, cant]) => cant > 0 && !codigosPreventa.has(cod))
+    if (fuera.length > 0) {
+      toast.error('Solo podés solicitar productos incluidos en esta preventa.')
+      setEnviandoRetiro(false); setCantRetiro({}); return
+    }
+
+    // Validar cantidades no superen disponible
+    const excedidos = (pvFresh.items || []).filter(i => {
+      const pedida = cantRetiro[i.codigo] || 0
+      const pendiente = (i.cantidad_total || 0) - (i.cantidad_retirada || 0)
+      return pedida > pendiente
+    })
+    if (excedidos.length > 0) {
+      const detalle = excedidos.map(i => `${i.nombre}: pedís ${cantRetiro[i.codigo]}, disponible ${(i.cantidad_total||0)-(i.cantidad_retirada||0)}`).join('\n')
+      toast.error(`Cantidad superior al saldo disponible:\n${detalle}`, { duration: 6000 })
+      setEnviandoRetiro(false); setCantRetiro({}); return
+    }
+
+    const itemsRetiro = (pvFresh.items || [])
       .filter(i => (cantRetiro[i.codigo] || 0) > 0)
       .map(i => ({
         codigo: i.codigo, nombre: i.nombre, modelo: i.modelo,
@@ -512,15 +542,14 @@ export default function AdminPreventas() {
         cantidad: cantRetiro[i.codigo],
         subtotal: i.precio_unitario * cantRetiro[i.codigo],
       }))
-    if (itemsRetiro.length === 0) { toast.error('Indicá al menos una cantidad'); return }
+    if (itemsRetiro.length === 0) { toast.error('Indicá al menos una cantidad'); setEnviandoRetiro(false); return }
     const totalNeto = itemsRetiro.reduce((s, i) => s + i.subtotal, 0)
     const ivaMonto = retiroIVA ? totalNeto * IVA_PCT : 0
-    setEnviandoRetiro(true)
     const { error } = await supabase.from('pedidos').insert({
-      distribuidor_id: pv.distribuidor_id,
+      distribuidor_id: pvFresh.distribuidor_id,
       estado: 'pendiente',
       tipo: 'preventa',
-      preventa_id: pv.id,
+      preventa_id: pvFresh.id,
       items: itemsRetiro,
       total: totalNeto + ivaMonto,
       iva_monto: ivaMonto,
