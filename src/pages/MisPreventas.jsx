@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import * as XLSX from 'xlsx-js-style'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -22,6 +22,8 @@ export default function MisPreventas() {
   const [loading, setLoading] = useState(true)
   const [expandida, setExpandida] = useState(null)
   const [filtroEstado, setFiltroEstado] = useState('activa')
+
+  const [vista, setVista] = useState('preventas')   // 'preventas' | 'modelo'
 
   const [agregandoPago, setAgregandoPago] = useState(null)
   const [pagoMonto, setPagoMonto] = useState('')
@@ -400,6 +402,25 @@ export default function MisPreventas() {
     w.document.close()
   }
 
+  const saldoPorModelo = useMemo(() => {
+    const modelos = {}
+    preventas.forEach(pv => {
+      ;(pv.items || []).forEach(item => {
+        const key = item.codigo || item.nombre
+        if (!key) return
+        if (!modelos[key]) modelos[key] = {
+          codigo: item.codigo, nombre: item.nombre, modelo: item.modelo,
+          cantTotal: 0, cantRetirada: 0, montoTotal: 0, montoRetirado: 0,
+        }
+        modelos[key].cantTotal    += item.cantidad_total || 0
+        modelos[key].cantRetirada += item.cantidad_retirada || 0
+        modelos[key].montoTotal   += (item.precio_unitario || 0) * (item.cantidad_total || 0)
+        modelos[key].montoRetirado+= (item.precio_unitario || 0) * (item.cantidad_retirada || 0)
+      })
+    })
+    return Object.values(modelos).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
+  }, [preventas])
+
   if (!isDistributor) return null
 
   return (
@@ -427,6 +448,24 @@ export default function MisPreventas() {
         )}
       </div>
 
+      {/* Tabs de vista */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {[
+          { key: 'preventas', label: '📦 Mis Preventas' },
+          { key: 'modelo',    label: '🗂️ Saldo por modelo' },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => setVista(tab.key)} style={{
+            padding: '8px 18px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'var(--font)', transition: 'all 0.15s',
+            background: vista === tab.key ? 'var(--brand-gradient)' : 'var(--surface)',
+            color: vista === tab.key ? '#fff' : 'var(--text2)',
+            border: vista === tab.key ? 'none' : '1px solid var(--border)',
+          }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {['todos', 'activa', 'completada', 'cancelada'].map(f => {
           const cfg = ESTADO_CONFIG[f]
@@ -443,11 +482,88 @@ export default function MisPreventas() {
         })}
       </div>
 
-      {loading ? (
+      {/* Vista: Saldo por modelo */}
+      {vista === 'modelo' && (
+        loading ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
+        ) : saldoPorModelo.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+            Sin datos para mostrar.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Resumen global */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+              {(() => {
+                const totalSaldoUnd = saldoPorModelo.reduce((s, m) => s + (m.cantTotal - m.cantRetirada), 0)
+                const totalSaldoMonto = saldoPorModelo.reduce((s, m) => s + (m.montoTotal - m.montoRetirado), 0)
+                const totalMonto = saldoPorModelo.reduce((s, m) => s + m.montoTotal, 0)
+                const totalRetirado = saldoPorModelo.reduce((s, m) => s + m.montoRetirado, 0)
+                return [
+                  { label: 'Modelos', value: saldoPorModelo.length, color: 'var(--text)', isNum: false },
+                  { label: 'Total comprado', value: formatPrecio(totalMonto), color: '#7b9fff', isNum: false },
+                  { label: 'Total retirado', value: formatPrecio(totalRetirado), color: '#3dd68c', isNum: false },
+                  { label: 'Saldo pendiente', value: formatPrecio(totalSaldoMonto), color: totalSaldoMonto > 0 ? '#ffd166' : 'var(--text3)', isNum: false },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>{label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'var(--font-display)' }}>{value}</div>
+                  </div>
+                ))
+              })()}
+            </div>
+
+            {/* Tabla de modelos */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface2)' }}>
+                      {['Producto / Modelo', 'Comprado', 'Retirado', 'Saldo ud.', 'Monto total', 'Monto retirado', 'Saldo $'].map((h, i) => (
+                        <th key={h} style={{ padding: '10px 16px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: i === 0 ? 'left' : 'right', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {saldoPorModelo.map(m => {
+                      const saldoQty = m.cantTotal - m.cantRetirada
+                      const saldoMonto = m.montoTotal - m.montoRetirado
+                      return (
+                        <tr key={m.codigo} style={{ borderTop: '1px solid var(--border)' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <td style={{ padding: '10px 16px' }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{m.nombre}</div>
+                            {m.modelo && m.modelo !== m.nombre && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{m.modelo}</div>}
+                            {m.codigo && <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#7b9fff' }}>{m.codigo}</div>}
+                          </td>
+                          <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--text2)', textAlign: 'right' }}>{m.cantTotal}</td>
+                          <td style={{ padding: '10px 16px', fontSize: 13, color: '#3dd68c', textAlign: 'right' }}>{m.cantRetirada}</td>
+                          <td style={{ padding: '10px 16px', fontSize: 14, fontWeight: 700, textAlign: 'right', color: saldoQty > 0 ? '#ffd166' : saldoQty < 0 ? '#ff5577' : 'var(--text3)' }}>
+                            {saldoQty > 0 ? `+${saldoQty}` : saldoQty}
+                          </td>
+                          <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(m.montoTotal)}</td>
+                          <td style={{ padding: '10px 16px', fontSize: 12, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(m.montoRetirado)}</td>
+                          <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap', color: saldoMonto > 0 ? '#ffd166' : saldoMonto < 0 ? '#ff5577' : 'var(--text3)' }}>
+                            {formatPrecio(saldoMonto)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* Vista: lista de preventas */}
+      {vista === 'preventas' && loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando preventas...</div>
-      ) : preventas.length === 0 ? (
+      ) : vista === 'preventas' && preventas.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>No hay preventas para mostrar.</div>
-      ) : (
+      ) : vista === 'preventas' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {preventas.map(pv => {
             const cfg = ESTADO_CONFIG[pv.estado] || ESTADO_CONFIG.activa
