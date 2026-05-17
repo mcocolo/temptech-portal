@@ -71,11 +71,17 @@ export default function AdminReportes() {
   const [filtroEstadoPv, setFiltroEstadoPv] = useState('activa')
   const [expandidoPv, setExpandidoPv] = useState(null)
 
+  // Saldo por modelo state
+  const [datosModelo, setDatosModelo] = useState([])
+  const [loadingModelo, setLoadingModelo] = useState(false)
+  const [filtroEstadoModelo, setFiltroEstadoModelo] = useState('activa')
+
   useEffect(() => {
     if (!isAdmin) return
     if (reporte === 'preventa') cargarPreventas()
+    else if (reporte === 'modelo') cargarPorModelo()
     else cargar()
-  }, [isAdmin, reporte, fechaDesde, fechaHasta, agrupacion, filtroEstadoPv])
+  }, [isAdmin, reporte, fechaDesde, fechaHasta, agrupacion, filtroEstadoPv, filtroEstadoModelo])
 
   async function cargar() {
     if (!fechaDesde || !fechaHasta) return
@@ -169,6 +175,60 @@ export default function AdminReportes() {
     setLoadingPv(false)
   }
 
+  async function cargarPorModelo() {
+    setLoadingModelo(true)
+    setDatosModelo([])
+
+    let q = supabase
+      .from('preventas')
+      .select('id, estado, items, distribuidor_id')
+      .neq('estado', 'cancelada')
+    if (filtroEstadoModelo !== 'todas') q = q.eq('estado', filtroEstadoModelo)
+
+    const { data: pvData } = await q
+    if (!pvData) { setLoadingModelo(false); return }
+
+    const ids = [...new Set(pvData.map(p => p.distribuidor_id).filter(Boolean))]
+    let distMap = {}
+    if (ids.length > 0) {
+      const { data: dists } = await supabase.from('profiles').select('id, full_name, razon_social').in('id', ids)
+      dists?.forEach(d => { distMap[d.id] = d })
+    }
+
+    // Agrupar por distribuidor → por modelo (codigo)
+    const porDist = {}
+    pvData.forEach(pv => {
+      const distId = pv.distribuidor_id || 'sin'
+      const dist = distMap[distId]
+      if (!porDist[distId]) porDist[distId] = { id: distId, nombre: dist?.razon_social || dist?.full_name || 'Sin nombre', modelos: {} }
+      ;(pv.items || []).forEach(item => {
+        const key = item.codigo || item.nombre
+        if (!key) return
+        if (!porDist[distId].modelos[key]) porDist[distId].modelos[key] = {
+          codigo: item.codigo, nombre: item.nombre, modelo: item.modelo,
+          cantTotal: 0, cantRetirada: 0, montoTotal: 0, montoRetirado: 0,
+        }
+        const m = porDist[distId].modelos[key]
+        m.cantTotal    += (item.cantidad_total    || 0)
+        m.cantRetirada += (item.cantidad_retirada || 0)
+        m.montoTotal   += (item.precio_unitario   || 0) * (item.cantidad_total    || 0)
+        m.montoRetirado+= (item.precio_unitario   || 0) * (item.cantidad_retirada || 0)
+      })
+    })
+
+    const resultado = Object.values(porDist)
+      .map(d => ({
+        ...d,
+        modelos: Object.values(d.modelos).sort((a, b) => a.nombre?.localeCompare(b.nombre)),
+        saldoTotal: Object.values(d.modelos).reduce((s, m) => s + m.montoTotal - m.montoRetirado, 0),
+      }))
+      .filter(d => d.modelos.length > 0)
+      .sort((a, b) => b.saldoTotal - a.saldoTotal)
+
+    setDatosModelo(resultado)
+    setLoadingModelo(false)
+  }
+
   if (!isAdmin || user?.email !== REPORTE_EMAIL) return null
 
   const maxMonto = datos.length > 0 ? Math.max(...datos.map(d => d.monto)) : 1
@@ -189,6 +249,7 @@ export default function AdminReportes() {
           { key: 'ventas',    label: '📈 Ventas por período' },
           { key: 'ranking',   label: '🏆 Ranking distribuidores' },
           { key: 'preventa',  label: '📦 Saldos de preventa' },
+          { key: 'modelo',    label: '🗂️ Saldo por modelo' },
         ].map(tab => (
           <button key={tab.key} onClick={() => setReporte(tab.key)} style={{
             padding: '9px 20px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 700,
@@ -205,23 +266,23 @@ export default function AdminReportes() {
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
 
-        {esPreventa ? (
-          // Filtro de estado para preventa
+        {(esPreventa || reporte === 'modelo') ? (
+          // Filtro de estado para preventa / modelo
           <>
             <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>Estado</span>
             <div style={{ display: 'flex', gap: 6 }}>
               {[{ k: 'activa', l: 'Activas' }, { k: 'completada', l: 'Completadas' }, { k: 'todas', l: 'Todas' }].map(op => (
-                <button key={op.k} onClick={() => setFiltroEstadoPv(op.k)} style={{
+                <button key={op.k} onClick={() => esPreventa ? setFiltroEstadoPv(op.k) : setFiltroEstadoModelo(op.k)} style={{
                   padding: '5px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
-                  background: filtroEstadoPv === op.k ? 'rgba(74,108,247,0.15)' : 'var(--surface2)',
-                  color: filtroEstadoPv === op.k ? '#7b9fff' : 'var(--text3)',
-                  border: filtroEstadoPv === op.k ? '1px solid rgba(74,108,247,0.4)' : '1px solid var(--border)',
+                  background: (esPreventa ? filtroEstadoPv : filtroEstadoModelo) === op.k ? 'rgba(74,108,247,0.15)' : 'var(--surface2)',
+                  color: (esPreventa ? filtroEstadoPv : filtroEstadoModelo) === op.k ? '#7b9fff' : 'var(--text3)',
+                  border: (esPreventa ? filtroEstadoPv : filtroEstadoModelo) === op.k ? '1px solid rgba(74,108,247,0.4)' : '1px solid var(--border)',
                 }}>
                   {op.l}
                 </button>
               ))}
             </div>
-            <button onClick={cargarPreventas} disabled={loadingPv} style={{ marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loadingPv ? 'not-allowed' : 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)', opacity: loadingPv ? 0.5 : 1 }}>
+            <button onClick={esPreventa ? cargarPreventas : cargarPorModelo} disabled={esPreventa ? loadingPv : loadingModelo} style={{ marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)' }}>
               🔄 Actualizar
             </button>
           </>
@@ -284,7 +345,17 @@ export default function AdminReportes() {
       </div>
 
       {/* Contenido */}
-      {esPreventa ? (
+      {reporte === 'modelo' ? (
+        loadingModelo ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
+        ) : datosModelo.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+            Sin datos para mostrar.
+          </div>
+        ) : (
+          <SaldoPorModelo datos={datosModelo} />
+        )
+      ) : esPreventa ? (
         loadingPv ? (
           <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
         ) : datosPv.length === 0 ? (
@@ -584,6 +655,89 @@ function SaldosPreventa({ datos, expandido, setExpandido }) {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ── Saldo por modelo ────────────────────────────────────────────────────────
+
+function SaldoPorModelo({ datos }) {
+  const totalSaldo = datos.reduce((s, d) => s + d.saldoTotal, 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Resumen global */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Distribuidores</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>{datos.length}</div>
+        </div>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Saldo pendiente total</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#ffd166', fontFamily: 'var(--font-display)' }}>{formatPrecio(totalSaldo)}</div>
+        </div>
+      </div>
+
+      {/* Una card por distribuidor */}
+      {datos.map(dist => {
+        const saldoUnidades = dist.modelos.reduce((s, m) => s + (m.cantTotal - m.cantRetirada), 0)
+        return (
+          <div key={dist.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+            {/* Header distribuidor */}
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{dist.nombre}</div>
+              <div style={{ display: 'flex', gap: 20 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' }}>Saldo unidades</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: saldoUnidades > 0 ? '#ffd166' : saldoUnidades < 0 ? '#ff5577' : 'var(--text3)' }}>{saldoUnidades > 0 ? `+${saldoUnidades}` : saldoUnidades}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' }}>Saldo $</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: dist.saldoTotal > 0 ? '#ffd166' : dist.saldoTotal < 0 ? '#ff5577' : 'var(--text3)' }}>{formatPrecio(dist.saldoTotal)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla de modelos */}
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--surface2)' }}>
+                  {['Producto / Modelo', 'Comprado', 'Retirado', 'Saldo ud.', 'Monto total', 'Monto retirado', 'Saldo $'].map((h, i) => (
+                    <th key={h} style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: i === 0 ? 'left' : 'right', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dist.modelos.map(m => {
+                  const saldoQty = m.cantTotal - m.cantRetirada
+                  const saldoMonto = m.montoTotal - m.montoRetirado
+                  return (
+                    <tr key={m.codigo} style={{ borderTop: '1px solid var(--border)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '10px 16px' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{m.nombre}</div>
+                        {m.modelo && m.modelo !== m.nombre && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{m.modelo}</div>}
+                        {m.codigo && <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#7b9fff' }}>{m.codigo}</div>}
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--text2)', textAlign: 'right' }}>{m.cantTotal}</td>
+                      <td style={{ padding: '10px 16px', fontSize: 13, color: '#3dd68c', textAlign: 'right' }}>{m.cantRetirada}</td>
+                      <td style={{ padding: '10px 16px', fontSize: 14, fontWeight: 700, textAlign: 'right', color: saldoQty > 0 ? '#ffd166' : saldoQty < 0 ? '#ff5577' : 'var(--text3)' }}>
+                        {saldoQty > 0 ? `+${saldoQty}` : saldoQty}
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text2)', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(m.montoTotal)}</td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(m.montoRetirado)}</td>
+                      <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap', color: saldoMonto > 0 ? '#ffd166' : saldoMonto < 0 ? '#ff5577' : 'var(--text3)' }}>
+                        {formatPrecio(saldoMonto)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
     </div>
   )
 }
