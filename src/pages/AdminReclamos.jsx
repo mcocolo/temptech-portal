@@ -786,7 +786,7 @@ export default function AdminReclamos({ openTracking } = {}) {
     if (error) { alert('No se pudo rechazar el caso'); return }
 
     try {
-      const respRechazo = await fetch('https://vite-latest-temptech-rma.vercel.app/api/enviar-rechazo', {
+      const respRechazo = await fetch('/api/enviar-rechazo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
