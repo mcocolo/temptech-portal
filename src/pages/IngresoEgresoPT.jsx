@@ -207,7 +207,7 @@ export default function IngresoEgresoPT() {
     const { data } = await supabase
       .from('pedidos')
       .select('*, profiles!distribuidor_id(full_name, razon_social, email)')
-      .in('estado', ['enviado', 'entregado'])
+      .in('estado', ['aprobado', 'preparando', 'enviado', 'entregado'])
       .or('stock_descontado.is.null,stock_descontado.eq.false')
       .order('created_at', { ascending: false })
     setPedidos(data || [])
