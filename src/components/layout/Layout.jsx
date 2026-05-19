@@ -54,6 +54,7 @@ const ADMIN_NAV = [
   { label: 'Reportes',           icon: BarChart2,  path: '/reportes',           isAdmin: true },
   { section: 'PostVenta' },
   { label: 'Servicios Técnicos', icon: Wrench, path: '/admin-tecnicos', isAdmin: true },
+  { label: 'Videos Técnicos',   icon: Video, path: '/videos-tecnicos', isAdmin: true },
   { label: 'Repuestos', icon: Package, path: '/repuestos', isAdmin: true },
   { label: 'Ingreso en Tránsito', icon: Archive, isAdmin: true, submenu: 'transito', children: [
     { label: 'Mercado Libre', icon: ShoppingBag, path: '/ingreso-transito/meli' },
@@ -116,6 +117,7 @@ const NAV_TECNICO = [
   { label: 'Foro de Consultas',            icon: MessageSquare,   path: '/foro' },
   { section: 'Service' },
   { label: 'Service / Garantía',           icon: AlertTriangle,   path: '/reclamos' },
+  { label: 'Videos Técnicos',             icon: Video,           path: '/videos-tecnicos' },
   { label: 'Repuestos',                    icon: Package,         path: '/repuestos' },
   { section: 'Recursos' },
   { label: 'Videos',                       icon: Video,           path: '/videos' },

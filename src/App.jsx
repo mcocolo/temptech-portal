@@ -38,6 +38,7 @@ import MisPreventas from '@/pages/MisPreventas'
 import AdminReportes from '@/pages/AdminReportes'
 import Presupuesto from '@/pages/Presupuesto'
 import Repuestos from '@/pages/Repuestos'
+import VideosTecnicos from '@/pages/VideosTecnicos'
 
 
 
@@ -108,6 +109,7 @@ function AppRoutes() {
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
               <Route path="/reportes"                   element={<AdminReportes />} />
               <Route path="/repuestos"                  element={<Repuestos />} />
+              <Route path="/videos-tecnicos"            element={<VideosTecnicos />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal key="meli" />} />
               <Route path="/pedidos-pagina"            element={<PedidosCanal key="pagina" />} />
               <Route path="/pedidos-vo"                element={<PedidosCanal key="vo" />} />
