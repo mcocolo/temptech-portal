@@ -53,7 +53,7 @@ export default function AdminDevoluciones() {
     const { data, error } = await supabase
       .from('devoluciones')
       .select('*, profiles(full_name, razon_social, email)')
-      .or('distribuidor_id.not.is.null,origen.eq.garantia')
+      .or('distribuidor_id.not.is.null,origen.eq.garantia,origen.eq.service')
       .order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar devoluciones')
     else setDevoluciones(data || [])
@@ -109,8 +109,8 @@ export default function AdminDevoluciones() {
   }
 
   async function marcarRecibido(dev) {
-    // Garantia returns: just mark received — stock ingress happens in Ingreso/Egreso PT
-    if (dev.origen !== 'garantia') {
+    // Garantia/service returns: just mark received — stock ingress handled elsewhere
+    if (dev.origen !== 'garantia' && dev.origen !== 'service') {
       for (const item of (dev.items || [])) {
         if (!item.codigo || !item.cantidad) continue
         const { data: st } = await supabase.from('stock_pt').select('stock_actual, stock_inicial, nombre, modelo, categoria').eq('codigo', item.codigo).single()
@@ -207,9 +207,9 @@ export default function AdminDevoluciones() {
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: scfg.bg, color: scfg.color, border: `1px solid ${scfg.border}` }}>{scfg.label}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: tcfg.bg, color: tcfg.color, border: `1px solid ${tcfg.border}` }}>{tcfg.emoji} {tcfg.label}</span>
-                  {dev.origen === 'garantia' && (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: esService(dev) ? 'rgba(251,146,60,0.12)' : 'rgba(167,139,250,0.12)', color: esService(dev) ? '#fb923c' : '#b39dfa', border: `1px solid ${esService(dev) ? 'rgba(251,146,60,0.35)' : 'rgba(167,139,250,0.35)'}` }}>
-                      {esService(dev) ? '🔧 Service' : '🔧 Garantía'}
+                  {(dev.origen === 'garantia' || dev.origen === 'service') && (
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: (dev.origen === 'service' || esService(dev)) ? 'rgba(251,146,60,0.12)' : 'rgba(167,139,250,0.12)', color: (dev.origen === 'service' || esService(dev)) ? '#fb923c' : '#b39dfa', border: `1px solid ${(dev.origen === 'service' || esService(dev)) ? 'rgba(251,146,60,0.35)' : 'rgba(167,139,250,0.35)'}` }}>
+                      {(dev.origen === 'service' || esService(dev)) ? '🔧 Service' : '🔧 Garantía'}
                     </span>
                   )}
                   <span style={{ fontSize: 12, color: 'var(--text3)', marginLeft: 'auto' }}>
@@ -219,15 +219,15 @@ export default function AdminDevoluciones() {
 
                 {/* Distribuidor o cliente garantía */}
                 <div style={{ padding: '0 20px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: dev.origen === 'garantia' ? 'linear-gradient(135deg,#b39dfa,#7c3aed)' : 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                    {(dev.origen === 'garantia' ? (dev.referencia_nombre || 'G') : (dist?.razon_social || dist?.full_name || '?'))[0].toUpperCase()}
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: (dev.origen === 'garantia' || dev.origen === 'service') ? 'linear-gradient(135deg,#b39dfa,#7c3aed)' : 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                    {((dev.origen === 'garantia' || dev.origen === 'service') ? (dev.referencia_nombre || 'S') : (dist?.razon_social || dist?.full_name || '?'))[0].toUpperCase()}
                   </div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>
-                      {dev.origen === 'garantia' ? (dev.referencia_nombre || 'Cliente garantía') : (dist?.razon_social || dist?.full_name || '—')}
+                      {(dev.origen === 'garantia' || dev.origen === 'service') ? (dev.referencia_nombre || 'Cliente service') : (dist?.razon_social || dist?.full_name || '—')}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                      {dev.origen === 'garantia'
+                      {(dev.origen === 'garantia' || dev.origen === 'service')
                         ? (() => {
                             const tracking = dev.notas?.match(/Reclamo (DEV-[\w-]+)/)?.[1]
                             return tracking
