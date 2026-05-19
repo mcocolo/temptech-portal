@@ -205,6 +205,8 @@ export default function Reclamos() {
     if (!form.producto) return toast.error('Seleccioná el producto')
     if (!form.motivo)   return toast.error('Seleccioná el motivo')
     if (!form.descripcion_falla.trim()) return toast.error('Describí la falla')
+    if (form.imagenes.length === 0) return toast.error('Adjuntá al menos una foto del producto')
+    if (form.comprobantes.length === 0) return toast.error('Adjuntá el comprobante de compra')
 
     setSubmitting(true)
     try {
@@ -904,11 +906,11 @@ export default function Reclamos() {
         {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ padding: '12px 16px', background: 'rgba(110,181,255,0.08)', border: '1px solid rgba(110,181,255,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--text2)' }}>
-              📎 Adjuntá fotos del producto y el comprobante de compra para agilizar el proceso.
+              📎 Adjuntá fotos del producto y el comprobante de compra. Ambos son <strong>obligatorios</strong> para procesar el caso.
             </div>
 
             {/* Fotos del producto */}
-            <Field label="Fotos del producto (opcional)">
+            <Field label="Fotos del producto *">
               {form.imagenes.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   {form.imagenes.map((f, i) => (
@@ -926,7 +928,7 @@ export default function Reclamos() {
             </Field>
 
             {/* Comprobante de compra */}
-            <Field label="Comprobante de compra (opcional)">
+            <Field label="Comprobante de compra *">
               {form.comprobantes.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   {form.comprobantes.map((f, i) => (
