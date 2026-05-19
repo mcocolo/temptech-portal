@@ -44,7 +44,7 @@ export default function AdminDevoluciones() {
   const [serviceNotas, setServiceNotas] = useState('')
   const [guardandoService, setGuardandoService] = useState(false)
 
-  const esService = dev => dev.origen === 'garantia' && dev.dias_garantia != null && dev.dias_garantia > 365
+  const esService = dev => dev.origen === 'service' || (dev.origen === 'garantia' && dev.dias_garantia != null && dev.dias_garantia > 365)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -333,8 +333,8 @@ export default function AdminDevoluciones() {
                         confirmRecibido === dev.id ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: 13, width: '100%' }}>
                             <span style={{ flex: 1, color: '#38bdf8' }}>
-                              {dev.origen === 'garantia'
-                                ? '¿Confirmar recepción? El stock se procesará en Ingreso/Egreso PT.'
+                              {(dev.origen === 'garantia' || dev.origen === 'service')
+                                ? '¿Confirmar recepción? El stock se procesará por separado.'
                                 : '¿Confirmar recepción? Se re-ingresará el stock automáticamente.'}
                             </span>
                             <button onClick={() => marcarRecibido(dev)} disabled={guardando}
