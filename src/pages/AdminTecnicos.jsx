@@ -10,38 +10,48 @@ const inputSt = {
   fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box',
 }
 
-const PROVINCIAS = [
-  'Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba',
-  'Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja',
-  'Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan',
-  'San Luis','Santa Cruz','Santa Fe','Santiago del Estero',
-  'Tierra del Fuego','Tucumán',
-]
-
 function ZonaSelector({ value, onChange }) {
-  const selected = value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
-  function toggle(prov) {
-    const next = selected.includes(prov)
-      ? selected.filter(p => p !== prov)
-      : [...selected, prov]
-    onChange(next.join(', '))
+  const [input, setInput] = useState('')
+  const tags = value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
+
+  function addTag(raw) {
+    const tag = raw.trim()
+    if (!tag || tags.includes(tag)) { setInput(''); return }
+    onChange([...tags, tag].join(', '))
+    setInput('')
   }
+
+  function removeTag(tag) {
+    onChange(tags.filter(t => t !== tag).join(', '))
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addTag(input)
+    } else if (e.key === 'Backspace' && !input && tags.length) {
+      removeTag(tags[tags.length - 1])
+    }
+  }
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {PROVINCIAS.map(p => {
-        const active = selected.includes(p)
-        return (
-          <button key={p} type="button" onClick={() => toggle(p)} style={{
-            padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: active ? 700 : 400,
-            cursor: 'pointer', transition: 'all .15s', fontFamily: 'var(--font)',
-            background: active ? 'rgba(45,212,191,0.15)' : 'var(--surface2)',
-            border: `1px solid ${active ? 'rgba(45,212,191,0.5)' : 'var(--border)'}`,
-            color: active ? '#2dd4bf' : 'var(--text3)',
-          }}>
-            {p}
-          </button>
-        )
-      })}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', minHeight: 42, cursor: 'text' }}
+      onClick={e => e.currentTarget.querySelector('input')?.focus()}
+    >
+      {tags.map(tag => (
+        <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.4)', color: '#2dd4bf', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {tag}
+          <button type="button" onClick={() => removeTag(tag)} style={{ background: 'none', border: 'none', color: '#2dd4bf', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center' }}>×</button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => input.trim() && addTag(input)}
+        placeholder={tags.length === 0 ? 'Ej: Lanús, Quilmes, GBA Sur… (Enter para agregar)' : ''}
+        style={{ border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', minWidth: 180, flex: 1 }}
+      />
     </div>
   )
 }
