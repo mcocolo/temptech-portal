@@ -10,6 +10,42 @@ const inputSt = {
   fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box',
 }
 
+const PROVINCIAS = [
+  'Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba',
+  'Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja',
+  'Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan',
+  'San Luis','Santa Cruz','Santa Fe','Santiago del Estero',
+  'Tierra del Fuego','Tucumán',
+]
+
+function ZonaSelector({ value, onChange }) {
+  const selected = value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
+  function toggle(prov) {
+    const next = selected.includes(prov)
+      ? selected.filter(p => p !== prov)
+      : [...selected, prov]
+    onChange(next.join(', '))
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {PROVINCIAS.map(p => {
+        const active = selected.includes(p)
+        return (
+          <button key={p} type="button" onClick={() => toggle(p)} style={{
+            padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: active ? 700 : 400,
+            cursor: 'pointer', transition: 'all .15s', fontFamily: 'var(--font)',
+            background: active ? 'rgba(45,212,191,0.15)' : 'var(--surface2)',
+            border: `1px solid ${active ? 'rgba(45,212,191,0.5)' : 'var(--border)'}`,
+            color: active ? '#2dd4bf' : 'var(--text3)',
+          }}>
+            {p}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AdminTecnicos() {
   const { isAdmin, isAdmin2 } = useAuth()
   const [tecnicos, setTecnicos] = useState([])
@@ -27,7 +63,7 @@ export default function AdminTecnicos() {
     setLoading(true)
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, razon_social, telefono, localidad, provincia, domicilio, created_at')
+      .select('id, email, full_name, razon_social, telefono, localidad, provincia, domicilio, zona_cobertura, created_at')
       .eq('user_type', 'tecnico')
       .order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar')
@@ -36,7 +72,7 @@ export default function AdminTecnicos() {
   }
 
   function abrirEdicion(t) {
-    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '', domicilio: t.domicilio || '' })
+    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '', domicilio: t.domicilio || '', zona_cobertura: t.zona_cobertura || '' })
     setEditando(t.id)
   }
 
@@ -49,6 +85,7 @@ export default function AdminTecnicos() {
       localidad: editForm.localidad.trim() || null,
       provincia: editForm.provincia.trim() || null,
       domicilio: editForm.domicilio.trim() || null,
+      zona_cobertura: editForm.zona_cobertura.trim() || null,
     }).eq('id', id)
     if (error) {
       toast.error('Error al guardar')
@@ -119,6 +156,15 @@ export default function AdminTecnicos() {
                       {(t.localidad || t.provincia) && <span>📍 {[t.localidad, t.provincia].filter(Boolean).join(', ')}</span>}
                       {t.domicilio && <span>🏠 {t.domicilio}</span>}
                     </div>
+                    {t.zona_cobertura && (
+                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {t.zona_cobertura.split(',').map(z => z.trim()).filter(Boolean).map(z => (
+                          <span key={z} style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.3)', color: '#2dd4bf' }}>
+                            🗺️ {z}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                       Registrado: {new Date(t.created_at).toLocaleDateString('es-AR')}
                     </div>
@@ -167,6 +213,10 @@ export default function AdminTecnicos() {
                     <div style={{ gridColumn: '1 / -1' }}>
                       <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Dirección</label>
                       <input value={editForm.domicilio} onChange={e => setEditForm(p => ({ ...p, domicilio: e.target.value }))} placeholder="Ej: Av. Corrientes 1234, CABA" style={inputSt} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>🗺️ Zona de cobertura</label>
+                      <ZonaSelector value={editForm.zona_cobertura} onChange={val => setEditForm(p => ({ ...p, zona_cobertura: val }))} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>

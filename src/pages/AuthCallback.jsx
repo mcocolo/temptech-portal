@@ -232,7 +232,7 @@ export default function AuthCallback() {
     }).eq('id', googleUser.id)
 
     // Insertar en clientes
-    const { error } = await supabase.from('clientes').upsert({
+    const clienteData = {
       profile_id: googleUser.id,
       user_type:  userType,
       full_name:  googleUser.full_name,
@@ -245,12 +245,18 @@ export default function AuthCallback() {
         razon_social: razonSocial,
         cuit,
       }),
-    }, { onConflict: 'profile_id' })
+    }
 
-    if (error) {
-      toast.error('Error al guardar los datos')
-      setSaving(false)
-      return
+    const { error: insertErr } = await supabase.from('clientes').insert(clienteData)
+
+    if (insertErr) {
+      // Si ya existe (código 23505 = duplicate key), actualizar
+      if (insertErr.code === '23505' || insertErr.message?.includes('duplicate')) {
+        await supabase.from('clientes').update(clienteData).eq('profile_id', googleUser.id)
+      } else {
+        console.error('clientes insert error:', insertErr)
+        // Los datos principales ya se guardaron en profiles — continuar igual
+      }
     }
 
     toast.success('¡Bienvenido a TEMPTECH!')
