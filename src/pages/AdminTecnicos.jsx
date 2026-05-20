@@ -82,7 +82,7 @@ export default function AdminTecnicos() {
   }
 
   function abrirEdicion(t) {
-    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '', domicilio: t.domicilio || '', zona_cobertura: t.zona_cobertura || '' })
+    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', email: t.email || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '', domicilio: t.domicilio || '', zona_cobertura: t.zona_cobertura || '' })
     setEditando(t.id)
   }
 
@@ -94,6 +94,7 @@ export default function AdminTecnicos() {
       telefono: editForm.telefono.trim() || null,
       localidad: editForm.localidad.trim() || null,
       provincia: editForm.provincia.trim() || null,
+      email: editForm.email.trim() || null,
       domicilio: editForm.domicilio.trim() || null,
       zona_cobertura: editForm.zona_cobertura.trim() || null,
     }).eq('id', id)
@@ -207,6 +208,10 @@ export default function AdminTecnicos() {
                     <div>
                       <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Razón social / Empresa</label>
                       <input value={editForm.razon_social} onChange={e => setEditForm(p => ({ ...p, razon_social: e.target.value }))} placeholder="Ej: Giga Service" style={inputSt} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Email</label>
+                      <input value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} placeholder="correo@ejemplo.com" type="email" style={inputSt} />
                     </div>
                     <div>
                       <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Teléfono</label>
