@@ -714,6 +714,7 @@ export default function ClientesRegistrados() {
     return lista.filter(u =>
       u.full_name?.toLowerCase().includes(q) ||
       u.email?.toLowerCase().includes(q) ||
+      u.razon_social?.toLowerCase().includes(q) ||
       u.clientes?.razon_social?.toLowerCase().includes(q) ||
       u.clientes?.client_code?.toLowerCase().includes(q)
     )
