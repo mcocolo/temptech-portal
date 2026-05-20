@@ -124,6 +124,7 @@ export default function AdminPrecios() {
       precio,
       nombre: editando.nombre.trim(),
       modelo: editando.modelo?.trim() || '',
+      categoria: editando.categoria,
       updated_at: new Date().toISOString()
     }).eq('codigo', editando.codigo)
     if (error) { toast.error('Error al guardar'); return }
@@ -361,9 +362,21 @@ export default function AdminPrecios() {
                       ) : p.modelo}
                     </td>
                     <td style={{ padding: '10px 16px' }}>
-                      <span style={{ fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 4, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
-                        {CATEGORIAS[p.categoria] || p.categoria}
-                      </span>
+                      {editando?.codigo === p.codigo ? (
+                        <select
+                          value={editando.categoria}
+                          onChange={e => setEditando(prev => ({ ...prev, categoria: e.target.value }))}
+                          style={{ background: 'var(--surface3)', border: '1px solid rgba(74,108,247,0.5)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 12, outline: 'none', fontFamily: 'var(--font)' }}
+                        >
+                          {Object.entries(CATEGORIAS).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 4, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                          {CATEGORIAS[p.categoria] || p.categoria}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '10px 16px' }}>
                       {editando?.codigo === p.codigo ? (
@@ -396,7 +409,7 @@ export default function AdminPrecios() {
                         </div>
                       ) : isAdmin ? (
                         <button
-                          onClick={() => setEditando({ codigo: p.codigo, precio: p.precio.toString(), nombre: p.nombre, modelo: p.modelo || '' })}
+                          onClick={() => setEditando({ codigo: p.codigo, precio: p.precio.toString(), nombre: p.nombre, modelo: p.modelo || '', categoria: p.categoria })}
                           style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = '#7b9fff'; e.currentTarget.style.color = '#7b9fff' }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text3)' }}
