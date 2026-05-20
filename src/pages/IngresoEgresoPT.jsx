@@ -914,6 +914,12 @@ export default function IngresoEgresoPT() {
   const todosProductos = todosProductosFlat
   const filtrados = catFilter ? CATALOGO.filter(c => c.categoria === catFilter) : CATALOGO
 
+  const codigosEnCatalogo = new Set(todosProductosFlat.map(p => p.codigo))
+  const productosExtra = Object.values(stock)
+    .filter(s => !codigosEnCatalogo.has(s.codigo))
+    .filter(s => !catFilter || s.categoria === catFilter)
+    .sort((a, b) => (a.categoria || '').localeCompare(b.categoria || '') || (a.nombre || '').localeCompare(b.nombre || ''))
+
   const totalProductos = todosProductos.length
   const conStock = Object.values(stock).filter(s => s.stock_actual > 0).length
   const sinStock = Object.values(stock).filter(s => s.stock_actual === 0 && s.stock_inicial > 0).length
@@ -1254,6 +1260,64 @@ export default function IngresoEgresoPT() {
               </div>
             )
           })}
+
+          {/* Productos fuera del catálogo (ej: artículos de 2da selección) */}
+          {productosExtra.length > 0 && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: 20, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 20px', background: 'rgba(167,139,250,0.08)', borderBottom: '1px solid rgba(167,139,250,0.25)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>📦</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#b39dfa' }}>Otros / 2da selección</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {productosExtra.map((s, i) => {
+                  const actual = s.stock_actual ?? '—'
+                  const inicial = s.stock_inicial ?? '—'
+                  const bajo = typeof actual === 'number' && actual <= 5 && actual > 0
+                  const agotado = typeof actual === 'number' && actual === 0 && s.stock_inicial > 0
+                  const p = { codigo: s.codigo, nombre: s.nombre || s.codigo, modelo: s.modelo || '', categoria: s.categoria || '' }
+                  return (
+                    <div key={p.codigo} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', padding: '12px 16px', background: agotado ? 'rgba(255,85,119,0.04)' : bajo ? 'rgba(255,165,0,0.04)' : 'transparent', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#b39dfa', fontFamily: 'monospace', background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 5, padding: '2px 7px' }}>{p.codigo}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{p.nombre}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text3)' }}>{p.modelo}</span>
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 1 }}>Inicial</div>
+                            <div style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 600 }}>{inicial}</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 1 }}>Actual</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontWeight: 800, fontSize: 16, color: agotado ? '#ff5577' : bajo ? '#fb923c' : typeof actual === 'number' ? '#3dd68c' : 'var(--text3)' }}>{actual}</span>
+                              {agotado && <span style={{ fontSize: 9, background: 'rgba(255,85,119,0.15)', color: '#ff5577', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>AGOTADO</span>}
+                              {bajo && <span style={{ fontSize: 9, background: 'rgba(251,146,60,0.15)', color: '#fb923c', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>BAJO</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {isAdmin && (
+                          <button onClick={() => { setSProducto(p); setSCantidad(s.stock_inicial ? String(s.stock_inicial) : ''); setModalStock(true) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#b39dfa', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            📦 Stock Inicial
+                          </button>
+                        )}
+                        <button onClick={() => { setIProducto(p); setICantidad(''); setIObs(''); setModalIngreso(true) }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(61,214,140,0.08)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          <ArrowDownCircle size={12} /> Ingreso
+                        </button>
+                        <button onClick={() => { setEProducto(p); setECantidad(''); setEObs(''); setECanal('Distribuidor'); setModalEgreso(true) }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          <ArrowUpCircle size={12} /> Egreso
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </>
       ) : view === 'egreso-dev' ? (
         /* EGRESO DEVOLUCIONES (egresos_garantia estado=enviado) */
