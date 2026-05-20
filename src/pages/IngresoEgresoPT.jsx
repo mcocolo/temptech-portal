@@ -622,7 +622,7 @@ export default function IngresoEgresoPT() {
   // ─────────────────────────────────────────────────────────
 
   function imprimirCategoria(categoriaKey) {
-    const cat = CATALOGO.find(c => c.categoria === categoriaKey)
+    const cat = catalogoDinamico.find(c => c.categoria === categoriaKey)
     if (!cat) return
     const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })
     const rows = cat.productos.map(p => {
@@ -910,15 +910,41 @@ export default function IngresoEgresoPT() {
     cargar()
   }
 
-  const todosProductosFlat = CATALOGO.flatMap(c => c.productos.map(p => ({ ...p, categoria: c.categoria, catLabel: c.label, catEmoji: c.emoji })))
-  const todosProductos = todosProductosFlat
-  const filtrados = catFilter ? CATALOGO.filter(c => c.categoria === catFilter) : CATALOGO
+  const catalogoDinamico = (() => {
+    const catMap = {}
+    const codigosEnPrecios = new Set()
+    // 1. Products from the precios table
+    for (const p of preciosDB) {
+      const cat = p.categoria || 'otros'
+      if (!catMap[cat]) catMap[cat] = []
+      catMap[cat].push({ codigo: p.codigo, nombre: p.nombre, modelo: p.modelo || '' })
+      codigosEnPrecios.add(p.codigo)
+    }
+    // 2. Products in stock_pt that are NOT in precios (e.g. 2da selección added manually)
+    for (const s of Object.values(stock)) {
+      if (!codigosEnPrecios.has(s.codigo)) {
+        const cat = s.categoria || 'otros'
+        if (!catMap[cat]) catMap[cat] = []
+        catMap[cat].push({ codigo: s.codigo, nombre: s.nombre || s.codigo, modelo: s.modelo || '' })
+      }
+    }
+    if (Object.keys(catMap).length === 0) return CATALOGO
+    const catOrder = CATALOGO.map(c => c.categoria)
+    return Object.entries(catMap)
+      .sort(([a], [b]) => {
+        const ai = catOrder.indexOf(a), bi = catOrder.indexOf(b)
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+      })
+      .map(([catKey, prods]) => {
+        const meta = CATALOGO.find(c => c.categoria === catKey) || { label: catKey === 'otros' ? 'Otros / 2da selección' : catKey, emoji: '📦' }
+        return { categoria: catKey, label: meta.label, emoji: meta.emoji, productos: prods }
+      })
+  })()
 
-  const codigosEnCatalogo = new Set(todosProductosFlat.map(p => p.codigo))
-  const productosExtra = Object.values(stock)
-    .filter(s => !codigosEnCatalogo.has(s.codigo))
-    .filter(s => !catFilter || s.categoria === catFilter)
-    .sort((a, b) => (a.categoria || '').localeCompare(b.categoria || '') || (a.nombre || '').localeCompare(b.nombre || ''))
+  const todosProductosFlat = catalogoDinamico.flatMap(c => c.productos.map(p => ({ ...p, categoria: c.categoria, catLabel: c.label, catEmoji: c.emoji })))
+  const todosProductos = todosProductosFlat
+  const filtrados = catFilter ? catalogoDinamico.filter(c => c.categoria === catFilter) : catalogoDinamico
+  const productosExtra = [] // now merged into catalogoDinamico
 
   const totalProductos = todosProductos.length
   const conStock = Object.values(stock).filter(s => s.stock_actual > 0).length
@@ -1176,13 +1202,13 @@ export default function IngresoEgresoPT() {
             <button onClick={() => setCatFilter('')} style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${!catFilter ? 'rgba(255,255,255,0.3)' : 'var(--border)'}`, background: !catFilter ? 'rgba(255,255,255,0.07)' : 'transparent', color: !catFilter ? 'var(--text)' : 'var(--text3)', fontWeight: !catFilter ? 600 : 400, fontFamily: 'var(--font)' }}>
               📦 Todos
             </button>
-            {CATALOGO.map(c => { const cc = CAT_COLORS[c.categoria]; return (
+            {catalogoDinamico.map(c => { const cc = CAT_COLORS[c.categoria] || { color: '#b39dfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' }; return (
               <button key={c.categoria} onClick={() => setCatFilter(catFilter === c.categoria ? '' : c.categoria)} style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${catFilter === c.categoria ? cc.border : 'var(--border)'}`, background: catFilter === c.categoria ? cc.bg : 'transparent', color: catFilter === c.categoria ? cc.color : 'var(--text3)', fontWeight: catFilter === c.categoria ? 600 : 400, fontFamily: 'var(--font)' }}>
                 {c.emoji} {c.label}
               </button>
             )})}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {CATALOGO.map(c => (
+              {catalogoDinamico.map(c => (
                 <button key={c.categoria} onClick={() => imprimirCategoria(c.categoria)}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontFamily: 'var(--font)' }}>
                   🖨️ {c.label}
@@ -1193,7 +1219,7 @@ export default function IngresoEgresoPT() {
 
           {/* Tabla de stock */}
           {filtrados.map(cat => {
-            const cc = CAT_COLORS[cat.categoria]
+            const cc = CAT_COLORS[cat.categoria] || { color: '#b39dfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' }
             return (
               <div key={cat.categoria} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: 20, overflow: 'hidden' }}>
                 <div style={{ padding: '14px 20px', background: cc.bg, borderBottom: `1px solid ${cc.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1464,7 +1490,7 @@ export default function IngresoEgresoPT() {
                                 return acc
                               }, {})
                             ).map(([cat, prods]) => (
-                              <optgroup key={cat} label={CATALOGO.find(c => c.categoria === cat)?.label || cat}>
+                              <optgroup key={cat} label={catalogoDinamico.find(c => c.categoria === cat)?.label || cat}>
                                 {prods.map(p => (
                                   <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.nombre} {p.modelo}</option>
                                 ))}
@@ -1687,8 +1713,8 @@ export default function IngresoEgresoPT() {
           })()}
 
           {/* Products table with editable stock_minimo */}
-          {CATALOGO.map(cat => {
-            const cc = CAT_COLORS[cat.categoria]
+          {catalogoDinamico.map(cat => {
+            const cc = CAT_COLORS[cat.categoria] || { color: '#b39dfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' }
             return (
               <div key={cat.categoria} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: 20, overflow: 'hidden' }}>
                 <div style={{ padding: '12px 20px', background: cc.bg, borderBottom: `1px solid ${cc.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2361,7 +2387,7 @@ export default function IngresoEgresoPT() {
                         setPrEditItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: p?.nombre || '', modelo: p?.modelo || '', categoria: p?.categoria || '' } : x))
                       }} style={{ ...inputSt, cursor: 'pointer' }}>
                         <option value="">— Producto —</option>
-                        {CATALOGO.map(cat => (
+                        {catalogoDinamico.map(cat => (
                           <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
                             {cat.productos.map(p => (
                               <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre} {p.modelo}</option>
@@ -2435,7 +2461,7 @@ export default function IngresoEgresoPT() {
                         setPrItems(prev => prev.map((x, j) => j === i ? { ...x, codigo: e.target.value, nombre: p?.nombre || '', modelo: p?.modelo || '', categoria: p?.categoria || '' } : x))
                       }} style={{ ...inputSt, cursor: 'pointer' }}>
                         <option value="">— Producto —</option>
-                        {CATALOGO.map(cat => (
+                        {catalogoDinamico.map(cat => (
                           <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
                             {cat.productos.map(p => (
                               <option key={p.codigo} value={p.codigo}>
@@ -2649,7 +2675,7 @@ export default function IngresoEgresoPT() {
                             style={{ ...inputSt, flex: 1 }}
                           >
                             <option value="">— Seleccioná producto —</option>
-                            {CATALOGO.map(cat => (
+                            {catalogoDinamico.map(cat => (
                               <optgroup key={cat.categoria} label={`${cat.emoji} ${cat.label}`}>
                                 {cat.productos.map(p => (
                                   <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre} {p.modelo}</option>
