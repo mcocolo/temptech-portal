@@ -704,7 +704,8 @@ export default function AdminReclamos({ openTracking } = {}) {
 
   function armarLineaNota(tipo, texto) {
     const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-    return `${fecha} - ${tipo}: ${texto || ''}`.trim()
+    const autor = profile?.full_name || user?.email || 'Admin'
+    return `${fecha} - ${autor} - ${tipo}: ${texto || ''}`.trim()
   }
   function unirNotas(n, l) { return (!n || !n.trim()) ? l : `${n}\n${l}` }
 
@@ -1052,8 +1053,7 @@ export default function AdminReclamos({ openTracking } = {}) {
   async function guardarNotaInterna(item) {
     const texto = (notasInternas[item.id] || '').trim()
     if (!texto) { alert('Escribí una nota interna antes de guardar'); return }
-    const autorNota = profile?.full_name || user?.email || 'INTERNO'
-    const nuevaNota = armarLineaNota(autorNota, texto)
+    const nuevaNota = armarLineaNota('NOTA INTERNA', texto)
     const { error } = await supabase.from('devoluciones').update({ notas_internas: unirNotas(item.notas_internas, nuevaNota) }).eq('id', item.id)
     if (error) { alert('Error al guardar la nota interna'); return }
     setNotasInternas(prev => ({ ...prev, [item.id]: '' }))
