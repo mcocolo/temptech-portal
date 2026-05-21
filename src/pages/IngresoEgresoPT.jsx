@@ -135,6 +135,10 @@ export default function IngresoEgresoPT() {
   const [editCantidad, setEditCantidad]       = useState('')
   const [editObs, setEditObs]                 = useState('')
   const [guardandoEditMov, setGuardandoEditMov] = useState(false)
+  const [confirmEliminarMov, setConfirmEliminarMov] = useState(false)
+  const [eliminandoMov, setEliminandoMov]     = useState(false)
+  const [confirmAnularId, setConfirmAnularId] = useState(null)
+  const [anulando, setAnulando]               = useState(false)
 
   // Modal tránsito
   const [modalTransito, setModalTransito]       = useState(false)
@@ -691,6 +695,39 @@ export default function IngresoEgresoPT() {
     if (error) { toast.error('Error al guardar: ' + error.message); return }
     toast.success('Movimiento actualizado ✅')
     setEditandoMov(null)
+    cargar()
+  }
+
+  async function eliminarMov() {
+    if (!editandoMov) return
+    setEliminandoMov(true)
+    // Revertir el efecto en stock
+    const actual = stock[editandoMov.codigo]?.stock_actual ?? 0
+    const revertido = editandoMov.tipo === 'egreso'
+      ? actual + editandoMov.cantidad   // egreso → devolver unidades
+      : Math.max(0, actual - editandoMov.cantidad) // ingreso → quitar unidades
+    await supabase.from('stock_pt').update({ stock_actual: revertido }).eq('codigo', editandoMov.codigo)
+    const { error } = await supabase.from('movimientos_pt').delete().eq('id', editandoMov.id)
+    setEliminandoMov(false)
+    if (error) { toast.error('Error al eliminar: ' + error.message); return }
+    toast.success(`Movimiento eliminado ✅ — stock ${editandoMov.codigo} ajustado a ${revertido}`)
+    setEditandoMov(null)
+    setConfirmEliminarMov(false)
+    cargar()
+  }
+
+  async function anularMovDirecto(m) {
+    setAnulando(true)
+    const actual = stock[m.codigo]?.stock_actual ?? 0
+    const revertido = m.tipo === 'egreso'
+      ? actual + m.cantidad
+      : Math.max(0, actual - m.cantidad)
+    await supabase.from('stock_pt').update({ stock_actual: revertido }).eq('codigo', m.codigo)
+    const { error } = await supabase.from('movimientos_pt').delete().eq('id', m.id)
+    setAnulando(false)
+    if (error) { toast.error('Error al anular: ' + error.message); return }
+    toast.success(`Anulado ✅ — stock ${m.codigo} ajustado a ${revertido}`)
+    setConfirmAnularId(null)
     cargar()
   }
 
@@ -1873,12 +1910,41 @@ export default function IngresoEgresoPT() {
                     </td>
                     {isAdmin && (
                       <td style={{ padding: '8px 14px' }}>
-                        <button
-                          onClick={() => { setEditandoMov(m); setEditCantidad(String(m.cantidad)); setEditObs(m.observacion || '') }}
-                          style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}
-                        >
-                          ✏️ Editar
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              onClick={() => { setEditandoMov(m); setEditCantidad(String(m.cantidad)); setEditObs(m.observacion || ''); setConfirmEliminarMov(false) }}
+                              style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}
+                            >
+                              ✏️ Editar
+                            </button>
+                            {confirmAnularId !== m.id && (
+                              <button
+                                onClick={() => setConfirmAnularId(m.id)}
+                                style={{ background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}
+                              >
+                                🗑 Anular
+                              </button>
+                            )}
+                          </div>
+                          {confirmAnularId === m.id && (
+                            <div style={{ background: 'rgba(255,85,119,0.06)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 5, minWidth: 180 }}>
+                              <div style={{ fontSize: 11, color: '#ff5577', fontWeight: 600 }}>
+                                Stock: {stock[m.codigo]?.stock_actual ?? '—'} → <strong>{m.tipo === 'egreso' ? (stock[m.codigo]?.stock_actual ?? 0) + m.cantidad : Math.max(0, (stock[m.codigo]?.stock_actual ?? 0) - m.cantidad)}</strong>
+                              </div>
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button onClick={() => anularMovDirecto(m)} disabled={anulando}
+                                  style={{ flex: 1, background: 'rgba(255,85,119,0.15)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.4)', borderRadius: 4, padding: '4px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: anulando ? 0.6 : 1 }}>
+                                  {anulando ? '...' : 'Confirmar'}
+                                </button>
+                                <button onClick={() => setConfirmAnularId(null)}
+                                  style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                  No
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -1897,7 +1963,7 @@ export default function IngresoEgresoPT() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 460 }}>
             <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 16, fontWeight: 700 }}>✏️ Editar movimiento</div>
-              <button onClick={() => setEditandoMov(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+              <button onClick={() => { setEditandoMov(null); setConfirmEliminarMov(false) }} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
             </div>
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -1960,11 +2026,42 @@ export default function IngresoEgresoPT() {
                   {guardandoEditMov ? 'Guardando...' : '💾 Guardar cambios'}
                 </button>
                 <button
-                  onClick={() => setEditandoMov(null)}
+                  onClick={() => { setEditandoMov(null); setConfirmEliminarMov(false) }}
                   style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
                 >
                   Cancelar
                 </button>
+              </div>
+
+              {/* Eliminar movimiento */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                {!confirmEliminarMov ? (
+                  <button onClick={() => setConfirmEliminarMov(true)}
+                    style={{ background: 'none', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', width: '100%' }}>
+                    🗑 Eliminar este movimiento y revertir el stock
+                  </button>
+                ) : (
+                  <div style={{ background: 'rgba(255,85,119,0.06)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 12, color: '#ff5577', fontWeight: 600 }}>
+                      ⚠️ Se eliminará el movimiento y el stock de <strong>{editandoMov.codigo}</strong> pasará de{' '}
+                      <strong>{stock[editandoMov.codigo]?.stock_actual ?? '—'}</strong> a{' '}
+                      <strong>{editandoMov.tipo === 'egreso'
+                        ? (stock[editandoMov.codigo]?.stock_actual ?? 0) + editandoMov.cantidad
+                        : Math.max(0, (stock[editandoMov.codigo]?.stock_actual ?? 0) - editandoMov.cantidad)
+                      }</strong>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={eliminarMov} disabled={eliminandoMov}
+                        style={{ flex: 1, background: 'rgba(255,85,119,0.15)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.4)', borderRadius: 'var(--radius)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: eliminandoMov ? 0.6 : 1 }}>
+                        {eliminandoMov ? '⏳ Eliminando...' : 'Sí, eliminar y revertir'}
+                      </button>
+                      <button onClick={() => setConfirmEliminarMov(false)}
+                        style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        No
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
