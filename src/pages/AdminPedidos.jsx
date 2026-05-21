@@ -1542,6 +1542,19 @@ export default function AdminPedidos() {
                               </div>
                             </div>
                           </div>
+                          {/* Reset stock_descontado — admin only */}
+                          {isAdmin && pedido.stock_descontado && (
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
+                              <button onClick={async () => {
+                                await supabase.from('pedidos').update({ stock_descontado: false }).eq('id', pedido.id)
+                                toast.success('Pedido marcado como pendiente de egreso — ya aparece en Ingreso/Egreso PT')
+                                cargar()
+                              }} style={{ background: 'rgba(255,165,0,0.1)', color: '#fb923c', border: '1px solid rgba(255,165,0,0.35)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                                ↺ Marcar pendiente de egreso (stock)
+                              </button>
+                            </div>
+                          )}
+
                           <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,209,102,0.15)' }}>
                             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Remitos</div>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>

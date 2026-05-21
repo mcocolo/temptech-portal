@@ -694,6 +694,8 @@ export default function AdminReclamos({ openTracking } = {}) {
       item.nombre_apellido?.toLowerCase().includes(q) ||
       item.nombre?.toLowerCase().includes(q) ||
       item.email?.toLowerCase().includes(q) ||
+      item.localidad?.toLowerCase().includes(q) ||
+      item.provincia?.toLowerCase().includes(q) ||
       String(item.id || '').toLowerCase().includes(q)
     )
   }).sort((a, b) => {
@@ -1208,7 +1210,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 200 }}>
-            <input type="text" placeholder="🔍 Buscar por tracking, nombre o email..." value={busquedaTracking} onChange={e => setBusquedaTracking(e.target.value)} style={inputStyle} />
+            <input type="text" placeholder="🔍 Buscar por tracking, nombre, email, localidad o provincia..." value={busquedaTracking} onChange={e => setBusquedaTracking(e.target.value)} style={inputStyle} />
             {busquedaTracking && <button onClick={() => setBusquedaTracking('')} style={{ background: T.surface3, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text2, fontSize: 12, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>Limpiar</button>}
           </div>
           <button onClick={exportarExcel} style={{ background: T.greenDim, color: T.green, border: `1px solid ${T.green}40`, borderRadius: T.radius, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>📊 Exportar Excel</button>
