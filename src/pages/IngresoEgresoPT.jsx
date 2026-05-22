@@ -1071,21 +1071,20 @@ export default function IngresoEgresoPT() {
               {pedidos.filter(p => {
                 const q = busquedaPed.toLowerCase()
                 return !q || p.profiles?.full_name?.toLowerCase().includes(q) || p.profiles?.razon_social?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q)
-              }).map(ped => (
-                {(() => {
-                  const ESTADO_COLORS = {
-                    aprobado:    { label: 'APROBADO',    color: '#3dd68c', bg: 'rgba(61,214,140,0.12)'  },
-                    preparando:  { label: 'PREPARANDO',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)' },
-                    enviado:     { label: 'ENVIADO',     color: '#7b9fff', bg: 'rgba(123,159,255,0.12)' },
-                    entregado:   { label: 'ENTREGADO',   color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)'  },
-                  }
-                  const estadoCfg = ESTADO_COLORS[ped.estado] || ESTADO_COLORS.aprobado
-                  const hoy = new Date(); hoy.setHours(0,0,0,0)
-                  const fechaEnt = ped.fecha_entrega ? new Date(ped.fecha_entrega + 'T00:00:00') : null
-                  const entVencida = fechaEnt && fechaEnt < hoy
-                  const entHoy    = fechaEnt && fechaEnt.getTime() === hoy.getTime()
-                  const itemsPend = Array.isArray(ped.items_pendientes) && ped.items_pendientes.length > 0
-                  return (
+              }).map(ped => {
+                const ESTADO_COLORS = {
+                  aprobado:    { label: 'APROBADO',    color: '#3dd68c', bg: 'rgba(61,214,140,0.12)'  },
+                  preparando:  { label: 'PREPARANDO',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)' },
+                  enviado:     { label: 'ENVIADO',     color: '#7b9fff', bg: 'rgba(123,159,255,0.12)' },
+                  entregado:   { label: 'ENTREGADO',   color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)'  },
+                }
+                const estadoCfg = ESTADO_COLORS[ped.estado] || ESTADO_COLORS.aprobado
+                const hoy = new Date(); hoy.setHours(0,0,0,0)
+                const fechaEnt = ped.fecha_entrega ? new Date(ped.fecha_entrega + 'T00:00:00') : null
+                const entVencida = fechaEnt && fechaEnt < hoy
+                const entHoy    = fechaEnt && fechaEnt.getTime() === hoy.getTime()
+                const itemsPend = Array.isArray(ped.items_pendientes) && ped.items_pendientes.length > 0
+                return (
                     <div key={ped.id} style={{ background: 'var(--surface)', border: `1px solid ${entVencida ? 'rgba(255,85,119,0.4)' : entHoy ? 'rgba(255,209,102,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
                       <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 5 }}>
                         {/* Fila 1: ID + estado + tags */}
@@ -1135,9 +1134,8 @@ export default function IngresoEgresoPT() {
                         </button>
                       </div>
                     </div>
-                  )
-                })()}
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
