@@ -211,7 +211,7 @@ export default function IngresoEgresoPT() {
     const { data } = await supabase
       .from('pedidos')
       .select('*, profiles!distribuidor_id(full_name, razon_social, email)')
-      .in('estado', ['aprobado', 'preparando', 'enviado', 'entregado'])
+      .eq('estado', 'enviado')
       .or('stock_descontado.is.null,stock_descontado.eq.false')
       .order('created_at', { ascending: false })
     setPedidos(data || [])
@@ -1065,36 +1065,78 @@ export default function IngresoEgresoPT() {
             const q = busquedaPed.toLowerCase()
             return !q || p.profiles?.full_name?.toLowerCase().includes(q) || p.profiles?.razon_social?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q)
           }).length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay pedidos aprobados pendientes de egreso</div>
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay pedidos enviados pendientes de egreso</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {pedidos.filter(p => {
                 const q = busquedaPed.toLowerCase()
                 return !q || p.profiles?.full_name?.toLowerCase().includes(q) || p.profiles?.razon_social?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q)
               }).map(ped => (
-                <div key={ped.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace' }}>#{ped.id?.slice(0,8).toUpperCase()}</span>
-                      <span style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>APROBADO</span>
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{ped.profiles?.razon_social || ped.profiles?.full_name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-                      {(Array.isArray(ped.items) ? ped.items : []).map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}
-                    </div>
-                    {Array.isArray(ped.items_pendientes) && ped.items_pendientes.length > 0 && (
-                      <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(251,146,60,0.15)', color: '#fb923c', padding: '2px 8px', borderRadius: 10 }}>ENTREGA PARCIAL</span>
-                        <span style={{ fontSize: 11, color: '#fb923c' }}>Pendiente: {ped.items_pendientes.map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}</span>
+                {(() => {
+                  const ESTADO_COLORS = {
+                    aprobado:    { label: 'APROBADO',    color: '#3dd68c', bg: 'rgba(61,214,140,0.12)'  },
+                    preparando:  { label: 'PREPARANDO',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)' },
+                    enviado:     { label: 'ENVIADO',     color: '#7b9fff', bg: 'rgba(123,159,255,0.12)' },
+                    entregado:   { label: 'ENTREGADO',   color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)'  },
+                  }
+                  const estadoCfg = ESTADO_COLORS[ped.estado] || ESTADO_COLORS.aprobado
+                  const hoy = new Date(); hoy.setHours(0,0,0,0)
+                  const fechaEnt = ped.fecha_entrega ? new Date(ped.fecha_entrega + 'T00:00:00') : null
+                  const entVencida = fechaEnt && fechaEnt < hoy
+                  const entHoy    = fechaEnt && fechaEnt.getTime() === hoy.getTime()
+                  const itemsPend = Array.isArray(ped.items_pendientes) && ped.items_pendientes.length > 0
+                  return (
+                    <div key={ped.id} style={{ background: 'var(--surface)', border: `1px solid ${entVencida ? 'rgba(255,85,119,0.4)' : entHoy ? 'rgba(255,209,102,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {/* Fila 1: ID + estado + tags */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace' }}>#{ped.id?.slice(0,8).toUpperCase()}</span>
+                          <span style={{ background: estadoCfg.bg, color: estadoCfg.color, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>{estadoCfg.label}</span>
+                          {ped.preventa_id && <span style={{ background: 'rgba(167,139,250,0.12)', color: '#b39dfa', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>RETIRO DE PREVENTA</span>}
+                          {itemsPend && <span style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>ENTREGA PARCIAL</span>}
+                        </div>
+                        {/* Fila 2: distribuidor */}
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>{ped.profiles?.razon_social || ped.profiles?.full_name}</div>
+                        {ped.profiles?.email && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{ped.profiles.email}</div>}
+                        {/* Fila 3: items */}
+                        <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                          {(Array.isArray(ped.items) ? ped.items : []).map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}
+                        </div>
+                        {itemsPend && (
+                          <div style={{ fontSize: 11, color: '#fb923c' }}>
+                            Pendiente: {ped.items_pendientes.map(it => `${it.codigo} ×${it.cantidad}`).join(' · ')}
+                          </div>
+                        )}
+                        {/* Fila 4: notas internas */}
+                        {ped.notas_internas && (
+                          <div style={{ fontSize: 11, color: '#ffd166', background: 'rgba(255,209,102,0.06)', border: '1px solid rgba(255,209,102,0.2)', borderRadius: 4, padding: '3px 8px' }}>
+                            📝 {ped.notas_internas}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{formatFecha(ped.created_at)}</div>
-                  <button onClick={() => { setPedidoSel(ped); setPNroRemito(''); setPFotosRemito([]); const base = (ped.items || []); const pending = ped.items_pendientes?.length > 0 ? ped.items_pendientes : base; setPItems(pending.map(it => ({ ...it, _max: it.cantidad }))); setModalPedido(true) }}
-                    style={{ background: 'rgba(74,108,247,0.12)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
-                    📋 Registrar egreso
-                  </button>
-                </div>
+                      {/* Columna derecha: fechas + botón */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                          {fechaEnt && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: entVencida ? 'rgba(255,85,119,0.1)' : entHoy ? 'rgba(255,209,102,0.1)' : 'rgba(61,214,140,0.08)', border: `1px solid ${entVencida ? 'rgba(255,85,119,0.35)' : entHoy ? 'rgba(255,209,102,0.35)' : 'rgba(61,214,140,0.25)'}`, borderRadius: 6, padding: '4px 10px' }}>
+                              <span style={{ fontSize: 10, color: 'var(--text3)' }}>📅 Entrega:</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: entVencida ? '#ff5577' : entHoy ? '#ffd166' : '#3dd68c' }}>
+                                {fechaEnt.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                {entVencida && ' ⚠️'}
+                                {entHoy && ' · HOY'}
+                              </span>
+                            </div>
+                          )}
+                          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Pedido: {formatFecha(ped.created_at)}</div>
+                        </div>
+                        <button onClick={() => { setPedidoSel(ped); setPNroRemito(''); setPFotosRemito([]); const base = (ped.items || []); const pending = ped.items_pendientes?.length > 0 ? ped.items_pendientes : base; setPItems(pending.map(it => ({ ...it, _max: it.cantidad }))); setModalPedido(true) }}
+                          style={{ background: 'rgba(74,108,247,0.12)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                          📋 Registrar egreso
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()}
               ))}
             </div>
           )}
