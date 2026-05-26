@@ -134,6 +134,8 @@ export default function IngresoEgresoPT() {
   const [editandoMov, setEditandoMov]         = useState(null)
   const [editCantidad, setEditCantidad]       = useState('')
   const [editObs, setEditObs]                 = useState('')
+  const [editCodigo, setEditCodigo]           = useState('')
+  const [editBusqProd, setEditBusqProd]       = useState('')
   const [guardandoEditMov, setGuardandoEditMov] = useState(false)
   const [confirmEliminarMov, setConfirmEliminarMov] = useState(false)
   const [eliminandoMov, setEliminandoMov]     = useState(false)
@@ -676,23 +678,54 @@ export default function IngresoEgresoPT() {
     if (nuevaCant <= 0) { toast.error('La cantidad debe ser mayor a 0'); return }
     setGuardandoEditMov(true)
 
-    // Calcular ajuste de stock: diff = nuevaCant - cantidadOriginal
-    // Para egreso: si baja la cantidad, el stock sube (se "devuelven" unidades)
-    // Para ingreso: si baja la cantidad, el stock baja
-    const diff = nuevaCant - editandoMov.cantidad
-    if (diff !== 0) {
-      const actual = stock[editandoMov.codigo]?.stock_actual ?? 0
-      const stockAdj = editandoMov.tipo === 'egreso' ? -diff : diff
-      const nuevoStock = Math.max(0, actual + stockAdj)
-      await supabase.from('stock_pt').update({ stock_actual: nuevoStock }).eq('codigo', editandoMov.codigo)
+    const codigoNuevo = editCodigo || editandoMov.codigo
+    const productoChanged = codigoNuevo !== editandoMov.codigo
+
+    if (productoChanged) {
+      // Revertir stock del producto original
+      const actualOld = stock[editandoMov.codigo]?.stock_actual ?? 0
+      const revertidoOld = editandoMov.tipo === 'egreso'
+        ? actualOld + editandoMov.cantidad
+        : Math.max(0, actualOld - editandoMov.cantidad)
+      await supabase.from('stock_pt').update({ stock_actual: revertidoOld }).eq('codigo', editandoMov.codigo)
+
+      // Aplicar stock al nuevo producto
+      const actualNew = stock[codigoNuevo]?.stock_actual ?? 0
+      const nuevoStockNew = editandoMov.tipo === 'egreso'
+        ? Math.max(0, actualNew - nuevaCant)
+        : actualNew + nuevaCant
+      await supabase.from('stock_pt').update({ stock_actual: nuevoStockNew }).eq('codigo', codigoNuevo)
+
+      // Buscar nombre/modelo del nuevo producto
+      const todosProds = catalogoDinamico.flatMap(c => c.productos)
+      const prodInfo = todosProds.find(p => p.codigo === codigoNuevo)
+      const { error } = await supabase.from('movimientos_pt')
+        .update({
+          codigo: codigoNuevo,
+          nombre: prodInfo?.nombre || codigoNuevo,
+          modelo: prodInfo?.modelo || '',
+          cantidad: nuevaCant,
+          observacion: editObs.trim() || null
+        })
+        .eq('id', editandoMov.id)
+      setGuardandoEditMov(false)
+      if (error) { toast.error('Error al guardar: ' + error.message); return }
+    } else {
+      // Solo cambió cantidad/observación
+      const diff = nuevaCant - editandoMov.cantidad
+      if (diff !== 0) {
+        const actual = stock[editandoMov.codigo]?.stock_actual ?? 0
+        const stockAdj = editandoMov.tipo === 'egreso' ? -diff : diff
+        const nuevoStock = Math.max(0, actual + stockAdj)
+        await supabase.from('stock_pt').update({ stock_actual: nuevoStock }).eq('codigo', editandoMov.codigo)
+      }
+      const { error } = await supabase.from('movimientos_pt')
+        .update({ cantidad: nuevaCant, observacion: editObs.trim() || null })
+        .eq('id', editandoMov.id)
+      setGuardandoEditMov(false)
+      if (error) { toast.error('Error al guardar: ' + error.message); return }
     }
 
-    const { error } = await supabase.from('movimientos_pt')
-      .update({ cantidad: nuevaCant, observacion: editObs.trim() || null })
-      .eq('id', editandoMov.id)
-
-    setGuardandoEditMov(false)
-    if (error) { toast.error('Error al guardar: ' + error.message); return }
     toast.success('Movimiento actualizado ✅')
     setEditandoMov(null)
     cargar()
@@ -1953,7 +1986,7 @@ export default function IngresoEgresoPT() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button
-                              onClick={() => { setEditandoMov(m); setEditCantidad(String(m.cantidad)); setEditObs(m.observacion || ''); setConfirmEliminarMov(false) }}
+                              onClick={() => { setEditandoMov(m); setEditCantidad(String(m.cantidad)); setEditObs(m.observacion || ''); setEditCodigo(m.codigo); setEditBusqProd(''); setConfirmEliminarMov(false) }}
                               style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}
                             >
                               ✏️ Editar
@@ -2008,28 +2041,95 @@ export default function IngresoEgresoPT() {
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
               {/* Info del movimiento */}
-              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: editandoMov.tipo === 'egreso' ? 'rgba(255,85,119,0.12)' : 'rgba(61,214,140,0.12)', color: editandoMov.tipo === 'egreso' ? '#ff5577' : '#3dd68c' }}>
                     {editandoMov.tipo === 'egreso' ? '↑ EGRESO' : '↓ INGRESO'}
                   </span>
-                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#7b9fff' }}>{editandoMov.codigo}</span>
+                  {editandoMov.referencia_nombre && <div style={{ fontSize: 11, color: '#ffd166' }}>📦 {editandoMov.referencia_nombre}</div>}
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>Canal: {editandoMov.canal}</div>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{editandoMov.nombre} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>{editandoMov.modelo}</span></div>
-                {editandoMov.referencia_nombre && <div style={{ fontSize: 12, color: '#ffd166' }}>📦 {editandoMov.referencia_nombre}</div>}
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Canal: {editandoMov.canal}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                  Stock actual: <strong style={{ color: 'var(--text)' }}>{stock[editandoMov.codigo]?.stock_actual ?? '—'}</strong>
-                  {' '}→ al guardar:{' '}
-                  <strong style={{ color: '#7b9fff' }}>
-                    {(() => {
-                      const nuevaCant = parseInt(editCantidad) || 0
-                      const diff = nuevaCant - editandoMov.cantidad
-                      const actual = stock[editandoMov.codigo]?.stock_actual ?? 0
-                      const stockAdj = editandoMov.tipo === 'egreso' ? -diff : diff
-                      return Math.max(0, actual + stockAdj)
+
+                {/* Buscador de producto */}
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Producto</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      value={editBusqProd}
+                      onChange={e => setEditBusqProd(e.target.value)}
+                      placeholder={(() => {
+                        if (editCodigo === editandoMov.codigo) return `${editandoMov.codigo} — ${editandoMov.nombre}`
+                        const p = catalogoDinamico.flatMap(c => c.productos).find(x => x.codigo === editCodigo)
+                        return p ? `${p.codigo} — ${p.nombre}` : editCodigo
+                      })()}
+                      style={{ width: '100%', background: 'var(--surface)', border: `1px solid ${editCodigo !== editandoMov.codigo ? 'rgba(255,209,102,0.5)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, color: 'var(--text)', fontFamily: 'var(--font)', boxSizing: 'border-box' }}
+                    />
+                    {editCodigo !== editandoMov.codigo && !editBusqProd && (
+                      <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#ffd166', fontWeight: 700 }}>MODIFICADO</span>
+                    )}
+                    {editBusqProd && (() => {
+                      const q = editBusqProd.toLowerCase()
+                      const resultados = catalogoDinamico.flatMap(c => c.productos).filter(p =>
+                        p.codigo.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q) || (p.modelo || '').toLowerCase().includes(q)
+                      ).slice(0, 8)
+                      return resultados.length > 0 ? (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 10, maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+                          {resultados.map(p => (
+                            <div key={p.codigo}
+                              onClick={() => { setEditCodigo(p.codigo); setEditBusqProd('') }}
+                              style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 12 }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                              onMouseLeave={e => e.currentTarget.style.background = ''}
+                            >
+                              <span style={{ fontFamily: 'monospace', color: '#7b9fff', fontWeight: 700, marginRight: 8 }}>{p.codigo}</span>
+                              <span>{p.nombre}</span>
+                              {p.modelo && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>{p.modelo}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null
                     })()}
-                  </strong>
+                  </div>
+                  {editCodigo !== editandoMov.codigo && (
+                    <button onClick={() => { setEditCodigo(editandoMov.codigo); setEditBusqProd('') }}
+                      style={{ marginTop: 4, background: 'none', border: 'none', color: 'var(--text3)', fontSize: 10, cursor: 'pointer', padding: 0 }}>
+                      ↩ Restaurar original ({editandoMov.codigo})
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                  {editCodigo !== editandoMov.codigo ? (
+                    <>
+                      Stock <span style={{ color: '#7b9fff', fontFamily: 'monospace' }}>{editandoMov.codigo}</span>: <strong style={{ color: 'var(--text)' }}>{stock[editandoMov.codigo]?.stock_actual ?? '—'}</strong>
+                      {' '}→ <strong style={{ color: '#ffd166' }}>
+                        {editandoMov.tipo === 'egreso'
+                          ? (stock[editandoMov.codigo]?.stock_actual ?? 0) + editandoMov.cantidad
+                          : Math.max(0, (stock[editandoMov.codigo]?.stock_actual ?? 0) - editandoMov.cantidad)}
+                      </strong>
+                      {'  ·  '}
+                      Stock <span style={{ color: '#7b9fff', fontFamily: 'monospace' }}>{editCodigo}</span>: <strong style={{ color: 'var(--text)' }}>{stock[editCodigo]?.stock_actual ?? '—'}</strong>
+                      {' '}→ <strong style={{ color: '#3dd68c' }}>
+                        {editandoMov.tipo === 'egreso'
+                          ? Math.max(0, (stock[editCodigo]?.stock_actual ?? 0) - (parseInt(editCantidad) || 0))
+                          : (stock[editCodigo]?.stock_actual ?? 0) + (parseInt(editCantidad) || 0)}
+                      </strong>
+                    </>
+                  ) : (
+                    <>
+                      Stock actual: <strong style={{ color: 'var(--text)' }}>{stock[editandoMov.codigo]?.stock_actual ?? '—'}</strong>
+                      {' '}→ al guardar:{' '}
+                      <strong style={{ color: '#7b9fff' }}>
+                        {(() => {
+                          const nuevaCant = parseInt(editCantidad) || 0
+                          const diff = nuevaCant - editandoMov.cantidad
+                          const actual = stock[editandoMov.codigo]?.stock_actual ?? 0
+                          const stockAdj = editandoMov.tipo === 'egreso' ? -diff : diff
+                          return Math.max(0, actual + stockAdj)
+                        })()}
+                      </strong>
+                    </>
+                  )}
                 </div>
               </div>
 
