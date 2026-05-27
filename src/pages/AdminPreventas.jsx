@@ -522,11 +522,16 @@ export default function AdminPreventas() {
     // Validar cantidades no superen disponible
     const excedidos = (pvFresh.items || []).filter(i => {
       const pedida = cantRetiro[i.codigo] || 0
-      const pendiente = (i.cantidad_total || 0) - (i.cantidad_retirada || 0)
+      if (pedida <= 0) return false
+      const pendiente = Math.max(0, (i.cantidad_total || 0) - (i.cantidad_retirada || 0))
       return pedida > pendiente
     })
     if (excedidos.length > 0) {
-      const detalle = excedidos.map(i => `${i.nombre}: pedís ${cantRetiro[i.codigo]}, disponible ${(i.cantidad_total||0)-(i.cantidad_retirada||0)}`).join('\n')
+      const detalle = excedidos.map(i => {
+        const pedida = cantRetiro[i.codigo] || 0
+        const pendiente = Math.max(0, (i.cantidad_total||0) - (i.cantidad_retirada||0))
+        return `${i.nombre}: pedís ${pedida}, disponible ${pendiente}`
+      }).join('\n')
       toast.error(`Cantidad superior al saldo disponible:\n${detalle}`, { duration: 6000 })
       setEnviandoRetiro(false); setCantRetiro({}); return
     }
