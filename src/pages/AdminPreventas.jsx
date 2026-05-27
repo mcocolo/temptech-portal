@@ -854,6 +854,10 @@ export default function AdminPreventas() {
                   const ivaAmount = incluirIVA ? totalNeto * IVA_PCT : 0
                   return (
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
+                        <span>Total de unidades</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text2)' }}>{itemsForm.reduce((s, i) => s + (i.cantidad_total || 0), 0)}</span>
+                      </div>
                       {incluirIVA && (
                         <>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>
