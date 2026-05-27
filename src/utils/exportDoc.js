@@ -187,67 +187,80 @@ export function exportarPreventaExcel(pv) {
   const dist  = pv.profiles || {}
   const nombre = dist.razon_social || dist.full_name || '—'
   const totalPagado = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0)
-  const saldo = (pv.total || 0) - totalPagado
+
+  // Calcular desde ítems (no usar pv.total que puede estar desactualizado)
+  const totalNeto = items.reduce((s, it) => s + (it.precio_unitario || 0) * (it.cantidad_total || 0), 0)
+  const ivaAmount = pv.incluir_iva ? totalNeto * 0.21 : 0
+  const totalConIva = totalNeto + ivaAmount
+  const saldo = totalConIva - totalPagado
 
   const wb = XLSX.utils.book_new()
   const rows = []
+  const e_ = () => cell('', null, null, null, null)
 
-  // Título
-  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), cell('', XL.fontBold(10), XL.headerBg), cell('', XL.fontBold(10), XL.headerBg), cell('', XL.fontBold(10), XL.headerBg), cell('', XL.fontBold(10), XL.headerBg), cell('PREVENTA', XL.fontBold(14), XL.accentBg, XL.alignR)])
-  rows.push([cell(`#${pv.id?.slice(0,8).toUpperCase()}`, XL.fontNormal(10,'aaaaaa'), XL.headerBg), cell('', XL.fontBold(10), XL.headerBg), cell('', XL.fontBold(10), XL.headerBg), cell('', XL.fontBold(10), XL.headerBg), cell('', XL.fontBold(10), XL.headerBg), cell(fmtDate(pv.created_at), XL.fontNormal(10,'cccccc'), XL.headerBg, XL.alignR)])
+  // Título — 7 columnas (A–G)
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('PREVENTA', XL.fontBold(14), XL.accentBg, XL.alignR)])
+  rows.push([cell(`#${pv.id?.slice(0,8).toUpperCase()}`, XL.fontNormal(10,'aaaaaa'), XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell(fmtDate(pv.created_at), XL.fontNormal(10,'cccccc'), XL.headerBg, XL.alignR)])
   rows.push([])
 
   // Info
-  rows.push([cell('DISTRIBUIDOR', XL.fontBold(9), XL.subheadBg), cell(nombre, XL.fontNormal(10), { fgColor: { rgb: 'f0f0f8' } }, XL.alignL, null), cell('', null, { fgColor: { rgb: 'f0f0f8' } }), cell('ESTADO', XL.fontBold(9), XL.subheadBg), cell((pv.estado || '').toUpperCase(), XL.fontBold(10), { fgColor: { rgb: 'e8eeff' } }, XL.alignC), cell(pv.incluir_iva ? 'IVA incluido' : 'Sin IVA', XL.fontNormal(9,'888888'), { fgColor: { rgb: 'f0f0f8' } }, XL.alignC)])
-  rows.push([cell('EMAIL', XL.fontBold(9), XL.subheadBg), cell(dist.email || '—', XL.fontNormal(10), { fgColor: { rgb: 'f0f0f8' } }, XL.alignL, null), cell('', null, { fgColor: { rgb: 'f0f0f8' } }), cell('VENCIMIENTO', XL.fontBold(9), XL.subheadBg), cell(fmtDate(pv.fecha_vencimiento), XL.fontNormal(10), { fgColor: { rgb: 'f0f0f8' } }, XL.alignC), cell('', null, { fgColor: { rgb: 'f0f0f8' } })])
+  const infoBg = { fgColor: { rgb: 'f0f0f8' } }
+  rows.push([cell('DISTRIBUIDOR', XL.fontBold(9), XL.subheadBg), cell(nombre, XL.fontNormal(10), infoBg, XL.alignL, null), cell('', null, infoBg), cell('ESTADO', XL.fontBold(9), XL.subheadBg), cell((pv.estado || '').toUpperCase(), XL.fontBold(10), { fgColor: { rgb: 'e8eeff' } }, XL.alignC), cell(pv.incluir_iva ? 'IVA incluido' : 'Sin IVA', XL.fontNormal(9,'888888'), infoBg, XL.alignC), cell('', null, infoBg)])
+  rows.push([cell('EMAIL', XL.fontBold(9), XL.subheadBg), cell(dist.email || '—', XL.fontNormal(10), infoBg, XL.alignL, null), cell('', null, infoBg), cell('VENCIMIENTO', XL.fontBold(9), XL.subheadBg), cell(fmtDate(pv.fecha_vencimiento), XL.fontNormal(10), infoBg, XL.alignC), cell('', null, infoBg), cell('', null, infoBg)])
   rows.push([])
 
-  // Header productos
-  const hFont = XL.fontBold(10)
-  const hFill = XL.headerBg
-  rows.push([cell('CÓDIGO', hFont, hFill, XL.alignC), cell('PRODUCTO', hFont, hFill), cell('MODELO', hFont, hFill), cell('TOTAL', hFont, hFill, XL.alignC), cell('RETIRADO', hFont, hFill, XL.alignC), cell('PRECIO U.', hFont, hFill, XL.alignR)])
+  // Header productos — 7 columnas
+  const hFont = XL.fontBold(10), hFill = XL.headerBg
+  rows.push([cell('CÓDIGO', hFont, hFill, XL.alignC), cell('PRODUCTO', hFont, hFill), cell('MODELO', hFont, hFill), cell('CANT.', hFont, hFill, XL.alignC), cell('RETIRADO', hFont, hFill, XL.alignC), cell('PRECIO U.', hFont, hFill, XL.alignR), cell('SUBTOTAL', hFont, hFill, XL.alignR)])
 
   items.forEach((it, idx) => {
     const bg = idx % 2 === 0 ? null : XL.altRowBg
+    const subtotal = (it.precio_unitario || 0) * (it.cantidad_total || 0)
     rows.push([
       cell(it.codigo || '—', XL.fontMono(), bg, XL.alignC),
       cell(it.nombre || '', XL.fontNormal(10), bg),
       cell(it.modelo || '', XL.fontNormal(9, '666666'), bg),
-      { v: it.cantidad_total || 0, t: 'n', s: { font: XL.fontNormal(10), fill: bg, alignment: XL.alignC, border: XL.border } },
+      { v: it.cantidad_total || 0,   t: 'n', s: { font: XL.fontNormal(10),           fill: bg, alignment: XL.alignC, border: XL.border } },
       { v: it.cantidad_retirada || 0, t: 'n', s: { font: XL.fontNormal(10, '888888'), fill: bg, alignment: XL.alignC, border: XL.border } },
       numCell(it.precio_unitario || 0, null, bg),
+      numCell(subtotal, XL.fontNormal(10), bg),
     ])
   })
   rows.push([])
 
-  // Totales
+  // Totales — label en col 5, valor en col 6
   const tFill = { fgColor: { rgb: 'f0f0f8' } }
-  if (pv.incluir_iva && pv.iva_monto) {
-    rows.push([cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('Subtotal neto', XL.fontNormal(10, '888888'), tFill, XL.alignR), numCell((pv.total || 0) - (pv.iva_monto || 0), XL.fontNormal(10, '888888'), tFill)])
-    rows.push([cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('IVA (21%)', XL.fontNormal(10, '888888'), tFill, XL.alignR), numCell(pv.iva_monto || 0, XL.fontNormal(10, '888888'), tFill)])
+  if (pv.incluir_iva) {
+    rows.push([e_(), e_(), e_(), e_(), e_(), cell('Subtotal neto', XL.fontNormal(10,'888888'), tFill, XL.alignR), numCell(totalNeto, XL.fontNormal(10,'888888'), tFill)])
+    rows.push([e_(), e_(), e_(), e_(), e_(), cell('IVA (21%)',     XL.fontNormal(10,'888888'), tFill, XL.alignR), numCell(ivaAmount,  XL.fontNormal(10,'888888'), tFill)])
   }
-  rows.push([cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('TOTAL PREVENTA', XL.fontBold(11), XL.headerBg, XL.alignR), numCell(pv.total || 0, XL.fontBold(11), XL.headerBg)])
-  rows.push([cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('Total pagado', XL.fontNormal(10, '1a8a5a'), { fgColor: { rgb: 'e6faf2' } }, XL.alignR), numCell(totalPagado, XL.fontNormal(10, '1a8a5a'), { fgColor: { rgb: 'e6faf2' } })])
-  rows.push([cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null), cell('Saldo deudor', XL.fontBold(11), { fgColor: { rgb: saldo > 0 ? 'fff0f3' : 'e6faf2' } }, XL.alignR), numCell(saldo, XL.fontBold(11), { fgColor: { rgb: saldo > 0 ? 'fff0f3' : 'e6faf2' } })])
+  rows.push([e_(), e_(), e_(), e_(), e_(), cell('TOTAL PREVENTA', XL.fontBold(11), XL.headerBg, XL.alignR), numCell(totalConIva,  XL.fontBold(11),  XL.headerBg)])
+  rows.push([e_(), e_(), e_(), e_(), e_(), cell('Total pagado',   XL.fontNormal(10,'1a8a5a'), { fgColor: { rgb: 'e6faf2' } }, XL.alignR), numCell(totalPagado, XL.fontNormal(10,'1a8a5a'), { fgColor: { rgb: 'e6faf2' } })])
+  rows.push([e_(), e_(), e_(), e_(), e_(), cell('Saldo deudor',   XL.fontBold(11), { fgColor: { rgb: saldo > 0 ? 'fff0f3' : 'e6faf2' } }, XL.alignR), numCell(saldo, XL.fontBold(11), { fgColor: { rgb: saldo > 0 ? 'fff0f3' : 'e6faf2' } })])
   rows.push([])
 
   // Pagos
   if (pagos.length) {
-    rows.push([cell('PAGOS REGISTRADOS', XL.fontBold(10), XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg)])
-    rows.push([cell('Fecha', hFont, XL.headerBg), cell('Monto', hFont, XL.headerBg, XL.alignR), cell('Notas', hFont, XL.headerBg), cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null)])
+    rows.push([cell('PAGOS REGISTRADOS', XL.fontBold(10), XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg)])
+    rows.push([cell('Fecha', hFont, XL.headerBg), cell('Monto', hFont, XL.headerBg, XL.alignR), cell('Notas', hFont, XL.headerBg), e_(), e_(), e_(), e_()])
     pagos.forEach(p => {
-      rows.push([cell(fmtDate(p.fecha), XL.fontNormal(10), null), numCell(p.monto, null, null, XL.alignR), cell(p.notas || '—', XL.fontNormal(9, '666666'), null), cell('', null, null, null, null), cell('', null, null, null, null), cell('', null, null, null, null)])
+      rows.push([cell(fmtDate(p.fecha), XL.fontNormal(10), null), numCell(p.monto, null, null, XL.alignR), cell(p.notas || '—', XL.fontNormal(9,'666666'), null), e_(), e_(), e_(), e_()])
     })
   }
 
   if (pv.notas) {
     rows.push([])
-    rows.push([cell('NOTAS', XL.fontBold(10), XL.subheadBg), cell(pv.notas, XL.fontNormal(10, '555555'), { fgColor: { rgb: 'fffbf0' } }, XL.alignL, null), cell('', null, { fgColor: { rgb: 'fffbf0' } }), cell('', null, { fgColor: { rgb: 'fffbf0' } }), cell('', null, { fgColor: { rgb: 'fffbf0' } }), cell('', null, { fgColor: { rgb: 'fffbf0' } })])
+    rows.push([cell('NOTAS', XL.fontBold(10), XL.subheadBg), cell(pv.notas, XL.fontNormal(10,'555555'), { fgColor: { rgb: 'fffbf0' } }, XL.alignL, null), cell('', null, { fgColor: { rgb: 'fffbf0' } }), cell('', null, { fgColor: { rgb: 'fffbf0' } }), cell('', null, { fgColor: { rgb: 'fffbf0' } }), cell('', null, { fgColor: { rgb: 'fffbf0' } }), cell('', null, { fgColor: { rgb: 'fffbf0' } })])
   }
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 16 }]
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }, { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } }, { s: { r: 4, c: 1 }, e: { r: 4, c: 2 } }]
+  ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 22 }, { wch: 8 }, { wch: 9 }, { wch: 16 }, { wch: 18 }]
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+    { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
+    { s: { r: 4, c: 1 }, e: { r: 4, c: 2 } },
+  ]
 
   XLSX.utils.book_append_sheet(wb, ws, 'Preventa')
   XLSX.writeFile(wb, `TEMPTECH_Preventa_${pv.id?.slice(0,8).toUpperCase()}_${new Date().toISOString().split('T')[0]}.xlsx`)
