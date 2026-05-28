@@ -117,7 +117,7 @@ const NAV_TECNICO = [
   { label: 'Novedades',                    icon: Newspaper,       path: '/novedades' },
   { label: 'Foro de Consultas',            icon: MessageSquare,   path: '/foro' },
   { section: 'Service' },
-  { label: 'Service / Garantía',           icon: AlertTriangle,   path: '/reclamos' },
+  { label: 'Mis Casos Asignados',          icon: AlertTriangle,   path: '/reclamos' },
   { label: 'Videos Técnicos',             icon: Video,           path: '/videos-tecnicos' },
   { label: 'Repuestos',                    icon: Package,         path: '/repuestos' },
   { section: 'Recursos' },

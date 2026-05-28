@@ -678,11 +678,16 @@ export default function AdminReclamos({ openTracking } = {}) {
   const [confirmarEliminar, setConfirmarEliminar] = useState(null)     // item | null
   const [eliminando, setEliminando] = useState(false)
   const [catalogo, setCatalogo] = useState([])
+  const [tecnicosList, setTecnicosList] = useState([])
+  const [derivandoId, setDerivandoId] = useState(null)
+  const [tecnicoSel, setTecnicoSel] = useState('')
+  const [guardandoDerivacion, setGuardandoDerivacion] = useState(false)
 
   const { isAdmin, isAdmin2, user, profile } = useAuth()
 
   useEffect(() => {
     supabase.from('precios').select('codigo, nombre, modelo').order('nombre').then(({ data }) => setCatalogo(data || []))
+    supabase.from('profiles').select('id, full_name, razon_social, email, telefono').eq('user_type', 'tecnico').order('full_name').then(({ data }) => setTecnicosList(data || []))
   }, [])
 
   const datosFiltrados = datos.filter(item => {
@@ -713,7 +718,7 @@ export default function AdminReclamos({ openTracking } = {}) {
 
   async function cargar() {
     setCargando(true); setErrorTexto('')
-    let q = supabase.from('devoluciones').select('*').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false })
+    let q = supabase.from('devoluciones').select('*, tecnico:tecnico_id(id, full_name, razon_social, email, telefono)').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false })
     if (filtroEstado !== 'todos') q = q.eq('estado', filtroEstado)
     const { data, error } = await q
     if (error) { setErrorTexto(error.message); setDatos([]) } else setDatos(data || [])
@@ -1029,6 +1034,29 @@ export default function AdminReclamos({ openTracking } = {}) {
     await cargar()
   }
 
+  async function asignarTecnico(item) {
+    if (!tecnicoSel) { alert('Seleccioná un técnico'); return }
+    setGuardandoDerivacion(true)
+    const tec = tecnicosList.find(t => t.id === tecnicoSel)
+    const nuevaNota = armarLineaNota('DERIVADO A TÉCNICO', `${tec?.razon_social || tec?.full_name || '—'} (${tec?.email || ''})`)
+    const { error } = await supabase.from('devoluciones')
+      .update({ tecnico_id: tecnicoSel, notas_internas: unirNotas(item.notas_internas, nuevaNota) })
+      .eq('id', item.id)
+    setGuardandoDerivacion(false)
+    if (error) { alert('Error al asignar: ' + error.message); return }
+    setDerivandoId(null); setTecnicoSel('')
+    await cargar()
+  }
+
+  async function quitarTecnico(item) {
+    if (!window.confirm('¿Quitar la asignación del técnico?')) return
+    const nuevaNota = armarLineaNota('TÉCNICO REMOVIDO', '')
+    await supabase.from('devoluciones')
+      .update({ tecnico_id: null, notas_internas: unirNotas(item.notas_internas, nuevaNota) })
+      .eq('id', item.id)
+    await cargar()
+  }
+
   async function guardarNotaManual(item) {
     const texto = (notasInput[item.id] || '').trim()
     if (!texto) { alert('Escribí una nota antes de guardar'); return }
@@ -1248,9 +1276,14 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                   <div style={{ position: 'relative', zIndex: 1 }}>
                     {/* Header */}
                     <div className="ar-card-hdr" style={{ padding: '16px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                      <div className="ar-card-hdr-inner" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div className="ar-card-hdr-inner" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '4px 10px', borderRadius: 6 }}>{item.tracking_id || `#${item.id}`}</span>
                         <Badge estado={item.estado} aprobado={item.aprobado} />
+                        {item.tecnico && (
+                          <span style={{ background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>
+                            🔧 {item.tecnico.razon_social || item.tecnico.full_name}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 12, color: T.text3 }}>{formatearFecha(item.fecha_creacion)}</div>
                     </div>
@@ -1377,6 +1410,23 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           <Btn variant="ghost" onClick={() => guardarNotaManual(item)}>📨 Enviar Nota</Btn>
                         </div>
 
+                        {/* Reporte del técnico */}
+                        {item.tecnico_reporte && (
+                          <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(45,212,191,0.07)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: T.radius }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#2dd4bf', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.6px' }}>🔧 Reporte del técnico</div>
+                            <div style={{ fontSize: 12, color: T.text2, whiteSpace: 'pre-line' }}>{item.tecnico_reporte}</div>
+                            {item.tecnico_fotos?.length > 0 && (
+                              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                                {item.tecnico_fotos.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noreferrer">
+                                    <img src={url} alt={`Foto técnico ${i+1}`} style={{ width: 90, height: 65, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(45,212,191,0.3)' }} />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Nota interna — solo admins */}
                         {item.notas_internas && (
                           <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,209,102,0.08)', border: `1px solid rgba(255,209,102,0.25)`, borderRadius: T.radius }}>
@@ -1489,6 +1539,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                       {isAdmin && <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Devolucion' })} disabled={!aprobadoSI} variant="orange">📦 Devolución</Btn>}
                       {isAdmin && <Btn onClick={() => setPanelAbierto({ id: item.id, tipo: 'Service' })} disabled={esCerrado} variant="teal">🔧 Service</Btn>}
                       {isAdmin && <Btn onClick={() => setNotificarServiceId(item.id)} disabled={esCerrado} variant="teal">📅 Notificar Service</Btn>}
+                      {isAdmin && <Btn onClick={() => { setDerivandoId(derivandoId === item.id ? null : item.id); setTecnicoSel(item.tecnico_id || '') }} variant="teal">👷 {item.tecnico_id ? 'Reasignar técnico' : 'Derivar a técnico'}</Btn>}
                       {isAdmin && <Btn onClick={() => marcarAprobado(item)} disabled={aprobadoSI} variant="success">✓ Aprobar</Btn>}
                       {isAdmin && <Btn onClick={() => handleDesaprobar(item)} disabled={desaprobarBloqueado} variant="warn">Desaprobar</Btn>}
                       {isAdmin && <Btn onClick={() => { setRechazoAbiertoId(item.id); setTextoRechazo(item.motivo_rechazo || DEFAULT_RECHAZO(item.tracking_id)); setNotaRechazo('') }} disabled={esCerrado} variant="danger">Rechazar</Btn>}
@@ -1534,6 +1585,41 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           <Btn variant="danger" onClick={() => rechazarCaso(item)}>Confirmar y enviar email</Btn>
                           <Btn onClick={() => { setRechazoAbiertoId(null); setTextoRechazo(''); setNotaRechazo('') }}>Cancelar</Btn>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Panel derivar a técnico */}
+                    {derivandoId === item.id && (
+                      <div style={{ margin: '0 22px 18px', padding: 16, background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.3)', borderRadius: T.radius }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#2dd4bf', marginBottom: 12 }}>👷 Derivar a Servicio Técnico</div>
+                        {item.tecnico && (
+                          <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 8, fontSize: 12 }}>
+                            <span style={{ color: T.text3 }}>Actualmente asignado: </span>
+                            <strong style={{ color: '#2dd4bf' }}>{item.tecnico.razon_social || item.tecnico.full_name}</strong>
+                            {item.tecnico.email && <span style={{ color: T.text3 }}> — {item.tecnico.email}</span>}
+                            <button onClick={() => quitarTecnico(item)} style={{ marginLeft: 12, background: 'none', border: 'none', color: T.red, fontSize: 11, cursor: 'pointer', fontFamily: T.font, fontWeight: 600 }}>✕ Quitar</button>
+                          </div>
+                        )}
+                        {tecnicosList.length === 0 ? (
+                          <div style={{ color: T.text3, fontSize: 12 }}>No hay técnicos registrados en el sistema.</div>
+                        ) : (
+                          <>
+                            <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Seleccioná el técnico</label>
+                            <select value={tecnicoSel} onChange={e => setTecnicoSel(e.target.value)}
+                              style={{ width: '100%', background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '9px 12px', color: T.text, fontSize: 13, fontFamily: T.font, marginBottom: 12, outline: 'none' }}>
+                              <option value="">— Elegí un técnico —</option>
+                              {tecnicosList.map(t => (
+                                <option key={t.id} value={t.id}>{t.razon_social || t.full_name} {t.email ? `(${t.email})` : ''}</option>
+                              ))}
+                            </select>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <Btn variant="teal" onClick={() => asignarTecnico(item)} disabled={!tecnicoSel || guardandoDerivacion}>
+                                {guardandoDerivacion ? 'Guardando...' : '✓ Confirmar asignación'}
+                              </Btn>
+                              <Btn onClick={() => { setDerivandoId(null); setTecnicoSel('') }}>Cancelar</Btn>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 

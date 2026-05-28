@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import AdminReclamos from './AdminReclamos'
 import Admin2Reclamos from './Admin2Reclamos'
+import ReclamosTecnico from './ReclamosTecnico'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Button, Modal, Badge, Spinner, Empty } from '@/components/ui'
@@ -99,7 +100,7 @@ const inputStyle = {
 }
 
 export default function Reclamos() {
-  const { user, profile, isAdmin, isAdmin2, isVendedor } = useAuth()
+  const { user, profile, isAdmin, isAdmin2, isVendedor, isTechService } = useAuth()
   const [searchParams] = useSearchParams()
   const openTracking = searchParams.get('tracking')
   const [reclamos, setReclamos] = useState([])
@@ -397,6 +398,9 @@ export default function Reclamos() {
 
   // ── Vista admin ──
   if (isAdmin || isAdmin2) return <AdminReclamos openTracking={openTracking} />
+
+  // ── Vista técnico ──
+  if (isTechService) return <ReclamosTecnico />
 
   // ── Vista detalle ──
   if (selected) return (
