@@ -1038,9 +1038,14 @@ export default function AdminReclamos({ openTracking } = {}) {
     if (!tecnicoSel) { alert('Seleccioná un técnico'); return }
     setGuardandoDerivacion(true)
     const tec = tecnicosList.find(t => t.id === tecnicoSel)
-    const nuevaNota = armarLineaNota('DERIVADO A TÉCNICO', `${tec?.razon_social || tec?.full_name || '—'} (${tec?.email || ''})`)
+    const textoNota = `${tec?.razon_social || tec?.full_name || '—'} (${tec?.email || ''})`
+    const nuevaNota = armarLineaNota('DERIVADO A TÉCNICO', textoNota)
     const { error } = await supabase.from('devoluciones')
-      .update({ tecnico_id: tecnicoSel, notas_internas: unirNotas(item.notas_internas, nuevaNota) })
+      .update({
+        tecnico_id: tecnicoSel,
+        notas: unirNotas(item.notas, nuevaNota),
+        notas_internas: unirNotas(item.notas_internas, nuevaNota),
+      })
       .eq('id', item.id)
     setGuardandoDerivacion(false)
     if (error) { alert('Error al asignar: ' + error.message); return }
@@ -1052,7 +1057,11 @@ export default function AdminReclamos({ openTracking } = {}) {
     if (!window.confirm('¿Quitar la asignación del técnico?')) return
     const nuevaNota = armarLineaNota('TÉCNICO REMOVIDO', '')
     await supabase.from('devoluciones')
-      .update({ tecnico_id: null, notas_internas: unirNotas(item.notas_internas, nuevaNota) })
+      .update({
+        tecnico_id: null,
+        notas: unirNotas(item.notas, nuevaNota),
+        notas_internas: unirNotas(item.notas_internas, nuevaNota),
+      })
       .eq('id', item.id)
     await cargar()
   }
