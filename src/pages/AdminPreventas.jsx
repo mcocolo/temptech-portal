@@ -67,6 +67,8 @@ export default function AdminPreventas() {
   const [enviandoRetiro, setEnviandoRetiro] = useState(false)
 
   const [recalculando, setRecalculando] = useState(null) // preventa id en recalculo
+  const [recalculandoTodo, setRecalculandoTodo] = useState(false)
+  const [recalcProgreso, setRecalcProgreso] = useState('')
 
   // Historial de entregas (pedidos ligados a la preventa)
   const [pedidosPorPreventa, setPedidosPorPreventa] = useState({})
@@ -105,6 +107,41 @@ export default function AdminPreventas() {
     setRecalculando(null)
     if (updErr) { toast.error('Error al actualizar preventa: ' + updErr.message); return }
     toast.success('✅ Saldo recalculado desde ' + (peds?.length || 0) + ' pedido(s) entregado(s)')
+    cargar()
+  }
+
+  async function recalcularTodo() {
+    if (!window.confirm('¿Recalcular el saldo de TODAS las preventas? Esto puede demorar unos segundos.')) return
+    setRecalculandoTodo(true)
+    const lista = preventas.filter(pv => pv.estado === 'activa' || pv.estado === 'completada')
+    let i = 0
+    for (const pv of lista) {
+      i++
+      setRecalcProgreso(`${i}/${lista.length}`)
+      const { data: peds, error } = await supabase
+        .from('pedidos')
+        .select('items, items_pendientes, estado, stock_descontado')
+        .eq('preventa_id', pv.id)
+        .or('stock_descontado.eq.true,estado.in.(entregado,finalizado)')
+      if (error) continue
+      const retirado = {}
+      for (const ped of (peds || [])) {
+        for (const item of (ped.items || [])) {
+          if (!item.codigo) continue
+          const pendiente = (ped.items_pendientes || []).find(p => p.codigo === item.codigo)
+          const entregado = Math.max(0, item.cantidad - (pendiente?.cantidad || 0))
+          retirado[item.codigo] = (retirado[item.codigo] || 0) + entregado
+        }
+      }
+      const updatedItems = (pv.items || []).map(pvItem => ({
+        ...pvItem,
+        cantidad_retirada: retirado[pvItem.codigo] || 0,
+      }))
+      await supabase.from('preventas').update({ items: updatedItems, updated_at: new Date().toISOString() }).eq('id', pv.id)
+    }
+    setRecalculandoTodo(false)
+    setRecalcProgreso('')
+    toast.success(`✅ ${lista.length} preventa${lista.length !== 1 ? 's' : ''} recalculada${lista.length !== 1 ? 's' : ''}`)
     cargar()
   }
 
@@ -667,14 +704,25 @@ export default function AdminPreventas() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Preventas</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Gestioná las preventas de los distribuidores</p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setTab(tab === 'nueva' ? 'lista' : 'nueva')}
-            style={{ background: tab === 'nueva' ? 'var(--surface2)' : 'var(--brand-gradient)', color: tab === 'nueva' ? 'var(--text2)' : '#fff', border: tab === 'nueva' ? '1px solid var(--border)' : 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}
-          >
-            {tab === 'nueva' ? '← Volver' : '+ Nueva preventa'}
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {isAdmin && tab === 'lista' && (
+            <button
+              onClick={recalcularTodo}
+              disabled={recalculandoTodo}
+              style={{ background: 'rgba(56,189,248,0.08)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: recalculandoTodo ? 0.7 : 1 }}
+            >
+              {recalculandoTodo ? `🔄 Recalculando ${recalcProgreso}...` : '🔁 Recalcular Saldo Total'}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setTab(tab === 'nueva' ? 'lista' : 'nueva')}
+              style={{ background: tab === 'nueva' ? 'var(--surface2)' : 'var(--brand-gradient)', color: tab === 'nueva' ? 'var(--text2)' : '#fff', border: tab === 'nueva' ? '1px solid var(--border)' : 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}
+            >
+              {tab === 'nueva' ? '← Volver' : '+ Nueva preventa'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── FORM NUEVA PREVENTA ── */}
