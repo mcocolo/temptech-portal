@@ -188,10 +188,11 @@ export default function AdminPedidos() {
 
   async function cargar() {
     setLoading(true)
+    const ordenDesc = filtro === 'finalizado' || filtro === 'entregado'
     let q = supabase
       .from('pedidos')
       .select('*, profiles!distribuidor_id(full_name, email, razon_social), vendedor_profile:profiles!vendedor_id(full_name)')
-      .order('fecha_entrega', { ascending: true })
+      .order('fecha_entrega', { ascending: !ordenDesc })
     if (isAdmin2) {
       const admin2Estados = ['pendiente', 'aprobado', 'preparando', 'enviado']
       if (admin2Estados.includes(filtro)) q = q.eq('estado', filtro)
