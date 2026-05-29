@@ -718,7 +718,7 @@ export default function AdminReclamos({ openTracking } = {}) {
 
   async function cargar() {
     setCargando(true); setErrorTexto('')
-    let q = supabase.from('devoluciones').select('*, tecnico:tecnico_id(id, full_name, razon_social, email, telefono)').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false })
+    let q = supabase.from('devoluciones').select('*').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false })
     if (filtroEstado !== 'todos') q = q.eq('estado', filtroEstado)
     const { data, error } = await q
     if (error) { setErrorTexto(error.message); setDatos([]) } else setDatos(data || [])
@@ -1258,6 +1258,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {datosFiltrados.map(item => {
+              const tecnico = tecnicosList.find(t => t.id === item.tecnico_id) || null
               // ── Reglas de habilitación de botones ──
               const esCerrado    = item.estado === 'cerrado'
               const esResolucion = item.estado === 'Resolucion'
@@ -1279,9 +1280,9 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                       <div className="ar-card-hdr-inner" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '4px 10px', borderRadius: 6 }}>{item.tracking_id || `#${item.id}`}</span>
                         <Badge estado={item.estado} aprobado={item.aprobado} />
-                        {item.tecnico && (
+                        {tecnico && (
                           <span style={{ background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>
-                            🔧 {item.tecnico.razon_social || item.tecnico.full_name}
+                            🔧 {tecnico.razon_social || tecnico.full_name}
                           </span>
                         )}
                       </div>
@@ -1592,11 +1593,11 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                     {derivandoId === item.id && (
                       <div style={{ margin: '0 22px 18px', padding: 16, background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.3)', borderRadius: T.radius }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#2dd4bf', marginBottom: 12 }}>👷 Derivar a Servicio Técnico</div>
-                        {item.tecnico && (
+                        {tecnico && (
                           <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.25)', borderRadius: 8, fontSize: 12 }}>
                             <span style={{ color: T.text3 }}>Actualmente asignado: </span>
-                            <strong style={{ color: '#2dd4bf' }}>{item.tecnico.razon_social || item.tecnico.full_name}</strong>
-                            {item.tecnico.email && <span style={{ color: T.text3 }}> — {item.tecnico.email}</span>}
+                            <strong style={{ color: '#2dd4bf' }}>{tecnico.razon_social || tecnico.full_name}</strong>
+                            {tecnico.email && <span style={{ color: T.text3 }}> — {tecnico.email}</span>}
                             <button onClick={() => quitarTecnico(item)} style={{ marginLeft: 12, background: 'none', border: 'none', color: T.red, fontSize: 11, cursor: 'pointer', fontFamily: T.font, fontWeight: 600 }}>✕ Quitar</button>
                           </div>
                         )}
