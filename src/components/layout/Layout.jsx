@@ -41,6 +41,7 @@ const ADMIN_NAV = [
   { label: 'Panel Admin', icon: Shield, path: '/admin', isAdmin: true },
   { label: 'Clientes Registrados', icon: Users, path: '/clientes-registrados', isAdmin: true },
   { label: 'Distribuidores', icon: Store, path: '/distribuidores', isAdmin: true },
+  { label: 'Aprobaciones', icon: Check, path: '/admin-aprobaciones', isAdmin: true },
   { label: 'Pedidos Distribuidores', icon: ShoppingCart, path: '/admin-pedidos', isAdmin: true },
   { label: 'Devoluciones',         icon: RotateCcw,   path: '/admin-devoluciones',      isAdmin: true },
   { label: 'Egreso Devoluciones',  icon: ShoppingBag, path: '/egreso-devoluciones',     isAdmin: true },
@@ -154,7 +155,7 @@ const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', p
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [openSubmenus, setOpenSubmenus] = useState({ produccion: true })
-  const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor, isTechService } = useAuth()
+  const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor, isTechService, aprobacionPendiente, aprobacionRechazada } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
   const mainContentRef    = useRef(null)
@@ -656,7 +657,31 @@ export default function Layout({ children }) {
 
         {/* Page content */}
         <main style={{ flex: 1, padding: '32px' }}>
-          {children}
+          {aprobacionPendiente ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', gap: 16 }}>
+              <div style={{ fontSize: 56 }}>⏳</div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 800, margin: 0 }}>Tu cuenta está pendiente de aprobación</h2>
+              <p style={{ color: 'var(--text3)', fontSize: 14, maxWidth: 420, margin: 0 }}>
+                Recibimos tu registro y lo estamos revisando. Te avisaremos por email cuando tu cuenta esté habilitada.
+              </p>
+              <button onClick={signOut} style={{ marginTop: 8, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 'var(--radius)', padding: '8px 20px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                Cerrar sesión
+              </button>
+            </div>
+          ) : aprobacionRechazada ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', gap: 16 }}>
+              <div style={{ fontSize: 56 }}>🚫</div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 800, margin: 0, color: '#ff5577' }}>Tu solicitud fue rechazada</h2>
+              <p style={{ color: 'var(--text3)', fontSize: 14, maxWidth: 420, margin: 0 }}>
+                Tu cuenta no fue aprobada para acceder al portal. Si creés que es un error, contactanos a través de nuestros canales oficiales.
+              </p>
+              <button onClick={signOut} style={{ marginTop: 8, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 'var(--radius)', padding: '8px 20px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                Cerrar sesión
+              </button>
+            </div>
+          ) : (
+            children
+          )}
         </main>
 
         {/* Footer */}

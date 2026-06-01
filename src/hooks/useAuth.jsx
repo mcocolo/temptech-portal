@@ -70,10 +70,17 @@ export function AuthProvider({ children }) {
   const isTechService = profile?.user_type === 'tecnico' || profile?.clientes?.user_type === 'tecnico'
   const clientCode    = profile?.clientes?.client_code || profile?.client_code
 
+  // Aprobación: solo aplica a distribuidores y técnicos
+  const necesitaAprobacion = isDistributor || isTechService
+  const aprobacionPendiente = necesitaAprobacion && profile?.aprobado === null
+  const aprobacionRechazada = necesitaAprobacion && profile?.aprobado === false
+  const isAprobado = !necesitaAprobacion || profile?.aprobado === true
+
   return (
     <AuthContext.Provider value={{
       user, profile, loading,
       isAdmin, isAdmin2, isVendedor, isChofer, isClient, isDistributor, isTechService,
+      isAprobado, aprobacionPendiente, aprobacionRechazada,
       clientCode,
       signIn, signInWithGoogle, signUp, signOut,
       refreshProfile: () => user && fetchProfile(user.id),
