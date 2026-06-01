@@ -192,6 +192,9 @@ export default function IngresoEgresoPT() {
   const [vNroRemito, setVNroRemito]       = useState('')
   const [vArchivosRemito, setVArchivosRemito] = useState([])
   const [confirmandoVenta, setConfirmandoVenta] = useState(false)
+  const [editModeVenta, setEditModeVenta] = useState(false)
+  const [vBusqAdd, setVBusqAdd]           = useState('')
+  const [guardandoVItems, setGuardandoVItems] = useState(false)
 
   const CANAL_VIEWS = ['egreso-meli', 'egreso-pagina', 'egreso-vo']
   const CANAL_LABELS = { 'egreso-meli': 'Mercado Libre', 'egreso-pagina': 'Página Web', 'egreso-vo': 'Venta VO' }
@@ -297,7 +300,26 @@ export default function IngresoEgresoPT() {
     toast.success('✅ Egreso registrado — venta marcada como Enviada')
     setConfirmandoVenta(false)
     setModalVenta(false); setVentaSel(null); setVItems([]); setVNroRemito(''); setVArchivosRemito([])
+    setEditModeVenta(false); setVBusqAdd('')
     cargar(); cargarVentas(CANAL_KEYS[view])
+  }
+
+  async function guardarVItems() {
+    if (!ventaSel) return
+    setGuardandoVItems(true)
+    const itemsLimpios = vItems.filter(i => i.codigo && i.cantidad > 0).map(i => ({
+      codigo: i.codigo, nombre: i.nombre || '', modelo: i.modelo || '',
+      categoria: i.categoria || '', cantidad: i.cantidad,
+    }))
+    const { error } = await supabase.from('ventas').update({ items: itemsLimpios, updated_at: new Date().toISOString() }).eq('id', ventaSel.id)
+    setGuardandoVItems(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    setVItems(itemsLimpios)
+    setVentaSel(prev => ({ ...prev, items: itemsLimpios }))
+    setEditModeVenta(false)
+    setVBusqAdd('')
+    toast.success('Productos actualizados ✅')
+    cargarVentas(CANAL_KEYS[view])
   }
 
   async function confirmarEgresoPedido() {
@@ -2519,7 +2541,7 @@ export default function IngresoEgresoPT() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
               <div style={{ fontSize: 16, fontWeight: 700 }}>↑ Registrar egreso — {CANAL_LABELS[view]}</div>
-              <button onClick={() => setModalVenta(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+              <button onClick={() => { setModalVenta(false); setEditModeVenta(false); setVBusqAdd('') }} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
             </div>
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Cliente */}
@@ -2532,28 +2554,91 @@ export default function IngresoEgresoPT() {
 
               {/* Items editables */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>Productos</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Productos</div>
+                  {isAdmin && !editModeVenta && (
+                    <button onClick={() => setEditModeVenta(true)} style={{ background: 'rgba(123,159,255,0.1)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      ✏ Editar
+                    </button>
+                  )}
+                  {isAdmin && editModeVenta && (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={guardarVItems} disabled={guardandoVItems} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        {guardandoVItems ? '...' : '✓ Guardar'}
+                      </button>
+                      <button onClick={() => { setEditModeVenta(false); setVBusqAdd('') }} style={{ background: 'none', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {vItems.map((it, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', gap: 10 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)', border: `1px solid ${editModeVenta ? 'rgba(123,159,255,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '8px 12px', gap: 10 }}>
                       <div style={{ flex: 1 }}>
                         {it.codigo && <span style={{ fontSize: 11, fontWeight: 700, color: CANAL_COLORS[view], fontFamily: 'monospace', marginRight: 8 }}>{it.codigo}</span>}
-                        <span style={{ fontSize: 13 }}>{it.nombre}</span>
+                        <span style={{ fontSize: 13 }}>{it.nombre} {it.modelo && <span style={{ color: 'var(--text3)', fontSize: 12 }}>· {it.modelo}</span>}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 11, background: stock[it.codigo]?.stock_actual >= it.cantidad ? 'rgba(61,214,140,0.12)' : 'rgba(255,85,119,0.12)', color: stock[it.codigo]?.stock_actual >= it.cantidad ? '#3dd68c' : '#ff5577', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
                           Stock: {stock[it.codigo]?.stock_actual ?? '—'}
                         </span>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <input type="number" min="0" max={it.cantidad} value={it.cantidad}
-                            onChange={e => { const val = Math.min(parseInt(e.target.value)||0, it.cantidad); setVItems(prev => prev.map((p,j) => j===i ? {...p,cantidad:val} : p)) }}
+                          <input type="number" min="0" value={it.cantidad}
+                            onChange={e => { const val = editModeVenta ? (parseInt(e.target.value)||0) : Math.min(parseInt(e.target.value)||0, it.cantidad); setVItems(prev => prev.map((p,j) => j===i ? {...p,cantidad:val} : p)) }}
                             style={{ width: 64, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--font)' }} />
-                          <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>de {it.cantidad}</span>
+                          {!editModeVenta && <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>de {it.cantidad}</span>}
                         </div>
+                        {editModeVenta && (
+                          <button onClick={() => setVItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px' }}>×</button>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
+                {/* Agregar producto en modo edición */}
+                {editModeVenta && (() => {
+                  const catalogoFlat = (() => {
+                    const db = preciosDB.map(p => ({ codigo: p.codigo, nombre: p.nombre, modelo: p.modelo || '', categoria: p.categoria || '' }))
+                    const dbCodigos = new Set(db.map(p => p.codigo))
+                    const base = PRODUCTOS_TODOS.filter(p => !dbCodigos.has(p.codigo))
+                    return [...db, ...base]
+                  })()
+                  const busqLower = vBusqAdd.toLowerCase()
+                  const filtrados = vBusqAdd.length >= 2
+                    ? catalogoFlat.filter(p => p.codigo.toLowerCase().includes(busqLower) || p.nombre.toLowerCase().includes(busqLower) || (p.modelo || '').toLowerCase().includes(busqLower)).slice(0, 8)
+                    : []
+                  return (
+                    <div style={{ marginTop: 8, position: 'relative' }}>
+                      <input
+                        value={vBusqAdd}
+                        onChange={e => setVBusqAdd(e.target.value)}
+                        placeholder="+ Agregar producto (código o nombre)..."
+                        style={{ ...inputSt, borderColor: 'rgba(123,159,255,0.4)', fontSize: 12 }}
+                      />
+                      {filtrados.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 10, maxHeight: 220, overflowY: 'auto', marginTop: 2 }}>
+                          {filtrados.map(p => (
+                            <div key={p.codigo} onClick={() => {
+                              const existe = vItems.findIndex(i => i.codigo === p.codigo)
+                              if (existe >= 0) {
+                                setVItems(prev => prev.map((it, j) => j === existe ? { ...it, cantidad: it.cantidad + 1 } : it))
+                              } else {
+                                setVItems(prev => [...prev, { ...p, cantidad: 1 }])
+                              }
+                              setVBusqAdd('')
+                            }} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--border)' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace', minWidth: 80 }}>{p.codigo}</span>
+                              <span>{p.nombre} <span style={{ color: 'var(--text3)', fontSize: 12 }}>{p.modelo}</span></span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Nro remito + archivos */}
@@ -2589,7 +2674,7 @@ export default function IngresoEgresoPT() {
                 <button onClick={confirmarEgresoVenta} disabled={confirmandoVenta} style={{ flex: 1, background: CANAL_COLORS[view], color: view === 'egreso-meli' ? '#000' : '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: confirmandoVenta ? 'not-allowed' : 'pointer', opacity: confirmandoVenta ? 0.7 : 1, fontFamily: 'var(--font)' }}>
                   {confirmandoVenta ? '⏳ Procesando...' : '↑ Confirmar egreso'}
                 </button>
-                <button onClick={() => setModalVenta(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+                <button onClick={() => { setModalVenta(false); setEditModeVenta(false); setVBusqAdd('') }} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
