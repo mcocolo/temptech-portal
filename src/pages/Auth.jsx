@@ -288,7 +288,7 @@ export default function Auth() {
       redirectTo: `${window.location.origin}/auth/callback`,
     })
     setLoading(false)
-    if (error) { toast.error('No se pudo enviar el email'); return }
+    if (error) { toast.error('No se pudo enviar el email: ' + error.message); return }
     setResetSent(true)
     toast.success('Email de recuperación enviado')
   }
