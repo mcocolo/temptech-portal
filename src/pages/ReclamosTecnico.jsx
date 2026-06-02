@@ -62,7 +62,7 @@ export default function ReclamosTecnico() {
       .order('fecha_creacion', { ascending: false })
     if (filtro === 'activos') q = q.not('estado', 'in', '("cerrado","rechazado")')
     const { data, error } = await q
-    if (error) toast.error('Error al cargar casos')
+    if (error) { toast.error('Error al cargar casos: ' + error.message); setLoading(false); return }
     setCasos(data || [])
     setLoading(false)
   }

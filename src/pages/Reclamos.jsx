@@ -685,16 +685,15 @@ export default function Reclamos() {
           </div>
 
           <Field label="Producto *">
-            <select value={editForm.producto} onChange={e => {
-              const nombre = e.target.value
-              const item = catalogo.find(p => p.nombre === nombre)
-              setEditForm(p => ({ ...p, producto: nombre, modelo: item?.modelo || nombre }))
+            <select value={editForm.producto && editForm.modelo ? `${editForm.producto}||${editForm.modelo}` : ''} onChange={e => {
+              const [nombre, modelo] = e.target.value.split('||')
+              setEditForm(p => ({ ...p, producto: nombre || '', modelo: modelo || nombre || '' }))
             }} style={inputStyle}>
               <option value="">Seleccioná el producto...</option>
               {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => (
                 <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
                   {prods.map(p => (
-                    <option key={p.nombre} value={p.nombre}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
+                    <option key={`${p.nombre}||${p.modelo}`} value={`${p.nombre}||${p.modelo}`}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
                   ))}
                 </optgroup>
               ))}
@@ -795,16 +794,15 @@ export default function Reclamos() {
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Field label="Producto *">
-              <select value={form.producto} onChange={e => {
-                const nombre = e.target.value
-                const item = catalogo.find(p => p.nombre === nombre)
-                setForm(prev => ({ ...prev, producto: nombre, modelo: item?.modelo || nombre }))
+              <select value={form.producto && form.modelo ? `${form.producto}||${form.modelo}` : ''} onChange={e => {
+                const [nombre, modelo] = e.target.value.split('||')
+                setForm(prev => ({ ...prev, producto: nombre || '', modelo: modelo || nombre || '' }))
               }} style={inputStyle}>
                 <option value="">Seleccioná el producto...</option>
                 {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => (
                   <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
                     {prods.map(p => (
-                      <option key={p.nombre} value={p.nombre}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
+                      <option key={`${p.nombre}||${p.modelo}`} value={`${p.nombre}||${p.modelo}`}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
                     ))}
                   </optgroup>
                 ))}
