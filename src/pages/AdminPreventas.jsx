@@ -290,7 +290,7 @@ export default function AdminPreventas() {
     setCargandoPedidosPv(prev => ({ ...prev, [pvId]: true }))
     const { data } = await supabase
       .from('pedidos')
-      .select('id, estado, created_at, items, items_pendientes, stock_descontado, notas')
+      .select('id, estado, created_at, fecha_entrega, items, items_pendientes, stock_descontado, notas')
       .eq('preventa_id', pvId)
       .order('created_at', { ascending: false })
     setPedidosPorPreventa(prev => ({ ...prev, [pvId]: data || [] }))
@@ -1572,7 +1572,7 @@ export default function AdminPreventas() {
                                                 #{ped.id.slice(0, 8).toUpperCase()}
                                               </span>
                                               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(ped.created_at).toLocaleDateString('es-AR')}</span>
+                                                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(ped.fecha_entrega || ped.created_at).toLocaleDateString('es-AR')}</span>
                                                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 10, background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}40` }}>{cfg.label}</span>
                                               </div>
                                             </div>
