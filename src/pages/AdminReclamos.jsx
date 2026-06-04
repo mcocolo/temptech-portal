@@ -333,11 +333,7 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
   const isService    = tipo === 'Service'
 
   const defaultTexto = isDevolucion
-    ? `Ante todo, le pedimos disculpas por los inconvenientes ocasionados. Trabajamos día a día 
-    para brindarle el mejor producto y servicio. Estamos a su disposición para resolverlo con la mayor celeridad posible.
-    \nTenemos que gestionar el cambio de la unidad. Te indicamos cuales los pasos a seguir:\n\nTe enviaremos una etiqueta de correo argentino que deberás adherir a la caja del producto que falla y despacharlo en la sucursal de correo ubicada 
-    en\nPILAR UP 21 | AV LUIS LAGOMARSINO 905. Buenos aires.\n\nLuego de despacharlo, te pediremos que nos envíes el comprobante de dicho despacho para que podamos activar el reenvío de una unidad nueva.\n\nLEER IMPORTANTE: Conservar el kit de instalación (no despacharlo con la unidad defectuosa) para poder utilizar con esta nueva unidad*\n\n
-    Aguardamos confirmación para poder enviarte la etiqueta.`
+    ? `Ante todo, le pedimos disculpas por los inconvenientes ocasionados. Trabajamos día a día para brindarle el mejor producto y servicio. Estamos a su disposición para resolverlo con la mayor celeridad posible.\n\nTenemos que gestionar el cambio de la unidad. Te indicamos cuales los pasos a seguir:\n\nTe enviaremos una etiqueta de correo argentino que deberás adherir a la caja del producto que falla y despacharlo en la sucursal de correo ubicada en\nPILAR UP 21 | AV LUIS LAGOMARSINO 905. Buenos aires.\n\nLuego de despacharlo, te pediremos que nos envíes el comprobante de dicho despacho para que podamos activar el reenvío de una unidad nueva.\n\nLEER IMPORTANTE: Conservar el kit de instalación (no despacharlo con la unidad defectuosa) para poder utilizar con esta nueva unidad*\n\nAguardamos confirmación de despacho\n\nSaludos,\nEquipo de Soporte TEMPTECH`
     : isService
     ? `Podemos ofrecerte el servicio de reparación de fábrica, para lo cual, deberás enviar el producto a Obon 1327, Valentín Alsina, CP 1822, Buenos Aires.\nPodés enviarlo a través de la logística que creas conveniente u acercarte a fábrica donde lo revisarán y determinarán si es posible su reparación.\nTe pedimos que nos contactes vía Whatsapp al 11 7237-5839, indicando nombre y apellido en el caso de querer avanzar con nuestro servicio de reparación.`
     : null // generado dinámicamente para Resolución
@@ -351,9 +347,10 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
     return links[emp] || cod
   }
 
-  const textoResolucion = (emp, cod) => {
+  const textoResolucion = (emp, cod, fecha) => {
     if (emp === 'Logistica Propia') {
-      return `Nos contactamos de TEMPTECH por el caso "${item.tracking_id}".\nNos pondremos en contacto para coordinar el retiro de la unidad con nuestra logística propia y la entrega de un reemplazo. Recuerde tener el equipo listo para ser retirado y entregar sólo el Panel, conservando el kit de instalación para ser utilizado con la nueva unidad de reemplazo.\n\nSaludos.\nEquipo Soporte TEMPTECH`
+      const fechaFmt = fecha ? new Date(fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'FECHA DE ENVÍO'
+      return `Nos contactamos de TEMPTECH por el caso "${item.tracking_id}".\n\nNos ponemos en contacto para coordinar el retiro de la unidad con nuestra logística propia y la entrega de un reemplazo el día ${fechaFmt}. Recuerde tener el equipo listo para ser retirado y entregar sólo el Panel, conservando el kit de instalación para ser utilizado con unidad de reemplazo.\n\nAguardamos confirmación vía WAPP al 11 7237-5839\n\nSaludos.\nEquipo Soporte TEMPTECH`
     }
     return `Nos contactamos de TEMPTECH por el caso "${item.tracking_id}".\nNuevamente queremos pedirle disculpas por los inconvenientes ocasionados.\nA continuación le dejamos los datos para el seguimiento de su envío.\n\nEmpresa: ${emp || ''}\nCódigo de seguimiento: ${cod || ''}\nLink de seguimiento: ${linkSeguimiento(emp, cod)}`
   }
@@ -362,7 +359,7 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
   const [codigo, setCodigo]         = useState(item.codigo_seguimiento || '')
   const [fechaEnvio, setFechaEnvio] = useState(item.fecha_envio || '')
   const [textoEmail, setTextoEmail] = useState(
-    !isDevolucion && !isService ? textoResolucion(item.empresa_envio || 'Correo Argentino', item.codigo_seguimiento || '') : defaultTexto
+    !isDevolucion && !isService ? textoResolucion(item.empresa_envio || 'Correo Argentino', item.codigo_seguimiento || '', item.fecha_envio || '') : defaultTexto
   )
   // Múltiples archivos adjuntos para Devolución
   const [adjuntos, setAdjuntos]     = useState([])
@@ -411,7 +408,7 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
             <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Empresa</label>
-            <select value={empresa} onChange={e => { setEmpresa(e.target.value); if (!isDevolucion && !isService) setTextoEmail(textoResolucion(e.target.value, codigo)) }} style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%' }}>
+            <select value={empresa} onChange={e => { setEmpresa(e.target.value); if (!isDevolucion && !isService) setTextoEmail(textoResolucion(e.target.value, codigo, fechaEnvio)) }} style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%' }}>
               <option value="Correo Argentino">Correo Argentino</option>
               <option value="Andreani">Andreani</option>
               <option value="Logistica Propia">Logística Propia</option>
@@ -420,12 +417,12 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
           {empresa !== 'Logistica Propia' ? (
             <div>
               <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Código de seguimiento</label>
-              <input type="text" value={codigo} onChange={e => { setCodigo(e.target.value); if (!isDevolucion && !isService) setTextoEmail(textoResolucion(empresa, e.target.value)) }} style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} placeholder="Código de seguimiento" />
+              <input type="text" value={codigo} onChange={e => { setCodigo(e.target.value); if (!isDevolucion && !isService) setTextoEmail(textoResolucion(empresa, e.target.value, fechaEnvio)) }} style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none' }} placeholder="Código de seguimiento" />
             </div>
           ) : (
             <div>
               <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Fecha de envío</label>
-              <input type="date" value={fechaEnvio} onChange={e => setFechaEnvio(e.target.value)} style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none', colorScheme: 'dark' }} />
+              <input type="date" value={fechaEnvio} onChange={e => { setFechaEnvio(e.target.value); if (!isDevolucion && !isService) setTextoEmail(textoResolucion(empresa, codigo, e.target.value)) }} style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '8px 12px', color: T.text, fontSize: 13, fontFamily: T.font, width: '100%', outline: 'none', colorScheme: 'dark' }} />
             </div>
           )}
         </div>
