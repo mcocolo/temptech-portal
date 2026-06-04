@@ -65,14 +65,50 @@ export default function AdminPrecios() {
   const [guardandoNuevo, setGuardandoNuevo] = useState(false)
   const fileRef = useRef()
 
+  // Listas de precios PDF
+  const [listasPrecios, setListasPrecios] = useState([])
+  const [modalLista, setModalLista] = useState(false)
+  const [listaNombre, setListaNombre] = useState('')
+  const [listaFile, setListaFile] = useState(null)
+  const [subiendoLista, setSubiendoLista] = useState(false)
+  const listaFileRef = useRef()
+
   useEffect(() => { if (isAdmin || isVendedor || isDistributor) cargar() }, [isAdmin, isVendedor, isDistributor])
 
   async function cargar() {
     setLoading(true)
-    const { data, error } = await supabase.from('precios').select('*').order('categoria').order('nombre')
-    if (error) toast.error('Error al cargar precios')
-    else setPrecios(data || [])
+    const [preciosRes, listasRes] = await Promise.all([
+      supabase.from('precios').select('*').order('categoria').order('nombre'),
+      supabase.from('listas_precios').select('*').order('created_at'),
+    ])
+    if (preciosRes.error) toast.error('Error al cargar precios')
+    else setPrecios(preciosRes.data || [])
+    setListasPrecios(listasRes.data || [])
     setLoading(false)
+  }
+
+  async function subirLista() {
+    if (!listaNombre.trim()) return toast.error('Ingresá un nombre para la lista')
+    if (!listaFile) return toast.error('Seleccioná un archivo PDF')
+    setSubiendoLista(true)
+    const ext = listaFile.name.split('.').pop()
+    const path = `listas-precios/${Date.now()}_${listaNombre.trim().replace(/\s+/g, '-')}.${ext}`
+    const { error: upErr } = await supabase.storage.from('Imagenes').upload(path, listaFile, { upsert: true })
+    if (upErr) { toast.error('Error al subir: ' + upErr.message); setSubiendoLista(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
+    const { error } = await supabase.from('listas_precios').insert({ nombre: listaNombre.trim(), url: publicUrl })
+    setSubiendoLista(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Lista agregada ✅')
+    setModalLista(false); setListaNombre(''); setListaFile(null)
+    cargar()
+  }
+
+  async function eliminarLista(lista) {
+    if (!window.confirm(`¿Eliminar "${lista.nombre}"?`)) return
+    await supabase.from('listas_precios').delete().eq('id', lista.id)
+    toast.success('Lista eliminada')
+    cargar()
   }
 
   function handleArchivo(e) {
@@ -194,28 +230,70 @@ export default function AdminPrecios() {
 
       {/* Descarga PDFs */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px', marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>
-          📄 Listas de Precios — Descarga PDF
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+            📄 Listas de Precios — Descarga PDF
+          </div>
+          {isAdmin && (
+            <button onClick={() => setModalLista(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(123,159,255,0.1)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              <Upload size={12} /> Agregar lista
+            </button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <a href="https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/listas-precios/lista-precios-calefones-calderas.pdf" target="_blank" rel="noreferrer" download="Lista Precios Calefacción Eléctrica.pdf"
-            style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '10px 18px', textDecoration: 'none', color: '#ffd166', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600, transition: 'all .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,209,102,0.16)'; e.currentTarget.style.borderColor = 'rgba(255,209,102,0.5)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,209,102,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,209,102,0.3)' }}>
-            <FileText size={16} />
-            Calefacción Eléctrica
-            <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>↓ PDF</span>
-          </a>
-          <a href="https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/listas-precios/lista-precios-calefaccion.pdf" target="_blank" rel="noreferrer" download="Lista Precios Calefones-Calderas.pdf"
-            style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,107,43,0.08)', border: '1px solid rgba(255,107,43,0.3)', borderRadius: 'var(--radius)', padding: '10px 18px', textDecoration: 'none', color: '#ff6b2b', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600, transition: 'all .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,107,43,0.16)'; e.currentTarget.style.borderColor = 'rgba(255,107,43,0.5)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,107,43,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,107,43,0.3)' }}>
-            <FileText size={16} />
-            Calefones / Calderas
-            <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>↓ PDF</span>
-          </a>
+          {listasPrecios.map(lista => (
+            <div key={lista.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <a href={lista.url} target="_blank" rel="noreferrer" download
+                style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '10px 18px', textDecoration: 'none', color: '#ffd166', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600 }}>
+                <FileText size={16} />
+                {lista.nombre}
+                <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>↓ PDF</span>
+              </a>
+              {isAdmin && (
+                <button onClick={() => eliminarLista(lista)} title="Eliminar" style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '4px 8px', color: '#ff5577', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>×</button>
+              )}
+            </div>
+          ))}
+          {listasPrecios.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sin listas cargadas aún.</div>}
         </div>
       </div>
+
+      {/* Modal agregar lista PDF */}
+      {modalLista && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 420, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>Agregar lista de precios</div>
+              <button onClick={() => { setModalLista(false); setListaNombre(''); setListaFile(null) }} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Nombre de la lista *</label>
+              <input value={listaNombre} onChange={e => setListaNombre(e.target.value)} placeholder="Ej: Anafes Vitro" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font)', outline: 'none' }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Archivo PDF *</label>
+              {listaFile ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px' }}>
+                  <FileText size={14} style={{ color: '#3dd68c' }} />
+                  <span style={{ fontSize: 13, flex: 1 }}>{listaFile.name}</span>
+                  <button onClick={() => setListaFile(null)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 16 }}>×</button>
+                </div>
+              ) : (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+                  <Upload size={14} /> Seleccionar PDF
+                  <input ref={listaFileRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setListaFile(e.target.files[0]); e.target.value = '' }} />
+                </label>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setModalLista(false); setListaNombre(''); setListaFile(null) }} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 'var(--radius)', padding: '9px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              <button onClick={subirLista} disabled={subiendoLista} style={{ background: 'var(--brand-gradient)', border: 'none', color: '#fff', borderRadius: 'var(--radius)', padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', opacity: subiendoLista ? 0.7 : 1 }}>
+                {subiendoLista ? '⏳ Subiendo...' : '✓ Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Instrucciones CSV — solo admin */}
       {isAdmin && <div style={{ background: 'rgba(74,108,247,0.06)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24 }}>
