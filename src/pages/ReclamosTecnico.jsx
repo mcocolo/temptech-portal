@@ -57,7 +57,7 @@ export default function ReclamosTecnico() {
   async function cargar() {
     setLoading(true)
     let q = supabase.from('devoluciones')
-      .select('id, tracking_id, estado, fecha_creacion, nombre_apellido, nombre, email, telefono, producto, modelo, motivo, descripcion_falla, imagenes_producto_urls, imagen_producto_url, comprobantes_urls, comprobante_url, tecnico_reporte, tecnico_fotos, localidad, provincia, direccion')
+      .select('id, tracking_id, estado, fecha_creacion, nombre_apellido, email, telefono, producto, modelo, motivo, descripcion_falla, imagenes_producto_urls, imagen_producto_url, comprobantes_urls, comprobante_url, tecnico_reporte, tecnico_fotos, localidad, provincia, direccion')
       .eq('tecnico_id', user.id)
       .order('fecha_creacion', { ascending: false })
     if (filtro === 'activos') q = q.not('estado', 'in', '("cerrado","rechazado")')
@@ -170,7 +170,7 @@ export default function ReclamosTecnico() {
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: T.text3, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>Cliente</div>
                         {[
-                          ['Nombre', caso.nombre_apellido || caso.nombre],
+                          ['Nombre', caso.nombre_apellido],
                           ['Email', caso.email],
                           ['Teléfono', caso.telefono],
                           ['Dirección', caso.direccion],
