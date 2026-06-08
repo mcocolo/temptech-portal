@@ -344,6 +344,14 @@ export default function IngresoEgresoPT() {
     }
     const remitoUrl = remitoUrls[0] || null
 
+    // Verificar stock suficiente ANTES de tocar el pedido
+    const sinStockPrevio = itemsAEntregar.filter(item => item.cantidad > (stock[item.codigo]?.stock_actual ?? 0))
+    if (sinStockPrevio.length > 0) {
+      const detalle = sinStockPrevio.map(i => `${i.nombre} (disponible: ${stock[i.codigo]?.stock_actual ?? 0}, pedido: ${i.cantidad})`).join('\n')
+      toast.error(`Stock insuficiente:\n${detalle}`, { duration: 6000 })
+      setConfirmandoPed(false); confirmingPedRef.current = false; return
+    }
+
     // Calcular saldo pendiente después de esta entrega
     const originalPending = pedidoSel.items_pendientes?.length > 0
       ? pedidoSel.items_pendientes
@@ -368,17 +376,6 @@ export default function IngresoEgresoPT() {
 
     // Guardar saldo pendiente (requiere columna items_pendientes)
     await supabase.from('pedidos').update({ items_pendientes: newPending }).eq('id', pedidoSel.id)
-
-    // Verificar stock suficiente antes de descontar
-    const sinStock = itemsAEntregar.filter(item => {
-      const actual = stock[item.codigo]?.stock_actual ?? 0
-      return item.cantidad > actual
-    })
-    if (sinStock.length > 0) {
-      const detalle = sinStock.map(i => `${i.nombre} (disponible: ${stock[i.codigo]?.stock_actual ?? 0}, pedido: ${i.cantidad})`).join('\n')
-      toast.error(`Stock insuficiente:\n${detalle}`, { duration: 6000 })
-      setConfirmandoPed(false); confirmingPedRef.current = false; return
-    }
 
     // Descontar stock por las cantidades efectivamente entregadas
     for (const item of itemsAEntregar) {
