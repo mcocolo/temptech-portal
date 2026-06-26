@@ -99,7 +99,7 @@ export default function AdminEgresoDevoluciones() {
 
   async function cargarProductos() {
     if (productos.length > 0) return
-    const { data } = await supabase.from('precios').select('codigo,nombre,modelo').order('codigo')
+    const { data } = await supabase.from('precios').select('codigo,nombre,modelo,categoria').order('categoria').order('nombre')
     if (data) setProductos(data)
   }
 
@@ -291,55 +291,40 @@ export default function AdminEgresoDevoluciones() {
                   <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 10 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', marginBottom: 10 }}>✏ Editar item</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px,1fr))', gap: 10, marginBottom: 12 }}>
-                      {/* Código — autocomplete */}
-                      <div style={{ position: 'relative' }}>
-                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Código</div>
-                        <input style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
-                          value={editForm.codigo}
-                          onChange={e => handleCodigoChange(e.target.value)}
-                          onBlur={() => ocultarSugs('codigo')}
-                          placeholder="Ej: F1400SMARTBL" />
-                        {sugsCampo === 'codigo' && sugsProducto.length > 0 && (
-                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto', marginTop: 2 }}>
-                            {sugsProducto.map((p, i) => (
-                              <div key={i} onMouseDown={() => seleccionarProducto(p)}
-                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', fontSize: 11 }}>{p.codigo}</span>
-                                <span style={{ color: 'var(--text2)', fontSize: 11 }}>{p.nombre}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {/* Nombre — solo lectura si se seleccionó del buscador, editable igual */}
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Nombre</div>
-                        <input style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
-                          value={editForm.nombre}
-                          onChange={e => setEditForm(f => ({ ...f, nombre: e.target.value }))} />
-                      </div>
-                      {/* Modelo — autocomplete */}
-                      <div style={{ position: 'relative' }}>
-                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Modelo</div>
-                        <input style={{ ...inputSt, padding: '6px 10px', resize: 'none' }}
-                          value={editForm.modelo}
-                          onChange={e => handleModeloChange(e.target.value)}
-                          onBlur={() => ocultarSugs('modelo')}
-                          placeholder="Buscar por nombre o modelo..." />
-                        {sugsCampo === 'modelo' && sugsProducto.length > 0 && (
-                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto', marginTop: 2 }}>
-                            {sugsProducto.map((p, i) => (
-                              <div key={i} onMouseDown={() => seleccionarProducto(p)}
-                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#ffd166', fontSize: 11 }}>{p.codigo}</span>
-                                <span style={{ color: 'var(--text2)', fontSize: 11 }}>{p.nombre}</span>
-                                {p.modelo && p.modelo !== p.nombre && <span style={{ color: 'var(--text3)', fontSize: 11 }}>{p.modelo}</span>}
-                              </div>
-                            ))}
+                      {/* Producto — selector desplegable */}
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Producto</div>
+                        <select
+                          value={editForm.codigo || ''}
+                          onChange={e => {
+                            const p = productos.find(x => x.codigo === e.target.value)
+                            if (p) setEditForm(f => ({ ...f, codigo: p.codigo, nombre: p.nombre || '', modelo: p.modelo || '' }))
+                          }}
+                          style={{ ...inputSt, padding: '6px 10px', width: '100%' }}
+                        >
+                          <option value="">Seleccioná un producto...</option>
+                          {(() => {
+                            const grupos = {}
+                            productos.forEach(p => {
+                              const cat = p.categoria || 'Otros'
+                              if (!grupos[cat]) grupos[cat] = []
+                              grupos[cat].push(p)
+                            })
+                            return Object.entries(grupos).map(([cat, prods]) => (
+                              <optgroup key={cat} label={cat}>
+                                {prods.map(p => (
+                                  <option key={p.codigo} value={p.codigo}>
+                                    {p.codigo} — {p.nombre}{p.modelo && p.modelo !== p.nombre ? ` · ${p.modelo}` : ''}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))
+                          })()}
+                        </select>
+                        {editForm.codigo && (
+                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                            <span style={{ fontFamily: 'monospace', color: '#ffd166', fontWeight: 700 }}>{editForm.codigo}</span>
+                            {' — '}{editForm.nombre}{editForm.modelo ? ` · ${editForm.modelo}` : ''}
                           </div>
                         )}
                       </div>

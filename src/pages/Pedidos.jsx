@@ -78,9 +78,10 @@ const STATUS_CONFIG = {
 }
 
 export default function Pedidos() {
-  const { user, profile, isDistributor } = useAuth()
+  const { user, profile, isDistributor, isVendedor } = useAuth()
   const [tab, setTab] = useState('nuevo')        // 'nuevo' | 'preventa' | 'historial'
   const [cantidades, setCantidades] = useState({})
+  const [preciosBD, setPreciosBD] = useState([])
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
   const [direccionEntrega, setDireccionEntrega] = useState('')
@@ -128,6 +129,13 @@ export default function Pedidos() {
     const n = Math.min(max, Math.max(0, parseInt(val) || 0))
     setCantsPrev(prev => ({ ...prev, [codigo]: n }))
   }
+
+  // Productos con EAN para distribuidores/vendedores
+  const codigosConEAN = new Set(preciosBD.filter(p => p.ean && p.ean.trim()).map(p => p.codigo))
+  const catalogoFiltrado = CATALOGO.map(cat => ({
+    ...cat,
+    productos: cat.productos.filter(p => codigosConEAN.size === 0 || codigosConEAN.has(p.codigo)),
+  })).filter(cat => cat.productos.length > 0)
 
   // Items en el carrito
   const itemsCarrito = CATALOGO.flatMap(cat =>
@@ -309,6 +317,9 @@ export default function Pedidos() {
 
   useEffect(() => { if (tab === 'historial') cargarHistorial() }, [tab])
   useEffect(() => { if (tab === 'preventa') cargarPreventas() }, [tab])
+  useEffect(() => {
+    supabase.from('precios').select('codigo, ean').then(({ data }) => setPreciosBD(data || []))
+  }, [])
 
   if (!isDistributor) return null
 
@@ -363,7 +374,7 @@ export default function Pedidos() {
         <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
           {/* Catálogo */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {CATALOGO.map(cat => {
+            {catalogoFiltrado.map(cat => {
               const desc = descuentos[cat.categoria] || 0
               return (
                 <div key={cat.categoria} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
