@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Suspense, lazy } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import Layout from '@/components/layout/Layout'
@@ -42,7 +41,7 @@ import Repuestos from '@/pages/Repuestos'
 import VideosTecnicos from '@/pages/VideosTecnicos'
 import PedidosRepuestos from '@/pages/PedidosRepuestos'
 import AdminAprobaciones from '@/pages/AdminAprobaciones'
-const MapaLocales = lazy(() => import('@/pages/MapaLocales'))
+import MapaLocales from '@/pages/MapaLocales'
 
 
 
@@ -116,7 +115,7 @@ function AppRoutes() {
               <Route path="/videos-tecnicos"            element={<VideosTecnicos />} />
               <Route path="/pedidos-repuestos"          element={<PedidosRepuestos />} />
               <Route path="/admin-aprobaciones"         element={<AdminAprobaciones />} />
-              <Route path="/mapa-locales"               element={<Suspense fallback={<div style={{padding:40,color:'var(--text3)'}}>Cargando mapa...</div>}><MapaLocales /></Suspense>} />
+              <Route path="/mapa-locales"               element={<MapaLocales />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal key="meli" />} />
               <Route path="/pedidos-pagina"            element={<PedidosCanal key="pagina" />} />
               <Route path="/pedidos-vo"                element={<PedidosCanal key="vo" />} />
