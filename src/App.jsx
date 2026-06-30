@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate, Suspense, lazy } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Suspense, lazy } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import Layout from '@/components/layout/Layout'
