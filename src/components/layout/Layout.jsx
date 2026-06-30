@@ -7,7 +7,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -26,6 +26,7 @@ const NAV = [
   { label: 'Documentación',     icon: ClipboardList,   path: '/documentacion',     isDistributor: true },
   { label: 'Contenido Digital',          icon: Package,      path: '/contenido-digital',          isDistributor: true },
   { label: 'Especificaciones Técnicas',  icon: Ruler,        path: '/especificaciones-tecnicas' },
+  { label: 'Locales & Service',          icon: MapPin,       path: '/mapa-locales' },
   { section: 'Mi Cuenta' },
   { label: 'Mis Consultas',     icon: ClipboardList,   path: '/mis-consultas' },
   { label: 'MIS TEMPTECH / Registrar', icon: Package, path: '/registro-producto' },

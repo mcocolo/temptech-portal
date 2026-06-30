@@ -156,6 +156,7 @@ export default function Pedidos() {
   const totalConIVA = total + ivaAmount
 
   async function enviarPedido() {
+    if (estaBloqueado) { toast.error('Tu cuenta está temporalmente restringida para realizar pedidos.'); return }
     if (itemsCarrito.length === 0) { toast.error('Agregá al menos un producto'); return }
     setEnviando(true)
     const { error } = await supabase.from('pedidos').insert({
@@ -323,6 +324,8 @@ export default function Pedidos() {
 
   if (!isDistributor) return null
 
+  const estaBloqueado = profile?.bloqueado === true
+
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
 
@@ -370,7 +373,15 @@ export default function Pedidos() {
         ))}
       </div>
 
-      {tab === 'nuevo' && (
+      {tab === 'nuevo' && estaBloqueado && (
+        <div style={{ background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 'var(--radius-lg)', padding: '32px 24px', textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontWeight: 700, fontSize: 18, color: '#ff5577', marginBottom: 8 }}>Cuenta restringida temporalmente</div>
+          <div style={{ color: 'var(--text3)', fontSize: 14 }}>Tu cuenta tiene una restricción para realizar pedidos. Contactate con nosotros para más información.</div>
+        </div>
+      )}
+
+      {tab === 'nuevo' && !estaBloqueado && (
         <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
           {/* Catálogo */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

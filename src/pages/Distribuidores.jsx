@@ -96,7 +96,7 @@ function formatDescuento(val) {
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 
 const emptyNuevo = () => ({ email: '', full_name: '', razon_social: '', cuit: '', telefono: '', localidad: '', provincia: '' })
-const emptyInfo  = () => ({ transporte: '', domicilio: '' })
+const emptyInfo  = () => ({ transporte: '', domicilio: '', web: '', lat: '', lng: '' })
 
 export default function Distribuidores() {
   const { isAdmin, isAdmin2, isVendedor, user } = useAuth()
@@ -120,7 +120,7 @@ export default function Distribuidores() {
     setLoading(true)
     let q = supabase
       .from('profiles')
-      .select('id, email, full_name, razon_social, cuit, localidad, provincia, telefono, descuentos, transporte, domicilio, created_at')
+      .select('id, email, full_name, razon_social, cuit, localidad, provincia, telefono, descuentos, transporte, domicilio, created_at, bloqueado')
       .eq('user_type', 'distributor')
       .order('created_at', { ascending: false })
 
@@ -136,11 +136,33 @@ export default function Distribuidores() {
 
   function abrirEdicion(dist) {
     setDescuentos(descToArrays(dist.descuentos))
-    setInfoForm({ transporte: dist.transporte || '', domicilio: dist.domicilio || '' })
+    setInfoForm({ transporte: dist.transporte || '', domicilio: dist.domicilio || '', web: dist.web || '', lat: dist.lat ?? '', lng: dist.lng ?? '' })
     setEditando(dist.id)
   }
 
+  async function geocodificar(distId) {
+    const dom = infoForm.domicilio || ''
+    const loc = distribuidores.find(d => d.id === distId)
+    const dir = [dom, loc?.localidad, loc?.provincia, 'Argentina'].filter(Boolean).join(', ')
+    if (!dir.includes('Argentina')) { toast.error('Completá el domicilio primero'); return }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dir)}&countrycodes=ar&format=json&limit=1`, { headers: { 'Accept-Language': 'es' } })
+      const data = await res.json()
+      if (!data[0]) { toast.error('No se encontró la dirección, probá con menos detalles'); return }
+      setInfoForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
+      toast.success('Coordenadas encontradas ✅')
+    } catch { toast.error('Error al geocodificar') }
+  }
+
   function cerrarEdicion() { setEditando(null); setDescuentos({}); setInfoForm(emptyInfo()) }
+
+  async function toggleBloqueo(dist) {
+    const nuevo = !dist.bloqueado
+    const { error } = await supabase.from('profiles').update({ bloqueado: nuevo }).eq('id', dist.id)
+    if (error) { toast.error('Error al actualizar'); return }
+    setDistribuidores(prev => prev.map(d => d.id === dist.id ? { ...d, bloqueado: nuevo } : d))
+    toast.success(nuevo ? `🔒 ${dist.razon_social || dist.full_name} bloqueado` : `🔓 ${dist.razon_social || dist.full_name} desbloqueado`)
+  }
 
   async function invitarDistribuidor() {
     if (!nuevo.email.trim()) { toast.error('El email es requerido'); return }
@@ -168,6 +190,9 @@ export default function Distribuidores() {
     const { error } = await supabase.from('profiles').update({
       transporte: infoForm.transporte.trim() || null,
       domicilio:  infoForm.domicilio.trim()  || null,
+      web:        infoForm.web.trim()         || null,
+      lat:        infoForm.lat !== '' ? parseFloat(infoForm.lat) : null,
+      lng:        infoForm.lng !== '' ? parseFloat(infoForm.lng) : null,
     }).eq('id', distId)
     if (error) {
       toast.error('Error al guardar')
@@ -284,6 +309,19 @@ export default function Distribuidores() {
                       </span>
                     )
                   })}
+                  {dist.bloqueado && (
+                    <span style={{ background: 'rgba(255,85,119,0.12)', border: '1px solid rgba(255,85,119,0.35)', color: '#ff5577', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                      🔒 Bloqueado
+                    </span>
+                  )}
+                  {(isAdmin || isAdmin2) && (
+                    <button
+                      onClick={() => toggleBloqueo(dist)}
+                      style={{ background: dist.bloqueado ? 'rgba(61,214,140,0.1)' : 'rgba(255,85,119,0.08)', border: `1px solid ${dist.bloqueado ? 'rgba(61,214,140,0.35)' : 'rgba(255,85,119,0.3)'}`, color: dist.bloqueado ? '#3dd68c' : '#ff5577', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                    >
+                      {dist.bloqueado ? '🔓 Desbloquear' : '🔒 Bloquear'}
+                    </button>
+                  )}
                   <button
                     onClick={() => editando === dist.id ? cerrarEdicion() : abrirEdicion(dist)}
                     style={{ background: editando === dist.id ? 'var(--surface3)' : 'rgba(74,108,247,0.1)', border: `1px solid ${editando === dist.id ? 'var(--border)' : 'rgba(74,108,247,0.35)'}`, color: editando === dist.id ? 'var(--text2)' : '#7b9fff', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
@@ -302,13 +340,13 @@ export default function Distribuidores() {
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>
                       🚚 Datos logísticos
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                       <div>
-                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Nombre del transporte</label>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Nombre del transporte / Horario</label>
                         <input
                           value={infoForm.transporte}
                           onChange={e => setInfoForm(p => ({ ...p, transporte: e.target.value }))}
-                          placeholder="Ej: Andreani, OCA, logística propia..."
+                          placeholder="Ej: Lunes a Viernes 9 a 18hs"
                           style={inputSt}
                         />
                       </div>
@@ -320,6 +358,29 @@ export default function Distribuidores() {
                           placeholder="Ej: Av. Corrientes 1234, CABA"
                           style={inputSt}
                         />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Página web</label>
+                        <input
+                          value={infoForm.web}
+                          onChange={e => setInfoForm(p => ({ ...p, web: e.target.value }))}
+                          placeholder="Ej: www.distribuidor.com"
+                          style={inputSt}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>Coordenadas en el mapa</label>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input value={infoForm.lat} onChange={e => setInfoForm(p => ({ ...p, lat: e.target.value }))} placeholder="Lat" style={{ ...inputSt, width: 90 }} />
+                          <input value={infoForm.lng} onChange={e => setInfoForm(p => ({ ...p, lng: e.target.value }))} placeholder="Lng" style={{ ...inputSt, width: 90 }} />
+                          <button onClick={() => geocodificar(dist.id)} title="Geocodificar automáticamente desde el domicilio"
+                            style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                            📍 Buscar
+                          </button>
+                        </div>
+                        {infoForm.lat && infoForm.lng && (
+                          <div style={{ fontSize: 11, color: '#3dd68c', marginTop: 3 }}>✓ Aparecerá en el mapa</div>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
