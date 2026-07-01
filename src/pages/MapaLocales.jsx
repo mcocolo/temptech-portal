@@ -77,7 +77,7 @@ export default function MapaLocales() {
       if (filtro === 'tecnico'     && l.user_type !== 'tecnico')      return false
       if (busqueda) {
         const q = busqueda.toLowerCase()
-        return (l.razon_social || '').toLowerCase().includes(q)
+        return (l.nombre || '').toLowerCase().includes(q)
           || (l.localidad || '').toLowerCase().includes(q)
           || (l.provincia || '').toLowerCase().includes(q)
       }
@@ -85,19 +85,18 @@ export default function MapaLocales() {
     })
 
     activos.filter(l => l.lat && l.lng).forEach(local => {
-      const nombre  = local.razon_social || local.full_name || '—'
       const tipo    = local.user_type === 'distributor' ? '🏪 Distribuidor' : '🔧 Service Técnico'
-      const dir     = [local.domicilio, local.localidad, local.provincia].filter(Boolean).join(', ')
+      const dir     = [local.direccion, local.localidad, local.provincia].filter(Boolean).join(', ')
       const webLink = local.web
         ? `<div style="margin-top:6px">🌐 <a href="${local.web.startsWith('http') ? local.web : 'https://' + local.web}" target="_blank" style="color:#2563eb">${local.web.replace(/^https?:\/\//, '')}</a></div>`
         : ''
       const popup = `
         <div style="font-family:system-ui,sans-serif;min-width:190px">
-          <div style="font-weight:700;font-size:14px;margin-bottom:3px">${nombre}</div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:3px">${local.nombre}</div>
           <div style="font-size:11px;font-weight:600;color:${local.user_type === 'distributor' ? '#e8920a' : '#2563eb'};margin-bottom:8px;text-transform:uppercase">${tipo}</div>
           ${dir ? `<div style="font-size:12px;margin-bottom:4px">📍 ${dir}</div>` : ''}
           ${local.telefono ? `<div style="font-size:12px;margin-bottom:4px">📞 <a href="tel:${local.telefono}" style="color:#2563eb">${local.telefono}</a></div>` : ''}
-          ${local.transporte ? `<div style="font-size:12px;color:#555;margin-bottom:4px">🕐 ${local.transporte}</div>` : ''}
+          ${local.horario ? `<div style="font-size:12px;color:#555;margin-bottom:4px">🕐 ${local.horario}</div>` : ''}
           ${webLink}
         </div>`
       L.marker([local.lat, local.lng], { icon }).addTo(map).bindPopup(popup)
@@ -119,7 +118,7 @@ export default function MapaLocales() {
     if (filtro === 'tecnico'     && l.user_type !== 'tecnico')      return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
-      return (l.razon_social || '').toLowerCase().includes(q)
+      return (l.nombre || '').toLowerCase().includes(q)
         || (l.localidad || '').toLowerCase().includes(q)
         || (l.provincia || '').toLowerCase().includes(q)
     }
@@ -161,13 +160,13 @@ export default function MapaLocales() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
           {filtrados.map(local => (
             <div key={local.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{local.razon_social || local.full_name}</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{local.nombre}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: local.user_type === 'distributor' ? '#fb923c' : '#7b9fff', marginBottom: 8 }}>
                 {local.user_type === 'distributor' ? '🏪 Distribuidor' : '🔧 Service'}
               </div>
-              {local.domicilio && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>📍 {local.domicilio}{local.localidad ? `, ${local.localidad}` : ''}</div>}
+              {local.direccion && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>📍 {local.direccion}{local.localidad ? `, ${local.localidad}` : ''}</div>}
               {local.telefono  && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>📞 {local.telefono}</div>}
-              {local.transporte && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>🕐 {local.transporte}</div>}
+              {local.horario && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>🕐 {local.horario}</div>}
               {local.web && (
                 <a href={local.web.startsWith('http') ? local.web : `https://${local.web}`} target="_blank" rel="noreferrer"
                   style={{ fontSize: 12, color: '#7b9fff', textDecoration: 'none', fontWeight: 600 }}>
