@@ -19,8 +19,7 @@ export default function MapaLocales() {
       .from('profiles')
       .select('id, razon_social, full_name, telefono, domicilio, localidad, provincia, web, lat, lng, user_type, transporte')
       .in('user_type', ['distributor', 'tecnico'])
-      .not('lat', 'is', null)
-      .not('lng', 'is', null)
+      .neq('aprobado', false)
     setLocales(data || [])
     setLoading(false)
   }
@@ -62,7 +61,7 @@ export default function MapaLocales() {
       return true
     })
 
-    activos.forEach(local => {
+    activos.filter(l => l.lat && l.lng).forEach(local => {
       const nombre  = local.razon_social || local.full_name || '—'
       const tipo    = local.user_type === 'distributor' ? '🏪 Distribuidor' : '🔧 Service Técnico'
       const dir     = [local.domicilio, local.localidad, local.provincia].filter(Boolean).join(', ')
@@ -81,8 +80,9 @@ export default function MapaLocales() {
       L.marker([local.lat, local.lng], { icon }).addTo(map).bindPopup(popup)
     })
 
-    if (activos.length > 0) {
-      const bounds = L.latLngBounds(activos.map(l => [l.lat, l.lng]))
+    const conCoords = activos.filter(l => l.lat && l.lng)
+    if (conCoords.length > 0) {
+      const bounds = L.latLngBounds(conCoords.map(l => [l.lat, l.lng]))
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
     }
   }, [locales, filtro, busqueda, loading])
