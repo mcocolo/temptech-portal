@@ -19,7 +19,7 @@ export default function MapaLocales() {
       .from('profiles')
       .select('id, razon_social, full_name, telefono, web, user_type, domicilio, localidad, provincia, lat, lng, direcciones_entrega')
       .in('user_type', ['distributor', 'tecnico'])
-      .neq('aprobado', false)
+      .or('aprobado.is.null,aprobado.eq.true')
 
     const pins = []
     for (const perfil of (data || [])) {
