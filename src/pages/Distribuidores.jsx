@@ -120,7 +120,7 @@ export default function Distribuidores() {
     setLoading(true)
     let q = supabase
       .from('profiles')
-      .select('id, email, full_name, razon_social, cuit, localidad, provincia, telefono, descuentos, transporte, domicilio, created_at, bloqueado')
+      .select('id, email, full_name, razon_social, cuit, localidad, provincia, telefono, descuentos, transporte, domicilio, web, lat, lng, created_at, bloqueado')
       .eq('user_type', 'distributor')
       .order('created_at', { ascending: false })
 
@@ -134,10 +134,36 @@ export default function Distribuidores() {
     setLoading(false)
   }
 
+  const [geocodificando, setGeocodificando] = useState(false)
+
   function abrirEdicion(dist) {
     setDescuentos(descToArrays(dist.descuentos))
     setInfoForm({ transporte: dist.transporte || '', domicilio: dist.domicilio || '', web: dist.web || '', lat: dist.lat ?? '', lng: dist.lng ?? '' })
     setEditando(dist.id)
+  }
+
+  async function geocodificarTodos() {
+    const sinCoords = distribuidores.filter(d => d.domicilio && (!d.lat || !d.lng))
+    if (sinCoords.length === 0) { toast.success('Todos los distribuidores ya tienen coordenadas'); return }
+    setGeocodificando(true)
+    let ok = 0, err = 0
+    for (const dist of sinCoords) {
+      const dir = [dist.domicilio, dist.localidad, dist.provincia, 'Argentina'].filter(Boolean).join(', ')
+      try {
+        await new Promise(r => setTimeout(r, 1100)) // Nominatim rate limit
+        const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dir)}&countrycodes=ar&format=json&limit=1`, { headers: { 'Accept-Language': 'es' } })
+        const data = await res.json()
+        if (!data[0]) { err++; continue }
+        const lat = parseFloat(data[0].lat)
+        const lng = parseFloat(data[0].lon)
+        const { error } = await supabase.from('profiles').update({ lat, lng }).eq('id', dist.id)
+        if (error) { err++; continue }
+        setDistribuidores(prev => prev.map(d => d.id === dist.id ? { ...d, lat, lng } : d))
+        ok++
+      } catch { err++ }
+    }
+    setGeocodificando(false)
+    toast.success(`Geocodificados: ${ok} ✅${err > 0 ? ` (${err} fallaron)` : ''}`)
   }
 
   async function geocodificar(distId) {
@@ -240,9 +266,18 @@ export default function Distribuidores() {
             {filtrados.length} distribuidor{filtrados.length !== 1 ? 'es' : ''}
           </div>
           {isAdmin && (
-            <button onClick={() => setModalNuevo(true)} style={{ background: 'rgba(74,108,247,0.12)', border: '1px solid rgba(74,108,247,0.35)', color: '#7b9fff', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              + Nuevo distribuidor
-            </button>
+            <>
+              <button
+                onClick={geocodificarTodos}
+                disabled={geocodificando}
+                style={{ background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', color: '#3dd68c', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: geocodificando ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', opacity: geocodificando ? 0.7 : 1 }}
+              >
+                {geocodificando ? '⏳ Geocodificando...' : '📍 Geocodificar todos'}
+              </button>
+              <button onClick={() => setModalNuevo(true)} style={{ background: 'rgba(74,108,247,0.12)', border: '1px solid rgba(74,108,247,0.35)', color: '#7b9fff', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                + Nuevo distribuidor
+              </button>
+            </>
           )}
         </div>
       </div>
