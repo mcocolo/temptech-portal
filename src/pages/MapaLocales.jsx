@@ -17,29 +17,49 @@ export default function MapaLocales() {
     setLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('id, razon_social, full_name, telefono, web, user_type, direcciones_entrega')
+      .select('id, razon_social, full_name, telefono, web, user_type, domicilio, localidad, provincia, lat, lng, direcciones_entrega')
       .in('user_type', ['distributor', 'tecnico'])
       .neq('aprobado', false)
 
-    // Expandir cada local comercial como un pin separado
     const pins = []
     for (const perfil of (data || [])) {
       const nombre = perfil.razon_social || perfil.full_name || '—'
-      for (const local of (perfil.direcciones_entrega || [])) {
-        if (!local.lat || !local.lng) continue
+      const locales = perfil.direcciones_entrega || []
+      const localesConCoords = locales.filter(l => l.lat && l.lng)
+
+      if (localesConCoords.length > 0) {
+        // Usar locales comerciales si tienen coordenadas
+        for (const local of localesConCoords) {
+          pins.push({
+            id: `${perfil.id}_${pins.length}`,
+            nombre,
+            user_type: perfil.user_type,
+            web: perfil.web,
+            direccion: local.direccion || '',
+            localidad: local.localidad || '',
+            provincia: local.provincia || '',
+            codigo_postal: local.codigo_postal || '',
+            telefono: local.telefono || perfil.telefono || '',
+            horario: local.horario || '',
+            lat: parseFloat(local.lat),
+            lng: parseFloat(local.lng),
+          })
+        }
+      } else if (perfil.lat && perfil.lng) {
+        // Fallback: coordenadas del perfil principal
         pins.push({
-          id: `${perfil.id}_${pins.length}`,
+          id: perfil.id,
           nombre,
           user_type: perfil.user_type,
           web: perfil.web,
-          direccion: local.direccion || '',
-          localidad: local.localidad || '',
-          provincia: local.provincia || '',
-          codigo_postal: local.codigo_postal || '',
-          telefono: local.telefono || perfil.telefono || '',
-          horario: local.horario || '',
-          lat: parseFloat(local.lat),
-          lng: parseFloat(local.lng),
+          direccion: perfil.domicilio || '',
+          localidad: perfil.localidad || '',
+          provincia: perfil.provincia || '',
+          codigo_postal: '',
+          telefono: perfil.telefono || '',
+          horario: '',
+          lat: parseFloat(perfil.lat),
+          lng: parseFloat(perfil.lng),
         })
       }
     }
