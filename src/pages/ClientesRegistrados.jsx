@@ -121,7 +121,9 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         direccion:                 cl?.direccion || cl?.direccion_entrega || '',
         horario_entrega:           cl?.horario_entrega   || '',
         persona_contacto:          cl?.persona_contacto  || '',
-        dirs_alt: (u.direcciones_entrega || [{},{},{}]).slice(0,3).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'' })),
+        dirs_alt: (u.direcciones_entrega || []).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'', provincia: d.provincia||'', codigo_postal: d.codigo_postal||'', telefono: d.telefono||'', horario: d.horario||'' })),
+        localidad_entrega: cl?.localidad_entrega || '',
+        cp_entrega: cl?.codigo_postal_entrega || '',
       })
     } else {
       setEditForm({
@@ -152,7 +154,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
           anafes:               editForm.desc_anafes               !== '' ? parseFloat(editForm.desc_anafes)               : null,
         }
         Object.keys(desc).forEach(k => { if (desc[k] === null) delete desc[k] })
-        const dirsAlt = (editForm.dirs_alt || []).filter(d => d.direccion.trim())
+        const dirsAlt = (editForm.dirs_alt || []).filter(d => d.direccion?.trim())
         await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt }).eq('id', u.id)
         if (cl?.id) {
           const { error: errCl } = await supabase.from('clientes').update({
@@ -294,46 +296,53 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 10 }}>📍 Datos de entrega</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 10 }}>📍 Datos de entrega principal</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
                     <LI label="Dirección principal"><input value={editForm.direccion} onChange={e => setEF('direccion', e.target.value)} style={inputSt} /></LI>
+                    <LI label="Localidad"><input value={editForm.localidad_entrega || ''} onChange={e => setEF('localidad_entrega', e.target.value)} style={inputSt} /></LI>
+                    <LI label="Código Postal"><input value={editForm.cp_entrega || ''} onChange={e => setEF('cp_entrega', e.target.value)} style={inputSt} /></LI>
                     <LI label="Horario de entrega"><input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} /></LI>
                     <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
                   </div>
-                  {/* Direcciones alternativas */}
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 10 }}>Direcciones alternativas</div>
+
+                  {/* Locales Comerciales */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>🏪 Locales Comerciales</div>
+                    <button onClick={() => setEF('dirs_alt', [...(editForm.dirs_alt||[]), { nombre:'', direccion:'', localidad:'', provincia:'', codigo_postal:'', telefono:'', horario:'' }])}
+                      style={{ background: 'rgba(123,159,255,0.1)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      + Agregar local
+                    </button>
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[0,1,2].map(i => (
-                      <div key={i} style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600 }}>Dirección {i + 2}</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>Nombre / referencia</div>
-                            <input
-                              value={editForm.dirs_alt?.[i]?.nombre || ''}
-                              onChange={e => { const d = [...(editForm.dirs_alt||[{},{},{}])]; d[i] = { ...d[i], nombre: e.target.value }; setEF('dirs_alt', d) }}
-                              placeholder="Ej: Depósito"
-                              style={{ ...inputSt, fontSize: 12 }}
-                            />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>Dirección</div>
-                            <input
-                              value={editForm.dirs_alt?.[i]?.direccion || ''}
-                              onChange={e => { const d = [...(editForm.dirs_alt||[{},{},{}])]; d[i] = { ...d[i], direccion: e.target.value }; setEF('dirs_alt', d) }}
-                              placeholder="Calle 123"
-                              style={{ ...inputSt, fontSize: 12 }}
-                            />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3 }}>Localidad</div>
-                            <input
-                              value={editForm.dirs_alt?.[i]?.localidad || ''}
-                              onChange={e => { const d = [...(editForm.dirs_alt||[{},{},{}])]; d[i] = { ...d[i], localidad: e.target.value }; setEF('dirs_alt', d) }}
-                              placeholder="Ciudad"
-                              style={{ ...inputSt, fontSize: 12 }}
-                            />
-                          </div>
+                    {(editForm.dirs_alt || []).length === 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--text3)', padding: '10px 0' }}>Sin locales comerciales cargados.</div>
+                    )}
+                    {(editForm.dirs_alt || []).map((local, i) => (
+                      <div key={i} style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: '#7b9fff', fontWeight: 700 }}>Local Comercial {i + 1}</div>
+                          <button onClick={() => setEF('dirs_alt', (editForm.dirs_alt||[]).filter((_,j) => j !== i))}
+                            style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          {[
+                            { key: 'direccion',     label: 'Dirección',         placeholder: 'Av. Corrientes 1234' },
+                            { key: 'localidad',     label: 'Localidad',         placeholder: 'Buenos Aires' },
+                            { key: 'provincia',     label: 'Provincia',         placeholder: 'Buenos Aires' },
+                            { key: 'codigo_postal', label: 'Código Postal',     placeholder: '1000' },
+                            { key: 'telefono',      label: 'Teléfono',          placeholder: '+54 11 1234-5678' },
+                            { key: 'horario',       label: 'Horario de atención', placeholder: 'Lun-Vie 9-18hs' },
+                          ].map(({ key, label, placeholder }) => (
+                            <div key={key}>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase' }}>{label}</div>
+                              <input
+                                value={local[key] || ''}
+                                onChange={e => { const d = [...(editForm.dirs_alt||[])]; d[i] = { ...d[i], [key]: e.target.value }; setEF('dirs_alt', d) }}
+                                placeholder={placeholder}
+                                style={{ ...inputSt, fontSize: 12 }}
+                              />
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
@@ -380,13 +389,16 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
               </div>
               {(u.direcciones_entrega || []).filter(d => d?.direccion?.trim()).length > 0 && (
                 <div style={{ marginTop: 18 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 10 }}>Direcciones alternativas</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 10 }}>🏪 Locales Comerciales</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {(u.direcciones_entrega || []).filter(d => d?.direccion?.trim()).map((d, i) => (
-                      <div key={i} style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 12, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                        {d.nombre && <span style={{ color: '#7b9fff', fontWeight: 600, minWidth: 120 }}>{d.nombre}</span>}
-                        <span style={{ color: 'var(--text2)' }}>{d.direccion}</span>
-                        {d.localidad && <span style={{ color: 'var(--text3)' }}>{d.localidad}</span>}
+                      <div key={i} style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 12 }}>
+                        <div style={{ color: '#7b9fff', fontWeight: 700, marginBottom: 6 }}>Local Comercial {i + 1}</div>
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                          {d.direccion && <span>📍 {d.direccion}{d.localidad ? `, ${d.localidad}` : ''}{d.provincia ? `, ${d.provincia}` : ''}{d.codigo_postal ? ` (${d.codigo_postal})` : ''}</span>}
+                          {d.telefono  && <span>📞 {d.telefono}</span>}
+                          {d.horario   && <span>🕐 {d.horario}</span>}
+                        </div>
                       </div>
                     ))}
                   </div>
