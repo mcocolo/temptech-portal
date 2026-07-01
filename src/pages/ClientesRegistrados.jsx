@@ -121,7 +121,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         direccion:                 cl?.direccion || cl?.direccion_entrega || '',
         horario_entrega:           cl?.horario_entrega   || '',
         persona_contacto:          cl?.persona_contacto  || '',
-        dirs_alt: (u.direcciones_entrega || []).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'', provincia: d.provincia||'', codigo_postal: d.codigo_postal||'', telefono: d.telefono||'', horario: d.horario||'' })),
+        dirs_alt: (u.direcciones_entrega || []).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'', provincia: d.provincia||'', codigo_postal: d.codigo_postal||'', telefono: d.telefono||'', horario: d.horario||'', lat: d.lat||'', lng: d.lng||'' })),
         localidad_entrega: cl?.localidad_entrega || '',
         cp_entrega: cl?.codigo_postal_entrega || '',
       })
@@ -326,11 +326,11 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                           {[
-                            { key: 'direccion',     label: 'Dirección',         placeholder: 'Av. Corrientes 1234' },
-                            { key: 'localidad',     label: 'Localidad',         placeholder: 'Buenos Aires' },
-                            { key: 'provincia',     label: 'Provincia',         placeholder: 'Buenos Aires' },
-                            { key: 'codigo_postal', label: 'Código Postal',     placeholder: '1000' },
-                            { key: 'telefono',      label: 'Teléfono',          placeholder: '+54 11 1234-5678' },
+                            { key: 'direccion',     label: 'Dirección',           placeholder: 'Av. Corrientes 1234' },
+                            { key: 'localidad',     label: 'Localidad',           placeholder: 'Buenos Aires' },
+                            { key: 'provincia',     label: 'Provincia',           placeholder: 'Buenos Aires' },
+                            { key: 'codigo_postal', label: 'Código Postal',       placeholder: '1000' },
+                            { key: 'telefono',      label: 'Teléfono',            placeholder: '+54 11 1234-5678' },
                             { key: 'horario',       label: 'Horario de atención', placeholder: 'Lun-Vie 9-18hs' },
                           ].map(({ key, label, placeholder }) => (
                             <div key={key}>
@@ -343,6 +343,25 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                               />
                             </div>
                           ))}
+                        </div>
+                        {/* Coordenadas para el mapa */}
+                        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' }}>📍 Mapa:</div>
+                          <input value={local.lat || ''} onChange={e => { const d=[...(editForm.dirs_alt||[])]; d[i]={...d[i],lat:e.target.value}; setEF('dirs_alt',d) }} placeholder="Lat" style={{ ...inputSt, width: 100, fontSize: 11 }} />
+                          <input value={local.lng || ''} onChange={e => { const d=[...(editForm.dirs_alt||[])]; d[i]={...d[i],lng:e.target.value}; setEF('dirs_alt',d) }} placeholder="Lng" style={{ ...inputSt, width: 100, fontSize: 11 }} />
+                          <button onClick={async () => {
+                            const dir = [local.direccion, local.localidad, local.provincia, 'Argentina'].filter(Boolean).join(', ')
+                            if (!local.direccion) { alert('Completá la dirección primero'); return }
+                            try {
+                              const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dir)}&countrycodes=ar&format=json&limit=1`, { headers: { 'Accept-Language': 'es' } })
+                              const data = await res.json()
+                              if (!data[0]) { alert('No se encontró la dirección'); return }
+                              const d=[...(editForm.dirs_alt||[])]; d[i]={...d[i], lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6)}; setEF('dirs_alt',d)
+                            } catch { alert('Error al geocodificar') }
+                          }} style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                            📍 Buscar
+                          </button>
+                          {local.lat && local.lng && <span style={{ fontSize: 11, color: '#3dd68c' }}>✓ En mapa</span>}
                         </div>
                       </div>
                     ))}

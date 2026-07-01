@@ -17,10 +17,33 @@ export default function MapaLocales() {
     setLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('id, razon_social, full_name, telefono, domicilio, localidad, provincia, web, lat, lng, user_type, transporte')
+      .select('id, razon_social, full_name, telefono, web, user_type, direcciones_entrega')
       .in('user_type', ['distributor', 'tecnico'])
       .neq('aprobado', false)
-    setLocales(data || [])
+
+    // Expandir cada local comercial como un pin separado
+    const pins = []
+    for (const perfil of (data || [])) {
+      const nombre = perfil.razon_social || perfil.full_name || '—'
+      for (const local of (perfil.direcciones_entrega || [])) {
+        if (!local.lat || !local.lng) continue
+        pins.push({
+          id: `${perfil.id}_${pins.length}`,
+          nombre,
+          user_type: perfil.user_type,
+          web: perfil.web,
+          direccion: local.direccion || '',
+          localidad: local.localidad || '',
+          provincia: local.provincia || '',
+          codigo_postal: local.codigo_postal || '',
+          telefono: local.telefono || perfil.telefono || '',
+          horario: local.horario || '',
+          lat: parseFloat(local.lat),
+          lng: parseFloat(local.lng),
+        })
+      }
+    }
+    setLocales(pins)
     setLoading(false)
   }
 
