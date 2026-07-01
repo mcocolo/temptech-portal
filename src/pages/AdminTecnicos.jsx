@@ -82,12 +82,26 @@ export default function AdminTecnicos() {
   }
 
   function abrirEdicion(t) {
-    setEditForm({ full_name: t.full_name || '', razon_social: t.razon_social || '', email: t.email || '', telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '', domicilio: t.domicilio || '', zona_cobertura: t.zona_cobertura || '' })
+    const desc = t.descuentos || {}
+    setEditForm({
+      full_name: t.full_name || '', razon_social: t.razon_social || '', email: t.email || '',
+      telefono: t.telefono || '', localidad: t.localidad || '', provincia: t.provincia || '',
+      domicilio: t.domicilio || '', zona_cobertura: t.zona_cobertura || '',
+      dto_calefones: Array.isArray(desc.calefones_calderas) ? desc.calefones_calderas[0] ?? '' : (desc.calefones_calderas || ''),
+      dto_paneles:   Array.isArray(desc.paneles_calefactores) ? desc.paneles_calefactores[0] ?? '' : (desc.paneles_calefactores || ''),
+      dto_anafes:    Array.isArray(desc.anafes) ? desc.anafes[0] ?? '' : (desc.anafes || ''),
+    })
     setEditando(t.id)
   }
 
   async function guardar(id) {
     setGuardando(true)
+    const toNum = v => parseFloat(v) || 0
+    const descuentos = {
+      calefones_calderas:   toNum(editForm.dto_calefones) || 0,
+      paneles_calefactores: toNum(editForm.dto_paneles)   || 0,
+      anafes:               toNum(editForm.dto_anafes)    || 0,
+    }
     const { error } = await supabase.from('profiles').update({
       full_name: editForm.full_name.trim() || null,
       razon_social: editForm.razon_social.trim() || null,
@@ -97,6 +111,7 @@ export default function AdminTecnicos() {
       email: editForm.email.trim() || null,
       domicilio: editForm.domicilio.trim() || null,
       zona_cobertura: editForm.zona_cobertura.trim() || null,
+      descuentos,
     }).eq('id', id)
     if (error) {
       toast.error('Error al guardar')
@@ -238,6 +253,24 @@ export default function AdminTecnicos() {
                     <div style={{ gridColumn: '1 / -1' }}>
                       <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>🗺️ Zona de cobertura</label>
                       <ZonaSelector value={editForm.zona_cobertura} onChange={val => setEditForm(p => ({ ...p, zona_cobertura: val }))} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#ffd166', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>🏷️ Descuentos en productos</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                        {[
+                          { label: 'Calefones / Calderas', key: 'dto_calefones' },
+                          { label: 'Paneles Calefactores', key: 'dto_paneles' },
+                          { label: 'Anafes',               key: 'dto_anafes' },
+                        ].map(({ label, key }) => (
+                          <div key={key}>
+                            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>{label}</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <input type="number" min="0" max="100" step="0.1" value={editForm[key]} onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))} placeholder="0" style={{ ...inputSt, width: 80, textAlign: 'center' }} />
+                              <span style={{ color: 'var(--text3)', fontSize: 13 }}>%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
