@@ -120,6 +120,7 @@ const NAV_TECNICO = [
   { label: 'Foro de Consultas',            icon: MessageSquare,   path: '/foro' },
   { section: 'Service' },
   { label: 'Mis Casos Asignados',          icon: AlertTriangle,   path: '/reclamos' },
+  { label: 'Pedir Productos',              icon: ShoppingCart,    path: '/pedidos' },
   { label: 'Videos Técnicos',             icon: Video,           path: '/videos-tecnicos' },
   { label: 'Repuestos',                    icon: Package,         path: '/repuestos' },
   { section: 'Recursos' },

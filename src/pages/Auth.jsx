@@ -243,7 +243,7 @@ export default function Auth() {
     telefono: '', productos_interesados: [],
   })
   const [bizData, setBizData] = useState({
-    razon_social: '', cuit: '', full_name: '', telefono: '',
+    razon_social: '', cuit: '', full_name: '', telefono: '', domicilio: '', localidad: '', provincia: '',
   })
 
   // Detectar callback de Google OAuth
@@ -354,7 +354,10 @@ export default function Auth() {
         productos_interesados: clientData.productos_interesados,
       } : {
         razon_social: bizData.razon_social,
-        cuit: bizData.cuit,
+        cuit:         bizData.cuit,
+        domicilio:    bizData.domicilio  || null,
+        localidad:    bizData.localidad  || null,
+        provincia:    bizData.provincia  || null,
       }),
     }).eq('id', userId)
 
@@ -620,10 +623,15 @@ export default function Auth() {
                   </>
                 ) : (
                   <>
-                    <Field label="Razón Social" required placeholder="Mi Empresa S.A." value={bizData.razon_social} onChange={e => setBizData(p => ({ ...p, razon_social: e.target.value }))} />
+                    <Field label="Razón Social / Nombre comercial" required placeholder="Mi Empresa S.A." value={bizData.razon_social} onChange={e => setBizData(p => ({ ...p, razon_social: e.target.value }))} />
                     <Field label="CUIT" required placeholder="20-12345678-9" value={bizData.cuit} onChange={e => setBizData(p => ({ ...p, cuit: e.target.value }))} />
                     <Field label="Nombre y Apellido" required placeholder="Juan Pérez" value={bizData.full_name} onChange={e => setBizData(p => ({ ...p, full_name: e.target.value }))} />
-                    <Field label="Teléfono" required placeholder="+54 11 1234-5678" value={bizData.telefono} onChange={e => setBizData(p => ({ ...p, telefono: e.target.value }))} />
+                    <Field label="Teléfono / WhatsApp" required placeholder="+54 11 1234-5678" value={bizData.telefono} onChange={e => setBizData(p => ({ ...p, telefono: e.target.value }))} />
+                    <Field label="Domicilio" placeholder="Av. Corrientes 1234" value={bizData.domicilio} onChange={e => setBizData(p => ({ ...p, domicilio: e.target.value }))} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <Field label="Localidad" placeholder="Buenos Aires" value={bizData.localidad} onChange={e => setBizData(p => ({ ...p, localidad: e.target.value }))} />
+                      <SelectField label="Provincia" options={PROVINCIAS} value={bizData.provincia} onChange={e => setBizData(p => ({ ...p, provincia: e.target.value }))} />
+                    </div>
                   </>
                 )}
               </div>

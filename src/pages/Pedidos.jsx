@@ -78,7 +78,7 @@ const STATUS_CONFIG = {
 }
 
 export default function Pedidos() {
-  const { user, profile, isDistributor, isVendedor } = useAuth()
+  const { user, profile, isDistributor, isVendedor, isTechService } = useAuth()
   const [tab, setTab] = useState('nuevo')        // 'nuevo' | 'preventa' | 'historial'
   const [cantidades, setCantidades] = useState({})
   const [preciosBD, setPreciosBD] = useState([])
@@ -322,7 +322,7 @@ export default function Pedidos() {
     supabase.from('precios').select('codigo, ean').then(({ data }) => setPreciosBD(data || []))
   }, [])
 
-  if (!isDistributor) return null
+  if (!isDistributor && !isTechService) return null
 
   const estaBloqueado = profile?.bloqueado === true
 
