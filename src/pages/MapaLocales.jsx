@@ -21,7 +21,7 @@ export default function MapaLocales() {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, razon_social, full_name, telefono, web, user_type, domicilio, localidad, provincia, lat, lng')
+      .select('id, razon_social, full_name, telefono, web, user_type, domicilio, localidad, provincia, lat, lng, direcciones_entrega')
       .in('user_type', ['distributor', 'tecnico'])
       .or('aprobado.is.null,aprobado.eq.true')
 
@@ -31,22 +31,20 @@ export default function MapaLocales() {
       return
     }
 
-    setDebug(`Total perfiles: ${(data||[]).length} | Con lat/lng: ${(data||[]).filter(p=>p.lat&&p.lng).length}`)
+    const pins = []
+    for (const p of (data || [])) {
+      const nombre = p.razon_social || p.full_name || '—'
+      const locales = (p.direcciones_entrega || []).filter(l => l.lat && l.lng)
+      if (locales.length > 0) {
+        for (const l of locales) {
+          pins.push({ id: `${p.id}_${pins.length}`, nombre, user_type: p.user_type, web: p.web || '', direccion: l.direccion || '', localidad: l.localidad || '', provincia: l.provincia || '', telefono: l.telefono || p.telefono || '', lat: parseFloat(l.lat), lng: parseFloat(l.lng) })
+        }
+      } else if (p.lat && p.lng) {
+        pins.push({ id: p.id, nombre, user_type: p.user_type, web: p.web || '', direccion: p.domicilio || '', localidad: p.localidad || '', provincia: p.provincia || '', telefono: p.telefono || '', lat: parseFloat(p.lat), lng: parseFloat(p.lng) })
+      }
+    }
 
-    const pins = (data || [])
-      .filter(p => p.lat && p.lng)
-      .map(p => ({
-        id:        p.id,
-        nombre:    p.razon_social || p.full_name || '—',
-        user_type: p.user_type,
-        web:       p.web || '',
-        direccion: p.domicilio || '',
-        localidad: p.localidad || '',
-        provincia: p.provincia || '',
-        telefono:  p.telefono || '',
-        lat:       parseFloat(p.lat),
-        lng:       parseFloat(p.lng),
-      }))
+    setDebug(`Perfiles: ${(data||[]).length} | Pins: ${pins.length}`)
 
     setLocales(pins)
     setLoading(false)

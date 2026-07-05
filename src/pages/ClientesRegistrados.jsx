@@ -158,10 +158,12 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt }).eq('id', u.id)
         if (cl?.id) {
           const { error: errCl } = await supabase.from('clientes').update({
-            direccion: editForm.direccion || null,
-            direccion_entrega: editForm.direccion || null,
-            horario_entrega: editForm.horario_entrega || null,
-            persona_contacto: editForm.persona_contacto || null,
+            direccion:            editForm.direccion           || null,
+            direccion_entrega:    editForm.direccion           || null,
+            localidad_entrega:    editForm.localidad_entrega   || null,
+            codigo_postal_entrega: editForm.cp_entrega         || null,
+            horario_entrega:      editForm.horario_entrega     || null,
+            persona_contacto:     editForm.persona_contacto    || null,
           }).eq('id', cl.id)
           if (errCl) { toast.error('Error al guardar dirección: ' + errCl.message); setSaving(false); return }
         }
@@ -297,12 +299,31 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                 </div>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 10 }}>📍 Datos de entrega principal</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <LI label="Dirección principal"><input value={editForm.direccion} onChange={e => setEF('direccion', e.target.value)} style={inputSt} /></LI>
                     <LI label="Localidad"><input value={editForm.localidad_entrega || ''} onChange={e => setEF('localidad_entrega', e.target.value)} style={inputSt} /></LI>
                     <LI label="Código Postal"><input value={editForm.cp_entrega || ''} onChange={e => setEF('cp_entrega', e.target.value)} style={inputSt} /></LI>
                     <LI label="Horario de entrega"><input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} /></LI>
                     <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+                    <button onClick={async () => {
+                      const dir = [editForm.direccion, editForm.localidad_entrega, 'Argentina'].filter(Boolean).join(', ')
+                      if (!editForm.direccion) { alert('Completá la dirección primero'); return }
+                      try {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dir)}&countrycodes=ar&format=json&limit=1`, { headers: { 'Accept-Language': 'es' } })
+                        const data = await res.json()
+                        if (!data[0]) { alert('No se encontró la dirección, probá con menos detalles'); return }
+                        const lat = parseFloat(data[0].lat).toFixed(6)
+                        const lng = parseFloat(data[0].lon).toFixed(6)
+                        await supabase.from('profiles').update({ lat: parseFloat(lat), lng: parseFloat(lng) }).eq('id', u.id)
+                        setEF('lat_principal', lat); setEF('lng_principal', lng)
+                        toast.success('Coordenadas guardadas ✅ — aparecerá en el mapa')
+                      } catch { toast.error('Error al geocodificar') }
+                    }} style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      📍 Geocodificar dirección principal para el mapa
+                    </button>
+                    {editForm.lat_principal && <span style={{ fontSize: 11, color: '#3dd68c' }}>✓ En mapa</span>}
                   </div>
 
                   {/* Locales Comerciales */}
