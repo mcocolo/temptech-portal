@@ -9,6 +9,7 @@ export default function MapaLocales() {
   const [locales, setLocales]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [errorMsg, setErrorMsg] = useState(null)
+  const [debug, setDebug]       = useState(null)
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro]     = useState('todos')
 
@@ -29,6 +30,8 @@ export default function MapaLocales() {
       setLoading(false)
       return
     }
+
+    setDebug(`Total perfiles: ${(data||[]).length} | Con lat/lng: ${(data||[]).filter(p=>p.lat&&p.lng).length}`)
 
     const pins = (data || [])
       .filter(p => p.lat && p.lng)
@@ -131,6 +134,12 @@ export default function MapaLocales() {
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Locales & Service</h1>
         <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Encontrá distribuidores y servicios técnicos TEMPTECH cerca tuyo</p>
       </div>
+
+      {debug && (
+        <div style={{ background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '8px 14px', marginBottom: 12, color: '#7b9fff', fontSize: 12, fontFamily: 'monospace' }}>
+          🔍 {debug}
+        </div>
+      )}
 
       {errorMsg && (
         <div style={{ background: 'rgba(232,33,90,0.1)', border: '1px solid rgba(232,33,90,0.4)', borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 16, color: '#e8215a', fontSize: 13, fontFamily: 'var(--font)' }}>
