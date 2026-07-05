@@ -8,6 +8,7 @@ export default function MapaLocales() {
   const mapInstance = useRef(null)
   const [locales, setLocales]   = useState([])
   const [loading, setLoading]   = useState(true)
+  const [errorMsg, setErrorMsg] = useState(null)
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro]     = useState('todos')
 
@@ -15,54 +16,35 @@ export default function MapaLocales() {
 
   async function cargar() {
     setLoading(true)
-    const { data } = await supabase
+    setErrorMsg(null)
+
+    const { data, error } = await supabase
       .from('profiles')
-      .select('id, razon_social, full_name, telefono, web, user_type, domicilio, localidad, provincia, lat, lng, direcciones_entrega')
+      .select('id, razon_social, full_name, telefono, web, user_type, domicilio, localidad, provincia, lat, lng')
       .in('user_type', ['distributor', 'tecnico'])
       .or('aprobado.is.null,aprobado.eq.true')
 
-    const pins = []
-    for (const perfil of (data || [])) {
-      const nombre = perfil.razon_social || perfil.full_name || '—'
-      const locales = perfil.direcciones_entrega || []
-      const localesConCoords = locales.filter(l => l.lat && l.lng)
-
-      if (localesConCoords.length > 0) {
-        // Usar locales comerciales si tienen coordenadas
-        for (const local of localesConCoords) {
-          pins.push({
-            id: `${perfil.id}_${pins.length}`,
-            nombre,
-            user_type: perfil.user_type,
-            web: perfil.web,
-            direccion: local.direccion || '',
-            localidad: local.localidad || '',
-            provincia: local.provincia || '',
-            codigo_postal: local.codigo_postal || '',
-            telefono: local.telefono || perfil.telefono || '',
-            horario: local.horario || '',
-            lat: parseFloat(local.lat),
-            lng: parseFloat(local.lng),
-          })
-        }
-      } else if (perfil.lat && perfil.lng) {
-        // Fallback: coordenadas del perfil principal
-        pins.push({
-          id: perfil.id,
-          nombre,
-          user_type: perfil.user_type,
-          web: perfil.web,
-          direccion: perfil.domicilio || '',
-          localidad: perfil.localidad || '',
-          provincia: perfil.provincia || '',
-          codigo_postal: '',
-          telefono: perfil.telefono || '',
-          horario: '',
-          lat: parseFloat(perfil.lat),
-          lng: parseFloat(perfil.lng),
-        })
-      }
+    if (error) {
+      setErrorMsg(error.message)
+      setLoading(false)
+      return
     }
+
+    const pins = (data || [])
+      .filter(p => p.lat && p.lng)
+      .map(p => ({
+        id:        p.id,
+        nombre:    p.razon_social || p.full_name || '—',
+        user_type: p.user_type,
+        web:       p.web || '',
+        direccion: p.domicilio || '',
+        localidad: p.localidad || '',
+        provincia: p.provincia || '',
+        telefono:  p.telefono || '',
+        lat:       parseFloat(p.lat),
+        lng:       parseFloat(p.lng),
+      }))
+
     setLocales(pins)
     setLoading(false)
   }
@@ -104,7 +86,7 @@ export default function MapaLocales() {
       return true
     })
 
-    activos.filter(l => l.lat && l.lng).forEach(local => {
+    activos.forEach(local => {
       const tipo    = local.user_type === 'distributor' ? '🏪 Distribuidor' : '🔧 Service Técnico'
       const dir     = [local.direccion, local.localidad, local.provincia].filter(Boolean).join(', ')
       const webLink = local.web
@@ -116,15 +98,13 @@ export default function MapaLocales() {
           <div style="font-size:11px;font-weight:600;color:${local.user_type === 'distributor' ? '#e8920a' : '#2563eb'};margin-bottom:8px;text-transform:uppercase">${tipo}</div>
           ${dir ? `<div style="font-size:12px;margin-bottom:4px">📍 ${dir}</div>` : ''}
           ${local.telefono ? `<div style="font-size:12px;margin-bottom:4px">📞 <a href="tel:${local.telefono}" style="color:#2563eb">${local.telefono}</a></div>` : ''}
-          ${local.horario ? `<div style="font-size:12px;color:#555;margin-bottom:4px">🕐 ${local.horario}</div>` : ''}
           ${webLink}
         </div>`
       L.marker([local.lat, local.lng], { icon }).addTo(map).bindPopup(popup)
     })
 
-    const conCoords = activos.filter(l => l.lat && l.lng)
-    if (conCoords.length > 0) {
-      const bounds = L.latLngBounds(conCoords.map(l => [l.lat, l.lng]))
+    if (activos.length > 0) {
+      const bounds = L.latLngBounds(activos.map(l => [l.lat, l.lng]))
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
     }
   }, [locales, filtro, busqueda, loading])
@@ -152,6 +132,12 @@ export default function MapaLocales() {
         <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Encontrá distribuidores y servicios técnicos TEMPTECH cerca tuyo</p>
       </div>
 
+      {errorMsg && (
+        <div style={{ background: 'rgba(232,33,90,0.1)', border: '1px solid rgba(232,33,90,0.4)', borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 16, color: '#e8215a', fontSize: 13, fontFamily: 'var(--font)' }}>
+          ⚠️ Error al cargar: {errorMsg}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           value={busqueda}
@@ -172,8 +158,11 @@ export default function MapaLocales() {
 
       <div ref={mapRef} style={{ height: 500, borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 24, background: 'var(--surface)' }} />
 
-      {!loading && filtrados.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text3)', fontSize: 14 }}>No hay locales cargados aún.</div>
+      {!loading && !errorMsg && filtrados.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text3)', fontSize: 14 }}>
+          No hay locales con coordenadas cargadas aún.<br />
+          <span style={{ fontSize: 12 }}>Ir a Distribuidores → "📍 Geocodificar todos" para agregar coordenadas.</span>
+        </div>
       )}
 
       {!loading && filtrados.length > 0 && (
@@ -186,7 +175,6 @@ export default function MapaLocales() {
               </div>
               {local.direccion && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>📍 {local.direccion}{local.localidad ? `, ${local.localidad}` : ''}</div>}
               {local.telefono  && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>📞 {local.telefono}</div>}
-              {local.horario && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>🕐 {local.horario}</div>}
               {local.web && (
                 <a href={local.web.startsWith('http') ? local.web : `https://${local.web}`} target="_blank" rel="noreferrer"
                   style={{ fontSize: 12, color: '#7b9fff', textDecoration: 'none', fontWeight: 600 }}>
