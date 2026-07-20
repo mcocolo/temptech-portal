@@ -384,3 +384,265 @@ export function exportarPresupuestoExcel({ items, distribuidor, notas, fecha, in
   XLSX.utils.book_append_sheet(wb, ws, titulo)
   XLSX.writeFile(wb, `TEMPTECH_${titulo}_${idStr}_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REPORTE VENTAS POR CLIENTE (ranking de distribuidores) — EXCEL
+// ═══════════════════════════════════════════════════════════════════════════════
+export function exportarVentasPorClienteExcel({ datos, fechaDesde, fechaHasta }) {
+  const wb = XLSX.utils.book_new()
+  const rows = []
+  const e_ = () => cell('', null, null, null, null)
+
+  const totalMonto   = datos.reduce((s, d) => s + (d.monto || 0), 0)
+  const totalPedidos = datos.reduce((s, d) => s + (d.count || 0), 0)
+
+  // Título — 6 columnas (A–F)
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('VENTAS POR CLIENTE', XL.fontBold(13), XL.accentBg, XL.alignR)])
+  rows.push([cell(`Período: ${fmtDate(fechaDesde)} — ${fmtDate(fechaHasta)}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  rows.push([])
+
+  // Encabezado tabla
+  const hFont = XL.fontBold(10), hFill = XL.headerBg
+  rows.push([
+    cell('#', hFont, hFill, XL.alignC),
+    cell('DISTRIBUIDOR', hFont, hFill),
+    cell('PEDIDOS', hFont, hFill, XL.alignC),
+    cell('MONTO TOTAL', hFont, hFill, XL.alignR),
+    cell('TICKET PROM.', hFont, hFill, XL.alignR),
+    cell('PART. %', hFont, hFill, XL.alignR),
+  ])
+
+  datos.forEach((d, idx) => {
+    const bg = idx % 2 === 0 ? null : XL.altRowBg
+    const ticket = d.count > 0 ? d.monto / d.count : 0
+    const part   = totalMonto > 0 ? (d.monto / totalMonto) * 100 : 0
+    rows.push([
+      { v: idx + 1, t: 'n', s: { font: XL.fontBold(10, '1a1a2e'), fill: bg, alignment: XL.alignC, border: XL.border } },
+      cell(d.nombre || 'Sin nombre', XL.fontNormal(10), bg),
+      { v: d.count || 0, t: 'n', s: { font: XL.fontNormal(10), fill: bg, alignment: XL.alignC, border: XL.border } },
+      numCell(d.monto || 0, XL.fontNormal(10), bg),
+      numCell(ticket, XL.fontNormal(10, '666666'), bg),
+      { v: part / 100, t: 'n', s: { font: XL.fontNormal(10, '666666'), fill: bg, alignment: XL.alignR, border: XL.border, numFmt: '0.0%' } },
+    ])
+  })
+  rows.push([])
+
+  // Totales
+  const ticketGral = totalPedidos > 0 ? totalMonto / totalPedidos : 0
+  rows.push([
+    e_(),
+    cell('TOTAL GENERAL', XL.fontBold(11), XL.headerBg, XL.alignR),
+    { v: totalPedidos, t: 'n', s: { font: XL.fontBold(11), fill: XL.headerBg, alignment: XL.alignC, border: XL.border } },
+    numCell(totalMonto, XL.fontBold(11), XL.headerBg),
+    numCell(ticketGral, XL.fontBold(11), XL.headerBg),
+    cell('100%', XL.fontBold(11), XL.headerBg, XL.alignR),
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 5 }, { wch: 34 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 10 }]
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+  ]
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Ventas por cliente')
+  XLSX.writeFile(wb, `TEMPTECH_VentasPorCliente_${new Date().toISOString().split('T')[0]}.xlsx`)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PEDIDOS / ÓRDENES DE RETIRO — EXCEL (listado completo)
+// ═══════════════════════════════════════════════════════════════════════════════
+export function exportarPedidosExcel(pedidos, { titulo = 'PEDIDOS' } = {}) {
+  const wb = XLSX.utils.book_new()
+  const rows = []
+  const e_ = () => cell('', null, null, null, null)
+
+  const ESTADO_LABEL = {
+    pendiente: 'Pendiente', aprobado: 'Aprobado', modificado: 'Modificado',
+    preparando: 'Preparando', enviado: 'Enviado', rechazado: 'Rechazado',
+    finalizado: 'Finalizado', entregado: 'Entregado', pendiente_pago: 'Pendiente pago',
+  }
+  const tipoLabel = (p) => p.tipo === 'preventa' ? 'Orden de retiro' : 'Pedido'
+  const nombreDist = (p) => p.profiles?.razon_social || p.profiles?.full_name || 'Sin nombre'
+  const cantItems  = (p) => (p.items || []).reduce((s, i) => s + (i.cantidad || 0), 0)
+
+  const totalMonto = pedidos.reduce((s, p) => s + (p.total || 0), 0)
+
+  // Título — 10 columnas (A–J)
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), ...Array(8).fill(cell('', null, XL.headerBg)), cell(titulo, XL.fontBold(13), XL.accentBg, XL.alignR)])
+  rows.push([cell(`${pedidos.length} registro${pedidos.length !== 1 ? 's' : ''}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), ...Array(8).fill(cell('', null, XL.headerBg)), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  rows.push([])
+
+  // Encabezado
+  const hFont = XL.fontBold(9), hFill = XL.headerBg
+  rows.push([
+    cell('FECHA', hFont, hFill, XL.alignC),
+    cell('ID', hFont, hFill, XL.alignC),
+    cell('DISTRIBUIDOR', hFont, hFill),
+    cell('TIPO', hFont, hFill),
+    cell('ESTADO', hFont, hFill, XL.alignC),
+    cell('ÍTEMS', hFont, hFill, XL.alignC),
+    cell('TOTAL', hFont, hFill, XL.alignR),
+    cell('REMITO', hFont, hFill, XL.alignC),
+    cell('ENTREGA', hFont, hFill, XL.alignC),
+    cell('NOTAS', hFont, hFill),
+  ])
+
+  pedidos.forEach((p, idx) => {
+    const bg = idx % 2 === 0 ? null : XL.altRowBg
+    rows.push([
+      cell(fmtDate(p.created_at), XL.fontNormal(9), bg, XL.alignC),
+      cell('#' + (p.id?.slice(0, 8).toUpperCase() || ''), XL.fontMono(9), bg, XL.alignC),
+      cell(nombreDist(p), XL.fontNormal(10), bg),
+      cell(tipoLabel(p), XL.fontNormal(9, '666666'), bg),
+      cell(ESTADO_LABEL[p.estado] || p.estado || '—', XL.fontNormal(9), bg, XL.alignC),
+      { v: cantItems(p), t: 'n', s: { font: XL.fontNormal(9), fill: bg, alignment: XL.alignC, border: XL.border } },
+      numCell(p.total || 0, XL.fontNormal(10), bg),
+      cell(p.nro_remito || '—', XL.fontNormal(9, '666666'), bg, XL.alignC),
+      cell(p.fecha_entrega ? fmtDate(p.fecha_entrega) : '—', XL.fontNormal(9, '666666'), bg, XL.alignC),
+      cell(p.notas_admin || p.notas || '', XL.fontNormal(9, '666666'), bg),
+    ])
+  })
+  rows.push([])
+
+  // Total
+  rows.push([
+    e_(), e_(), e_(), e_(), e_(),
+    cell('TOTAL', XL.fontBold(11), XL.headerBg, XL.alignR),
+    numCell(totalMonto, XL.fontBold(11), XL.headerBg),
+    e_(), e_(), e_(),
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 12 }, { wch: 11 }, { wch: 30 }, { wch: 15 }, { wch: 13 }, { wch: 8 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 32 }]
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
+  ]
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Pedidos')
+  XLSX.writeFile(wb, `TEMPTECH_Pedidos_${new Date().toISOString().split('T')[0]}.xlsx`)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SALDOS DE PREVENTA (resumen por distribuidor) — EXCEL
+// ═══════════════════════════════════════════════════════════════════════════════
+export function exportarSaldosPreventaExcel(datos, { titulo = 'SALDOS DE PREVENTA' } = {}) {
+  const wb = XLSX.utils.book_new()
+  const rows = []
+  const e_ = () => cell('', null, null, null, null)
+
+  const totPreventa  = datos.reduce((s, d) => s + (d.totPreventa || 0), 0)
+  const totRetirado  = datos.reduce((s, d) => s + (d.totRetirado || 0), 0)
+  const totPendiente = datos.reduce((s, d) => s + (d.totPendiente || 0), 0)
+
+  // Título — 5 columnas (A–E)
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell(titulo, XL.fontBold(12), XL.accentBg, XL.alignR)])
+  rows.push([cell(`${datos.length} distribuidor${datos.length !== 1 ? 'es' : ''}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  rows.push([])
+
+  const hFont = XL.fontBold(10), hFill = XL.headerBg
+  rows.push([
+    cell('DISTRIBUIDOR', hFont, hFill),
+    cell('PREVENTAS', hFont, hFill, XL.alignC),
+    cell('TOTAL PREVENTA', hFont, hFill, XL.alignR),
+    cell('TOTAL RETIRADO', hFont, hFill, XL.alignR),
+    cell('SALDO PENDIENTE', hFont, hFill, XL.alignR),
+  ])
+
+  datos.forEach((d, idx) => {
+    const bg = idx % 2 === 0 ? null : XL.altRowBg
+    rows.push([
+      cell(d.nombre || 'Sin nombre', XL.fontNormal(10), bg),
+      { v: d.preventas?.length || 0, t: 'n', s: { font: XL.fontNormal(10), fill: bg, alignment: XL.alignC, border: XL.border } },
+      numCell(d.totPreventa || 0, XL.fontNormal(10), bg),
+      numCell(d.totRetirado || 0, XL.fontNormal(10, '1a8a5a'), bg),
+      numCell(d.totPendiente || 0, XL.fontBold(10, d.totPendiente > 0 ? 'cc6600' : '1a8a5a'), bg),
+    ])
+  })
+  rows.push([])
+
+  rows.push([
+    cell('TOTAL GENERAL', XL.fontBold(11), XL.headerBg, XL.alignR),
+    e_(),
+    numCell(totPreventa, XL.fontBold(11), XL.headerBg),
+    numCell(totRetirado, XL.fontBold(11), XL.headerBg),
+    numCell(totPendiente, XL.fontBold(11), XL.headerBg),
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 34 }, { wch: 11 }, { wch: 18 }, { wch: 18 }, { wch: 18 }]
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }]
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Saldos preventa')
+  XLSX.writeFile(wb, `TEMPTECH_SaldosPreventa_${new Date().toISOString().split('T')[0]}.xlsx`)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SALDO POR MODELO (por distribuidor → modelo) — EXCEL
+// ═══════════════════════════════════════════════════════════════════════════════
+export function exportarSaldoPorModeloExcel(datos, { titulo = 'SALDO POR MODELO' } = {}) {
+  const wb = XLSX.utils.book_new()
+  const rows = []
+  const e_ = () => cell('', null, null, null, null)
+
+  // Título — 7 columnas (A–G)
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), ...Array(5).fill(cell('', null, XL.headerBg)), cell(titulo, XL.fontBold(12), XL.accentBg, XL.alignR)])
+  rows.push([cell(`${datos.length} distribuidor${datos.length !== 1 ? 'es' : ''}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), ...Array(5).fill(cell('', null, XL.headerBg)), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  rows.push([])
+
+  const merges = []
+  const hFont = XL.fontBold(9), hFill = XL.headerBg
+
+  datos.forEach(dist => {
+    const saldoUnidades = dist.modelos.reduce((s, m) => s + (m.cantTotal - m.cantRetirada), 0)
+    // Barra de distribuidor
+    const dRow = rows.length
+    rows.push([
+      cell(dist.nombre || 'Sin nombre', XL.fontBold(11), XL.subheadBg),
+      cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg),
+      cell(`Saldo ud.: ${saldoUnidades > 0 ? '+' : ''}${saldoUnidades}`, XL.fontBold(10, saldoUnidades !== 0 ? 'ffffff' : 'cccccc'), XL.subheadBg, XL.alignR),
+      numCell(dist.saldoTotal || 0, XL.fontBold(10), XL.subheadBg),
+    ])
+    merges.push({ s: { r: dRow, c: 0 }, e: { r: dRow, c: 4 } })
+
+    // Encabezado de columnas
+    rows.push([
+      cell('PRODUCTO / MODELO', hFont, hFill),
+      cell('CÓDIGO', hFont, hFill, XL.alignC),
+      cell('COMPRADO', hFont, hFill, XL.alignC),
+      cell('RETIRADO', hFont, hFill, XL.alignC),
+      cell('SALDO UD.', hFont, hFill, XL.alignC),
+      cell('MONTO TOTAL', hFont, hFill, XL.alignR),
+      cell('SALDO $', hFont, hFill, XL.alignR),
+    ])
+
+    dist.modelos.forEach((m, idx) => {
+      const bg = idx % 2 === 0 ? null : XL.altRowBg
+      const saldoQty = m.cantTotal - m.cantRetirada
+      const saldoMonto = m.montoTotal - m.montoRetirado
+      const nombreMod = m.modelo && m.modelo !== m.nombre ? `${m.nombre} · ${m.modelo}` : (m.nombre || '')
+      rows.push([
+        cell(nombreMod, XL.fontNormal(10), bg),
+        cell(m.codigo || '—', XL.fontMono(9), bg, XL.alignC),
+        { v: m.cantTotal || 0,    t: 'n', s: { font: XL.fontNormal(10),           fill: bg, alignment: XL.alignC, border: XL.border } },
+        { v: m.cantRetirada || 0, t: 'n', s: { font: XL.fontNormal(10, '1a8a5a'), fill: bg, alignment: XL.alignC, border: XL.border } },
+        { v: saldoQty,            t: 'n', s: { font: XL.fontBold(10, saldoQty > 0 ? 'cc9900' : saldoQty < 0 ? 'cc2244' : '888888'), fill: bg, alignment: XL.alignC, border: XL.border } },
+        numCell(m.montoTotal || 0, XL.fontNormal(10), bg),
+        numCell(saldoMonto, XL.fontBold(10, saldoMonto > 0 ? 'cc9900' : saldoMonto < 0 ? 'cc2244' : '888888'), bg),
+      ])
+    })
+    rows.push([])
+  })
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 36 }, { wch: 14 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 16 }, { wch: 16 }]
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+    ...merges,
+  ]
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Saldo por modelo')
+  XLSX.writeFile(wb, `TEMPTECH_SaldoPorModelo_${new Date().toISOString().split('T')[0]}.xlsx`)
+}

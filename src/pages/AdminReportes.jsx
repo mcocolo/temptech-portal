@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { exportarVentasPorClienteExcel, exportarSaldosPreventaExcel, exportarSaldoPorModeloExcel } from '@/utils/exportDoc'
 
 const ESTADOS_VALIDOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
 
@@ -54,7 +55,8 @@ const ESTADO_PV_CONFIG = {
 const REPORTE_EMAIL = 'martin@temptech.com.ar'
 
 export default function AdminReportes() {
-  const { isAdmin, user } = useAuth()
+  const { isAdmin, isDistributor, user } = useAuth()
+  const esDistribuidorView = isDistributor && !isAdmin
   const [reporte, setReporte] = useState('ventas')
 
   // Ventas / Ranking state
@@ -76,12 +78,17 @@ export default function AdminReportes() {
   const [loadingModelo, setLoadingModelo] = useState(false)
   const [filtroEstadoModelo, setFiltroEstadoModelo] = useState('activa')
 
+  // Los distribuidores solo ven sus propios saldos (preventa / por modelo)
   useEffect(() => {
-    if (!isAdmin) return
+    if (esDistribuidorView && (reporte === 'ventas' || reporte === 'ranking')) setReporte('preventa')
+  }, [esDistribuidorView, reporte])
+
+  useEffect(() => {
+    if (!isAdmin && !esDistribuidorView) return
     if (reporte === 'preventa') cargarPreventas()
     else if (reporte === 'modelo') cargarPorModelo()
-    else cargar()
-  }, [isAdmin, reporte, fechaDesde, fechaHasta, agrupacion, filtroEstadoPv, filtroEstadoModelo])
+    else if (!esDistribuidorView) cargar()
+  }, [isAdmin, esDistribuidorView, reporte, fechaDesde, fechaHasta, agrupacion, filtroEstadoPv, filtroEstadoModelo])
 
   async function cargar() {
     if (!fechaDesde || !fechaHasta) return
@@ -134,6 +141,7 @@ export default function AdminReportes() {
       .neq('estado', 'cancelada')
       .order('created_at', { ascending: false })
 
+    if (esDistribuidorView) q = q.eq('distribuidor_id', user.id)
     if (filtroEstadoPv !== 'todas') q = q.eq('estado', filtroEstadoPv)
 
     const { data: pvData, error } = await q
@@ -183,6 +191,7 @@ export default function AdminReportes() {
       .from('preventas')
       .select('id, estado, items, distribuidor_id')
       .neq('estado', 'cancelada')
+    if (esDistribuidorView) q = q.eq('distribuidor_id', user.id)
     if (filtroEstadoModelo !== 'todas') q = q.eq('estado', filtroEstadoModelo)
 
     const { data: pvData } = await q
@@ -229,7 +238,8 @@ export default function AdminReportes() {
     setLoadingModelo(false)
   }
 
-  if (!isAdmin || user?.email !== REPORTE_EMAIL) return null
+  const puedeVer = (isAdmin && user?.email === REPORTE_EMAIL) || esDistribuidorView
+  if (!puedeVer) return null
 
   const maxMonto = datos.length > 0 ? Math.max(...datos.map(d => d.monto)) : 1
 
@@ -240,7 +250,9 @@ export default function AdminReportes() {
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Reportes</h1>
-        <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Análisis de ventas y distribuidores</p>
+        <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>
+          {esDistribuidorView ? 'Tus saldos de preventa pendientes de retiro' : 'Análisis de ventas y distribuidores'}
+        </p>
       </div>
 
       {/* Tabs */}
@@ -250,7 +262,7 @@ export default function AdminReportes() {
           { key: 'ranking',   label: '🏆 Ranking distribuidores' },
           { key: 'preventa',  label: '📦 Saldos de preventa' },
           { key: 'modelo',    label: '🗂️ Saldo por modelo' },
-        ].map(tab => (
+        ].filter(tab => !esDistribuidorView || tab.key === 'preventa' || tab.key === 'modelo').map(tab => (
           <button key={tab.key} onClick={() => setReporte(tab.key)} style={{
             padding: '9px 20px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 700,
             cursor: 'pointer', fontFamily: 'var(--font)', transition: 'all 0.15s',
@@ -282,9 +294,17 @@ export default function AdminReportes() {
                 </button>
               ))}
             </div>
-            <button onClick={esPreventa ? cargarPreventas : cargarPorModelo} disabled={esPreventa ? loadingPv : loadingModelo} style={{ marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)' }}>
-              🔄 Actualizar
-            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => esPreventa ? exportarSaldosPreventaExcel(datosPv) : exportarSaldoPorModeloExcel(datosModelo)}
+                disabled={esPreventa ? (loadingPv || datosPv.length === 0) : (loadingModelo || datosModelo.length === 0)}
+                style={{ background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (esPreventa ? (loadingPv || datosPv.length === 0) : (loadingModelo || datosModelo.length === 0)) ? 'not-allowed' : 'pointer', color: '#3dd68c', fontFamily: 'var(--font)', opacity: (esPreventa ? (loadingPv || datosPv.length === 0) : (loadingModelo || datosModelo.length === 0)) ? 0.5 : 1 }}>
+                ⬇️ Exportar Excel
+              </button>
+              <button onClick={esPreventa ? cargarPreventas : cargarPorModelo} disabled={esPreventa ? loadingPv : loadingModelo} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)' }}>
+                🔄 Actualizar
+              </button>
+            </div>
           </>
         ) : (
           // Filtros de fecha para ventas/ranking
@@ -337,9 +357,19 @@ export default function AdminReportes() {
                 ))}
               </div>
             )}
-            <button onClick={cargar} disabled={loading} style={{ marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)', opacity: loading ? 0.5 : 1 }}>
-              🔄 Actualizar
-            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              {reporte === 'ranking' && (
+                <button
+                  onClick={() => exportarVentasPorClienteExcel({ datos, fechaDesde, fechaHasta })}
+                  disabled={loading || datos.length === 0}
+                  style={{ background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || datos.length === 0) ? 'not-allowed' : 'pointer', color: '#3dd68c', fontFamily: 'var(--font)', opacity: (loading || datos.length === 0) ? 0.5 : 1 }}>
+                  ⬇️ Exportar Excel
+                </button>
+              )}
+              <button onClick={cargar} disabled={loading} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)', opacity: loading ? 0.5 : 1 }}>
+                🔄 Actualizar
+              </button>
+            </div>
           </>
         )}
       </div>

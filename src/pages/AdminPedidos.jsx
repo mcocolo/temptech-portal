@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import toast from 'react-hot-toast'
-import { imprimirPresupuesto, exportarPresupuestoExcel } from '@/utils/exportDoc'
+import { imprimirPresupuesto, exportarPresupuestoExcel, exportarPedidosExcel } from '@/utils/exportDoc'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -91,6 +91,7 @@ export default function AdminPedidos() {
   const [vista, setVista] = useState('lista')          // 'lista' | 'nuevo'
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [exportando, setExportando] = useState(false)
   const [filtro, setFiltro] = usePersistedState('ap_filtro', 'pendiente')
   const [busqueda, setBusqueda] = usePersistedState('ap_busqueda', '')
   const [filtroFecha, setFiltroFecha] = usePersistedState('ap_fecha', new Date().toISOString().split('T')[0])
@@ -234,6 +235,30 @@ export default function AdminPedidos() {
       })
     }
     setLoading(false)
+  }
+
+  async function exportarTodos() {
+    setExportando(true)
+    let q = supabase
+      .from('pedidos')
+      .select('*, profiles!distribuidor_id(full_name, email, razon_social)')
+      .order('created_at', { ascending: false })
+
+    if (isAdmin2) {
+      q = q.in('estado', ['pendiente', 'aprobado', 'preparando', 'enviado'])
+    } else if (isVendedor && user) {
+      const { data: clientes } = await supabase.from('profiles').select('id').eq('vendedor_id', user.id)
+      const ids = (clientes || []).map(c => c.id)
+      if (ids.length > 0) q = q.or(`distribuidor_id.in.(${ids.join(',')}),vendedor_id.eq.${user.id}`)
+      else q = q.eq('vendedor_id', user.id)
+    }
+
+    const { data, error } = await q
+    setExportando(false)
+    if (error) { toast.error('Error al exportar: ' + error.message); return }
+    if (!data || data.length === 0) { toast.error('No hay pedidos para exportar'); return }
+    exportarPedidosExcel(data)
+    toast.success(`${data.length} pedidos exportados ✅`)
   }
 
   async function cargarCatalogo() {
@@ -1138,6 +1163,11 @@ export default function AdminPedidos() {
             style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1, fontFamily: 'var(--font)' }}
             title="Actualizar pedidos">
             🔄
+          </button>
+          <button onClick={exportarTodos} disabled={exportando}
+            style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: exportando ? 'not-allowed' : 'pointer', opacity: exportando ? 0.5 : 1, fontFamily: 'var(--font)' }}
+            title="Exportar todos los pedidos a Excel">
+            {exportando ? '⏳ Exportando…' : '⬇️ Exportar Excel'}
           </button>
           {!isAdmin2 && (
             <button onClick={() => setVista('nuevo')}

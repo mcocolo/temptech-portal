@@ -32,6 +32,7 @@ const NAV = [
   { label: 'Presupuesto',       icon: ClipboardList,   path: '/presupuesto',   isDistributor: true },
   { label: 'Mis Pedidos',       icon: ShoppingCart,    path: '/pedidos',       isDistributor: true },
   { label: 'Mis Preventas',    icon: Package,         path: '/mis-preventas', isDistributor: true },
+  { label: 'Mis Reportes',     icon: BarChart2,       path: '/reportes',      isDistributor: true },
   { label: 'Mis Devoluciones', icon: RotateCcw,       path: '/devoluciones',  isDistributor: true },
   { label: 'Mi Perfil',        icon: User,            path: '/mi-perfil',     isDistributor: true },
 ]
@@ -244,7 +245,11 @@ export default function Layout({ children }) {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
   }
 
-  const baseNav = NAV.filter(item => !item.isDistributor || isDistributor || isAdmin)
+  const baseNav = NAV.filter(item =>
+    (!item.isDistributor || isDistributor || isAdmin) &&
+    // El admin ya tiene "Reportes" en su propio menú — evitar duplicado
+    !(item.path === '/reportes' && isAdmin)
+  )
   const adminNavFiltrado = ADMIN_NAV.filter(item =>
     item.path !== '/reportes' || user?.email === 'martin@temptech.com.ar'
   )
