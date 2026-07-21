@@ -229,7 +229,7 @@ function ProductSelector({ value, onChange }) {
 }
 
 export default function Foro() {
-  const { user, profile, isAdmin, isAdmin2 } = useAuth()
+  const { user, profile, isAdmin, isAdmin2, isClient } = useAuth()
   const [posts, setPosts]         = useState([])
   const [selected, setSelected]   = useState(null)
   const [replies, setReplies]     = useState([])
@@ -270,6 +270,7 @@ export default function Foro() {
   }
 
   async function submitPost() {
+    if (isClient) return toast.error('El foro está en modo lectura para clientes')
     if (!form.title.trim() || !form.body.trim()) return toast.error('Completá todos los campos')
     setSubmitting(true)
 
@@ -309,6 +310,7 @@ export default function Foro() {
   }
 
   async function submitReply() {
+    if (isClient) return toast.error('El foro está en modo lectura para clientes')
     if (!replyText.trim()) return
     setSubmitting(true)
     const { data: { session } } = await supabase.auth.getSession()
@@ -430,7 +432,7 @@ export default function Foro() {
         )}
       </div>
 
-      {user && !isAdmin2 && (
+      {user && !isAdmin2 && !isClient && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 22 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
             {isAdmin ? '⭐ Responder como TEMPTECH (oficial)' : 'Agregar una respuesta'}
@@ -439,6 +441,13 @@ export default function Foro() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
             <Button onClick={submitReply} loading={submitting} variant={isAdmin ? 'primary' : 'ghost'}>Publicar respuesta</Button>
           </div>
+        </div>
+      )}
+
+      {isClient && (
+        <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', fontSize: 13, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 16 }}>🔒</span>
+          El foro está disponible solo para lectura. Para hacer una consulta, usá la sección <b style={{ color: 'var(--text2)' }}>Service / Garantía</b>.
         </div>
       )}
     </div>
@@ -452,7 +461,12 @@ export default function Foro() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Foro de Consultas</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Todas las consultas son públicas y visibles por la comunidad</p>
         </div>
-        {user && !isAdmin2 && <Button onClick={() => setNewPostOpen(true)}>+ Nueva Consulta</Button>}
+        {user && !isAdmin2 && !isClient && <Button onClick={() => setNewPostOpen(true)}>+ Nueva Consulta</Button>}
+        {isClient && (
+          <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            🔒 Solo lectura
+          </span>
+        )}
       </div>
 
       {/* Filtros */}
