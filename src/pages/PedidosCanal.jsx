@@ -355,7 +355,8 @@ export default function PedidosCanal() {
   const canal = canalFromPath(location.pathname)
   const cc = CANAL_CONFIG[canal]
   const { user, profile, isAdmin, isAdmin2 } = useAuth()
-  const canEdit = isAdmin || isAdmin2
+  const canEdit = isAdmin                    // crear / editar / eliminar ventas (admin2 no puede)
+  const canModificar = isAdmin              // editar y eliminar ventas (admin2 no puede)
 
   const [catalogo, setCatalogo]   = useState([])
   const [ventas, setVentas]       = useState([])
@@ -404,6 +405,7 @@ export default function PedidosCanal() {
   function resetEnvio() { setFTipoEnvio(''); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona('') }
   function abrirNueva() { setEditando(null); setFNroOrden(''); setFNombre(''); setFEmail(''); setFTel(''); setFItems([emptyItem()]); setFObs(''); setFEstado('pendiente'); setFFechaEnvio(''); resetEnvio(); setModal(true) }
   function abrirEditar(v) {
+    if (!canModificar) return toast.error('No tenés permiso para editar ventas')
     setEditando(v); setFNroOrden(v.nro_orden||''); setFNombre(v.cliente_nombre||''); setFEmail(v.cliente_email||''); setFTel(v.cliente_telefono||'')
     setFItems(v.items?.length ? v.items.map(i=>({...i})) : [emptyItem()]); setFObs(v.observaciones||''); setFEstado(v.estado||'pendiente')
     setFFechaEnvio(v.fecha_envio||'')
@@ -492,6 +494,7 @@ export default function PedidosCanal() {
   }
 
   async function eliminar(id) {
+    if (!canModificar) return toast.error('No tenés permiso para eliminar ventas')
     if (!confirm('¿Eliminar esta venta?')) return
     await supabase.from('ventas').delete().eq('id', id)
     setVentas(prev => prev.filter(v => v.id !== id))
@@ -561,8 +564,8 @@ export default function PedidosCanal() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtradas.map(v => (
             <MeliCard key={v.id} v={v} cc={cc}
-              onEdit={canEdit ? abrirEditar : null}
-              onDelete={canEdit ? eliminar : null}
+              onEdit={canModificar ? abrirEditar : null}
+              onDelete={canModificar ? eliminar : null}
               onCambiarEstado={cambiarEstado}
               onReenvio={(v) => {
                 const items = v.items || []
@@ -702,8 +705,8 @@ export default function PedidosCanal() {
                     setReenvioItems(items.map(it => ({ ...it, cantidad: it.cantidad || 1, seleccionado: true })))
                     setModalReenvio(v)
                   }} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.3)', fontWeight: 600 }}>🔁 Reenvío</button>
-                  {canEdit && <button onClick={() => abrirEditar(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>}
-                  {canEdit && <button onClick={() => eliminar(v.id)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', fontWeight: 600 }}>🗑 Eliminar</button>}
+                  {canModificar && <button onClick={() => abrirEditar(v)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', fontWeight: 600 }}>✏️ Editar</button>}
+                  {canModificar && <button onClick={() => eliminar(v.id)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(255,85,119,0.08)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', fontWeight: 600 }}>🗑 Eliminar</button>}
                 </div>
               </div>
             )
