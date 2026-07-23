@@ -2360,12 +2360,12 @@ export default function IngresoEgresoPT() {
                         </div>
                         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                           <span style={{ fontSize: 13, fontWeight: 700 }}>×{it.cantidad}</span>
-                          {it.precio_unitario > 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>${Number(it.precio_unitario).toLocaleString('es-AR')}</span>}
+                          {!isAdmin2 && it.precio_unitario > 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>${Number(it.precio_unitario).toLocaleString('es-AR')}</span>}
                         </div>
                       </div>
                     ))}
                   </div>
-                  {ventaDetalle.total > 0 && (
+                  {!isAdmin2 && ventaDetalle.total > 0 && (
                     <div style={{ textAlign: 'right', marginTop: 8, fontSize: 14, fontWeight: 800, color: vc }}>
                       Total: ${Number(ventaDetalle.total).toLocaleString('es-AR')}
                     </div>

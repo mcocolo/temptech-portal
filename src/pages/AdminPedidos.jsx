@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import toast from 'react-hot-toast'
 import { imprimirPresupuesto, exportarPresupuestoExcel, exportarPedidosExcel } from '@/utils/exportDoc'
+import { preciosOcultos } from '@/utils/precioGuard'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -66,6 +67,7 @@ const CATALOGO_ADMIN = [
 ]
 
 function formatPrecio(n) {
+  if (preciosOcultos()) return '—'
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n)
 }
 
@@ -1164,11 +1166,13 @@ export default function AdminPedidos() {
             title="Actualizar pedidos">
             🔄
           </button>
-          <button onClick={exportarTodos} disabled={exportando}
-            style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: exportando ? 'not-allowed' : 'pointer', opacity: exportando ? 0.5 : 1, fontFamily: 'var(--font)' }}
-            title="Exportar todos los pedidos a Excel">
-            {exportando ? '⏳ Exportando…' : '⬇️ Exportar Excel'}
-          </button>
+          {!isAdmin2 && (
+            <button onClick={exportarTodos} disabled={exportando}
+              style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: exportando ? 'not-allowed' : 'pointer', opacity: exportando ? 0.5 : 1, fontFamily: 'var(--font)' }}
+              title="Exportar todos los pedidos a Excel">
+              {exportando ? '⏳ Exportando…' : '⬇️ Exportar Excel'}
+            </button>
+          )}
           {!isAdmin2 && (
             <button onClick={() => setVista('nuevo')}
               style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>

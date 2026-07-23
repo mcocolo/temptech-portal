@@ -652,7 +652,7 @@ export default function Insumos() {
                     <div style={{ position: 'absolute', top: 3, left: form.es_repuesto ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
                   </div>
                 </div>
-                {form.es_repuesto && (
+                {form.es_repuesto && !isAdmin2 && (
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Precio para técnicos</label>
                     <input type="number" min="0" value={form.precio_tecnico} onChange={e => setForm(p => ({ ...p, precio_tecnico: e.target.value }))} placeholder="Ej: 15000 (dejar vacío si es sin cargo)" style={inputSt} />

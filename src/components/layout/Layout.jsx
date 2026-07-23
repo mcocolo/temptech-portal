@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
+import { setOcultarPrecios } from '@/utils/precioGuard'
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
@@ -155,6 +156,8 @@ export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [openSubmenus, setOpenSubmenus] = useState({ produccion: true })
   const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isDistributor, isTechService, aprobacionPendiente, aprobacionRechazada } = useAuth()
+  // Admin2 no debe ver importes: activar el guard global de precios
+  setOcultarPrecios(isAdmin2)
   const navigate  = useNavigate()
   const location  = useLocation()
   const mainContentRef    = useRef(null)

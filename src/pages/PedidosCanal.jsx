@@ -7,6 +7,7 @@ import { Plus, Upload, FileText, Printer } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { preciosOcultos } from '@/utils/precioGuard'
 
 const CANAL_CONFIG = {
   meli:   { label: 'Mercado Libre', color: '#ffe600', bg: 'rgba(255,230,0,0.1)',   border: 'rgba(255,230,0,0.35)',   emoji: '🛒', textColor: '#000' },
@@ -32,6 +33,7 @@ function formatFecha(d) {
   } catch { return '' }
 }
 function formatPrecio(v) {
+  if (preciosOcultos()) return '—'
   if (!v && v !== 0) return '—'
   return '$' + Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0 })
 }
@@ -828,7 +830,7 @@ export default function PedidosCanal() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {fItems.map((it, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: isAdmin2 ? '1fr 60px auto' : '1fr 60px 100px auto', gap: 6, alignItems: 'center' }}>
                       {it.codigo ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12 }}>
                           <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700 }}>{it.codigo}</span>
@@ -873,7 +875,7 @@ export default function PedidosCanal() {
                         </div>
                       )}
                       <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', e.target.value)} style={{ ...inputSt, padding: '7px 8px', fontSize: 12 }} />
-                      <input type="number" min="0" value={it.precio_unitario} onChange={e => updateItem(i, 'precio_unitario', e.target.value)} placeholder="Precio" style={{ ...inputSt, padding: '7px 8px', fontSize: 12 }} />
+                      {!isAdmin2 && <input type="number" min="0" value={it.precio_unitario} onChange={e => updateItem(i, 'precio_unitario', e.target.value)} placeholder="Precio" style={{ ...inputSt, padding: '7px 8px', fontSize: 12 }} />}
                       {fItems.length > 1 ? <button onClick={() => setFItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px' }}>×</button> : <span />}
                     </div>
                   ))}
