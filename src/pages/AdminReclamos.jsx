@@ -1682,9 +1682,47 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             </div>
                           ))}
                         </div>
-                        <div style={{ marginBottom: 10 }}>
-                          <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Producto</label>
-                          <input value={editForm.producto} onChange={e => setEditForm(f => ({ ...f, producto: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }} />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                          <div>
+                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Producto</label>
+                            <select
+                              value={editForm.producto || ''}
+                              onChange={e => {
+                                const nombre = e.target.value
+                                const modelos = [...new Set(catalogo.filter(p => p.nombre === nombre).map(p => p.modelo).filter(Boolean))]
+                                setEditForm(f => ({ ...f, producto: nombre, modelo: modelos.length === 1 ? modelos[0] : '' }))
+                              }}
+                              style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }}>
+                              <option value="">Seleccioná el producto...</option>
+                              {editForm.producto && ![...new Set(catalogo.map(p => p.nombre))].includes(editForm.producto) && (
+                                <option value={editForm.producto}>{editForm.producto} (actual)</option>
+                              )}
+                              {[...new Set(catalogo.map(p => p.nombre))].map(n => (
+                                <option key={n} value={n}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Modelo</label>
+                            {(() => {
+                              const modelos = [...new Set(catalogo.filter(p => p.nombre === editForm.producto).map(p => p.modelo).filter(Boolean))]
+                              return (
+                                <select
+                                  value={editForm.modelo || ''}
+                                  disabled={!editForm.producto}
+                                  onChange={e => setEditForm(f => ({ ...f, modelo: e.target.value }))}
+                                  style={{ ...inputStyle, padding: '7px 10px', fontSize: 12, opacity: editForm.producto ? 1 : 0.5 }}>
+                                  <option value="">{editForm.producto ? 'Seleccioná el modelo...' : 'Elegí primero un producto'}</option>
+                                  {editForm.modelo && !modelos.includes(editForm.modelo) && (
+                                    <option value={editForm.modelo}>{editForm.modelo} (actual)</option>
+                                  )}
+                                  {modelos.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                              )
+                            })()}
+                          </div>
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Motivo</label>

@@ -132,13 +132,26 @@ export default function Pedidos() {
 
   // Productos con EAN para distribuidores/vendedores
   const codigosConEAN = new Set(preciosBD.filter(p => p.ean && p.ean.trim()).map(p => p.codigo))
-  const catalogoFiltrado = CATALOGO.map(cat => ({
+
+  // El precio manda desde la tabla `precios` (Lista de Precios). El precio del
+  // CATALOGO hardcodeado queda solo como respaldo si el código no está en la BD.
+  const precioMap = {}
+  preciosBD.forEach(p => { if (p.precio != null && p.precio !== '') precioMap[p.codigo] = Number(p.precio) })
+  const CATALOGO_PRECIOS = CATALOGO.map(cat => ({
+    ...cat,
+    productos: cat.productos.map(p => ({
+      ...p,
+      precio: precioMap[p.codigo] != null ? precioMap[p.codigo] : p.precio,
+    })),
+  }))
+
+  const catalogoFiltrado = CATALOGO_PRECIOS.map(cat => ({
     ...cat,
     productos: cat.productos.filter(p => codigosConEAN.size === 0 || codigosConEAN.has(p.codigo)),
   })).filter(cat => cat.productos.length > 0)
 
   // Items en el carrito
-  const itemsCarrito = CATALOGO.flatMap(cat =>
+  const itemsCarrito = CATALOGO_PRECIOS.flatMap(cat =>
     cat.productos
       .filter(p => (cantidades[p.codigo] || 0) > 0)
       .map(p => ({
@@ -319,7 +332,7 @@ export default function Pedidos() {
   useEffect(() => { if (tab === 'historial') cargarHistorial() }, [tab])
   useEffect(() => { if (tab === 'preventa') cargarPreventas() }, [tab])
   useEffect(() => {
-    supabase.from('precios').select('codigo, ean').then(({ data }) => setPreciosBD(data || []))
+    supabase.from('precios').select('codigo, ean, precio').then(({ data }) => setPreciosBD(data || []))
   }, [])
 
   if (!isDistributor && !isTechService) return null

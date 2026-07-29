@@ -131,6 +131,8 @@ export default function Reclamos() {
     descripcion_falla: '',
     // Paso 3 — Datos de contacto
     direccion: '',
+    piso: '',
+    departamento: '',
     localidad: '',
     provincia: '',
     codigo_postal: '',
@@ -231,13 +233,20 @@ export default function Reclamos() {
         dias_garantia = diff
       }
 
+      // Combinar dirección + piso + departamento en un solo campo
+      const direccionCompleta = [
+        form.direccion || profile?.direccion || '',
+        form.piso ? `Piso ${form.piso}` : '',
+        form.departamento ? `Depto ${form.departamento}` : '',
+      ].filter(Boolean).join(', ')
+
       const { error } = await supabase.from('devoluciones').insert({
         tracking_id,
         portal_user_id: user.id,
         nombre_apellido: profile?.full_name || '',
         email: user.email || '',
         telefono: form.telefono || profile?.telefono || '',
-        direccion: form.direccion || profile?.direccion || '',
+        direccion: direccionCompleta,
         localidad: form.localidad || profile?.localidad || '',
         provincia: form.provincia || profile?.provincia || '',
         codigo_postal: form.codigo_postal || profile?.codigo_postal || '',
@@ -271,7 +280,7 @@ export default function Reclamos() {
             nombre:             profile?.full_name || '',
             trackingId:         tracking_id,
             fechaIngreso,
-            direccion:          form.direccion    || profile?.direccion    || '',
+            direccion:          direccionCompleta,
             localidad:          form.localidad    || profile?.localidad    || '',
             provincia:          form.provincia    || profile?.provincia    || '',
             codigoPostal:       form.codigo_postal || profile?.codigo_postal || '',
@@ -385,7 +394,7 @@ export default function Reclamos() {
   }
 
   function resetForm() {
-    setForm({ producto: '', modelo: '', canal: '', numero_venta_manual: '', fecha_compra: '', motivo: '', descripcion_falla: '', direccion: '', localidad: '', provincia: '', codigo_postal: '', telefono: '', imagenes: [], comprobantes: [] })
+    setForm({ producto: '', modelo: '', canal: '', numero_venta_manual: '', fecha_compra: '', motivo: '', descripcion_falla: '', direccion: '', piso: '', departamento: '', localidad: '', provincia: '', codigo_postal: '', telefono: '', imagenes: [], comprobantes: [] })
     setStep(1)
   }
 
@@ -872,8 +881,19 @@ export default function Reclamos() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Dirección</label>
-              <input value={form.direccion} onChange={e => setF('direccion', e.target.value)} placeholder="Av. Corrientes 1234, Piso 3" style={inputStyle} />
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Dirección (calle y número)</label>
+              <input value={form.direccion} onChange={e => setF('direccion', e.target.value)} placeholder="Av. Corrientes 1234" style={inputStyle} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Piso</label>
+                <input value={form.piso} onChange={e => setF('piso', e.target.value)} placeholder="Ej: 3 (opcional)" style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Departamento</label>
+                <input value={form.departamento} onChange={e => setF('departamento', e.target.value)} placeholder="Ej: B (opcional)" style={inputStyle} />
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
