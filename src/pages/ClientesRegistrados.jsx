@@ -119,11 +119,12 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         desc_paneles_calefactores: desc.paneles_calefactores ?? '',
         desc_anafes:               desc.anafes               ?? '',
         direccion:                 cl?.direccion || cl?.direccion_entrega || '',
+        empresa_transporte:        u.transporte || '',
         horario_entrega:           cl?.horario_entrega   || '',
         persona_contacto:          cl?.persona_contacto  || '',
         dirs_alt: (u.direcciones_entrega || []).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'', provincia: d.provincia||'', codigo_postal: d.codigo_postal||'', telefono: d.telefono||'', horario: d.horario||'', lat: d.lat||'', lng: d.lng||'' })),
         localidad_entrega: cl?.localidad_entrega || '',
-        cp_entrega: cl?.codigo_postal_entrega || '',
+        cp_entrega: cl?.codigo_postal_entrega || cl?.codigo_postal || '',
       })
     } else {
       setEditForm({
@@ -155,13 +156,13 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         }
         Object.keys(desc).forEach(k => { if (desc[k] === null) delete desc[k] })
         const dirsAlt = (editForm.dirs_alt || []).filter(d => d.direccion?.trim())
-        await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt }).eq('id', u.id)
+        await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt, transporte: editForm.empresa_transporte?.trim() || null }).eq('id', u.id)
         if (cl?.id) {
           const { error: errCl } = await supabase.from('clientes').update({
             direccion:            editForm.direccion           || null,
             direccion_entrega:    editForm.direccion           || null,
             localidad_entrega:    editForm.localidad_entrega   || null,
-            codigo_postal_entrega: editForm.cp_entrega         || null,
+            codigo_postal:        editForm.cp_entrega          || null,
             horario_entrega:      editForm.horario_entrega     || null,
             persona_contacto:     editForm.persona_contacto    || null,
           }).eq('id', cl.id)
@@ -304,26 +305,11 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                     <LI label="Localidad"><input value={editForm.localidad_entrega || ''} onChange={e => setEF('localidad_entrega', e.target.value)} style={inputSt} /></LI>
                     <LI label="Código Postal"><input value={editForm.cp_entrega || ''} onChange={e => setEF('cp_entrega', e.target.value)} style={inputSt} /></LI>
                     <LI label="Horario de entrega"><input value={editForm.horario_entrega} onChange={e => setEF('horario_entrega', e.target.value)} placeholder="Ej: Lunes a viernes 9-17hs" style={inputSt} /></LI>
+                    <LI label="Empresa de Transporte"><input value={editForm.empresa_transporte || ''} onChange={e => setEF('empresa_transporte', e.target.value)} placeholder="Ej: Transporte Beraldi" style={inputSt} /></LI>
                     <LI label="Persona de contacto"><input value={editForm.persona_contacto} onChange={e => setEF('persona_contacto', e.target.value)} style={inputSt} /></LI>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-                    <button onClick={async () => {
-                      const dir = [editForm.direccion, editForm.localidad_entrega, 'Argentina'].filter(Boolean).join(', ')
-                      if (!editForm.direccion) { alert('Completá la dirección primero'); return }
-                      try {
-                        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dir)}&countrycodes=ar&format=json&limit=1`, { headers: { 'Accept-Language': 'es' } })
-                        const data = await res.json()
-                        if (!data[0]) { alert('No se encontró la dirección, probá con menos detalles'); return }
-                        const lat = parseFloat(data[0].lat).toFixed(6)
-                        const lng = parseFloat(data[0].lon).toFixed(6)
-                        await supabase.from('profiles').update({ lat: parseFloat(lat), lng: parseFloat(lng) }).eq('id', u.id)
-                        setEF('lat_principal', lat); setEF('lng_principal', lng)
-                        toast.success('Coordenadas guardadas ✅ — aparecerá en el mapa')
-                      } catch { toast.error('Error al geocodificar') }
-                    }} style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                      📍 Geocodificar dirección principal para el mapa
-                    </button>
-                    {editForm.lat_principal && <span style={{ fontSize: 11, color: '#3dd68c' }}>✓ En mapa</span>}
+                  <div style={{ fontSize: 11, color: 'var(--text3)', background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 6, padding: '8px 12px', marginBottom: 20 }}>
+                    📍 La dirección principal suele ser una empresa de transporte, así que <b>no se geolocaliza en el mapa</b>. Para que un distribuidor aparezca en el mapa, cargá sus <b>Locales Comerciales</b> abajo y geocodificá cada local.
                   </div>
 
                   {/* Locales Comerciales */}
@@ -423,6 +409,7 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
                   { label: 'Desc. Paneles',       val: u.descuentos?.paneles_calefactores != null ? `${u.descuentos.paneles_calefactores}%` : null },
                   { label: 'Desc. Anafes',        val: u.descuentos?.anafes != null ? `${u.descuentos.anafes}%` : null },
                   { label: 'Dirección de entrega',val: cl?.direccion_entrega },
+                  { label: 'Empresa de Transporte', val: u.transporte },
                   { label: 'Horario de entrega',  val: cl?.horario_entrega },
                   { label: 'Persona de contacto', val: cl?.persona_contacto },
                 ].map(f => <Field key={f.label} {...f} />)}

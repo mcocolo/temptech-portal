@@ -39,7 +39,10 @@ export default function MapaLocales() {
         for (const l of locales) {
           pins.push({ id: `${p.id}_${pins.length}`, nombre, user_type: p.user_type, web: p.web || '', direccion: l.direccion || '', localidad: l.localidad || '', provincia: l.provincia || '', telefono: l.telefono || p.telefono || '', lat: parseFloat(l.lat), lng: parseFloat(l.lng) })
         }
-      } else if (p.lat && p.lng) {
+      } else if (p.lat && p.lng && p.user_type !== 'distributor') {
+        // La dirección principal solo va al mapa para service técnico.
+        // En distribuidores suele ser una empresa de transporte, así que
+        // solo aparecen si cargaron Locales Comerciales geolocalizados.
         pins.push({ id: p.id, nombre, user_type: p.user_type, web: p.web || '', direccion: p.domicilio || '', localidad: p.localidad || '', provincia: p.provincia || '', telefono: p.telefono || '', lat: parseFloat(p.lat), lng: parseFloat(p.lng) })
       }
     }
