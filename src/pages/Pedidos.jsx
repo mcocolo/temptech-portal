@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
+import { useCatalogo } from '@/lib/catalogo'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -130,28 +131,15 @@ export default function Pedidos() {
     setCantsPrev(prev => ({ ...prev, [codigo]: n }))
   }
 
-  // Productos con EAN para distribuidores/vendedores
-  const codigosConEAN = new Set(preciosBD.filter(p => p.ean && p.ean.trim()).map(p => p.codigo))
-
-  // El precio manda desde la tabla `precios` (Lista de Precios). El precio del
-  // CATALOGO hardcodeado queda solo como respaldo si el código no está en la BD.
-  const precioMap = {}
-  preciosBD.forEach(p => { if (p.precio != null && p.precio !== '') precioMap[p.codigo] = Number(p.precio) })
-  const CATALOGO_PRECIOS = CATALOGO.map(cat => ({
+  // Mostrar solo productos con EAN cargado (si hay alguno con EAN en la lista)
+  const hayEAN = catalogoBase.some(cat => cat.productos.some(p => p.ean && String(p.ean).trim()))
+  const catalogoFiltrado = catalogoBase.map(cat => ({
     ...cat,
-    productos: cat.productos.map(p => ({
-      ...p,
-      precio: precioMap[p.codigo] != null ? precioMap[p.codigo] : p.precio,
-    })),
-  }))
-
-  const catalogoFiltrado = CATALOGO_PRECIOS.map(cat => ({
-    ...cat,
-    productos: cat.productos.filter(p => codigosConEAN.size === 0 || codigosConEAN.has(p.codigo)),
+    productos: cat.productos.filter(p => !hayEAN || (p.ean && String(p.ean).trim())),
   })).filter(cat => cat.productos.length > 0)
 
   // Items en el carrito
-  const itemsCarrito = CATALOGO_PRECIOS.flatMap(cat =>
+  const itemsCarrito = catalogoBase.flatMap(cat =>
     cat.productos
       .filter(p => (cantidades[p.codigo] || 0) > 0)
       .map(p => ({

@@ -114,17 +114,21 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
   function abrirEdicion() {
     if (isDistrib) {
       const desc = u.descuentos || {}
+      // El CP viaja embebido en direccion_entrega ("calle, CP 1234"). Lo separamos.
+      const deRaw = cl?.direccion_entrega || ''
+      const cpMatch = deRaw.match(/,?\s*CP\s*([^,]+)\s*$/i)
+      const deSinCp = deRaw.replace(/,?\s*CP\s*[^,]+\s*$/i, '').trim()
       setEditForm({
         desc_calefones_calderas:   desc.calefones_calderas   ?? '',
         desc_paneles_calefactores: desc.paneles_calefactores ?? '',
         desc_anafes:               desc.anafes               ?? '',
-        direccion:                 cl?.direccion || cl?.direccion_entrega || '',
+        direccion:                 cl?.direccion || deSinCp || '',
         empresa_transporte:        u.transporte || '',
         horario_entrega:           cl?.horario_entrega   || '',
         persona_contacto:          cl?.persona_contacto  || '',
         dirs_alt: (u.direcciones_entrega || []).map(d => ({ nombre: d.nombre||'', direccion: d.direccion||'', localidad: d.localidad||'', provincia: d.provincia||'', codigo_postal: d.codigo_postal||'', telefono: d.telefono||'', horario: d.horario||'', lat: d.lat||'', lng: d.lng||'' })),
         localidad_entrega: cl?.localidad_entrega || '',
-        cp_entrega: cl?.codigo_postal_entrega || cl?.codigo_postal || '',
+        cp_entrega: cpMatch ? cpMatch[1].trim() : '',
       })
     } else {
       setEditForm({
@@ -158,11 +162,14 @@ function PerfilCliente({ u, onBack, isDistrib, vendedores = [], onAsignarVendedo
         const dirsAlt = (editForm.dirs_alt || []).filter(d => d.direccion?.trim())
         await supabase.from('profiles').update({ descuentos: desc, direcciones_entrega: dirsAlt, transporte: editForm.empresa_transporte?.trim() || null }).eq('id', u.id)
         if (cl?.id) {
+          // La tabla `clientes` no tiene columna de código postal, así que lo
+          // guardamos dentro de la dirección de entrega (formato: "calle, CP 1234").
+          const cpTxt = (editForm.cp_entrega || '').trim()
+          const dirEntrega = [(editForm.direccion || '').trim(), cpTxt ? `CP ${cpTxt}` : ''].filter(Boolean).join(', ')
           const { error: errCl } = await supabase.from('clientes').update({
             direccion:            editForm.direccion           || null,
-            direccion_entrega:    editForm.direccion           || null,
+            direccion_entrega:    dirEntrega                   || null,
             localidad_entrega:    editForm.localidad_entrega   || null,
-            codigo_postal:        editForm.cp_entrega          || null,
             horario_entrega:      editForm.horario_entrega     || null,
             persona_contacto:     editForm.persona_contacto    || null,
           }).eq('id', cl.id)

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { imprimirPresupuesto, exportarPresupuestoExcel } from '@/utils/exportDoc'
+import { useCatalogo } from '@/lib/catalogo'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -96,6 +97,9 @@ function aplicarDescuento(precio, desc) {
 export default function Presupuesto() {
   const { profile, isDistributor, isAdmin } = useAuth()
 
+  // Catálogo y precios desde la tabla `precios` (CATALOGO queda como respaldo)
+  const catalogo = useCatalogo(CATALOGO)
+
   // Estado del selector de distribuidor (solo para admin)
   const [distribuidores, setDistribuidores] = useState([])
   const [distSeleccionado, setDistSeleccionado] = useState(null) // null = no elegido, 'manual' = manual, profile obj = elegido
@@ -141,7 +145,7 @@ export default function Presupuesto() {
     setCantidades(prev => ({ ...prev, [codigo]: n }))
   }
 
-  const itemsPresupuesto = CATALOGO.flatMap(cat =>
+  const itemsPresupuesto = catalogo.flatMap(cat =>
     cat.productos
       .filter(p => (cantidades[p.codigo] || 0) > 0)
       .map(p => {
@@ -292,7 +296,7 @@ export default function Presupuesto() {
                 {distSeleccionado.email && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{distSeleccionado.email}</div>}
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {CATALOGO.map(cat => {
+                {catalogo.map(cat => {
                   const pct = calcularDescuentoEfectivo(descuentos[cat.categoria])
                   return (
                     <div key={cat.categoria} style={{ textAlign: 'center' }}>
@@ -317,7 +321,7 @@ export default function Presupuesto() {
             <div style={{ background: 'rgba(255,107,43,0.05)', border: '1px solid rgba(255,107,43,0.2)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
               <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 12 }}>Descuento por categoría (%)</div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {CATALOGO.map(cat => (
+                {catalogo.map(cat => (
                   <div key={cat.categoria} style={{ flex: '1 1 160px' }}>
                     <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5 }}>{cat.emoji} {cat.label}</label>
                     <div style={{ position: 'relative' }}>
@@ -344,7 +348,7 @@ export default function Presupuesto() {
       <div className="form-sidebar-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
         {/* Catálogo */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {CATALOGO.map(cat => {
+          {catalogo.map(cat => {
             const pct = parseFloat(calcularDescuentoEfectivo(descuentos[cat.categoria])) || 0
             return (
               <div key={cat.categoria} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
