@@ -173,7 +173,7 @@ export default function ReclamosTecnico() {
                           ['Nombre', caso.nombre_apellido],
                           ['Email', caso.email],
                           ['Teléfono', caso.telefono],
-                          ['Dirección', caso.direccion],
+                          ['Dirección', [caso.direccion, caso.piso ? `Piso ${caso.piso}` : '', caso.departamento ? `Depto ${caso.departamento}` : ''].filter(Boolean).join(', ')],
                           ['Localidad', [caso.localidad, caso.provincia].filter(Boolean).join(', ')],
                         ].map(([l, v]) => v ? (
                           <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 4 }}>

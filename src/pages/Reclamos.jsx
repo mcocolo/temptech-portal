@@ -233,8 +233,9 @@ export default function Reclamos() {
         dias_garantia = diff
       }
 
-      // Combinar dirección + piso + departamento en un solo campo
-      const direccionCompleta = [
+      // En la base guardamos dirección, piso y departamento por separado.
+      // Para el email armamos el texto completo.
+      const direccionEmail = [
         form.direccion || profile?.direccion || '',
         form.piso ? `Piso ${form.piso}` : '',
         form.departamento ? `Depto ${form.departamento}` : '',
@@ -246,7 +247,9 @@ export default function Reclamos() {
         nombre_apellido: profile?.full_name || '',
         email: user.email || '',
         telefono: form.telefono || profile?.telefono || '',
-        direccion: direccionCompleta,
+        direccion: form.direccion || profile?.direccion || '',
+        piso: form.piso || null,
+        departamento: form.departamento || null,
         localidad: form.localidad || profile?.localidad || '',
         provincia: form.provincia || profile?.provincia || '',
         codigo_postal: form.codigo_postal || profile?.codigo_postal || '',
@@ -280,7 +283,7 @@ export default function Reclamos() {
             nombre:             profile?.full_name || '',
             trackingId:         tracking_id,
             fechaIngreso,
-            direccion:          direccionCompleta,
+            direccion:          direccionEmail,
             localidad:          form.localidad    || profile?.localidad    || '',
             provincia:          form.provincia    || profile?.provincia    || '',
             codigoPostal:       form.codigo_postal || profile?.codigo_postal || '',
@@ -322,6 +325,8 @@ export default function Reclamos() {
       descripcion_falla: r.descripcion_falla || '',
       telefono: r.telefono || '',
       direccion: r.direccion || '',
+      piso: r.piso || '',
+      departamento: r.departamento || '',
       localidad: r.localidad || '',
       provincia: r.provincia || '',
       codigo_postal: r.codigo_postal || '',
@@ -344,6 +349,8 @@ export default function Reclamos() {
       descripcion_falla: editForm.descripcion_falla,
       telefono: editForm.telefono,
       direccion: editForm.direccion,
+      piso: editForm.piso || null,
+      departamento: editForm.departamento || null,
       localidad: editForm.localidad,
       provincia: editForm.provincia,
       codigo_postal: editForm.codigo_postal,
@@ -748,6 +755,15 @@ export default function Reclamos() {
           <Field label="Dirección">
             <input value={editForm.direccion} onChange={e => setEditForm(p => ({ ...p, direccion: e.target.value }))} style={inputStyle} />
           </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Piso">
+              <input value={editForm.piso} onChange={e => setEditForm(p => ({ ...p, piso: e.target.value }))} placeholder="Opcional" style={inputStyle} />
+            </Field>
+            <Field label="Departamento">
+              <input value={editForm.departamento} onChange={e => setEditForm(p => ({ ...p, departamento: e.target.value }))} placeholder="Opcional" style={inputStyle} />
+            </Field>
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Field label="Localidad">

@@ -5,6 +5,7 @@ import { usePersistedState } from '@/hooks/usePersistedState'
 import toast from 'react-hot-toast'
 import { imprimirPresupuesto, exportarPresupuestoExcel, exportarPedidosExcel } from '@/utils/exportDoc'
 import { preciosOcultos } from '@/utils/precioGuard'
+import { agruparCatalogo } from '@/lib/catalogo'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -264,20 +265,9 @@ export default function AdminPedidos() {
   }
 
   async function cargarCatalogo() {
-    const { data } = await supabase.from('precios').select('*').order('categoria').order('nombre')
+    const { data } = await supabase.from('precios').select('codigo, nombre, modelo, precio, categoria, ean').order('categoria').order('nombre')
     if (!data) return
-    const grupos = {}
-    data.forEach(p => {
-      if (!grupos[p.categoria]) grupos[p.categoria] = []
-      grupos[p.categoria].push(p)
-    })
-    const cat = Object.entries(grupos).map(([categoria, productos]) => ({
-      categoria,
-      label: CATEGORIAS_META[categoria]?.label || categoria,
-      emoji: CATEGORIAS_META[categoria]?.emoji || '📦',
-      productos,
-    }))
-    setCatalogoDB(cat)
+    setCatalogoDB(agruparCatalogo(data))
   }
 
   async function cargarDistribuidores() {

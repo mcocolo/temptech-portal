@@ -82,7 +82,8 @@ export default function Pedidos() {
   const { user, profile, isDistributor, isVendedor, isTechService } = useAuth()
   const [tab, setTab] = useState('nuevo')        // 'nuevo' | 'preventa' | 'historial'
   const [cantidades, setCantidades] = useState({})
-  const [preciosBD, setPreciosBD] = useState([])
+  // Catálogo y precios desde la tabla `precios` (CATALOGO queda como respaldo)
+  const catalogoBase = useCatalogo(CATALOGO)
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
   const [direccionEntrega, setDireccionEntrega] = useState('')
@@ -319,9 +320,6 @@ export default function Pedidos() {
 
   useEffect(() => { if (tab === 'historial') cargarHistorial() }, [tab])
   useEffect(() => { if (tab === 'preventa') cargarPreventas() }, [tab])
-  useEffect(() => {
-    supabase.from('precios').select('codigo, ean, precio').then(({ data }) => setPreciosBD(data || []))
-  }, [])
 
   if (!isDistributor && !isTechService) return null
 

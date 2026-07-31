@@ -125,6 +125,15 @@ function esFirenze(producto) {
   return typeof producto === 'string' && producto.toLowerCase().includes('firenze')
 }
 
+// Dirección completa para mostrar/imprimir (dirección + piso + departamento)
+function direccionCompleta(item) {
+  return [
+    item?.direccion,
+    item?.piso ? `Piso ${item.piso}` : '',
+    item?.departamento ? `Depto ${item.departamento}` : '',
+  ].filter(Boolean).join(', ')
+}
+
 function SupervisionFabrica({ item, onClose, onGuardar, usuarioNombre, usuarioId }) {
   const productoReclamo = (item.modelo && item.modelo !== item.producto) ? `${item.producto} ${item.modelo}` : item.producto || ''
   const sv = item.supervision_fabrica || {}
@@ -899,6 +908,8 @@ export default function AdminReclamos({ openTracking } = {}) {
       email: item.email || '',
       telefono: item.telefono || '',
       direccion: item.direccion || '',
+      piso: item.piso || '',
+      departamento: item.departamento || '',
       localidad: item.localidad || '',
       provincia: item.provincia || '',
       codigo_postal: item.codigo_postal || '',
@@ -940,6 +951,8 @@ export default function AdminReclamos({ openTracking } = {}) {
       localidad: editForm.localidad,
       provincia: editForm.provincia,
       codigo_postal: editForm.codigo_postal,
+      piso: editForm.piso || null,
+      departamento: editForm.departamento || null,
       producto: editForm.producto,
       modelo: editForm.modelo,
       motivo: editForm.motivo,
@@ -1138,7 +1151,7 @@ export default function AdminReclamos({ openTracking } = {}) {
     ${item.nombre_apellido || item.nombre ? `<div class="row"><span class="label">Nombre</span><span class="value">${item.nombre_apellido || item.nombre}</span></div>` : ''}
     ${item.email ? `<div class="row"><span class="label">Email</span><span class="value">${item.email}</span></div>` : ''}
     ${item.telefono ? `<div class="row"><span class="label">Teléfono</span><span class="value">${item.telefono}</span></div>` : ''}
-    ${item.direccion ? `<div class="row"><span class="label">Dirección</span><span class="value">${item.direccion}</span></div>` : ''}
+    ${direccionCompleta(item) ? `<div class="row"><span class="label">Dirección</span><span class="value">${direccionCompleta(item)}</span></div>` : ''}
     ${(item.localidad || item.provincia) ? `<div class="row"><span class="label">Localidad</span><span class="value">${[item.localidad, item.provincia, item.codigo_postal].filter(Boolean).join(' ')}</span></div>` : ''}
   </div>
   <div class="section">
@@ -1179,7 +1192,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
     try {
       const { data, error } = await supabase.from('devoluciones').select('*').order('fecha_creacion', { ascending: false })
       if (error) { alert('No se pudo exportar'); return }
-      const filas = (data || []).map(item => ({ ID: item.id || '', Tracking: item.tracking_id || '', Estado: item.estado || '', Aprobado: item.aprobado || '', 'Fecha ingreso': formatearFecha(item.fecha_ingreso), 'Fecha creación': formatearFecha(item.fecha_creacion), 'Fecha compra': formatearFecha(item.fecha_compra), 'Días garantía': item.dias_garantia ?? '', Cliente: item.nombre_apellido || '', Dirección: item.direccion || '', Localidad: item.localidad || '', Provincia: item.provincia || '', 'CP': item.codigo_postal || '', Teléfono: item.telefono || '', Email: item.email || '', Canal: item.canal || '', Vendedor: item.vendedor || '', '# Venta': item.numero_venta_manual || '', Producto: item.producto || '', Modelo: item.modelo || '', Motivo: item.motivo || '', Descripción: item.descripcion_falla || '', 'Motivo rechazo': item.motivo_rechazo || '', Notas: item.notas || '', 'Empresa envío': item.empresa_envio || '', 'Código seguimiento': item.codigo_seguimiento || '', 'Fecha envío': formatearFecha(item.fecha_envio), 'Fecha resolución': formatearFecha(item.fecha_resolucion) }))
+      const filas = (data || []).map(item => ({ ID: item.id || '', Tracking: item.tracking_id || '', Estado: item.estado || '', Aprobado: item.aprobado || '', 'Fecha ingreso': formatearFecha(item.fecha_ingreso), 'Fecha creación': formatearFecha(item.fecha_creacion), 'Fecha compra': formatearFecha(item.fecha_compra), 'Días garantía': item.dias_garantia ?? '', Cliente: item.nombre_apellido || '', Dirección: item.direccion || '', Piso: item.piso || '', Depto: item.departamento || '', Localidad: item.localidad || '', Provincia: item.provincia || '', 'CP': item.codigo_postal || '', Teléfono: item.telefono || '', Email: item.email || '', Canal: item.canal || '', Vendedor: item.vendedor || '', '# Venta': item.numero_venta_manual || '', Producto: item.producto || '', Modelo: item.modelo || '', Motivo: item.motivo || '', Descripción: item.descripcion_falla || '', 'Motivo rechazo': item.motivo_rechazo || '', Notas: item.notas || '', 'Empresa envío': item.empresa_envio || '', 'Código seguimiento': item.codigo_seguimiento || '', 'Fecha envío': formatearFecha(item.fecha_envio), 'Fecha resolución': formatearFecha(item.fecha_resolucion) }))
       const ws = XLSX.utils.json_to_sheet(filas)
       ws['!cols'] = [8,22,14,12,20,20,20,14,28,32,18,18,8,18,30,18,20,20,24,20,24,40,30,60,20,22,20,20].map(wch => ({ wch }))
       ws['!autofilter'] = { ref: ws['!ref'] }
@@ -1314,7 +1327,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             </a>
                           </div>
                         )}
-                        <InfoRow label="Dirección" value={item.direccion} />
+                        <InfoRow label="Dirección" value={direccionCompleta(item)} />
                         <InfoRow label="Localidad" value={`${item.localidad || ''} ${item.provincia || ''} ${item.codigo_postal || ''}`} />
                       </div>
                       <div>
@@ -1669,6 +1682,8 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                             { label: 'Email', key: 'email' },
                             { label: 'Teléfono', key: 'telefono' },
                             { label: 'Dirección', key: 'direccion' },
+                            { label: 'Piso', key: 'piso' },
+                            { label: 'Departamento', key: 'departamento' },
                             { label: 'Localidad', key: 'localidad' },
                             { label: 'Provincia', key: 'provincia' },
                             { label: 'Código Postal', key: 'codigo_postal' },
