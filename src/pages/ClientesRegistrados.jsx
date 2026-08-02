@@ -6,6 +6,7 @@ import { Search, ExternalLink, Pencil, X, Check, ChevronLeft, MessageSquare, Ale
 import { formatDistanceToNow, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
+import { fetchAllRows } from '@/lib/fetchAll'
 
 const CATEGORIAS_DESC = [
   { key: 'calefones_calderas',    label: 'Calefones / Calderas' },
@@ -702,27 +703,11 @@ export default function ClientesRegistrados() {
 
   useEffect(() => { if (isAdmin || isAdmin2) load() }, [isAdmin, isAdmin2])
 
-  // Trae TODAS las filas en páginas de 1000 (Supabase corta en 1000 por defecto,
-  // por eso antes "desaparecían" distribuidores viejos con >1000 perfiles).
-  async function fetchAll(buildQuery) {
-    const pageSize = 1000
-    let desde = 0
-    let todo = []
-    for (;;) {
-      const { data, error } = await buildQuery().range(desde, desde + pageSize - 1)
-      if (error || !data) break
-      todo = todo.concat(data)
-      if (data.length < pageSize) break
-      desde += pageSize
-    }
-    return todo
-  }
-
   async function load() {
     setLoading(true)
     const [perfiles, prods, { data: vends }] = await Promise.all([
-      fetchAll(() => supabase.from('profiles').select('*, clientes(*), vendedor_id').order('created_at', { ascending: false })),
-      fetchAll(() => supabase.from('productos_registrados').select('*').order('created_at', { ascending: false })),
+      fetchAllRows(() => supabase.from('profiles').select('*, clientes(*), vendedor_id').order('created_at', { ascending: false })),
+      fetchAllRows(() => supabase.from('productos_registrados').select('*').order('created_at', { ascending: false })),
       supabase.from('profiles').select('id, full_name, razon_social, email, telefono, localidad, provincia, zona_cobertura, created_at').eq('role', 'vendedor'),
     ])
     setUsuarios(perfiles || [])

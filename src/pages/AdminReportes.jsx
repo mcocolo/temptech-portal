@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { exportarVentasPorClienteExcel, exportarSaldosPreventaExcel, exportarSaldoPorModeloExcel } from '@/utils/exportDoc'
+import { fetchAllRows } from '@/lib/fetchAll'
 
 const ESTADOS_VALIDOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
 
@@ -95,14 +96,14 @@ export default function AdminReportes() {
     setLoading(true)
     setDatos([])
 
-    const { data, error } = await supabase
+    const data = await fetchAllRows(() => supabase
       .from('pedidos')
       .select('id, created_at, total, tipo, distribuidor_id, profiles!distribuidor_id(razon_social, full_name)')
       .in('estado', ESTADOS_VALIDOS)
       .gte('created_at', fechaDesde + 'T00:00:00')
-      .lte('created_at', fechaHasta + 'T23:59:59')
+      .lte('created_at', fechaHasta + 'T23:59:59'))
 
-    if (error || !data) { setLoading(false); return }
+    if (!data) { setLoading(false); return }
 
     const montoTotal = data.reduce((s, p) => s + (p.total || 0), 0)
     setTotales({ pedidos: data.length, monto: montoTotal })
@@ -135,17 +136,17 @@ export default function AdminReportes() {
     setLoadingPv(true)
     setDatosPv([])
 
-    let q = supabase
-      .from('preventas')
-      .select('id, estado, items, created_at, distribuidor_id')
-      .neq('estado', 'cancelada')
-      .order('created_at', { ascending: false })
-
-    if (esDistribuidorView) q = q.eq('distribuidor_id', user.id)
-    if (filtroEstadoPv !== 'todas') q = q.eq('estado', filtroEstadoPv)
-
-    const { data: pvData, error } = await q
-    if (error || !pvData) { setLoadingPv(false); return }
+    const pvData = await fetchAllRows(() => {
+      let q = supabase
+        .from('preventas')
+        .select('id, estado, items, created_at, distribuidor_id')
+        .neq('estado', 'cancelada')
+        .order('created_at', { ascending: false })
+      if (esDistribuidorView) q = q.eq('distribuidor_id', user.id)
+      if (filtroEstadoPv !== 'todas') q = q.eq('estado', filtroEstadoPv)
+      return q
+    })
+    if (!pvData) { setLoadingPv(false); return }
 
     // Buscar nombres de distribuidores
     const ids = [...new Set(pvData.map(p => p.distribuidor_id).filter(Boolean))]
@@ -187,14 +188,15 @@ export default function AdminReportes() {
     setLoadingModelo(true)
     setDatosModelo([])
 
-    let q = supabase
-      .from('preventas')
-      .select('id, estado, items, distribuidor_id')
-      .neq('estado', 'cancelada')
-    if (esDistribuidorView) q = q.eq('distribuidor_id', user.id)
-    if (filtroEstadoModelo !== 'todas') q = q.eq('estado', filtroEstadoModelo)
-
-    const { data: pvData } = await q
+    const pvData = await fetchAllRows(() => {
+      let q = supabase
+        .from('preventas')
+        .select('id, estado, items, distribuidor_id')
+        .neq('estado', 'cancelada')
+      if (esDistribuidorView) q = q.eq('distribuidor_id', user.id)
+      if (filtroEstadoModelo !== 'todas') q = q.eq('estado', filtroEstadoModelo)
+      return q
+    })
     if (!pvData) { setLoadingModelo(false); return }
 
     const ids = [...new Set(pvData.map(p => p.distribuidor_id).filter(Boolean))]

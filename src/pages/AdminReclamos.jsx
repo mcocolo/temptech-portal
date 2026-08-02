@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx-js-style'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { fetchAllRows } from '@/lib/fetchAll'
 
 
 const T = {
@@ -724,10 +725,12 @@ export default function AdminReclamos({ openTracking } = {}) {
 
   async function cargar() {
     setCargando(true); setErrorTexto('')
-    let q = supabase.from('devoluciones').select('*').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false })
-    if (filtroEstado !== 'todos') q = q.eq('estado', filtroEstado)
-    const { data, error } = await q
-    if (error) { setErrorTexto(error.message); setDatos([]) } else setDatos(data || [])
+    const data = await fetchAllRows(() => {
+      let q = supabase.from('devoluciones').select('*').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false })
+      if (filtroEstado !== 'todos') q = q.eq('estado', filtroEstado)
+      return q
+    })
+    setDatos(data || [])
     setCargando(false)
   }
 
@@ -1190,8 +1193,8 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
 
   async function exportarExcel() {
     try {
-      const { data, error } = await supabase.from('devoluciones').select('*').order('fecha_creacion', { ascending: false })
-      if (error) { alert('No se pudo exportar'); return }
+      const data = await fetchAllRows(() => supabase.from('devoluciones').select('*').order('fecha_creacion', { ascending: false }))
+      if (!data) { alert('No se pudo exportar'); return }
       const filas = (data || []).map(item => ({ ID: item.id || '', Tracking: item.tracking_id || '', Estado: item.estado || '', Aprobado: item.aprobado || '', 'Fecha ingreso': formatearFecha(item.fecha_ingreso), 'Fecha creación': formatearFecha(item.fecha_creacion), 'Fecha compra': formatearFecha(item.fecha_compra), 'Días garantía': item.dias_garantia ?? '', Cliente: item.nombre_apellido || '', Dirección: item.direccion || '', Piso: item.piso || '', Depto: item.departamento || '', Localidad: item.localidad || '', Provincia: item.provincia || '', 'CP': item.codigo_postal || '', Teléfono: item.telefono || '', Email: item.email || '', Canal: item.canal || '', Vendedor: item.vendedor || '', '# Venta': item.numero_venta_manual || '', Producto: item.producto || '', Modelo: item.modelo || '', Motivo: item.motivo || '', Descripción: item.descripcion_falla || '', 'Motivo rechazo': item.motivo_rechazo || '', Notas: item.notas || '', 'Empresa envío': item.empresa_envio || '', 'Código seguimiento': item.codigo_seguimiento || '', 'Fecha envío': formatearFecha(item.fecha_envio), 'Fecha resolución': formatearFecha(item.fecha_resolucion) }))
       const ws = XLSX.utils.json_to_sheet(filas)
       ws['!cols'] = [8,22,14,12,20,20,20,14,28,32,18,18,8,18,30,18,20,20,24,20,24,40,30,60,20,22,20,20].map(wch => ({ wch }))

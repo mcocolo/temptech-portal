@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { imprimirPresupuesto, exportarPresupuestoExcel, exportarPedidosExcel } from '@/utils/exportDoc'
 import { preciosOcultos } from '@/utils/precioGuard'
 import { agruparCatalogo } from '@/lib/catalogo'
+import { fetchAllRows } from '@/lib/fetchAll'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -193,72 +194,76 @@ export default function AdminPedidos() {
   async function cargar() {
     setLoading(true)
     const ordenDesc = filtro === 'finalizado' || filtro === 'entregado'
-    let q = supabase
-      .from('pedidos')
-      .select('*, profiles!distribuidor_id(full_name, email, razon_social), vendedor_profile:profiles!vendedor_id(full_name)')
-      .order('fecha_entrega', { ascending: !ordenDesc })
-    if (isAdmin2) {
-      const admin2Estados = ['pendiente', 'aprobado', 'preparando', 'enviado']
-      if (admin2Estados.includes(filtro)) q = q.eq('estado', filtro)
-      else q = q.in('estado', admin2Estados)
-    }
-    else if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
-    else if (filtro !== 'todos') q = q.eq('estado', filtro)
 
+    // Para vendedor: IDs de sus clientes (se calcula antes de paginar)
+    let vendedorClienteIds = null
     if (isVendedor && user) {
-      // Pedidos de clientes asignados a este vendedor O creados directamente por él
-      const { data: clientes } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('vendedor_id', user.id)
-      const ids = (clientes || []).map(c => c.id)
-      if (ids.length > 0) {
-        q = q.or(`distribuidor_id.in.(${ids.join(',')}),vendedor_id.eq.${user.id}`)
-      } else {
-        q = q.eq('vendedor_id', user.id)
-      }
+      const { data: clientes } = await supabase.from('profiles').select('id').eq('vendedor_id', user.id)
+      vendedorClienteIds = (clientes || []).map(c => c.id)
     }
 
-    const { data, error } = await q
-    if (error) toast.error('Error al cargar pedidos')
-    else {
-      const result = data || []
-      const final = filtro === 'pendiente_pago'
-        ? result.filter(p => p.tipo !== 'preventa' && !p.pago_archivos?.length)
-        : result
-      setPedidos(final)
-      // Si no hay pedidos para hoy, avanzar a mañana automáticamente
-      setFiltroFecha(prev => {
-        const hoy = new Date().toISOString().split('T')[0]
-        if (prev === hoy && !final.some(p => p.fecha_entrega === hoy)) {
-          const manana = new Date(); manana.setDate(manana.getDate() + 1)
-          return manana.toISOString().split('T')[0]
-        }
-        return prev
-      })
-    }
+    const data = await fetchAllRows(() => {
+      let q = supabase
+        .from('pedidos')
+        .select('*, profiles!distribuidor_id(full_name, email, razon_social), vendedor_profile:profiles!vendedor_id(full_name)')
+        .order('fecha_entrega', { ascending: !ordenDesc })
+      if (isAdmin2) {
+        const admin2Estados = ['pendiente', 'aprobado', 'preparando', 'enviado']
+        if (admin2Estados.includes(filtro)) q = q.eq('estado', filtro)
+        else q = q.in('estado', admin2Estados)
+      }
+      else if (filtro === 'pendiente_pago') q = q.eq('estado', 'aprobado')
+      else if (filtro !== 'todos') q = q.eq('estado', filtro)
+
+      if (isVendedor && user) {
+        if (vendedorClienteIds && vendedorClienteIds.length > 0) q = q.or(`distribuidor_id.in.(${vendedorClienteIds.join(',')}),vendedor_id.eq.${user.id}`)
+        else q = q.eq('vendedor_id', user.id)
+      }
+      return q
+    })
+
+    const result = data || []
+    const final = filtro === 'pendiente_pago'
+      ? result.filter(p => p.tipo !== 'preventa' && !p.pago_archivos?.length)
+      : result
+    setPedidos(final)
+    // Si no hay pedidos para hoy, avanzar a mañana automáticamente
+    setFiltroFecha(prev => {
+      const hoy = new Date().toISOString().split('T')[0]
+      if (prev === hoy && !final.some(p => p.fecha_entrega === hoy)) {
+        const manana = new Date(); manana.setDate(manana.getDate() + 1)
+        return manana.toISOString().split('T')[0]
+      }
+      return prev
+    })
     setLoading(false)
   }
 
   async function exportarTodos() {
     setExportando(true)
-    let q = supabase
-      .from('pedidos')
-      .select('*, profiles!distribuidor_id(full_name, email, razon_social)')
-      .order('created_at', { ascending: false })
 
-    if (isAdmin2) {
-      q = q.in('estado', ['pendiente', 'aprobado', 'preparando', 'enviado'])
-    } else if (isVendedor && user) {
+    // Para vendedor: IDs de sus clientes (se calcula antes de paginar)
+    let vendedorClienteIds = null
+    if (!isAdmin2 && isVendedor && user) {
       const { data: clientes } = await supabase.from('profiles').select('id').eq('vendedor_id', user.id)
-      const ids = (clientes || []).map(c => c.id)
-      if (ids.length > 0) q = q.or(`distribuidor_id.in.(${ids.join(',')}),vendedor_id.eq.${user.id}`)
-      else q = q.eq('vendedor_id', user.id)
+      vendedorClienteIds = (clientes || []).map(c => c.id)
     }
 
-    const { data, error } = await q
+    const data = await fetchAllRows(() => {
+      let q = supabase
+        .from('pedidos')
+        .select('*, profiles!distribuidor_id(full_name, email, razon_social)')
+        .order('created_at', { ascending: false })
+      if (isAdmin2) {
+        q = q.in('estado', ['pendiente', 'aprobado', 'preparando', 'enviado'])
+      } else if (isVendedor && user) {
+        if (vendedorClienteIds && vendedorClienteIds.length > 0) q = q.or(`distribuidor_id.in.(${vendedorClienteIds.join(',')}),vendedor_id.eq.${user.id}`)
+        else q = q.eq('vendedor_id', user.id)
+      }
+      return q
+    })
+
     setExportando(false)
-    if (error) { toast.error('Error al exportar: ' + error.message); return }
     if (!data || data.length === 0) { toast.error('No hay pedidos para exportar'); return }
     exportarPedidosExcel(data)
     toast.success(`${data.length} pedidos exportados ✅`)

@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { preciosOcultos } from '@/utils/precioGuard'
+import { fetchAllRows } from '@/lib/fetchAll'
 
 const CANAL_CONFIG = {
   meli:   { label: 'Mercado Libre', color: '#ffe600', bg: 'rgba(255,230,0,0.1)',   border: 'rgba(255,230,0,0.35)',   emoji: '🛒', textColor: '#000' },
@@ -397,7 +398,7 @@ export default function PedidosCanal() {
 
   async function cargar() {
     setLoading(true)
-    const { data } = await supabase.from('ventas').select('*').eq('canal', canal).order('created_at', { ascending: false })
+    const data = await fetchAllRows(() => supabase.from('ventas').select('*').eq('canal', canal).order('created_at', { ascending: false }))
     setVentas(data || [])
     setLoading(false)
   }
