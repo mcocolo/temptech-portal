@@ -5,6 +5,7 @@ import Admin2Reclamos from './Admin2Reclamos'
 import ReclamosTecnico from './ReclamosTecnico'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { MOTIVOS, PROVINCIAS } from '@/lib/reclamos'
 import { Button, Modal, Badge, Spinner, Empty } from '@/components/ui'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
@@ -19,20 +20,6 @@ const EMOJI_CATEGORIA = {
 }
 
 const CANALES = ['Mercado Libre', 'Tienda Nube', 'WhatsApp', 'Instagram', 'Distribuidor', 'Otro']
-
-const MOTIVOS = [
-  'No enciende',
-  'No calienta',
-  'Presenta quemaduras/rajaduras',
-  'Golpe de transporte',
-  'Falta de piezas',
-  'Cambio por gestión comercial',
-  'Ruido anormal',
-  'Falla de tecla',
-  'Falla de termostato',
-  'Falla de conexión SMART',
-  'Otro',
-]
 
 function getMotivos(producto) {
   if (!producto) return ['Seleccioná el motivo...']
@@ -767,7 +754,7 @@ export default function Reclamos() {
           <Field label="Provincia">
             <select value={editForm.provincia} onChange={e => setEditForm(p => ({ ...p, provincia: e.target.value }))} style={inputStyle}>
               <option value="">Seleccioná...</option>
-              {['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán'].map(p => (
+              {PROVINCIAS.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
@@ -921,7 +908,7 @@ export default function Reclamos() {
               <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Provincia</label>
               <select value={form.provincia} onChange={e => setF('provincia', e.target.value)} style={inputStyle}>
                 <option value="">Seleccioná...</option>
-                {['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán'].map(p => (
+                {PROVINCIAS.map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>

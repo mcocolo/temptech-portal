@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx-js-style'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
+import { MOTIVOS, PROVINCIAS } from '@/lib/reclamos'
 
 
 const T = {
@@ -1696,7 +1697,17 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           ].map(({ label, key, type }) => (
                             <div key={key}>
                               <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</label>
-                              <input type={type || 'text'} value={editForm[key]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }} />
+                              {key === 'provincia' ? (
+                                <select value={editForm[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }}>
+                                  <option value="">Seleccioná...</option>
+                                  {editForm.provincia && !PROVINCIAS.includes(editForm.provincia) && (
+                                    <option value={editForm.provincia}>{editForm.provincia} (actual)</option>
+                                  )}
+                                  {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                              ) : (
+                                <input type={type || 'text'} value={editForm[key]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }} />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1744,7 +1755,13 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Motivo</label>
-                          <input value={editForm.motivo} onChange={e => setEditForm(f => ({ ...f, motivo: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }} />
+                          <select value={editForm.motivo || ''} onChange={e => setEditForm(f => ({ ...f, motivo: e.target.value }))} style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }}>
+                            <option value="">Seleccioná el motivo...</option>
+                            {editForm.motivo && !MOTIVOS.includes(editForm.motivo) && (
+                              <option value={editForm.motivo}>{editForm.motivo} (actual)</option>
+                            )}
+                            {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
                         </div>
                         <div style={{ marginBottom: 14 }}>
                           <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Descripción de la falla</label>
