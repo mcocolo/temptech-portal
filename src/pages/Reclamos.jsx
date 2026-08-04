@@ -20,33 +20,23 @@ const EMOJI_CATEGORIA = {
 
 const CANALES = ['Mercado Libre', 'Tienda Nube', 'WhatsApp', 'Instagram', 'Distribuidor', 'Otro']
 
-const MOTIVOS_POR_CATEGORIA = {
-  'Paneles Calefactores': [
-    'No calienta', 'Detalle de pintura', 'Detalle en terminación',
-    'Falla en Tecla', 'No enciende el led de Tecla', 'Golpe de transporte',
-    'Faltante de Kit o piezas', 'Falta de patas Firenze', 'Marco mal terminado',
-    'Ruido', 'Medida barral incorrecta', 'Cambio comercial', 'Envío Incorrecto', 'Otro',
-  ],
-  'Calefones': [
-    'No calienta agua', 'Pierde agua', 'Falla eléctrica', 'Error instalación',
-    'Golpe transporte', 'Error en Pantalla', 'Cambio Comercial', 'Devolución', 'Otro',
-  ],
-  'Calderas': [
-    'No calienta agua', 'Pierde agua', 'Falla eléctrica', 'Error instalación',
-    'Golpe transporte', 'Error en Pantalla', 'Cambio Comercial', 'Devolución', 'Otro',
-  ],
-  'Anafes Vitro': [
-    'No enciende', 'No calienta', 'Pantalla no funciona', 'Ruido anormal',
-    'Golpe de transporte', 'Falta de piezas', 'Cambio comercial', 'Envío Incorrecto', 'Otro',
-  ],
-}
+const MOTIVOS = [
+  'No enciende',
+  'No calienta',
+  'Presenta quemaduras/rajaduras',
+  'Golpe de transporte',
+  'Falta de piezas',
+  'Cambio por gestión comercial',
+  'Ruido anormal',
+  'Falla de tecla',
+  'Falla de termostato',
+  'Falla de conexión SMART',
+  'Otro',
+]
 
-function getMotivos(producto, catalogo) {
+function getMotivos(producto) {
   if (!producto) return ['Seleccioná el motivo...']
-  const item = catalogo.find(p => p.nombre === producto)
-  return MOTIVOS_POR_CATEGORIA[item?.categoria] || [
-    'No enciende', 'No calienta', 'Golpe de transporte', 'Falta de piezas', 'Ruido anormal', 'Otro',
-  ]
+  return MOTIVOS
 }
 
 function groupByCat(catalogo) {
