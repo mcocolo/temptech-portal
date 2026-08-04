@@ -159,7 +159,7 @@ export default function Reclamos() {
   useEffect(() => { if (user) load() }, [user])
 
   useEffect(() => {
-    supabase.from('precios').select('nombre,modelo,categoria').order('categoria').order('nombre').then(({ data }) => setCatalogo(data || []))
+    supabase.from('precios').select('nombre,modelo,categoria,ean').order('categoria').order('nombre').then(({ data }) => setCatalogo(data || []))
   }, [])
 
   async function load() {
@@ -824,13 +824,17 @@ export default function Reclamos() {
                 setForm(prev => ({ ...prev, producto: nombre || '', modelo: modelo || nombre || '' }))
               }} style={inputStyle}>
                 <option value="">Seleccioná el producto...</option>
-                {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => (
-                  <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
-                    {prods.map(p => (
-                      <option key={`${p.nombre}||${p.modelo}`} value={`${p.nombre}||${p.modelo}`}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
-                    ))}
-                  </optgroup>
-                ))}
+                {Object.entries(groupByCat(catalogo)).map(([cat, prods]) => {
+                  const conEan = prods.filter(p => p.ean && String(p.ean).trim())
+                  if (conEan.length === 0) return null
+                  return (
+                    <optgroup key={cat} label={`${EMOJI_CATEGORIA[cat] || '📦'} ${cat}`}>
+                      {conEan.map(p => (
+                        <option key={`${p.nombre}||${p.modelo}`} value={`${p.nombre}||${p.modelo}`}>{p.nombre}{p.modelo && p.modelo !== p.nombre ? ` — ${p.modelo}` : ''}</option>
+                      ))}
+                    </optgroup>
+                  )
+                })}
               </select>
             </Field>
 
