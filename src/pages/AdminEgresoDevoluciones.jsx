@@ -17,7 +17,7 @@ const STATUS_CFG = {
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', resize: 'vertical' }
 
 export default function AdminEgresoDevoluciones() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, user, profile } = useAuth()
   const [items, setItems]       = useState([])
   const [loading, setLoading]   = useState(true)
   const [filtro, setFiltro]     = useState('pendiente')
@@ -58,10 +58,31 @@ export default function AdminEgresoDevoluciones() {
     cambiarEstado(id, 'cancelado')
   }
 
-  // Revertir un egreso ya CONFIRMADO (el stock ya se descontó en Ingreso/Egreso PT).
-  async function revertirConfirmado(id, nuevoEstado) {
-    if (!window.confirm('Este egreso ya estaba CONFIRMADO y el stock se descontó en Ingreso/Egreso PT.\n\nVolver el estado NO re-suma el stock automáticamente — si corresponde, ajustalo a mano.\n\n¿Continuar?')) return
-    cambiarEstado(id, nuevoEstado)
+  // Revertir un egreso ya CONFIRMADO: re-suma el stock que se había descontado
+  // (inverso exacto de lo que hace la confirmación en Ingreso/Egreso PT).
+  async function revertirConfirmado(it, nuevoEstado) {
+    if (!window.confirm(`Este egreso estaba CONFIRMADO. Al revertirlo se van a RE-SUMAR ${it.cantidad} unidad(es) de ${it.nombre}${it.modelo ? ' ' + it.modelo : ''} al stock (movimiento de ingreso).\n\n¿Continuar?`)) return
+
+    // Re-sumar stock
+    const { data: stockRow } = await supabase.from('stock_pt').select('stock_actual, stock_inicial').eq('codigo', it.codigo).single()
+    const actual = stockRow?.stock_actual ?? 0
+    const nuevo = actual + (it.cantidad || 0)
+    const { error: eStock } = await supabase.from('stock_pt').upsert({
+      codigo: it.codigo, nombre: it.nombre || '', modelo: it.modelo || '', categoria: it.categoria || '',
+      stock_actual: nuevo, stock_inicial: stockRow?.stock_inicial ?? 0,
+    }, { onConflict: 'codigo' })
+    if (eStock) { toast.error('Error al re-sumar stock: ' + eStock.message); return }
+
+    // Movimiento de ingreso (reversa)
+    await supabase.from('movimientos_pt').insert({
+      codigo: it.codigo, nombre: it.nombre || '', modelo: it.modelo || '', categoria: it.categoria || '',
+      tipo: 'ingreso', cantidad: it.cantidad || 0, canal: 'Garantía',
+      observacion: `Reversa de egreso garantía confirmado${it.referencia_nombre ? ' · ' + it.referencia_nombre : ''}`,
+      usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email,
+      referencia_nombre: it.referencia_nombre || null,
+    })
+
+    cambiarEstado(it.id, nuevoEstado)
   }
 
   async function guardarNota(it) {
@@ -528,11 +549,11 @@ export default function AdminEgresoDevoluciones() {
                       <span style={{ fontSize: 12, color: '#3dd68c', flex: 1 }}>✅ Egreso confirmado — stock descontado</span>
                       {isAdmin && (
                         <>
-                          <button onClick={() => revertirConfirmado(it.id, 'enviado')}
+                          <button onClick={() => revertirConfirmado(it, 'enviado')}
                             style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#38bdf8', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             ↩ Enviado
                           </button>
-                          <button onClick={() => revertirConfirmado(it.id, 'pendiente')}
+                          <button onClick={() => revertirConfirmado(it, 'pendiente')}
                             style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             ↩ Pendiente
                           </button>
