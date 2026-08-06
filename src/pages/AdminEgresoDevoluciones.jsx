@@ -58,6 +58,12 @@ export default function AdminEgresoDevoluciones() {
     cambiarEstado(id, 'cancelado')
   }
 
+  // Revertir un egreso ya CONFIRMADO (el stock ya se descontó en Ingreso/Egreso PT).
+  async function revertirConfirmado(id, nuevoEstado) {
+    if (!window.confirm('Este egreso ya estaba CONFIRMADO y el stock se descontó en Ingreso/Egreso PT.\n\nVolver el estado NO re-suma el stock automáticamente — si corresponde, ajustalo a mano.\n\n¿Continuar?')) return
+    cambiarEstado(id, nuevoEstado)
+  }
+
   async function guardarNota(it) {
     const texto = (notaEdit[it.id] ?? it.notas_admin ?? '').trim()
     setGuardandoNota(true)
@@ -501,10 +507,38 @@ export default function AdminEgresoDevoluciones() {
                     </>
                   )}
                   {it.estado === 'enviado' && (
-                    <span style={{ fontSize: 12, color: '#38bdf8', flex: 1 }}>🚚 Enviado — pendiente de confirmar egreso en Ingreso/Egreso PT</span>
+                    <>
+                      <span style={{ fontSize: 12, color: '#38bdf8', flex: 1 }}>🚚 Enviado — pendiente de confirmar egreso en Ingreso/Egreso PT</span>
+                      {isAdmin && (
+                        <>
+                          <button onClick={() => cambiarEstado(it.id, 'preparando')}
+                            style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#fb923c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ↩ Preparando
+                          </button>
+                          <button onClick={() => cambiarEstado(it.id, 'pendiente')}
+                            style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ↩ Pendiente
+                          </button>
+                        </>
+                      )}
+                    </>
                   )}
                   {it.estado === 'confirmado' && (
-                    <span style={{ fontSize: 12, color: '#3dd68c', flex: 1 }}>✅ Egreso confirmado — stock descontado</span>
+                    <>
+                      <span style={{ fontSize: 12, color: '#3dd68c', flex: 1 }}>✅ Egreso confirmado — stock descontado</span>
+                      {isAdmin && (
+                        <>
+                          <button onClick={() => revertirConfirmado(it.id, 'enviado')}
+                            style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#38bdf8', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ↩ Enviado
+                          </button>
+                          <button onClick={() => revertirConfirmado(it.id, 'pendiente')}
+                            style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            ↩ Pendiente
+                          </button>
+                        </>
+                      )}
+                    </>
                   )}
                   {it.estado === 'cancelado' && (
                     <span style={{ fontSize: 12, color: '#ff5577', flex: 1 }}>✕ Cancelado</span>
