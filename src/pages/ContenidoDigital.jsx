@@ -169,6 +169,15 @@ function getAllLeaves(node) {
 const STORAGE_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/contenido-digital/'
 const EMPTY_FORM = { title: '', description: '', url: '', tipo: 'imagen', categoria: 'paneles_slim' }
 
+// Sanitiza el nombre de archivo para el Storage de Supabase (no acepta acentos,
+// espacios ni caracteres especiales en la "key").
+function sanitizeNombreArchivo(nombre) {
+  return (nombre || 'archivo')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // quitar acentos (ó -> o)
+    .replace(/[^a-zA-Z0-9._-]/g, '_')                  // solo caracteres válidos
+    .replace(/_+/g, '_')                               // colapsar guiones bajos repetidos
+}
+
 export default function ContenidoDigital() {
   const { isAdmin, isDistributor, isVendedor } = useAuth()
 
@@ -266,7 +275,7 @@ export default function ContenidoDigital() {
       const file = files[0]
       setUploading(true)
       const ext = file.name.split('.').pop()
-      const path = `${fSub}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
+      const path = `${fSub}/${Date.now()}_${sanitizeNombreArchivo(file.name)}`
       const { error } = await supabase.storage.from('contenido-digital').upload(path, file, { upsert: true })
       if (error) { toast.error('Error al subir: ' + error.message); setUploading(false); return }
       setForm(p => ({ ...p, url: STORAGE_URL + path, tipo: detectTipo(ext) }))
@@ -282,7 +291,7 @@ export default function ContenidoDigital() {
     let fail = 0
     for (const file of files) {
       const ext = file.name.split('.').pop()
-      const path = `${fSub}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
+      const path = `${fSub}/${Date.now()}_${sanitizeNombreArchivo(file.name)}`
       const { error: upErr } = await supabase.storage.from('contenido-digital').upload(path, file, { upsert: true })
       if (upErr) { fail++; continue }
       const url = STORAGE_URL + path
