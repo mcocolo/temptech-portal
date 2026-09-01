@@ -7,6 +7,7 @@ import { ArrowDownCircle, ArrowUpCircle, Package, History, ShoppingBag, Upload, 
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { exportarStockExcel } from '@/utils/exportDoc'
 
 const CATALOGO = [
   {
@@ -678,6 +679,53 @@ export default function IngresoEgresoPT() {
     w.document.close()
   }
 
+  // Arma el listado de stock (respetando el filtro de categoría) para exportar/imprimir
+  function stockGruposParaExport() {
+    return filtrados.map(cat => ({
+      label: cat.label,
+      emoji: cat.emoji,
+      productos: cat.productos.map(p => {
+        const s = stock[p.codigo]
+        const actual = s?.stock_actual ?? 0
+        const inicial = s?.stock_inicial ?? 0
+        const estado = s && actual === 0 ? 'AGOTADO' : (actual > 0 && actual <= 5 ? 'BAJO' : '')
+        return { codigo: p.codigo, nombre: p.nombre, modelo: p.modelo || '', inicial, actual, estado }
+      }),
+    }))
+  }
+
+  function imprimirStock() {
+    const grupos = stockGruposParaExport()
+    const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })
+    const secciones = grupos.map(g => {
+      const filas = g.productos.map(p => {
+        const estadoColor = p.estado === 'AGOTADO' ? '#e53e3e' : '#d97706'
+        const actualColor = p.actual === 0 ? '#e53e3e' : (p.actual <= 5 ? '#d97706' : '#16a34a')
+        return `<tr>
+          <td style="font-family:monospace;font-size:12px;color:#444;padding:8px 12px;border-bottom:1px solid #eee">${p.codigo}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.nombre}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666">${p.modelo}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center">${p.inicial}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;font-weight:700;font-size:16px;color:${actualColor}">${p.actual}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;font-size:11px;color:${estadoColor};font-weight:600">${p.estado}</td>
+        </tr>`
+      }).join('')
+      return `<h2 style="font-size:15px;margin:22px 0 8px">${g.emoji || ''} ${g.label}</h2>
+        <table><thead><tr><th>Código</th><th>Producto</th><th>Modelo</th><th>Inicial</th><th>Actual</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table>`
+    }).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stock PT — ${fecha}</title>
+    <style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{font-size:18px;margin-bottom:4px}p{color:#666;font-size:13px;margin:0 0 20px}h2{color:#222}table{width:100%;border-collapse:collapse;margin-bottom:8px}th{background:#f4f4f4;padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;color:#666;border-bottom:2px solid #ddd}@media print{body{margin:16px}}</style>
+    </head><body>
+    <h1>📦 Stock — Producto Terminado</h1>
+    <p>Impreso el ${fecha}</p>
+    ${secciones}
+    <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
+    </body></html>`
+    const w = window.open('', '_blank', 'width=900,height=600')
+    w.document.write(html)
+    w.document.close()
+  }
+
   async function cargar() {
     setLoading(true)
     const [{ data: stockData }, { data: movsData }] = await Promise.all([
@@ -1337,6 +1385,19 @@ export default function IngresoEgresoPT() {
               </button>
             )})}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button onClick={() => exportarStockExcel(stockGruposParaExport(), { titulo: catFilter ? (catalogoDinamico.find(c => c.categoria === catFilter)?.label || 'Stock') : 'Todos los productos' })}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(61,214,140,0.35)', background: 'rgba(61,214,140,0.12)', color: '#3dd68c', fontFamily: 'var(--font)' }}>
+                ⬇️ Excel
+              </button>
+              <button onClick={() => imprimirStock()}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(248,113,113,0.12)', color: '#f87171', fontFamily: 'var(--font)' }}>
+                📄 PDF
+              </button>
+              <button onClick={() => imprimirStock()}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontFamily: 'var(--font)' }}>
+                🖨️ Imprimir
+              </button>
+              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '0 2px' }} />
               {catalogoDinamico.map(c => (
                 <button key={c.categoria} onClick={() => imprimirCategoria(c.categoria)}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontFamily: 'var(--font)' }}>

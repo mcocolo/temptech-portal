@@ -646,3 +646,47 @@ export function exportarSaldoPorModeloExcel(datos, { titulo = 'SALDO POR MODELO'
   XLSX.utils.book_append_sheet(wb, ws, 'Saldo por modelo')
   XLSX.writeFile(wb, `TEMPTECH_SaldoPorModelo_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STOCK PT — EXCEL
+// ═══════════════════════════════════════════════════════════════════════════════
+export function exportarStockExcel(grupos, { titulo = 'STOCK PRODUCTO TERMINADO' } = {}) {
+  const wb = XLSX.utils.book_new()
+  const rows = []
+  const merges = []
+  const hFont = XL.fontBold(10), hFill = XL.headerBg
+
+  // Título — 6 columnas (A–F)
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), ...Array(4).fill(cell('', null, XL.headerBg)), cell('STOCK PT', XL.fontBold(12), XL.accentBg, XL.alignR)])
+  rows.push([cell(titulo, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), ...Array(4).fill(cell('', null, XL.headerBg)), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  rows.push([])
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } })
+
+  grupos.forEach(g => {
+    const r = rows.length
+    rows.push([cell(`${g.emoji || ''} ${g.label}`.trim(), XL.fontBold(11), XL.subheadBg), ...Array(5).fill(cell('', null, XL.subheadBg))])
+    merges.push({ s: { r, c: 0 }, e: { r, c: 5 } })
+    rows.push([
+      cell('CÓDIGO', hFont, hFill), cell('PRODUCTO', hFont, hFill), cell('MODELO', hFont, hFill),
+      cell('INICIAL', hFont, hFill, XL.alignC), cell('ACTUAL', hFont, hFill, XL.alignC), cell('ESTADO', hFont, hFill, XL.alignC),
+    ])
+    g.productos.forEach((p, i) => {
+      const bg = i % 2 === 0 ? null : XL.altRowBg
+      rows.push([
+        cell(p.codigo || '', XL.fontMono(9), bg),
+        cell(p.nombre || '', XL.fontNormal(10), bg),
+        cell(p.modelo || '', XL.fontNormal(9, '666666'), bg),
+        { v: p.inicial ?? 0, t: 'n', s: { font: XL.fontNormal(10), fill: bg, alignment: XL.alignC, border: XL.border } },
+        { v: p.actual ?? 0, t: 'n', s: { font: XL.fontBold(10, p.actual === 0 ? 'cc2244' : (p.actual <= 5 ? 'cc6600' : '1a8a5a')), fill: bg, alignment: XL.alignC, border: XL.border } },
+        cell(p.estado || '', XL.fontNormal(9, p.estado === 'AGOTADO' ? 'cc2244' : 'cc6600'), bg, XL.alignC),
+      ])
+    })
+    rows.push([])
+  })
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 24 }, { wch: 9 }, { wch: 9 }, { wch: 10 }]
+  ws['!merges'] = merges
+  XLSX.utils.book_append_sheet(wb, ws, 'Stock')
+  XLSX.writeFile(wb, `TEMPTECH_Stock_${new Date().toISOString().split('T')[0]}.xlsx`)
+}
