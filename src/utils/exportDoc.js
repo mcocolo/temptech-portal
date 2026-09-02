@@ -753,3 +753,42 @@ export function exportarComprasDistribuidorExcel({ datos, fechaDesde, fechaHasta
   XLSX.utils.book_append_sheet(wb, ws, 'Compras')
   XLSX.writeFile(wb, `TEMPTECH_ComprasPorDistribuidor_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VENTAS TOTALES (todas las fuentes, ARS + USD) — EXCEL
+// ═══════════════════════════════════════════════════════════════════════════════
+export function exportarVentasGeneralExcel({ datos, fechaDesde, fechaHasta }) {
+  const wb = XLSX.utils.book_new()
+  const rows = []
+  const e_ = () => cell('', null, null, null, null)
+  const hFont = XL.fontBold(10), hFill = XL.headerBg
+  const { fuentes, totARS, totUSD } = datos
+
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('VENTAS TOTALES', XL.fontBold(12), XL.accentBg, XL.alignR)])
+  rows.push([cell(`Período: ${fmtDate(fechaDesde)} — ${fmtDate(fechaHasta)}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  rows.push([])
+
+  rows.push([cell('FUENTE', hFont, hFill), cell('OPERACIONES', hFont, hFill, XL.alignC), cell('TOTAL ARS', hFont, hFill, XL.alignR), cell('TOTAL U$S', hFont, hFill, XL.alignR), cell('PART. %', hFont, hFill, XL.alignR)])
+  fuentes.forEach((f, i) => {
+    const bg = i % 2 === 0 ? null : XL.altRowBg
+    rows.push([
+      cell(f.label, XL.fontNormal(10), bg),
+      { v: f.count || 0, t: 'n', s: { font: XL.fontNormal(10), fill: bg, alignment: XL.alignC, border: XL.border } },
+      numCell(f.ars || 0, XL.fontNormal(10), bg),
+      numCell(f.usd || 0, XL.fontNormal(10, '1a8a5a'), bg),
+      { v: (f.pct || 0) / 100, t: 'n', s: { font: XL.fontNormal(10, '666666'), fill: bg, alignment: XL.alignR, border: XL.border, numFmt: '0.0%' } },
+    ])
+  })
+  rows.push([
+    cell('TOTAL', XL.fontBold(11), XL.headerBg), e_(),
+    numCell(totARS, XL.fontBold(11), XL.headerBg),
+    numCell(totUSD, XL.fontBold(11), XL.headerBg),
+    cell('100%', XL.fontBold(11), XL.headerBg, XL.alignR),
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 10 }]
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }]
+  XLSX.utils.book_append_sheet(wb, ws, 'Ventas totales')
+  XLSX.writeFile(wb, `TEMPTECH_VentasTotales_${new Date().toISOString().split('T')[0]}.xlsx`)
+}

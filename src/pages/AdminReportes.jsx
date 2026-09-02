@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { exportarVentasPorClienteExcel, exportarSaldosPreventaExcel, exportarSaldoPorModeloExcel, exportarComprasDistribuidorExcel } from '@/utils/exportDoc'
+import { exportarVentasPorClienteExcel, exportarSaldosPreventaExcel, exportarSaldoPorModeloExcel, exportarComprasDistribuidorExcel, exportarVentasGeneralExcel } from '@/utils/exportDoc'
 import { fetchAllRows } from '@/lib/fetchAll'
 
 const ESTADOS_VALIDOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
@@ -57,6 +57,30 @@ const ESTADO_PV_CONFIG = {
   completada: { label: 'Completada', color: '#7b9fff', bg: 'rgba(74,108,247,0.12)',  border: 'rgba(74,108,247,0.35)' },
 }
 
+// Devuelve una función fecha(ISO) → valor del dólar de ESA semana (lunes a
+// domingo). El valor cargado en una semana aplica a toda la semana; si falta,
+// usa la última semana previa con valor (o la más antigua).
+function crearResolverCotizacion(cotiz) {
+  const lunesDe = (fecha) => {
+    const dt = new Date(fecha + 'T12:00:00')
+    const day = dt.getDay()
+    const diff = day === 0 ? -6 : 1 - day
+    const m = new Date(dt); m.setDate(dt.getDate() + diff)
+    return m.toISOString().split('T')[0]
+  }
+  const ratePorSemana = {}
+  ;(cotiz || []).forEach(c => { ratePorSemana[lunesDe(c.fecha)] = c.valor })
+  const semanas = Object.keys(ratePorSemana).sort()
+  return (iso) => {
+    if (!semanas.length) return null
+    const wk = lunesDe((iso || '').split('T')[0])
+    if (ratePorSemana[wk] != null) return ratePorSemana[wk]
+    let elegida = null
+    for (const s of semanas) { if (s <= wk) elegida = ratePorSemana[s]; else break }
+    return elegida != null ? elegida : ratePorSemana[semanas[0]]
+  }
+}
+
 const REPORTE_EMAIL = 'martin@temptech.com.ar'
 
 export default function AdminReportes() {
@@ -88,6 +112,10 @@ export default function AdminReportes() {
   const [loadingCompras, setLoadingCompras] = useState(false)
   const [expandidoCompras, setExpandidoCompras] = useState(null)
 
+  // Ventas totales (todas las fuentes, con USD) state
+  const [datosGeneral, setDatosGeneral] = useState(null)
+  const [loadingGeneral, setLoadingGeneral] = useState(false)
+
   // Los distribuidores solo ven sus propios saldos (preventa / por modelo)
   useEffect(() => {
     if (esDistribuidorView && (reporte === 'ventas' || reporte === 'ranking')) setReporte('preventa')
@@ -98,8 +126,56 @@ export default function AdminReportes() {
     if (reporte === 'preventa') cargarPreventas()
     else if (reporte === 'modelo') cargarPorModelo()
     else if (reporte === 'compras') { if (!esDistribuidorView) cargarCompras() }
+    else if (reporte === 'general') { if (!esDistribuidorView) cargarGeneral() }
     else if (!esDistribuidorView) cargar()
   }, [isAdmin, esDistribuidorView, reporte, fechaDesde, fechaHasta, agrupacion, filtroEstadoPv, filtroEstadoModelo])
+
+  async function cargarGeneral() {
+    if (!fechaDesde || !fechaHasta) return
+    setLoadingGeneral(true)
+    setDatosGeneral(null)
+
+    const desde = fechaDesde + 'T00:00:00'
+    const hasta = fechaHasta + 'T23:59:59'
+    const PEDIDO_ESTADOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
+
+    const [pedidos, ventas, preventas, cotiz] = await Promise.all([
+      fetchAllRows(() => supabase.from('pedidos').select('created_at, total').in('estado', PEDIDO_ESTADOS).gte('created_at', desde).lte('created_at', hasta)),
+      fetchAllRows(() => supabase.from('ventas').select('created_at, total, canal, estado').neq('estado', 'cancelado').gte('created_at', desde).lte('created_at', hasta)),
+      fetchAllRows(() => supabase.from('preventas').select('created_at, items').neq('estado', 'cancelada').gte('created_at', desde).lte('created_at', hasta)),
+      supabase.from('cotizaciones').select('fecha, valor').order('fecha', { ascending: true }).then(r => r.data || []),
+    ])
+
+    const resolver = crearResolverCotizacion(cotiz)
+    const usd = (ars, iso) => { const v = resolver(iso); return v ? ars / v : 0 }
+
+    // Acumular por fuente
+    const fuentes = {
+      distribuidores: { key: 'distribuidores', label: 'Distribuidores', color: '#7b9fff', ars: 0, usd: 0, count: 0 },
+      meli:           { key: 'meli',           label: 'Mercado Libre',  color: '#ffd166', ars: 0, usd: 0, count: 0 },
+      pagina:         { key: 'pagina',         label: 'Página Web',     color: '#38bdf8', ars: 0, usd: 0, count: 0 },
+      vo:             { key: 'vo',             label: 'Venta VO',       color: '#a78bfa', ars: 0, usd: 0, count: 0 },
+      preventa:       { key: 'preventa',       label: 'Preventas',      color: '#3dd68c', ars: 0, usd: 0, count: 0 },
+    }
+
+    pedidos.forEach(p => { const a = p.total || 0; fuentes.distribuidores.ars += a; fuentes.distribuidores.usd += usd(a, p.created_at); fuentes.distribuidores.count++ })
+    ventas.forEach(v => {
+      const f = fuentes[v.canal]; if (!f) return
+      const a = v.total || 0; f.ars += a; f.usd += usd(a, v.created_at); f.count++
+    })
+    preventas.forEach(pv => {
+      const a = (pv.items || []).reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad_total || 0), 0)
+      fuentes.preventa.ars += a; fuentes.preventa.usd += usd(a, pv.created_at); fuentes.preventa.count++
+    })
+
+    const lista = Object.values(fuentes).filter(f => f.ars > 0 || f.count > 0).sort((a, b) => b.ars - a.ars)
+    const totARS = lista.reduce((s, f) => s + f.ars, 0)
+    const totUSD = lista.reduce((s, f) => s + f.usd, 0)
+    const conPct = lista.map(f => ({ ...f, pct: totARS > 0 ? (f.ars / totARS) * 100 : 0 }))
+
+    setDatosGeneral({ fuentes: conPct, totARS, totUSD, hayCotiz: cotiz.length > 0 })
+    setLoadingGeneral(false)
+  }
 
   async function cargarCompras() {
     if (!fechaDesde || !fechaHasta) return
@@ -123,29 +199,7 @@ export default function AdminReportes() {
       dists?.forEach(d => { distMap[d.id] = d })
     }
 
-    // Semana (lunes) que contiene una fecha 'YYYY-MM-DD'
-    const lunesDe = (fecha) => {
-      const dt = new Date(fecha + 'T12:00:00')
-      const day = dt.getDay()
-      const diff = day === 0 ? -6 : 1 - day
-      const m = new Date(dt); m.setDate(dt.getDate() + diff)
-      return m.toISOString().split('T')[0]
-    }
-    // Un tipo de cambio POR SEMANA: la cotización cargada en una semana aplica a
-    // TODAS las operaciones de esa semana (lunes a domingo), sin importar qué día
-    // se cargó. `cotiz` viene ordenada por fecha asc → la última de la semana pisa.
-    const ratePorSemana = {}
-    cotiz.forEach(c => { ratePorSemana[lunesDe(c.fecha)] = c.valor })
-    const semanas = Object.keys(ratePorSemana).sort()
-    const cotizacionParaFecha = (iso) => {
-      if (!semanas.length) return null
-      const wk = lunesDe((iso || '').split('T')[0])
-      if (ratePorSemana[wk] != null) return { valor: ratePorSemana[wk] }
-      // Sin cotización esa semana → última semana previa con valor (fallback: la más antigua)
-      let elegida = null
-      for (const s of semanas) { if (s <= wk) elegida = ratePorSemana[s]; else break }
-      return { valor: elegida != null ? elegida : ratePorSemana[semanas[0]] }
-    }
+    const resolver = crearResolverCotizacion(cotiz)
 
     const grupos = {}
     pvData.forEach(pv => {
@@ -153,12 +207,12 @@ export default function AdminReportes() {
       const dist = distMap[id]
       const nombre = dist?.razon_social || dist?.full_name || 'Sin nombre'
       const montoARS = (pv.items || []).reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad_total || 0), 0)
-      const cot = cotizacionParaFecha(pv.created_at)
-      const montoUSD = cot?.valor ? montoARS / cot.valor : 0
+      const valorCot = resolver(pv.created_at)
+      const montoUSD = valorCot ? montoARS / valorCot : 0
       if (!grupos[id]) grupos[id] = { id, nombre, totARS: 0, totUSD: 0, preventas: [] }
       grupos[id].totARS += montoARS
       grupos[id].totUSD += montoUSD
-      grupos[id].preventas.push({ id: pv.id, fecha: pv.created_at, estado: pv.estado, montoARS, montoUSD, cotizacion: cot?.valor || null })
+      grupos[id].preventas.push({ id: pv.id, fecha: pv.created_at, estado: pv.estado, montoARS, montoUSD, cotizacion: valorCot || null })
     })
 
     const resultado = Object.values(grupos)
@@ -338,6 +392,7 @@ export default function AdminReportes() {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {[
+          { key: 'general',   label: '🧮 Ventas totales' },
           { key: 'ventas',    label: '📈 Ventas por período' },
           { key: 'ranking',   label: '🏆 Ranking distribuidores' },
           { key: 'preventa',  label: '📦 Saldos de preventa' },
@@ -455,7 +510,15 @@ export default function AdminReportes() {
                   ⬇️ Exportar Excel
                 </button>
               )}
-              <button onClick={() => reporte === 'compras' ? cargarCompras() : cargar()} disabled={reporte === 'compras' ? loadingCompras : loading} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (reporte === 'compras' ? loadingCompras : loading) ? 'not-allowed' : 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)', opacity: (reporte === 'compras' ? loadingCompras : loading) ? 0.5 : 1 }}>
+              {reporte === 'general' && (
+                <button
+                  onClick={() => exportarVentasGeneralExcel({ datos: datosGeneral, fechaDesde, fechaHasta })}
+                  disabled={loadingGeneral || !datosGeneral || datosGeneral.fuentes.length === 0}
+                  style={{ background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loadingGeneral || !datosGeneral || datosGeneral.fuentes.length === 0) ? 'not-allowed' : 'pointer', color: '#3dd68c', fontFamily: 'var(--font)', opacity: (loadingGeneral || !datosGeneral || datosGeneral.fuentes.length === 0) ? 0.5 : 1 }}>
+                  ⬇️ Exportar Excel
+                </button>
+              )}
+              <button onClick={() => reporte === 'compras' ? cargarCompras() : reporte === 'general' ? cargarGeneral() : cargar()} disabled={reporte === 'compras' ? loadingCompras : reporte === 'general' ? loadingGeneral : loading} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)' }}>
                 🔄 Actualizar
               </button>
             </div>
@@ -483,6 +546,16 @@ export default function AdminReportes() {
           </div>
         ) : (
           <SaldosPreventa datos={datosPv} expandido={expandidoPv} setExpandido={setExpandidoPv} />
+        )
+      ) : reporte === 'general' ? (
+        loadingGeneral ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
+        ) : !datosGeneral || datosGeneral.fuentes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+            Sin ventas en el período seleccionado.
+          </div>
+        ) : (
+          <VentasGenerales data={datosGeneral} />
         )
       ) : reporte === 'compras' ? (
         loadingCompras ? (
@@ -958,6 +1031,116 @@ function ComprasPorDistribuidor({ datos, expandido, setExpandido }) {
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Ventas totales (todas las fuentes) + gráfico de torta ────────────────────
+
+function DonutChart({ segments, size = 200, stroke = 34 }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1
+  const r = (size - stroke) / 2
+  const C = 2 * Math.PI * r
+  let offset = 0
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface3)" strokeWidth={stroke} />
+        {segments.map((s, i) => {
+          const len = (s.value / total) * C
+          const el = (
+            <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={s.color} strokeWidth={stroke}
+              strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset} />
+          )
+          offset += len
+          return el
+        })}
+      </g>
+    </svg>
+  )
+}
+
+function VentasGenerales({ data }) {
+  const { fuentes, totARS, totUSD, hayCotiz } = data
+  const segments = fuentes.map(f => ({ value: f.ars, color: f.color }))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Ventas totales (ARS)</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#7b9fff', fontFamily: 'var(--font-display)' }}>{formatPrecio(totARS)}</div>
+        </div>
+        <div style={{ background: 'var(--surface)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Ventas totales (U$S)</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#3dd68c', fontFamily: 'var(--font-display)' }}>{formatUSD(totUSD)}</div>
+        </div>
+      </div>
+
+      {!hayCotiz && (
+        <div style={{ background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.35)', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: 12, color: '#ffd166' }}>
+          ⚠️ Todavía no hay cotizaciones cargadas, así que el total en U$S es 0. Cargá el dólar en el pop-up semanal.
+        </div>
+      )}
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px', display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <DonutChart segments={segments} />
+          <div style={{ position: 'absolute', textAlign: 'center' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Total</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{formatPrecio(totARS)}</div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 4 }}>Composición de las ventas</div>
+          {fuentes.map(f => (
+            <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: f.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: '0 0 130px' }}>{f.label}</span>
+              <div style={{ flex: 1, background: 'var(--surface3)', borderRadius: 5, height: 8, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${f.pct}%`, background: f.color, borderRadius: 5 }} />
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: f.color, flex: '0 0 48px', textAlign: 'right' }}>{f.pct.toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+              {['Fuente', 'Operaciones', 'Total ARS', 'Total U$S', 'Participación'].map((h, i) => (
+                <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: i === 0 ? 'left' : 'right' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {fuentes.map(f => (
+              <tr key={f.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>
+                  <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: f.color, marginRight: 8 }} />
+                  {f.label}
+                </td>
+                <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text3)', textAlign: 'right' }}>{f.count}</td>
+                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(f.ars)}</td>
+                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatUSD(f.usd)}</td>
+                <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text3)', textAlign: 'right' }}>{f.pct.toFixed(1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
+              <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 800 }}>TOTAL</td>
+              <td />
+              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(totARS)}</td>
+              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatUSD(totUSD)}</td>
+              <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 800, textAlign: 'right' }}>100%</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   )
