@@ -123,13 +123,28 @@ export default function AdminReportes() {
       dists?.forEach(d => { distMap[d.id] = d })
     }
 
-    // Cotización vigente a una fecha: la última con fecha <= la del día (fallback: la más antigua)
+    // Semana (lunes) que contiene una fecha 'YYYY-MM-DD'
+    const lunesDe = (fecha) => {
+      const dt = new Date(fecha + 'T12:00:00')
+      const day = dt.getDay()
+      const diff = day === 0 ? -6 : 1 - day
+      const m = new Date(dt); m.setDate(dt.getDate() + diff)
+      return m.toISOString().split('T')[0]
+    }
+    // Un tipo de cambio POR SEMANA: la cotización cargada en una semana aplica a
+    // TODAS las operaciones de esa semana (lunes a domingo), sin importar qué día
+    // se cargó. `cotiz` viene ordenada por fecha asc → la última de la semana pisa.
+    const ratePorSemana = {}
+    cotiz.forEach(c => { ratePorSemana[lunesDe(c.fecha)] = c.valor })
+    const semanas = Object.keys(ratePorSemana).sort()
     const cotizacionParaFecha = (iso) => {
-      if (!cotiz.length) return null
-      const d = (iso || '').split('T')[0]
+      if (!semanas.length) return null
+      const wk = lunesDe((iso || '').split('T')[0])
+      if (ratePorSemana[wk] != null) return { valor: ratePorSemana[wk] }
+      // Sin cotización esa semana → última semana previa con valor (fallback: la más antigua)
       let elegida = null
-      for (const c of cotiz) { if (c.fecha <= d) elegida = c; else break }
-      return elegida || cotiz[0]
+      for (const s of semanas) { if (s <= wk) elegida = ratePorSemana[s]; else break }
+      return { valor: elegida != null ? elegida : ratePorSemana[semanas[0]] }
     }
 
     const grupos = {}

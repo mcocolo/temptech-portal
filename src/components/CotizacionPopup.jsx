@@ -23,8 +23,19 @@ export default function CotizacionPopup() {
         const last = data?.[0]
         setUltima(last || null)
         if (!last) { setMostrar(true); return }
-        const dias = Math.floor((Date.now() - new Date(last.fecha + 'T00:00:00').getTime()) / 86400000)
-        if (dias >= 7) setMostrar(true)
+        // Lunes (00:00) de la semana que contiene una fecha
+        const lunesTime = (dateObj) => {
+          const dt = new Date(dateObj)
+          const day = dt.getDay()
+          const diff = day === 0 ? -6 : 1 - day
+          dt.setDate(dt.getDate() + diff)
+          dt.setHours(0, 0, 0, 0)
+          return dt.getTime()
+        }
+        // Mostrar si la última cotización es de una semana anterior a la actual
+        const semanaUltima = lunesTime(new Date(last.fecha + 'T12:00:00'))
+        const semanaHoy = lunesTime(new Date())
+        if (semanaUltima < semanaHoy) setMostrar(true)
       })
   }, [esAdminPrincipal])
 
