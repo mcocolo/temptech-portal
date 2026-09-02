@@ -690,3 +690,66 @@ export function exportarStockExcel(grupos, { titulo = 'STOCK PRODUCTO TERMINADO'
   XLSX.utils.book_append_sheet(wb, ws, 'Stock')
   XLSX.writeFile(wb, `TEMPTECH_Stock_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPRAS POR DISTRIBUIDOR (preventas, ARS + USD) — EXCEL
+// ═══════════════════════════════════════════════════════════════════════════════
+export function exportarComprasDistribuidorExcel({ datos, fechaDesde, fechaHasta }) {
+  const wb = XLSX.utils.book_new()
+  const rows = []
+  const merges = []
+  const e_ = () => cell('', null, null, null, null)
+  const hFont = XL.fontBold(9), hFill = XL.headerBg
+
+  const totARS = datos.reduce((s, d) => s + (d.totARS || 0), 0)
+  const totUSD = datos.reduce((s, d) => s + (d.totUSD || 0), 0)
+
+  // Título — 6 columnas (A–F)
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), ...Array(4).fill(cell('', null, XL.headerBg)), cell('COMPRAS POR DISTRIBUIDOR', XL.fontBold(11), XL.accentBg, XL.alignR)])
+  rows.push([cell(`Período: ${fmtDate(fechaDesde)} — ${fmtDate(fechaHasta)}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), ...Array(4).fill(cell('', null, XL.headerBg)), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  rows.push([])
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } })
+
+  datos.forEach(dist => {
+    const r = rows.length
+    rows.push([
+      cell(`🏪 ${dist.nombre}`, XL.fontBold(11), XL.subheadBg),
+      cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg),
+      cell('Total ARS', XL.fontBold(9), XL.subheadBg, XL.alignR),
+      numCell(dist.totARS || 0, XL.fontBold(10), XL.subheadBg),
+    ])
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } })
+    rows.push([e_(), e_(), e_(), e_(), cell('Total U$S', XL.fontBold(9, '888888'), null, XL.alignR), numCell(dist.totUSD || 0, XL.fontBold(10, '1a8a5a'), null)])
+    rows.push([
+      cell('PREVENTA', hFont, hFill), cell('FECHA', hFont, hFill), cell('ESTADO', hFont, hFill),
+      cell('COTIZACIÓN', hFont, hFill, XL.alignR), cell('MONTO ARS', hFont, hFill, XL.alignR), cell('MONTO U$S', hFont, hFill, XL.alignR),
+    ])
+    dist.preventas.forEach((pv, i) => {
+      const bg = i % 2 === 0 ? null : XL.altRowBg
+      rows.push([
+        cell('#' + (pv.id?.slice(0, 8).toUpperCase() || ''), XL.fontMono(9), bg),
+        cell(fmtDate(pv.fecha), XL.fontNormal(9), bg),
+        cell(pv.estado || '', XL.fontNormal(9, '666666'), bg),
+        pv.cotizacion ? numCell(pv.cotizacion, XL.fontNormal(9, '666666'), bg) : cell('—', XL.fontNormal(9, '666666'), bg, XL.alignR),
+        numCell(pv.montoARS || 0, XL.fontNormal(10), bg),
+        pv.cotizacion ? numCell(pv.montoUSD || 0, XL.fontNormal(10, '1a8a5a'), bg) : cell('—', XL.fontNormal(9, '666666'), bg, XL.alignR),
+      ])
+    })
+    rows.push([])
+  })
+
+  const rTot = rows.length
+  rows.push([
+    cell('TOTAL GENERAL', XL.fontBold(11), XL.headerBg),
+    cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg),
+    numCell(totARS, XL.fontBold(11), XL.headerBg),
+    numCell(totUSD, XL.fontBold(11), XL.headerBg),
+  ])
+  merges.push({ s: { r: rTot, c: 0 }, e: { r: rTot, c: 3 } })
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }]
+  ws['!merges'] = merges
+  XLSX.utils.book_append_sheet(wb, ws, 'Compras')
+  XLSX.writeFile(wb, `TEMPTECH_ComprasPorDistribuidor_${new Date().toISOString().split('T')[0]}.xlsx`)
+}

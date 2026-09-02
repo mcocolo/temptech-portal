@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { setOcultarPrecios } from '@/utils/precioGuard'
+import CotizacionPopup from '@/components/CotizacionPopup'
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
@@ -275,6 +276,9 @@ export default function Layout({ children }) {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+
+      {/* Pop-up semanal de cotización del dólar (solo admin principal) */}
+      <CotizacionPopup />
 
       {/* Mobile overlay */}
       {sidebarOpen && (

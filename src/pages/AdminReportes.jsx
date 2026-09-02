@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { exportarVentasPorClienteExcel, exportarSaldosPreventaExcel, exportarSaldoPorModeloExcel } from '@/utils/exportDoc'
+import { exportarVentasPorClienteExcel, exportarSaldosPreventaExcel, exportarSaldoPorModeloExcel, exportarComprasDistribuidorExcel } from '@/utils/exportDoc'
 import { fetchAllRows } from '@/lib/fetchAll'
 
 const ESTADOS_VALIDOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
 
 function formatPrecio(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0)
+}
+
+function formatUSD(n) {
+  return 'U$S ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(n || 0)
 }
 
 function getHoy() {
@@ -79,6 +83,11 @@ export default function AdminReportes() {
   const [loadingModelo, setLoadingModelo] = useState(false)
   const [filtroEstadoModelo, setFiltroEstadoModelo] = useState('activa')
 
+  // Compras por distribuidor (preventas, con USD) state
+  const [datosCompras, setDatosCompras] = useState([])
+  const [loadingCompras, setLoadingCompras] = useState(false)
+  const [expandidoCompras, setExpandidoCompras] = useState(null)
+
   // Los distribuidores solo ven sus propios saldos (preventa / por modelo)
   useEffect(() => {
     if (esDistribuidorView && (reporte === 'ventas' || reporte === 'ranking')) setReporte('preventa')
@@ -88,8 +97,62 @@ export default function AdminReportes() {
     if (!isAdmin && !esDistribuidorView) return
     if (reporte === 'preventa') cargarPreventas()
     else if (reporte === 'modelo') cargarPorModelo()
+    else if (reporte === 'compras') { if (!esDistribuidorView) cargarCompras() }
     else if (!esDistribuidorView) cargar()
   }, [isAdmin, esDistribuidorView, reporte, fechaDesde, fechaHasta, agrupacion, filtroEstadoPv, filtroEstadoModelo])
+
+  async function cargarCompras() {
+    if (!fechaDesde || !fechaHasta) return
+    setLoadingCompras(true)
+    setDatosCompras([])
+
+    const [pvData, cotiz] = await Promise.all([
+      fetchAllRows(() => supabase.from('preventas')
+        .select('id, estado, items, created_at, distribuidor_id')
+        .neq('estado', 'cancelada')
+        .gte('created_at', fechaDesde + 'T00:00:00')
+        .lte('created_at', fechaHasta + 'T23:59:59')
+        .order('created_at', { ascending: false })),
+      supabase.from('cotizaciones').select('fecha, valor').order('fecha', { ascending: true }).then(r => r.data || []),
+    ])
+
+    const ids = [...new Set(pvData.map(p => p.distribuidor_id).filter(Boolean))]
+    let distMap = {}
+    if (ids.length) {
+      const { data: dists } = await supabase.from('profiles').select('id, full_name, razon_social').in('id', ids)
+      dists?.forEach(d => { distMap[d.id] = d })
+    }
+
+    // Cotización vigente a una fecha: la última con fecha <= la del día (fallback: la más antigua)
+    const cotizacionParaFecha = (iso) => {
+      if (!cotiz.length) return null
+      const d = (iso || '').split('T')[0]
+      let elegida = null
+      for (const c of cotiz) { if (c.fecha <= d) elegida = c; else break }
+      return elegida || cotiz[0]
+    }
+
+    const grupos = {}
+    pvData.forEach(pv => {
+      const id = pv.distribuidor_id || 'sin'
+      const dist = distMap[id]
+      const nombre = dist?.razon_social || dist?.full_name || 'Sin nombre'
+      const montoARS = (pv.items || []).reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad_total || 0), 0)
+      const cot = cotizacionParaFecha(pv.created_at)
+      const montoUSD = cot?.valor ? montoARS / cot.valor : 0
+      if (!grupos[id]) grupos[id] = { id, nombre, totARS: 0, totUSD: 0, preventas: [] }
+      grupos[id].totARS += montoARS
+      grupos[id].totUSD += montoUSD
+      grupos[id].preventas.push({ id: pv.id, fecha: pv.created_at, estado: pv.estado, montoARS, montoUSD, cotizacion: cot?.valor || null })
+    })
+
+    const resultado = Object.values(grupos)
+      .map(g => ({ ...g, preventas: g.preventas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha)) }))
+      .sort((a, b) => b.totARS - a.totARS)
+
+    setDatosCompras(resultado)
+    setLoadingCompras(false)
+  }
 
   async function cargar() {
     if (!fechaDesde || !fechaHasta) return
@@ -264,6 +327,7 @@ export default function AdminReportes() {
           { key: 'ranking',   label: '🏆 Ranking distribuidores' },
           { key: 'preventa',  label: '📦 Saldos de preventa' },
           { key: 'modelo',    label: '🗂️ Saldo por modelo' },
+          { key: 'compras',   label: '💵 Compras por distribuidor' },
         ].filter(tab => !esDistribuidorView || tab.key === 'preventa' || tab.key === 'modelo').map(tab => (
           <button key={tab.key} onClick={() => setReporte(tab.key)} style={{
             padding: '9px 20px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 700,
@@ -368,7 +432,15 @@ export default function AdminReportes() {
                   ⬇️ Exportar Excel
                 </button>
               )}
-              <button onClick={cargar} disabled={loading} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)', opacity: loading ? 0.5 : 1 }}>
+              {reporte === 'compras' && (
+                <button
+                  onClick={() => exportarComprasDistribuidorExcel({ datos: datosCompras, fechaDesde, fechaHasta })}
+                  disabled={loadingCompras || datosCompras.length === 0}
+                  style={{ background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loadingCompras || datosCompras.length === 0) ? 'not-allowed' : 'pointer', color: '#3dd68c', fontFamily: 'var(--font)', opacity: (loadingCompras || datosCompras.length === 0) ? 0.5 : 1 }}>
+                  ⬇️ Exportar Excel
+                </button>
+              )}
+              <button onClick={() => reporte === 'compras' ? cargarCompras() : cargar()} disabled={reporte === 'compras' ? loadingCompras : loading} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (reporte === 'compras' ? loadingCompras : loading) ? 'not-allowed' : 'pointer', color: 'var(--text2)', fontFamily: 'var(--font)', opacity: (reporte === 'compras' ? loadingCompras : loading) ? 0.5 : 1 }}>
                 🔄 Actualizar
               </button>
             </div>
@@ -396,6 +468,16 @@ export default function AdminReportes() {
           </div>
         ) : (
           <SaldosPreventa datos={datosPv} expandido={expandidoPv} setExpandido={setExpandidoPv} />
+        )
+      ) : reporte === 'compras' ? (
+        loadingCompras ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
+        ) : datosCompras.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+            Sin compras de preventa en el período seleccionado.
+          </div>
+        ) : (
+          <ComprasPorDistribuidor datos={datosCompras} expandido={expandidoCompras} setExpandido={setExpandidoCompras} />
         )
       ) : (
         <>
@@ -770,6 +852,98 @@ function SaldoPorModelo({ datos }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ── Compras por distribuidor (preventas, $ y U$S) ────────────────────────────
+
+function ComprasPorDistribuidor({ datos, expandido, setExpandido }) {
+  const totARS = datos.reduce((s, d) => s + d.totARS, 0)
+  const totUSD = datos.reduce((s, d) => s + d.totUSD, 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* Resumen global */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Distribuidores</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>{datos.length}</div>
+        </div>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Total comprado (ARS)</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#7b9fff', fontFamily: 'var(--font-display)' }}>{formatPrecio(totARS)}</div>
+        </div>
+        <div style={{ background: 'var(--surface)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Total comprado (U$S)</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#3dd68c', fontFamily: 'var(--font-display)' }}>{formatUSD(totUSD)}</div>
+        </div>
+      </div>
+
+      {/* Lista por distribuidor */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {datos.map(dist => {
+          const isOpen = expandido === dist.id
+          return (
+            <div key={dist.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+              <div
+                onClick={() => setExpandido(isOpen ? null : dist.id)}
+                style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', transition: 'background 0.1s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>{isOpen ? '▾' : '▸'}</span>
+                    🏪 {dist.nombre}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                    {dist.preventas.length} preventa{dist.preventas.length !== 1 ? 's' : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', flexShrink: 0 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Comprado (ARS)</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#7b9fff' }}>{formatPrecio(dist.totARS)}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Comprado (U$S)</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#3dd68c' }}>{formatUSD(dist.totUSD)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {isOpen && (
+                <div style={{ borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.15)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {['Preventa', 'Fecha', 'Estado', 'Cotización', 'Monto ARS', 'Monto U$S'].map((h, i) => (
+                          <th key={h} style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: i === 0 ? 'left' : i >= 3 ? 'right' : 'left' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dist.preventas.map(pv => (
+                        <tr key={pv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '8px 16px' }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff' }}>#{pv.id.slice(0, 8).toUpperCase()}</span>
+                          </td>
+                          <td style={{ padding: '8px 16px', color: 'var(--text3)' }}>{new Date(pv.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                          <td style={{ padding: '8px 16px', color: 'var(--text3)', textTransform: 'capitalize' }}>{pv.estado}</td>
+                          <td style={{ padding: '8px 16px', textAlign: 'right', color: 'var(--text3)' }}>{pv.cotizacion ? formatPrecio(pv.cotizacion) : '—'}</td>
+                          <td style={{ padding: '8px 16px', textAlign: 'right', color: '#7b9fff', fontWeight: 600 }}>{formatPrecio(pv.montoARS)}</td>
+                          <td style={{ padding: '8px 16px', textAlign: 'right', color: pv.cotizacion ? '#3dd68c' : 'var(--text3)', fontWeight: 600 }}>{pv.cotizacion ? formatUSD(pv.montoUSD) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
