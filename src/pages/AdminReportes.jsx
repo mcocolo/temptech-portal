@@ -1063,7 +1063,15 @@ function DonutChart({ segments, size = 200, stroke = 34 }) {
 
 function VentasGenerales({ data }) {
   const { fuentes, totARS, totUSD, hayCotiz } = data
-  const segments = fuentes.map(f => ({ value: f.ars, color: f.color }))
+  const [base, setBase] = useState('ars')  // 'ars' | 'usd' → sobre qué se calcula el %
+  const puedeUSD = totUSD > 0
+  const baseEfectiva = base === 'usd' && puedeUSD ? 'usd' : 'ars'
+  const totalBase = baseEfectiva === 'usd' ? totUSD : totARS
+  const fmtBase = baseEfectiva === 'usd' ? formatUSD : formatPrecio
+  const items = fuentes
+    .map(f => { const val = baseEfectiva === 'usd' ? f.usd : f.ars; return { ...f, val, pct: totalBase > 0 ? (val / totalBase) * 100 : 0 } })
+    .sort((a, b) => b.val - a.val)
+  const segments = items.map(f => ({ value: f.val, color: f.color }))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -1088,14 +1096,28 @@ function VentasGenerales({ data }) {
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <DonutChart segments={segments} />
           <div style={{ position: 'absolute', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Total</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{formatPrecio(totARS)}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Total {baseEfectiva === 'usd' ? 'U$S' : 'ARS'}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{fmtBase(totalBase)}</div>
           </div>
         </div>
 
         <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 4 }}>Composición de las ventas</div>
-          {fuentes.map(f => (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Composición de las ventas</div>
+            <div style={{ display: 'flex', gap: 4, background: 'var(--surface2)', borderRadius: 'var(--radius)', padding: 3 }}>
+              {[{ k: 'ars', l: '$ ARS' }, { k: 'usd', l: 'U$S' }].map(op => {
+                const activo = baseEfectiva === op.k
+                const deshab = op.k === 'usd' && !puedeUSD
+                return (
+                  <button key={op.k} onClick={() => !deshab && setBase(op.k)} disabled={deshab} title={deshab ? 'Cargá una cotización para ver el % en U$S' : ''}
+                    style={{ padding: '4px 12px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: deshab ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', border: 'none', background: activo ? 'var(--brand-gradient)' : 'transparent', color: activo ? '#fff' : 'var(--text3)', opacity: deshab ? 0.4 : 1 }}>
+                    {op.l}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {items.map(f => (
             <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ width: 12, height: 12, borderRadius: 3, background: f.color, flexShrink: 0 }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: '0 0 130px' }}>{f.label}</span>
@@ -1118,7 +1140,7 @@ function VentasGenerales({ data }) {
             </tr>
           </thead>
           <tbody>
-            {fuentes.map(f => (
+            {items.map(f => (
               <tr key={f.key} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>
                   <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: f.color, marginRight: 8 }} />
