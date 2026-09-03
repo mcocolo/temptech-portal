@@ -140,7 +140,7 @@ export default function AdminReportes() {
     const PEDIDO_ESTADOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
 
     const [pedidos, ventas, preventas, cotiz] = await Promise.all([
-      fetchAllRows(() => supabase.from('pedidos').select('created_at, total').in('estado', PEDIDO_ESTADOS).gte('created_at', desde).lte('created_at', hasta)),
+      fetchAllRows(() => supabase.from('pedidos').select('created_at, total, tipo').in('estado', PEDIDO_ESTADOS).gte('created_at', desde).lte('created_at', hasta)),
       fetchAllRows(() => supabase.from('ventas').select('created_at, total, canal, estado').neq('estado', 'cancelado').gte('created_at', desde).lte('created_at', hasta)),
       fetchAllRows(() => supabase.from('preventas').select('created_at, items').neq('estado', 'cancelada').gte('created_at', desde).lte('created_at', hasta)),
       supabase.from('cotizaciones').select('fecha, valor').order('fecha', { ascending: true }).then(r => r.data || []),
@@ -158,7 +158,15 @@ export default function AdminReportes() {
       preventa:       { key: 'preventa',       label: 'Preventas',      color: '#3dd68c', ars: 0, usd: 0, count: 0 },
     }
 
-    pedidos.forEach(p => { const a = p.total || 0; fuentes.distribuidores.ars += a; fuentes.distribuidores.usd += usd(a, p.created_at); fuentes.distribuidores.count++ })
+    // Excluir los pedidos tipo 'preventa' (órdenes de retiro): su valor ya está
+    // contado en Preventas, así no se duplica Distribuidores + Preventas.
+    pedidos.forEach(p => {
+      if (p.tipo === 'preventa') return
+      const a = p.total || 0
+      fuentes.distribuidores.ars += a
+      fuentes.distribuidores.usd += usd(a, p.created_at)
+      fuentes.distribuidores.count++
+    })
     ventas.forEach(v => {
       const f = fuentes[v.canal]; if (!f) return
       const a = v.total || 0; f.ars += a; f.usd += usd(a, v.created_at); f.count++
