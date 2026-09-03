@@ -761,34 +761,45 @@ export function exportarVentasGeneralExcel({ datos, fechaDesde, fechaHasta }) {
   const wb = XLSX.utils.book_new()
   const rows = []
   const e_ = () => cell('', null, null, null, null)
-  const hFont = XL.fontBold(10), hFill = XL.headerBg
-  const { fuentes, totARS, totUSD } = datos
+  const hFont = XL.fontBold(9), hFill = XL.headerBg
+  const { fuentes, tot } = datos
 
-  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('VENTAS TOTALES', XL.fontBold(12), XL.accentBg, XL.alignR)])
-  rows.push([cell(`Período: ${fmtDate(fechaDesde)} — ${fmtDate(fechaHasta)}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell('', null, XL.headerBg), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
+  // 8 columnas (A–H): Fuente, Ops, Neto ARS, IVA ARS, Con IVA ARS, Neto USD, IVA USD, Con IVA USD
+  rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), ...Array(6).fill(cell('', null, XL.headerBg)), cell('VENTAS TOTALES', XL.fontBold(11), XL.accentBg, XL.alignR)])
+  rows.push([cell(`Período: ${fmtDate(fechaDesde)} — ${fmtDate(fechaHasta)}`, XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignL), ...Array(6).fill(cell('', null, XL.headerBg)), cell(new Date().toLocaleDateString('es-AR'), XL.fontNormal(10, 'cccccc'), XL.headerBg, XL.alignR)])
   rows.push([])
 
-  rows.push([cell('FUENTE', hFont, hFill), cell('OPERACIONES', hFont, hFill, XL.alignC), cell('TOTAL ARS', hFont, hFill, XL.alignR), cell('TOTAL U$S', hFont, hFill, XL.alignR), cell('PART. %', hFont, hFill, XL.alignR)])
+  rows.push([
+    cell('FUENTE', hFont, hFill), cell('OPS', hFont, hFill, XL.alignC),
+    cell('NETO ARS', hFont, hFill, XL.alignR), cell('IVA ARS', hFont, hFill, XL.alignR), cell('CON IVA ARS', hFont, hFill, XL.alignR),
+    cell('NETO U$S', hFont, hFill, XL.alignR), cell('IVA U$S', hFont, hFill, XL.alignR), cell('CON IVA U$S', hFont, hFill, XL.alignR),
+  ])
   fuentes.forEach((f, i) => {
     const bg = i % 2 === 0 ? null : XL.altRowBg
     rows.push([
       cell(f.label, XL.fontNormal(10), bg),
       { v: f.count || 0, t: 'n', s: { font: XL.fontNormal(10), fill: bg, alignment: XL.alignC, border: XL.border } },
-      numCell(f.ars || 0, XL.fontNormal(10), bg),
-      numCell(f.usd || 0, XL.fontNormal(10, '1a8a5a'), bg),
-      { v: (f.pct || 0) / 100, t: 'n', s: { font: XL.fontNormal(10, '666666'), fill: bg, alignment: XL.alignR, border: XL.border, numFmt: '0.0%' } },
+      numCell(f.netoARS || 0, XL.fontNormal(10), bg),
+      numCell(f.ivaARS || 0, XL.fontNormal(10, '888888'), bg),
+      numCell(f.conIvaARS || 0, XL.fontNormal(10), bg),
+      numCell(f.netoUSD || 0, XL.fontNormal(10, '1a8a5a'), bg),
+      numCell(f.ivaUSD || 0, XL.fontNormal(10, '888888'), bg),
+      numCell(f.conIvaUSD || 0, XL.fontNormal(10, '1a8a5a'), bg),
     ])
   })
   rows.push([
     cell('TOTAL', XL.fontBold(11), XL.headerBg), e_(),
-    numCell(totARS, XL.fontBold(11), XL.headerBg),
-    numCell(totUSD, XL.fontBold(11), XL.headerBg),
-    cell('100%', XL.fontBold(11), XL.headerBg, XL.alignR),
+    numCell(tot.netoARS, XL.fontBold(11), XL.headerBg),
+    numCell(tot.ivaARS, XL.fontBold(11), XL.headerBg),
+    numCell(tot.conIvaARS, XL.fontBold(11), XL.headerBg),
+    numCell(tot.netoUSD, XL.fontBold(11), XL.headerBg),
+    numCell(tot.ivaUSD, XL.fontBold(11), XL.headerBg),
+    numCell(tot.conIvaUSD, XL.fontBold(11), XL.headerBg),
   ])
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 10 }]
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }]
+  ws['!cols'] = [{ wch: 20 }, { wch: 7 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }]
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }]
   XLSX.utils.book_append_sheet(wb, ws, 'Ventas totales')
   XLSX.writeFile(wb, `TEMPTECH_VentasTotales_${new Date().toISOString().split('T')[0]}.xlsx`)
 }

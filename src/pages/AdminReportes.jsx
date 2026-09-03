@@ -140,48 +140,62 @@ export default function AdminReportes() {
     const PEDIDO_ESTADOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
 
     const [pedidos, ventas, preventas, cotiz] = await Promise.all([
-      fetchAllRows(() => supabase.from('pedidos').select('created_at, total, tipo').in('estado', PEDIDO_ESTADOS).gte('created_at', desde).lte('created_at', hasta)),
+      fetchAllRows(() => supabase.from('pedidos').select('created_at, total, tipo, iva_monto').in('estado', PEDIDO_ESTADOS).gte('created_at', desde).lte('created_at', hasta)),
       fetchAllRows(() => supabase.from('ventas').select('created_at, total, canal, estado').neq('estado', 'cancelado').gte('created_at', desde).lte('created_at', hasta)),
-      fetchAllRows(() => supabase.from('preventas').select('created_at, items').neq('estado', 'cancelada').gte('created_at', desde).lte('created_at', hasta)),
+      fetchAllRows(() => supabase.from('preventas').select('created_at, items, incluir_iva').neq('estado', 'cancelada').gte('created_at', desde).lte('created_at', hasta)),
       supabase.from('cotizaciones').select('fecha, valor').order('fecha', { ascending: true }).then(r => r.data || []),
     ])
 
     const resolver = crearResolverCotizacion(cotiz)
-    const usd = (ars, iso) => { const v = resolver(iso); return v ? ars / v : 0 }
+    const usdOf = (ars, iso) => { const v = resolver(iso); return v ? ars / v : 0 }
 
-    // Acumular por fuente
+    const nuevaFuente = (key, label, color) => ({ key, label, color, count: 0, netoARS: 0, ivaARS: 0, netoUSD: 0, ivaUSD: 0 })
     const fuentes = {
-      distribuidores: { key: 'distribuidores', label: 'Distribuidores', color: '#7b9fff', ars: 0, usd: 0, count: 0 },
-      meli:           { key: 'meli',           label: 'Mercado Libre',  color: '#ffd166', ars: 0, usd: 0, count: 0 },
-      pagina:         { key: 'pagina',         label: 'Página Web',     color: '#38bdf8', ars: 0, usd: 0, count: 0 },
-      vo:             { key: 'vo',             label: 'Venta VO',       color: '#a78bfa', ars: 0, usd: 0, count: 0 },
-      preventa:       { key: 'preventa',       label: 'Preventas',      color: '#3dd68c', ars: 0, usd: 0, count: 0 },
+      distribuidores: nuevaFuente('distribuidores', 'Distribuidores', '#7b9fff'),
+      meli:           nuevaFuente('meli', 'Mercado Libre', '#ffd166'),
+      pagina:         nuevaFuente('pagina', 'Página Web', '#38bdf8'),
+      vo:             nuevaFuente('vo', 'Venta VO', '#a78bfa'),
+      preventa:       nuevaFuente('preventa', 'Preventas', '#3dd68c'),
     }
 
-    // Excluir los pedidos tipo 'preventa' (órdenes de retiro): su valor ya está
-    // contado en Preventas, así no se duplica Distribuidores + Preventas.
+    // Suma un neto + su IVA (en ARS) a una fuente, con su equivalente en USD
+    const acum = (f, neto, iva, iso) => {
+      f.netoARS += neto; f.ivaARS += iva
+      f.netoUSD += usdOf(neto, iso); f.ivaUSD += usdOf(iva, iso)
+      f.count++
+    }
+
+    // Pedidos: el total ya incluye IVA cuando corresponde → neto = total - iva_monto.
+    // Se excluyen los tipo 'preventa' (retiros) para no duplicar con Preventas.
     pedidos.forEach(p => {
       if (p.tipo === 'preventa') return
-      const a = p.total || 0
-      fuentes.distribuidores.ars += a
-      fuentes.distribuidores.usd += usd(a, p.created_at)
-      fuentes.distribuidores.count++
+      const iva = p.iva_monto || 0
+      acum(fuentes.distribuidores, (p.total || 0) - iva, iva, p.created_at)
     })
+    // Ventas de canal: sin IVA
     ventas.forEach(v => {
       const f = fuentes[v.canal]; if (!f) return
-      const a = v.total || 0; f.ars += a; f.usd += usd(a, v.created_at); f.count++
+      acum(f, v.total || 0, 0, v.created_at)
     })
+    // Preventas: los items son netos; IVA 21% si incluir_iva
     preventas.forEach(pv => {
-      const a = (pv.items || []).reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad_total || 0), 0)
-      fuentes.preventa.ars += a; fuentes.preventa.usd += usd(a, pv.created_at); fuentes.preventa.count++
+      const neto = (pv.items || []).reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad_total || 0), 0)
+      const iva = pv.incluir_iva ? neto * 0.21 : 0
+      acum(fuentes.preventa, neto, iva, pv.created_at)
     })
 
-    const lista = Object.values(fuentes).filter(f => f.ars > 0 || f.count > 0).sort((a, b) => b.ars - a.ars)
-    const totARS = lista.reduce((s, f) => s + f.ars, 0)
-    const totUSD = lista.reduce((s, f) => s + f.usd, 0)
-    const conPct = lista.map(f => ({ ...f, pct: totARS > 0 ? (f.ars / totARS) * 100 : 0 }))
+    const lista = Object.values(fuentes)
+      .map(f => ({ ...f, conIvaARS: f.netoARS + f.ivaARS, conIvaUSD: f.netoUSD + f.ivaUSD }))
+      .filter(f => f.count > 0)
+      .sort((a, b) => b.netoARS - a.netoARS)
 
-    setDatosGeneral({ fuentes: conPct, totARS, totUSD, hayCotiz: cotiz.length > 0 })
+    const sum = (k) => lista.reduce((s, f) => s + f[k], 0)
+    const tot = {
+      netoARS: sum('netoARS'), ivaARS: sum('ivaARS'), conIvaARS: sum('conIvaARS'),
+      netoUSD: sum('netoUSD'), ivaUSD: sum('ivaUSD'), conIvaUSD: sum('conIvaUSD'),
+    }
+
+    setDatosGeneral({ fuentes: lista, tot, hayCotiz: cotiz.length > 0 })
     setLoadingGeneral(false)
   }
 
@@ -1070,28 +1084,33 @@ function DonutChart({ segments, size = 200, stroke = 34 }) {
 }
 
 function VentasGenerales({ data }) {
-  const { fuentes, totARS, totUSD, hayCotiz } = data
-  const [base, setBase] = useState('ars')  // 'ars' | 'usd' → sobre qué se calcula el %
-  const puedeUSD = totUSD > 0
-  const baseEfectiva = base === 'usd' && puedeUSD ? 'usd' : 'ars'
-  const totalBase = baseEfectiva === 'usd' ? totUSD : totARS
-  const fmtBase = baseEfectiva === 'usd' ? formatUSD : formatPrecio
+  const { fuentes, tot, hayCotiz } = data
+  const [base, setBase] = useState('ars')  // moneda de la tabla, torta y %
+  const puedeUSD = tot.conIvaUSD > 0 || tot.netoUSD > 0
+  const B = base === 'usd' && puedeUSD ? 'USD' : 'ARS'
+  const fmtB = B === 'USD' ? formatUSD : formatPrecio
+  const totNeto = tot['neto' + B], totConIva = tot['conIva' + B]
+
   const items = fuentes
-    .map(f => { const val = baseEfectiva === 'usd' ? f.usd : f.ars; return { ...f, val, pct: totalBase > 0 ? (val / totalBase) * 100 : 0 } })
-    .sort((a, b) => b.val - a.val)
-  const segments = items.map(f => ({ value: f.val, color: f.color }))
+    .map(f => ({ ...f, neto: f['neto' + B], iva: f['iva' + B], conIva: f['conIva' + B], pct: totNeto > 0 ? (f['neto' + B] / totNeto) * 100 : 0 }))
+    .sort((a, b) => b.neto - a.neto)
+  const segments = items.map(f => ({ value: f.neto, color: f.color }))
+
+  const Card = ({ label, ars, usd, color, border }) => (
+    <div style={{ background: 'var(--surface)', border: `1px solid ${border || 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '18px 22px' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color, fontFamily: 'var(--font-display)' }}>{formatPrecio(ars)}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text3)', marginTop: 2 }}>{formatUSD(usd)}</div>
+    </div>
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Tarjetas: Neto, IVA, Con IVA (cada una en ARS y U$S) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Ventas totales (ARS)</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#7b9fff', fontFamily: 'var(--font-display)' }}>{formatPrecio(totARS)}</div>
-        </div>
-        <div style={{ background: 'var(--surface)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Ventas totales (U$S)</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#3dd68c', fontFamily: 'var(--font-display)' }}>{formatUSD(totUSD)}</div>
-        </div>
+        <Card label="Ventas netas (sin IVA)" ars={tot.netoARS} usd={tot.netoUSD} color="#7b9fff" />
+        <Card label="IVA" ars={tot.ivaARS} usd={tot.ivaUSD} color="#ffd166" />
+        <Card label="Ventas con IVA" ars={tot.conIvaARS} usd={tot.conIvaUSD} color="#3dd68c" border="rgba(61,214,140,0.4)" />
       </div>
 
       {!hayCotiz && (
@@ -1104,20 +1123,20 @@ function VentasGenerales({ data }) {
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <DonutChart segments={segments} />
           <div style={{ position: 'absolute', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Total {baseEfectiva === 'usd' ? 'U$S' : 'ARS'}</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{fmtBase(totalBase)}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Neto {B === 'USD' ? 'U$S' : 'ARS'}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{fmtB(totNeto)}</div>
           </div>
         </div>
 
         <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Composición de las ventas</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Composición (sobre neto)</div>
             <div style={{ display: 'flex', gap: 4, background: 'var(--surface2)', borderRadius: 'var(--radius)', padding: 3 }}>
               {[{ k: 'ars', l: '$ ARS' }, { k: 'usd', l: 'U$S' }].map(op => {
-                const activo = baseEfectiva === op.k
+                const activo = B.toLowerCase() === op.k
                 const deshab = op.k === 'usd' && !puedeUSD
                 return (
-                  <button key={op.k} onClick={() => !deshab && setBase(op.k)} disabled={deshab} title={deshab ? 'Cargá una cotización para ver el % en U$S' : ''}
+                  <button key={op.k} onClick={() => !deshab && setBase(op.k)} disabled={deshab} title={deshab ? 'Cargá una cotización para ver en U$S' : ''}
                     style={{ padding: '4px 12px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: deshab ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', border: 'none', background: activo ? 'var(--brand-gradient)' : 'transparent', color: activo ? '#fff' : 'var(--text3)', opacity: deshab ? 0.4 : 1 }}>
                     {op.l}
                   </button>
@@ -1138,11 +1157,12 @@ function VentasGenerales({ data }) {
         </div>
       </div>
 
+      {/* Tabla por fuente (en la moneda elegida) */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
-              {['Fuente', 'Operaciones', 'Total ARS', 'Total U$S', 'Participación'].map((h, i) => (
+              {['Fuente', 'Ops', `Neto ${B}`, `IVA ${B}`, `Con IVA ${B}`, 'Part.'].map((h, i) => (
                 <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: i === 0 ? 'left' : 'right' }}>{h}</th>
               ))}
             </tr>
@@ -1155,8 +1175,9 @@ function VentasGenerales({ data }) {
                   {f.label}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text3)', textAlign: 'right' }}>{f.count}</td>
-                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(f.ars)}</td>
-                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatUSD(f.usd)}</td>
+                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtB(f.neto)}</td>
+                <td style={{ padding: '12px 16px', fontSize: 13, color: '#ffd166', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtB(f.iva)}</td>
+                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtB(f.conIva)}</td>
                 <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text3)', textAlign: 'right' }}>{f.pct.toFixed(1)}%</td>
               </tr>
             ))}
@@ -1165,8 +1186,9 @@ function VentasGenerales({ data }) {
             <tr style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
               <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 800 }}>TOTAL</td>
               <td />
-              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(totARS)}</td>
-              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatUSD(totUSD)}</td>
+              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtB(totNeto)}</td>
+              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#ffd166', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtB(tot['iva' + B])}</td>
+              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#3dd68c', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtB(totConIva)}</td>
               <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 800, textAlign: 'right' }}>100%</td>
             </tr>
           </tfoot>
