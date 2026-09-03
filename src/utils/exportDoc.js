@@ -388,12 +388,13 @@ export function exportarPresupuestoExcel({ items, distribuidor, notas, fecha, in
 // ═══════════════════════════════════════════════════════════════════════════════
 // REPORTE VENTAS POR CLIENTE (ranking de distribuidores) — EXCEL
 // ═══════════════════════════════════════════════════════════════════════════════
-export function exportarVentasPorClienteExcel({ datos, fechaDesde, fechaHasta }) {
+export function exportarVentasPorClienteExcel({ datos, fechaDesde, fechaHasta, ivaModo = 'conIva' }) {
   const wb = XLSX.utils.book_new()
   const rows = []
   const e_ = () => cell('', null, null, null, null)
+  const m = (d) => ivaModo === 'neto' ? (d.montoNeto || 0) : (d.monto || 0)
 
-  const totalMonto   = datos.reduce((s, d) => s + (d.monto || 0), 0)
+  const totalMonto   = datos.reduce((s, d) => s + m(d), 0)
   const totalPedidos = datos.reduce((s, d) => s + (d.count || 0), 0)
 
   // Título — 6 columnas (A–F)
@@ -407,20 +408,20 @@ export function exportarVentasPorClienteExcel({ datos, fechaDesde, fechaHasta })
     cell('#', hFont, hFill, XL.alignC),
     cell('DISTRIBUIDOR', hFont, hFill),
     cell('PEDIDOS', hFont, hFill, XL.alignC),
-    cell('MONTO TOTAL', hFont, hFill, XL.alignR),
+    cell(ivaModo === 'neto' ? 'MONTO NETO' : 'MONTO C/IVA', hFont, hFill, XL.alignR),
     cell('TICKET PROM.', hFont, hFill, XL.alignR),
     cell('PART. %', hFont, hFill, XL.alignR),
   ])
 
   datos.forEach((d, idx) => {
     const bg = idx % 2 === 0 ? null : XL.altRowBg
-    const ticket = d.count > 0 ? d.monto / d.count : 0
-    const part   = totalMonto > 0 ? (d.monto / totalMonto) * 100 : 0
+    const ticket = d.count > 0 ? m(d) / d.count : 0
+    const part   = totalMonto > 0 ? (m(d) / totalMonto) * 100 : 0
     rows.push([
       { v: idx + 1, t: 'n', s: { font: XL.fontBold(10, '1a1a2e'), fill: bg, alignment: XL.alignC, border: XL.border } },
       cell(d.nombre || 'Sin nombre', XL.fontNormal(10), bg),
       { v: d.count || 0, t: 'n', s: { font: XL.fontNormal(10), fill: bg, alignment: XL.alignC, border: XL.border } },
-      numCell(d.monto || 0, XL.fontNormal(10), bg),
+      numCell(m(d), XL.fontNormal(10), bg),
       numCell(ticket, XL.fontNormal(10, '666666'), bg),
       { v: part / 100, t: 'n', s: { font: XL.fontNormal(10, '666666'), fill: bg, alignment: XL.alignR, border: XL.border, numFmt: '0.0%' } },
     ])
@@ -694,15 +695,17 @@ export function exportarStockExcel(grupos, { titulo = 'STOCK PRODUCTO TERMINADO'
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPRAS POR DISTRIBUIDOR (preventas, ARS + USD) — EXCEL
 // ═══════════════════════════════════════════════════════════════════════════════
-export function exportarComprasDistribuidorExcel({ datos, fechaDesde, fechaHasta }) {
+export function exportarComprasDistribuidorExcel({ datos, fechaDesde, fechaHasta, ivaModo = 'conIva' }) {
   const wb = XLSX.utils.book_new()
   const rows = []
   const merges = []
   const e_ = () => cell('', null, null, null, null)
   const hFont = XL.fontBold(9), hFill = XL.headerBg
+  const aARS = (o) => ivaModo === 'neto' ? (o.netoARS || 0) : (o.conIvaARS || 0)
+  const aUSD = (o) => ivaModo === 'neto' ? (o.netoUSD || 0) : (o.conIvaUSD || 0)
 
-  const totARS = datos.reduce((s, d) => s + (d.totARS || 0), 0)
-  const totUSD = datos.reduce((s, d) => s + (d.totUSD || 0), 0)
+  const totARS = datos.reduce((s, d) => s + aARS(d), 0)
+  const totUSD = datos.reduce((s, d) => s + aUSD(d), 0)
 
   // Título — 6 columnas (A–F)
   rows.push([cell('TEMPTECH', XL.fontBold(16), XL.headerBg, XL.alignL), ...Array(4).fill(cell('', null, XL.headerBg)), cell('COMPRAS POR DISTRIBUIDOR', XL.fontBold(11), XL.accentBg, XL.alignR)])
@@ -716,10 +719,10 @@ export function exportarComprasDistribuidorExcel({ datos, fechaDesde, fechaHasta
       cell(`🏪 ${dist.nombre}`, XL.fontBold(11), XL.subheadBg),
       cell('', null, XL.subheadBg), cell('', null, XL.subheadBg), cell('', null, XL.subheadBg),
       cell('Total ARS', XL.fontBold(9), XL.subheadBg, XL.alignR),
-      numCell(dist.totARS || 0, XL.fontBold(10), XL.subheadBg),
+      numCell(aARS(dist), XL.fontBold(10), XL.subheadBg),
     ])
     merges.push({ s: { r, c: 0 }, e: { r, c: 3 } })
-    rows.push([e_(), e_(), e_(), e_(), cell('Total U$S', XL.fontBold(9, '888888'), null, XL.alignR), numCell(dist.totUSD || 0, XL.fontBold(10, '1a8a5a'), null)])
+    rows.push([e_(), e_(), e_(), e_(), cell('Total U$S', XL.fontBold(9, '888888'), null, XL.alignR), numCell(aUSD(dist), XL.fontBold(10, '1a8a5a'), null)])
     rows.push([
       cell('PREVENTA', hFont, hFill), cell('FECHA', hFont, hFill), cell('ESTADO', hFont, hFill),
       cell('COTIZACIÓN', hFont, hFill, XL.alignR), cell('MONTO ARS', hFont, hFill, XL.alignR), cell('MONTO U$S', hFont, hFill, XL.alignR),
@@ -731,8 +734,8 @@ export function exportarComprasDistribuidorExcel({ datos, fechaDesde, fechaHasta
         cell(fmtDate(pv.fecha), XL.fontNormal(9), bg),
         cell(pv.estado || '', XL.fontNormal(9, '666666'), bg),
         pv.cotizacion ? numCell(pv.cotizacion, XL.fontNormal(9, '666666'), bg) : cell('—', XL.fontNormal(9, '666666'), bg, XL.alignR),
-        numCell(pv.montoARS || 0, XL.fontNormal(10), bg),
-        pv.cotizacion ? numCell(pv.montoUSD || 0, XL.fontNormal(10, '1a8a5a'), bg) : cell('—', XL.fontNormal(9, '666666'), bg, XL.alignR),
+        numCell(aARS(pv), XL.fontNormal(10), bg),
+        pv.cotizacion ? numCell(aUSD(pv), XL.fontNormal(10, '1a8a5a'), bg) : cell('—', XL.fontNormal(9, '666666'), bg, XL.alignR),
       ])
     })
     rows.push([])

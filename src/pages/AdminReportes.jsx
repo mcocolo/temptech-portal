@@ -116,6 +116,9 @@ export default function AdminReportes() {
   const [datosGeneral, setDatosGeneral] = useState(null)
   const [loadingGeneral, setLoadingGeneral] = useState(false)
 
+  // Neto vs Con IVA (para ventas / ranking / compras)
+  const [ivaModo, setIvaModo] = useState('conIva')  // 'conIva' | 'neto'
+
   // Los distribuidores solo ven sus propios saldos (preventa / por modelo)
   useEffect(() => {
     if (esDistribuidorView && (reporte === 'ventas' || reporte === 'ranking')) setReporte('preventa')
@@ -206,7 +209,7 @@ export default function AdminReportes() {
 
     const [pvData, cotiz] = await Promise.all([
       fetchAllRows(() => supabase.from('preventas')
-        .select('id, estado, items, created_at, distribuidor_id')
+        .select('id, estado, items, created_at, distribuidor_id, incluir_iva')
         .neq('estado', 'cancelada')
         .gte('created_at', fechaDesde + 'T00:00:00')
         .lte('created_at', fechaHasta + 'T23:59:59')
@@ -228,18 +231,20 @@ export default function AdminReportes() {
       const id = pv.distribuidor_id || 'sin'
       const dist = distMap[id]
       const nombre = dist?.razon_social || dist?.full_name || 'Sin nombre'
-      const montoARS = (pv.items || []).reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad_total || 0), 0)
+      const netoARS = (pv.items || []).reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad_total || 0), 0)
+      const conIvaARS = pv.incluir_iva ? netoARS * 1.21 : netoARS
       const valorCot = resolver(pv.created_at)
-      const montoUSD = valorCot ? montoARS / valorCot : 0
-      if (!grupos[id]) grupos[id] = { id, nombre, totARS: 0, totUSD: 0, preventas: [] }
-      grupos[id].totARS += montoARS
-      grupos[id].totUSD += montoUSD
-      grupos[id].preventas.push({ id: pv.id, fecha: pv.created_at, estado: pv.estado, montoARS, montoUSD, cotizacion: valorCot || null })
+      const netoUSD = valorCot ? netoARS / valorCot : 0
+      const conIvaUSD = valorCot ? conIvaARS / valorCot : 0
+      if (!grupos[id]) grupos[id] = { id, nombre, netoARS: 0, conIvaARS: 0, netoUSD: 0, conIvaUSD: 0, preventas: [] }
+      grupos[id].netoARS += netoARS; grupos[id].conIvaARS += conIvaARS
+      grupos[id].netoUSD += netoUSD; grupos[id].conIvaUSD += conIvaUSD
+      grupos[id].preventas.push({ id: pv.id, fecha: pv.created_at, estado: pv.estado, netoARS, conIvaARS, netoUSD, conIvaUSD, cotizacion: valorCot || null })
     })
 
     const resultado = Object.values(grupos)
       .map(g => ({ ...g, preventas: g.preventas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha)) }))
-      .sort((a, b) => b.totARS - a.totARS)
+      .sort((a, b) => b.netoARS - a.netoARS)
 
     setDatosCompras(resultado)
     setLoadingCompras(false)
@@ -252,23 +257,26 @@ export default function AdminReportes() {
 
     const data = await fetchAllRows(() => supabase
       .from('pedidos')
-      .select('id, created_at, total, tipo, distribuidor_id, profiles!distribuidor_id(razon_social, full_name)')
+      .select('id, created_at, total, iva_monto, tipo, distribuidor_id, profiles!distribuidor_id(razon_social, full_name)')
       .in('estado', ESTADOS_VALIDOS)
       .gte('created_at', fechaDesde + 'T00:00:00')
       .lte('created_at', fechaHasta + 'T23:59:59'))
 
     if (!data) { setLoading(false); return }
 
+    // monto = con IVA (total tal cual); montoNeto = total - iva_monto
     const montoTotal = data.reduce((s, p) => s + (p.total || 0), 0)
-    setTotales({ pedidos: data.length, monto: montoTotal })
+    const montoNetoTotal = data.reduce((s, p) => s + ((p.total || 0) - (p.iva_monto || 0)), 0)
+    setTotales({ pedidos: data.length, monto: montoTotal, montoNeto: montoNetoTotal })
 
     if (reporte === 'ventas') {
       const grupos = {}
       data.forEach(p => {
         const key = agruparKey(p.created_at.split('T')[0], agrupacion)
-        if (!grupos[key]) grupos[key] = { key, count: 0, monto: 0 }
+        if (!grupos[key]) grupos[key] = { key, count: 0, monto: 0, montoNeto: 0 }
         grupos[key].count++
         grupos[key].monto += p.total || 0
+        grupos[key].montoNeto += (p.total || 0) - (p.iva_monto || 0)
       })
       setDatos(Object.values(grupos).sort((a, b) => a.key.localeCompare(b.key)))
     } else {
@@ -276,9 +284,10 @@ export default function AdminReportes() {
       data.forEach(p => {
         const id = p.distribuidor_id || 'sin'
         const nombre = p.profiles?.razon_social || p.profiles?.full_name || 'Sin nombre'
-        if (!grupos[id]) grupos[id] = { id, nombre, count: 0, monto: 0 }
+        if (!grupos[id]) grupos[id] = { id, nombre, count: 0, monto: 0, montoNeto: 0 }
         grupos[id].count++
         grupos[id].monto += p.total || 0
+        grupos[id].montoNeto += (p.total || 0) - (p.iva_monto || 0)
       })
       setDatos(Object.values(grupos).sort((a, b) => b.monto - a.monto))
     }
@@ -397,7 +406,8 @@ export default function AdminReportes() {
   const puedeVer = (isAdmin && user?.email === REPORTE_EMAIL) || esDistribuidorView
   if (!puedeVer) return null
 
-  const maxMonto = datos.length > 0 ? Math.max(...datos.map(d => d.monto)) : 1
+  const montoField = ivaModo === 'neto' ? 'montoNeto' : 'monto'
+  const maxMonto = datos.length > 0 ? Math.max(...datos.map(d => d[montoField] || 0)) : 1
 
   const esPreventa = reporte === 'preventa'
 
@@ -515,10 +525,20 @@ export default function AdminReportes() {
                 ))}
               </div>
             )}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+              {(reporte === 'ventas' || reporte === 'ranking' || reporte === 'compras') && (
+                <div style={{ display: 'flex', gap: 4, background: 'var(--surface2)', borderRadius: 'var(--radius)', padding: 3 }}>
+                  {[{ k: 'conIva', l: 'Con IVA' }, { k: 'neto', l: 'Neto' }].map(op => (
+                    <button key={op.k} onClick={() => setIvaModo(op.k)}
+                      style={{ padding: '4px 12px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: ivaModo === op.k ? 'var(--brand-gradient)' : 'transparent', color: ivaModo === op.k ? '#fff' : 'var(--text3)' }}>
+                      {op.l}
+                    </button>
+                  ))}
+                </div>
+              )}
               {reporte === 'ranking' && (
                 <button
-                  onClick={() => exportarVentasPorClienteExcel({ datos, fechaDesde, fechaHasta })}
+                  onClick={() => exportarVentasPorClienteExcel({ datos, fechaDesde, fechaHasta, ivaModo })}
                   disabled={loading || datos.length === 0}
                   style={{ background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || datos.length === 0) ? 'not-allowed' : 'pointer', color: '#3dd68c', fontFamily: 'var(--font)', opacity: (loading || datos.length === 0) ? 0.5 : 1 }}>
                   ⬇️ Exportar Excel
@@ -526,7 +546,7 @@ export default function AdminReportes() {
               )}
               {reporte === 'compras' && (
                 <button
-                  onClick={() => exportarComprasDistribuidorExcel({ datos: datosCompras, fechaDesde, fechaHasta })}
+                  onClick={() => exportarComprasDistribuidorExcel({ datos: datosCompras, fechaDesde, fechaHasta, ivaModo })}
                   disabled={loadingCompras || datosCompras.length === 0}
                   style={{ background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loadingCompras || datosCompras.length === 0) ? 'not-allowed' : 'pointer', color: '#3dd68c', fontFamily: 'var(--font)', opacity: (loadingCompras || datosCompras.length === 0) ? 0.5 : 1 }}>
                   ⬇️ Exportar Excel
@@ -587,7 +607,7 @@ export default function AdminReportes() {
             Sin compras de preventa en el período seleccionado.
           </div>
         ) : (
-          <ComprasPorDistribuidor datos={datosCompras} expandido={expandidoCompras} setExpandido={setExpandidoCompras} />
+          <ComprasPorDistribuidor datos={datosCompras} expandido={expandidoCompras} setExpandido={setExpandidoCompras} ivaModo={ivaModo} />
         )
       ) : (
         <>
@@ -598,12 +618,12 @@ export default function AdminReportes() {
               <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>{totales.pedidos}</div>
             </div>
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Monto Total</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#7b9fff', fontFamily: 'var(--font-display)' }}>{formatPrecio(totales.monto)}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Monto Total {ivaModo === 'neto' ? '(Neto)' : '(c/IVA)'}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#7b9fff', fontFamily: 'var(--font-display)' }}>{formatPrecio(ivaModo === 'neto' ? (totales.montoNeto || 0) : totales.monto)}</div>
             </div>
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Ticket Promedio</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#3dd68c', fontFamily: 'var(--font-display)' }}>{totales.pedidos > 0 ? formatPrecio(totales.monto / totales.pedidos) : '—'}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#3dd68c', fontFamily: 'var(--font-display)' }}>{totales.pedidos > 0 ? formatPrecio((ivaModo === 'neto' ? (totales.montoNeto || 0) : totales.monto) / totales.pedidos) : '—'}</div>
             </div>
           </div>
 
@@ -614,9 +634,9 @@ export default function AdminReportes() {
               Sin datos para el período seleccionado.
             </div>
           ) : reporte === 'ventas' ? (
-            <VentasPorPeriodo datos={datos} agrupacion={agrupacion} maxMonto={maxMonto} />
+            <VentasPorPeriodo datos={datos} agrupacion={agrupacion} maxMonto={maxMonto} ivaModo={ivaModo} />
           ) : (
-            <RankingDistribuidores datos={datos} maxMonto={maxMonto} />
+            <RankingDistribuidores datos={datos} maxMonto={maxMonto} ivaModo={ivaModo} />
           )}
         </>
       )}
@@ -626,7 +646,8 @@ export default function AdminReportes() {
 
 // ── Ventas por período ──────────────────────────────────────────────────────
 
-function VentasPorPeriodo({ datos, agrupacion, maxMonto }) {
+function VentasPorPeriodo({ datos, agrupacion, maxMonto, ivaModo }) {
+  const mv = (d) => ivaModo === 'neto' ? (d.montoNeto || 0) : d.monto
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 20 }}>
@@ -643,12 +664,12 @@ function VentasPorPeriodo({ datos, agrupacion, maxMonto }) {
                 height: '100%',
                 background: 'linear-gradient(90deg, #4a6cf7, #7b9fff)',
                 borderRadius: 6,
-                width: `${Math.max(2, (d.monto / maxMonto) * 100)}%`,
+                width: `${Math.max(2, (mv(d) / maxMonto) * 100)}%`,
                 transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
               }} />
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>
-              {formatPrecio(d.monto)}
+              {formatPrecio(mv(d))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'right' }}>
               {d.count} ped.
@@ -662,8 +683,9 @@ function VentasPorPeriodo({ datos, agrupacion, maxMonto }) {
 
 // ── Ranking distribuidores ──────────────────────────────────────────────────
 
-function RankingDistribuidores({ datos, maxMonto }) {
-  const totalGeneral = datos.reduce((s, d) => s + d.monto, 0)
+function RankingDistribuidores({ datos, maxMonto, ivaModo }) {
+  const mv = (d) => ivaModo === 'neto' ? (d.montoNeto || 0) : d.monto
+  const totalGeneral = datos.reduce((s, d) => s + mv(d), 0)
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
@@ -686,7 +708,7 @@ function RankingDistribuidores({ datos, maxMonto }) {
         </thead>
         <tbody>
           {datos.map((d, idx) => {
-            const participacion = totalGeneral > 0 ? (d.monto / totalGeneral) * 100 : 0
+            const participacion = totalGeneral > 0 ? (mv(d) / totalGeneral) * 100 : 0
             return (
               <tr key={d.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
@@ -696,8 +718,8 @@ function RankingDistribuidores({ datos, maxMonto }) {
                 </td>
                 <td style={{ padding: '13px 16px', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{d.nombre}</td>
                 <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--text2)', textAlign: 'right' }}>{d.count}</td>
-                <td style={{ padding: '13px 16px', fontSize: 13, fontWeight: 700, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(d.monto)}</td>
-                <td style={{ padding: '13px 16px', fontSize: 12, color: 'var(--text3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(d.monto / d.count)}</td>
+                <td style={{ padding: '13px 16px', fontSize: 13, fontWeight: 700, color: '#7b9fff', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(mv(d))}</td>
+                <td style={{ padding: '13px 16px', fontSize: 12, color: 'var(--text3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatPrecio(mv(d) / d.count)}</td>
                 <td style={{ padding: '13px 16px', fontSize: 12, color: 'var(--text3)', textAlign: 'right' }}>{participacion.toFixed(1)}%</td>
                 <td style={{ padding: '13px 24px 13px 16px' }}>
                   <div style={{ background: 'var(--surface3)', borderRadius: 6, height: 8, overflow: 'hidden' }}>
@@ -705,7 +727,7 @@ function RankingDistribuidores({ datos, maxMonto }) {
                       height: '100%',
                       background: idx === 0 ? 'linear-gradient(90deg, #ffd166, #fb923c)' : 'linear-gradient(90deg, #4a6cf7, #7b9fff)',
                       borderRadius: 6,
-                      width: `${Math.max(2, (d.monto / maxMonto) * 100)}%`,
+                      width: `${Math.max(2, (mv(d) / maxMonto) * 100)}%`,
                     }} />
                   </div>
                 </td>
@@ -968,9 +990,11 @@ function SaldoPorModelo({ datos }) {
 
 // ── Compras por distribuidor (preventas, $ y U$S) ────────────────────────────
 
-function ComprasPorDistribuidor({ datos, expandido, setExpandido }) {
-  const totARS = datos.reduce((s, d) => s + d.totARS, 0)
-  const totUSD = datos.reduce((s, d) => s + d.totUSD, 0)
+function ComprasPorDistribuidor({ datos, expandido, setExpandido, ivaModo }) {
+  const aARS = (o) => ivaModo === 'neto' ? (o.netoARS || 0) : (o.conIvaARS || 0)
+  const aUSD = (o) => ivaModo === 'neto' ? (o.netoUSD || 0) : (o.conIvaUSD || 0)
+  const totARS = datos.reduce((s, d) => s + aARS(d), 0)
+  const totUSD = datos.reduce((s, d) => s + aUSD(d), 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -1014,11 +1038,11 @@ function ComprasPorDistribuidor({ datos, expandido, setExpandido }) {
                 <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', flexShrink: 0 }}>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Comprado (ARS)</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: '#7b9fff' }}>{formatPrecio(dist.totARS)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#7b9fff' }}>{formatPrecio(aARS(dist))}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Comprado (U$S)</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: '#3dd68c' }}>{formatUSD(dist.totUSD)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#3dd68c' }}>{formatUSD(aUSD(dist))}</div>
                   </div>
                 </div>
               </div>
@@ -1042,8 +1066,8 @@ function ComprasPorDistribuidor({ datos, expandido, setExpandido }) {
                           <td style={{ padding: '8px 16px', color: 'var(--text3)' }}>{new Date(pv.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
                           <td style={{ padding: '8px 16px', color: 'var(--text3)', textTransform: 'capitalize' }}>{pv.estado}</td>
                           <td style={{ padding: '8px 16px', textAlign: 'right', color: 'var(--text3)' }}>{pv.cotizacion ? formatPrecio(pv.cotizacion) : '—'}</td>
-                          <td style={{ padding: '8px 16px', textAlign: 'right', color: '#7b9fff', fontWeight: 600 }}>{formatPrecio(pv.montoARS)}</td>
-                          <td style={{ padding: '8px 16px', textAlign: 'right', color: pv.cotizacion ? '#3dd68c' : 'var(--text3)', fontWeight: 600 }}>{pv.cotizacion ? formatUSD(pv.montoUSD) : '—'}</td>
+                          <td style={{ padding: '8px 16px', textAlign: 'right', color: '#7b9fff', fontWeight: 600 }}>{formatPrecio(aARS(pv))}</td>
+                          <td style={{ padding: '8px 16px', textAlign: 'right', color: pv.cotizacion ? '#3dd68c' : 'var(--text3)', fontWeight: 600 }}>{pv.cotizacion ? formatUSD(aUSD(pv)) : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
