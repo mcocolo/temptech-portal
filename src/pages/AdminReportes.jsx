@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { exportarVentasPorClienteExcel, exportarSaldosPreventaExcel, exportarSaldoPorModeloExcel, exportarComprasDistribuidorExcel, exportarVentasGeneralExcel } from '@/utils/exportDoc'
 import { fetchAllRows } from '@/lib/fetchAll'
+import { usePersistedState } from '@/hooks/usePersistedState'
 
 const ESTADOS_VALIDOS = ['aprobado', 'preparando', 'enviado', 'entregado', 'finalizado']
 
@@ -116,8 +117,8 @@ export default function AdminReportes() {
   const [datosGeneral, setDatosGeneral] = useState(null)
   const [loadingGeneral, setLoadingGeneral] = useState(false)
 
-  // Neto vs Con IVA (para ventas / ranking / compras)
-  const [ivaModo, setIvaModo] = useState('conIva')  // 'conIva' | 'neto'
+  // Neto vs Con IVA (para ventas / ranking / compras) — recordado entre pestañas y recargas
+  const [ivaModo, setIvaModo] = usePersistedState('reportes_iva_modo', 'conIva')  // 'conIva' | 'neto'
 
   // Los distribuidores solo ven sus propios saldos (preventa / por modelo)
   useEffect(() => {
