@@ -406,6 +406,22 @@ export default function Reclamos() {
       toast.success('Nota enviada ✅')
       setNotaCliente('')
       setSelected(prev => ({ ...prev, notas_cliente: nuevas }))
+
+      // Aviso al equipo (best-effort: no bloquea si el email falla)
+      try {
+        await supabase.functions.invoke('send-email', {
+          body: {
+            type: 'nota_cliente',
+            data: {
+              trackingId: selected.tracking_id || '',
+              nombre: profile?.full_name || profile?.razon_social || '',
+              email: user?.email || '',
+              producto: selected.producto || '',
+              nota: texto,
+            },
+          },
+        })
+      } catch (_) { /* el email es opcional */ }
     } catch (err) {
       toast.error('Error al enviar la nota: ' + err.message)
     }

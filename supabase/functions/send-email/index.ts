@@ -235,6 +235,21 @@ serve(async (req) => {
       })
     }
 
+    else if (type === 'nota_cliente') {
+      ok = await sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `💬 Nueva nota del cliente — ${data.trackingId}`,
+        html: baseTemplate(`
+          <div class="card">
+            <h2>El cliente envió una nota</h2>
+            <p><span class="highlight">${data.nombre || data.email || 'Cliente'}</span> agregó una nota en el caso <span class="highlight">${data.trackingId}</span>${data.producto ? ` (${data.producto})` : ''}.</p>
+            <p style="background:#1e2130;padding:14px;border-radius:8px;color:#c8cad4;white-space:pre-line">${data.nota}</p>
+            <a href="${APP_URL}/reclamos?tracking=${data.trackingId}" class="btn">Ver el caso →</a>
+          </div>
+        `),
+      })
+    }
+
     else if (type === 'nota_caso') {
       ok = await sendEmail({
         to: data.recipientEmail,
