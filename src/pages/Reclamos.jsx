@@ -96,6 +96,10 @@ export default function Reclamos() {
   const [comprobantesNuevos, setComprobantesNuevos] = useState([])
   const [subiendoComprobantes, setSubiendoComprobantes] = useState(false)
 
+  // Notas del cliente
+  const [notaCliente, setNotaCliente] = useState('')
+  const [enviandoNota, setEnviandoNota] = useState(false)
+
   const [form, setForm] = useState({
     // Paso 1 — Producto
     producto: '',
@@ -382,6 +386,32 @@ export default function Reclamos() {
     setStep(1)
   }
 
+  // El cliente envía una nota. Cada envío se agrega como una línea nueva con
+  // fecha/hora y autor; no se puede editar (para corregir, se envía otra).
+  async function enviarNotaCliente() {
+    const texto = notaCliente.trim()
+    if (!texto) return toast.error('Escribí una nota')
+    setEnviandoNota(true)
+    try {
+      const ahora = new Date()
+      const fechaHora = ahora.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      const autor = profile?.full_name || profile?.razon_social || user?.email || 'Cliente'
+      const linea = `${fechaHora} - ${autor}: ${texto}`
+      const actuales = selected.notas_cliente || ''
+      const nuevas = actuales ? `${actuales}\n${linea}` : linea
+
+      const { error } = await supabase.from('devoluciones').update({ notas_cliente: nuevas }).eq('id', selected.id)
+      if (error) throw error
+
+      toast.success('Nota enviada ✅')
+      setNotaCliente('')
+      setSelected(prev => ({ ...prev, notas_cliente: nuevas }))
+    } catch (err) {
+      toast.error('Error al enviar la nota: ' + err.message)
+    }
+    setEnviandoNota(false)
+  }
+
   function addFiles(key, files) {
     setForm(p => ({ ...p, [key]: [...p[key], ...Array.from(files)] }))
   }
@@ -497,6 +527,34 @@ export default function Reclamos() {
                 {linea}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Notas del cliente (mensajes al equipo) */}
+        {(!isVendedor || selected.notas_cliente) && (
+          <div style={{ padding: '14px 16px', background: 'rgba(110,181,255,0.05)', border: '1px solid rgba(110,181,255,0.25)', borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6eb5ff', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.8px' }}>💬 Mis notas / mensajes</div>
+            {selected.notas_cliente
+              ? selected.notas_cliente.split('\n').filter(l => l.trim()).map((linea, i, arr) => (
+                  <div key={i} style={{ fontSize: 13, color: 'var(--text2)', padding: '6px 0', borderBottom: i < arr.length - 1 ? '1px solid rgba(110,181,255,0.15)' : 'none', lineHeight: 1.6 }}>{linea}</div>
+                ))
+              : <div style={{ fontSize: 13, color: 'var(--text3)' }}>Todavía no enviaste notas.</div>}
+
+            {!isVendedor && !['cerrado', 'rechazado'].includes(selected.estado) && (
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <textarea
+                  value={notaCliente}
+                  onChange={e => setNotaCliente(e.target.value)}
+                  placeholder="Escribí una nota para el equipo TEMPTECH..."
+                  rows={3}
+                  style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>Una vez enviada no se puede editar. Si necesitás corregir algo, enviá otra nota.</span>
+                  <Button onClick={enviarNotaCliente} loading={enviandoNota} disabled={!notaCliente.trim()}>📨 Enviar nota</Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

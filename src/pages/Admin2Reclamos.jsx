@@ -219,6 +219,14 @@ export default function Admin2Reclamos() {
                     <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line', marginBottom: 10 }}>{item.notas}</div>
                   )}
 
+                  {/* Notas del cliente */}
+                  {item.notas_cliente && (
+                    <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(110,181,255,0.08)', border: '1px solid rgba(110,181,255,0.25)', borderRadius: T.radius }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#6eb5ff', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.6px' }}>💬 Notas del cliente</div>
+                      <div style={{ fontSize: 12, color: T.text2, whiteSpace: 'pre-line' }}>{item.notas_cliente}</div>
+                    </div>
+                  )}
+
                   {/* Nota manual */}
                   <div className="rc-nota-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-end', borderTop: item.notas ? `1px solid ${T.border}` : 'none', paddingTop: item.notas ? 10 : 0 }}>
                     <textarea

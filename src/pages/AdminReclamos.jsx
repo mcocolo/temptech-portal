@@ -1451,6 +1451,14 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                           </div>
                         )}
 
+                        {/* Notas del cliente */}
+                        {item.notas_cliente && (
+                          <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(110,181,255,0.08)', border: '1px solid rgba(110,181,255,0.25)', borderRadius: T.radius }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#6eb5ff', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.6px' }}>💬 Notas del cliente</div>
+                            <div style={{ fontSize: 12, color: T.text2, whiteSpace: 'pre-line' }}>{item.notas_cliente}</div>
+                          </div>
+                        )}
+
                         {/* Nota interna — solo admins */}
                         {item.notas_internas && (
                           <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,209,102,0.08)', border: `1px solid rgba(255,209,102,0.25)`, borderRadius: T.radius }}>
