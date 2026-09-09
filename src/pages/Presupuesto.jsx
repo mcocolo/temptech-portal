@@ -97,7 +97,7 @@ function aplicarDescuento(precio, desc) {
 }
 
 export default function Presupuesto() {
-  const { profile, isDistributor, isAdmin, user } = useAuth()
+  const { profile, isDistributor, isAdmin, isVendedor, user } = useAuth()
 
   // Catálogo y precios desde la tabla `precios` (CATALOGO queda como respaldo)
   const catalogo = useCatalogo(CATALOGO)
@@ -191,7 +191,9 @@ export default function Presupuesto() {
       }
       return clienteNombre.trim() || ''
     }
-    return clienteNombre.trim() || profile?.razon_social || profile?.full_name || ''
+    // Distribuidor: por defecto es él mismo. Vendedor: siempre carga el cliente a mano.
+    if (isDistributor) return clienteNombre.trim() || profile?.razon_social || profile?.full_name || ''
+    return clienteNombre.trim() || ''
   }
 
   function exportPayload() {
@@ -295,7 +297,7 @@ export default function Presupuesto() {
     }
   }
 
-  if (!isDistributor && !isAdmin) return null
+  if (!isDistributor && !isAdmin && !isVendedor) return null
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -547,7 +549,9 @@ export default function Presupuesto() {
                   placeholder={
                     isAdmin && distSeleccionado && distSeleccionado !== 'manual'
                       ? distSeleccionado.razon_social || distSeleccionado.full_name
-                      : profile?.razon_social || profile?.full_name || 'Nombre del cliente'
+                      : isDistributor
+                        ? profile?.razon_social || profile?.full_name || 'Nombre del cliente'
+                        : 'Nombre del cliente'
                   }
                   style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }}
                 />

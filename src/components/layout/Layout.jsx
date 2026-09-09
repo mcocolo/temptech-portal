@@ -142,6 +142,7 @@ const NAV_VENDEDOR = [
   { label: 'Service / Garantía', icon: AlertTriangle,   path: '/reclamos' },
   { label: 'Pedidos',           icon: ShoppingCart,    path: '/admin-pedidos' },
   { label: 'Preventas',         icon: Package,         path: '/admin-preventas' },
+  { label: 'Nuevo Presupuesto', icon: ClipboardList,   path: '/presupuesto' },
   { label: 'Presupuestos',      icon: ClipboardList,   path: '/presupuestos' },
   { section: 'Recursos' },
   { label: 'Lista de Precios',  icon: Tags,            path: '/admin-precios' },
