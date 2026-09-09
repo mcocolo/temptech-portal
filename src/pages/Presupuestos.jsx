@@ -53,6 +53,10 @@ export default function Presupuestos() {
       await enviarPresupuestoPorEmail({
         to,
         clienteNombre: p.cliente_nombre,
+        clienteCuitDni: p.cliente_cuit_dni || '',
+        clienteDireccion: p.cliente_direccion || '',
+        clienteLocalidad: p.cliente_localidad || '',
+        clienteEmail: p.cliente_email || to,
         items: p.items || [],
         incluirIVA: p.incluir_iva,
         totalNeto: p.total_neto,

@@ -13,20 +13,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+type Attachment = { filename: string; content: string }
+
+async function sendEmail(
+  { to, subject, html, attachments }:
+  { to: string; subject: string; html: string; attachments?: Attachment[] }
+) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${RESEND_API_KEY}`,
     },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
+    body: JSON.stringify({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html,
+      ...(attachments && attachments.length ? { attachments } : {}),
+    }),
   })
   if (!res.ok) {
     const errBody = await res.text()
     throw new Error(`Resend ${res.status}: ${errBody}`)
   }
   return true
+}
+
+function fmtARS(n: number) {
+  return '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(Math.round(n || 0))
 }
 
 function baseTemplate(content: string) {
@@ -140,6 +155,53 @@ serve(async (req) => {
             <a href="${APP_URL}/reclamos" class="btn">Ver mi caso →</a>
           </div>
         `),
+      })
+    }
+
+    else if (type === 'presupuesto') {
+      const rows = (data.items || []).map((it: any) => `
+        <tr>
+          <td style="padding:7px 8px;border-bottom:1px solid #252836;font-family:monospace;color:#ff6b2b;font-size:12px">${it.codigo || ''}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid #252836">${it.nombre || ''}${it.modelo ? ` <span style="color:#9196a8">${it.modelo}</span>` : ''}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:center">${it.cantidad ?? ''}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:right;color:${it.descuento_pct > 0 ? '#3dd68c' : '#9196a8'}">${it.descuento_pct > 0 ? `${it.descuento_pct}%` : '—'}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:right">${fmtARS(it.precio_unitario)}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:right;font-weight:600">${fmtARS(it.subtotal)}</td>
+        </tr>`).join('')
+
+      const totalesHtml = data.incluirIVA
+        ? `<p style="text-align:right;margin:12px 0 0">
+             <span style="color:#9196a8">Neto: ${fmtARS(data.totalNeto)}</span><br>
+             <span style="color:#9196a8">IVA (21%): ${fmtARS(data.ivaMonto)}</span><br>
+             <span style="font-size:18px;font-weight:800;color:#e8eaf0">Total c/IVA: ${fmtARS(data.total)}</span>
+           </p>`
+        : `<p style="text-align:right;margin:12px 0 0;font-size:18px;font-weight:800;color:#e8eaf0">Total: ${fmtARS(data.total)}</p>`
+
+      ok = await sendEmail({
+        to: data.to,
+        subject: `TEMPTECH - Presupuesto${data.clienteNombre ? ` ${data.clienteNombre}` : ''}`,
+        html: baseTemplate(`
+          <div class="card">
+            <h2>Presupuesto</h2>
+            <p>Hola${data.clienteNombre ? ` <span class="highlight">${data.clienteNombre}</span>` : ''}, te enviamos el presupuesto solicitado. También lo adjuntamos en PDF.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+              <thead>
+                <tr style="text-align:left;color:#9196a8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">
+                  <th style="padding:6px 8px">Código</th><th style="padding:6px 8px">Producto</th>
+                  <th style="padding:6px 8px;text-align:center">Cant.</th><th style="padding:6px 8px;text-align:right">Desc.</th>
+                  <th style="padding:6px 8px;text-align:right">P. Unit.</th><th style="padding:6px 8px;text-align:right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+            ${totalesHtml}
+            ${data.notas ? `<p style="background:#1e2130;padding:14px;border-radius:8px;color:#c8cad4;margin-top:16px"><strong style="color:#9196a8">Condiciones:</strong> ${data.notas}</p>` : ''}
+            <p style="font-size:12px;color:#555b70;margin-top:16px">Validez: 7 días corridos. Precios sujetos a disponibilidad de stock.</p>
+          </div>
+        `),
+        attachments: data.attachment && data.attachment.content
+          ? [{ filename: data.attachment.filename || 'Presupuesto-TEMPTECH.pdf', content: data.attachment.content }]
+          : undefined,
       })
     }
 

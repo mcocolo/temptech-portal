@@ -3,44 +3,41 @@
 
 import { supabase } from '@/lib/supabase'
 
-function fmtARS(n) {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0)
-}
-
-// Envía un presupuesto por email reutilizando la función genérica `send-email`
-// (type: 'resolucion' acepta destinatario/asunto/texto libres).
-export async function enviarPresupuestoPorEmail({ to, clienteNombre, items, incluirIVA, totalNeto, ivaMonto, total, notas }) {
-  const destino = String(to || '').trim()
+// Envía un presupuesto por email con el PDF adjunto (Edge Function `send-email`,
+// type: 'presupuesto', que lo reenvía a Resend como attachment).
+export async function enviarPresupuestoPorEmail(p) {
+  const destino = String(p?.to || '').trim()
   if (!destino) throw new Error('Falta el email del destinatario')
 
-  const lineas = (items || []).map(it => {
-    const desc = it.descuento_pct > 0 ? ` (-${it.descuento_pct}%)` : ''
-    return `• ${it.cantidad} x ${it.nombre}${it.modelo ? ` ${it.modelo}` : ''} [${it.codigo}]${desc}  —  ${fmtARS(it.subtotal)}`
-  }).join('\n')
+  // jsPDF se carga on-demand para no engordar el bundle inicial
+  const { presupuestoPDFBase64 } = await import('@/utils/presupuestoPdf')
+  const pdfBase64 = presupuestoPDFBase64(p)
 
-  const totales = incluirIVA
-    ? `\nNeto: ${fmtARS(totalNeto)}\nIVA (21%): ${fmtARS(ivaMonto)}\nTOTAL c/IVA: ${fmtARS(total)}`
-    : `\nTOTAL: ${fmtARS(total)}`
-
-  const text =
-    `Hola${clienteNombre ? ` ${clienteNombre}` : ''},\n\n` +
-    `Te enviamos el presupuesto solicitado:\n\n` +
-    `${lineas}\n${totales}\n` +
-    `${notas ? `\nCondiciones: ${notas}\n` : ''}` +
-    `\nValidez: 7 días corridos. Precios sujetos a disponibilidad de stock.\n\n` +
-    `Saludos,\nTEMPTECH`
-
-  const { error } = await supabase.functions.invoke('send-email', {
+  const { data, error } = await supabase.functions.invoke('send-email', {
     body: {
-      type: 'resolucion',
+      type: 'presupuesto',
       data: {
         to: destino,
-        subject: `TEMPTECH - Presupuesto${clienteNombre ? ` ${clienteNombre}` : ''}`,
-        text,
+        clienteNombre: p.clienteNombre || '',
+        items: (p.items || []).map(it => ({
+          codigo: it.codigo, nombre: it.nombre, modelo: it.modelo,
+          cantidad: it.cantidad, descuento_pct: it.descuento_pct,
+          precio_unitario: it.precio_unitario, subtotal: it.subtotal,
+        })),
+        incluirIVA: p.incluirIVA,
+        totalNeto: p.totalNeto,
+        ivaMonto: p.ivaMonto,
+        total: p.total,
+        notas: p.notas || '',
+        attachment: { filename: 'Presupuesto-TEMPTECH.pdf', content: pdfBase64 },
       },
     },
   })
   if (error) throw new Error(error.message)
+  // La función devuelve { ok:false } si el tipo no existe (deploy pendiente)
+  if (data && data.ok === false) {
+    throw new Error('El servidor de email todavía no está actualizado (falta redeployar la Edge Function send-email).')
+  }
   return true
 }
 

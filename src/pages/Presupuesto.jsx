@@ -257,6 +257,10 @@ export default function Presupuesto() {
         await enviarPresupuestoPorEmail({
           to: clienteEmail.trim(),
           clienteNombre: getNombreCliente(),
+          clienteCuitDni: clienteCuitDni.trim(),
+          clienteDireccion: clienteDireccion.trim(),
+          clienteLocalidad: clienteLocalidad.trim(),
+          clienteEmail: clienteEmail.trim(),
           items: itemsPresupuesto,
           incluirIVA,
           totalNeto: total,
