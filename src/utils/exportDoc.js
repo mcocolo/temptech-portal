@@ -272,6 +272,9 @@ export function exportarPreventaExcel(pv) {
 export function imprimirPresupuesto({ items, distribuidor, notas, fecha, incluirIVA, total, ivaMonto, titulo = 'PRESUPUESTO' }) {
   const nombre = distribuidor?.razon_social || distribuidor?.full_name || distribuidor?.nombre || '—'
   const email  = distribuidor?.email || ''
+  const cuit   = distribuidor?.cuit || ''
+  const direccion = distribuidor?.direccion || ''
+  const localidad = distribuidor?.localidad || ''
   const totalNeto = incluirIVA && ivaMonto ? total - ivaMonto : total
   const idStr  = `TEMP-${Date.now().toString(36).toUpperCase().slice(-6)}`
 
@@ -288,6 +291,8 @@ export function imprimirPresupuesto({ items, distribuidor, notas, fecha, incluir
   const cuerpo = `
 <div class="info-bar">
   <div class="info-group"><label>${titulo === 'PEDIDO' ? 'Distribuidor' : 'Cliente / Distribuidor'}</label><span>${nombre}</span>${email ? `<small>${email}</small>` : ''}</div>
+  ${cuit ? `<div class="info-group"><label>CUIT / DNI</label><span>${cuit}</span></div>` : ''}
+  ${(direccion || localidad) ? `<div class="info-group"><label>Dirección</label><span>${[direccion, localidad].filter(Boolean).join(', ')}</span></div>` : ''}
   ${fecha ? `<div class="info-group"><label>Fecha de entrega</label><span>${fmtDate(fecha)}</span></div>` : ''}
   ${incluirIVA ? '<div class="info-group"><label>Impuestos</label><span>IVA 21% incluido</span></div>' : ''}
   <div class="info-group"><label>Emitido</label><span>${new Date().toLocaleDateString('es-AR')}</span></div>

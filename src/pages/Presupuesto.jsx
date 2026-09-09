@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { imprimirPresupuesto, exportarPresupuestoExcel } from '@/utils/exportDoc'
 import { useCatalogo } from '@/lib/catalogo'
+import toast from 'react-hot-toast'
 
 const IMG = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagenes%20productos/'
 
@@ -95,7 +96,7 @@ function aplicarDescuento(precio, desc) {
 }
 
 export default function Presupuesto() {
-  const { profile, isDistributor, isAdmin } = useAuth()
+  const { profile, isDistributor, isAdmin, user } = useAuth()
 
   // Catálogo y precios desde la tabla `precios` (CATALOGO queda como respaldo)
   const catalogo = useCatalogo(CATALOGO)
@@ -114,7 +115,12 @@ export default function Presupuesto() {
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
   const [clienteNombre, setClienteNombre] = useState('')
+  const [clienteCuitDni, setClienteCuitDni] = useState('')
+  const [clienteDireccion, setClienteDireccion] = useState('')
+  const [clienteLocalidad, setClienteLocalidad] = useState('')
   const [incluirIVA, setIncluirIVA] = useState(false)
+  const [descLinea, setDescLinea] = useState({})   // { codigo: '%'} override manual por producto
+  const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     if (isAdmin) cargarDistribuidores()
@@ -123,7 +129,7 @@ export default function Presupuesto() {
   async function cargarDistribuidores() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, razon_social, email, descuentos')
+      .select('id, full_name, razon_social, email, descuentos, cuit, localidad, domicilio')
       .eq('user_type', 'distributor')
       .order('razon_social', { ascending: true })
     setDistribuidores(data || [])
@@ -145,12 +151,20 @@ export default function Presupuesto() {
     setCantidades(prev => ({ ...prev, [codigo]: n }))
   }
 
+  // Descuento efectivo por producto: el override manual de la línea manda; si no,
+  // el descuento de la categoría (del distribuidor o el % manual por categoría).
+  function pctLinea(codigo, categoria) {
+    const base = parseFloat(calcularDescuentoEfectivo(descuentos[categoria])) || 0
+    const ov = descLinea[codigo]
+    return (ov !== undefined && ov !== '') ? Math.max(0, Math.min(100, parseFloat(ov) || 0)) : base
+  }
+
   const itemsPresupuesto = catalogo.flatMap(cat =>
     cat.productos
       .filter(p => (cantidades[p.codigo] || 0) > 0)
       .map(p => {
-        const precioFinal = aplicarDescuento(p.precio, descuentos[cat.categoria])
-        const pct = parseFloat(calcularDescuentoEfectivo(descuentos[cat.categoria])) || 0
+        const pct = pctLinea(p.codigo, cat.categoria)
+        const precioFinal = p.precio * (1 - pct / 100)
         return {
           ...p,
           categoria: cat.categoria,
@@ -187,6 +201,9 @@ export default function Presupuesto() {
         email: isAdmin && distSeleccionado && distSeleccionado !== 'manual'
           ? distSeleccionado.email
           : profile?.email || '',
+        cuit: clienteCuitDni.trim() || '',
+        direccion: clienteDireccion.trim() || '',
+        localidad: clienteLocalidad.trim() || '',
       },
       notas: notas.trim() || null,
       fecha: null,
@@ -196,10 +213,56 @@ export default function Presupuesto() {
     }
   }
 
+  function validar() {
+    if (itemsPresupuesto.length === 0) { toast.error('Agregá al menos un producto'); return false }
+    if (!getNombreCliente()) { toast.error('Ingresá el nombre del cliente'); return false }
+    if (!clienteCuitDni.trim()) { toast.error('Ingresá el CUIT o DNI'); return false }
+    if (!clienteDireccion.trim()) { toast.error('Ingresá la dirección'); return false }
+    if (!clienteLocalidad.trim()) { toast.error('Ingresá la localidad'); return false }
+    return true
+  }
+
+  async function guardarPresupuesto() {
+    const { error } = await supabase.from('presupuestos').insert({
+      created_by_id: user?.id || null,
+      created_by_nombre: profile?.full_name || profile?.razon_social || user?.email || null,
+      distribuidor_id: (isAdmin && distSeleccionado && distSeleccionado !== 'manual') ? distSeleccionado.id : null,
+      cliente_nombre: getNombreCliente(),
+      cliente_cuit_dni: clienteCuitDni.trim() || null,
+      cliente_direccion: clienteDireccion.trim() || null,
+      cliente_localidad: clienteLocalidad.trim() || null,
+      items: itemsPresupuesto.map(i => ({ codigo: i.codigo, nombre: i.nombre, modelo: i.modelo, cantidad: i.cantidad, precio_unitario: i.precio_unitario, descuento_pct: i.descuento_pct, subtotal: i.subtotal })),
+      incluir_iva: incluirIVA,
+      iva_monto: ivaMonto,
+      total_neto: total,
+      total: totalConIVA,
+      notas: notas.trim() || null,
+    })
+    if (error) toast.error('El presupuesto se generó pero no se pudo registrar: ' + error.message)
+  }
+
+  // Genera el documento (PDF/Excel) y registra el presupuesto en la base
+  async function generar(tipo) {
+    if (!validar()) return
+    setGuardando(true)
+    try {
+      if (tipo === 'pdf') imprimirPresupuesto(exportPayload())
+      else exportarPresupuestoExcel(exportPayload())
+      await guardarPresupuesto()
+      toast.success('Presupuesto generado y registrado ✅')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
   function limpiar() {
     setCantidades({})
     setNotas('')
     setClienteNombre('')
+    setClienteCuitDni('')
+    setClienteDireccion('')
+    setClienteLocalidad('')
+    setDescLinea({})
     setIncluirIVA(false)
     if (isAdmin) {
       setDistSeleccionado(null)
@@ -243,10 +306,14 @@ export default function Presupuesto() {
                 value={distSeleccionado && distSeleccionado !== 'manual' ? distSeleccionado.id : ''}
                 onChange={e => {
                   const id = e.target.value
-                  if (!id) { setDistSeleccionado(null); setClienteNombre(''); return }
+                  if (!id) { setDistSeleccionado(null); setClienteNombre(''); setClienteCuitDni(''); setClienteDireccion(''); setClienteLocalidad(''); setDescLinea({}); return }
                   const found = distribuidores.find(d => d.id === id)
                   setDistSeleccionado(found || null)
                   setClienteNombre('')
+                  setClienteCuitDni(found?.cuit || '')
+                  setClienteDireccion(found?.domicilio || '')
+                  setClienteLocalidad(found?.localidad || '')
+                  setDescLinea({})
                 }}
                 style={{ width: '100%', background: 'var(--surface2)', border: `1px solid ${distSeleccionado && distSeleccionado !== 'manual' ? 'rgba(74,108,247,0.5)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '9px 12px', color: distSeleccionado && distSeleccionado !== 'manual' ? 'var(--text)' : 'var(--text3)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}
               >
@@ -266,6 +333,7 @@ export default function Presupuesto() {
               onClick={() => {
                 setDistSeleccionado('manual')
                 setDescuentosManual({ calefones_calderas: '', paneles_calefactores: '', anafes: '' })
+                setDescLinea({})
               }}
               style={{
                 padding: '9px 18px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
@@ -366,11 +434,12 @@ export default function Presupuesto() {
 
                 <div>
                   {cat.productos.map((p, i) => {
-                    const precioFinal = aplicarDescuento(p.precio, descuentos[cat.categoria])
+                    const pctP = pctLinea(p.codigo, cat.categoria)
+                    const precioFinal = p.precio * (1 - pctP / 100)
                     const cant = cantidades[p.codigo] || 0
                     return (
                       <div key={p.codigo} style={{
-                        display: 'grid', gridTemplateColumns: '56px 1fr auto auto',
+                        display: 'grid', gridTemplateColumns: '56px 1fr auto 92px auto',
                         alignItems: 'center', gap: 16, padding: '12px 20px',
                         borderBottom: i < cat.productos.length - 1 ? '1px solid var(--border)' : 'none',
                         background: cant > 0 ? 'rgba(74,108,247,0.04)' : 'transparent',
@@ -395,11 +464,22 @@ export default function Presupuesto() {
                           <div style={{ fontSize: 12, color: 'var(--text3)' }}>{p.modelo}</div>
                         </div>
 
-                        <div style={{ textAlign: 'right', minWidth: 130 }}>
-                          {pct > 0 && (
+                        <div style={{ textAlign: 'right', minWidth: 110 }}>
+                          {pctP > 0 && (
                             <div style={{ fontSize: 11, color: 'var(--text3)', textDecoration: 'line-through' }}>{formatPrecio(p.precio)}</div>
                           )}
-                          <div style={{ fontSize: 14, fontWeight: 700, color: pct > 0 ? 'var(--green)' : 'var(--text)' }}>{formatPrecio(precioFinal)}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: pctP > 0 ? 'var(--green)' : 'var(--text)' }}>{formatPrecio(precioFinal)}</div>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: 9, color: 'var(--text3)', display: 'block', marginBottom: 3, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.4px' }}>% desc.</label>
+                          <input
+                            type="number" min="0" max="100" step="0.5"
+                            value={descLinea[p.codigo] !== undefined ? descLinea[p.codigo] : (pctP || '')}
+                            onChange={e => setDescLinea(prev => ({ ...prev, [p.codigo]: e.target.value }))}
+                            placeholder="0"
+                            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 6px', color: 'var(--text)', fontSize: 12, outline: 'none', fontFamily: 'var(--font)' }}
+                          />
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -445,6 +525,23 @@ export default function Presupuesto() {
                   }
                   style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }}
                 />
+              </div>
+
+              {/* Datos del cliente (requeridos para generar) */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>CUIT ó DNI *</label>
+                <input type="text" value={clienteCuitDni} onChange={e => setClienteCuitDni(e.target.value)} placeholder="20-12345678-9 ó DNI"
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Dirección *</label>
+                <input type="text" value={clienteDireccion} onChange={e => setClienteDireccion(e.target.value)} placeholder="Calle y número"
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Localidad *</label>
+                <input type="text" value={clienteLocalidad} onChange={e => setClienteLocalidad(e.target.value)} placeholder="Localidad"
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
               </div>
 
               {/* Items */}
@@ -509,16 +606,16 @@ export default function Presupuesto() {
               {/* Botones */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <button
-                  onClick={() => imprimirPresupuesto(exportPayload())}
-                  disabled={itemsPresupuesto.length === 0}
-                  style={{ width: '100%', background: itemsPresupuesto.length === 0 ? 'var(--surface2)' : 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: itemsPresupuesto.length === 0 ? 'not-allowed' : 'pointer', opacity: itemsPresupuesto.length === 0 ? 0.5 : 1, fontFamily: 'var(--font)' }}
+                  onClick={() => generar('pdf')}
+                  disabled={itemsPresupuesto.length === 0 || guardando}
+                  style={{ width: '100%', background: (itemsPresupuesto.length === 0 || guardando) ? 'var(--surface2)' : 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: (itemsPresupuesto.length === 0 || guardando) ? 'not-allowed' : 'pointer', opacity: (itemsPresupuesto.length === 0 || guardando) ? 0.5 : 1, fontFamily: 'var(--font)' }}
                 >
                   🖨️ Imprimir / Guardar PDF
                 </button>
                 <button
-                  onClick={() => exportarPresupuestoExcel(exportPayload())}
-                  disabled={itemsPresupuesto.length === 0}
-                  style={{ width: '100%', background: 'none', color: itemsPresupuesto.length === 0 ? 'var(--text3)' : '#3dd68c', border: `1px solid ${itemsPresupuesto.length === 0 ? 'var(--border)' : 'rgba(61,214,140,0.4)'}`, borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: itemsPresupuesto.length === 0 ? 'not-allowed' : 'pointer', opacity: itemsPresupuesto.length === 0 ? 0.5 : 1, fontFamily: 'var(--font)' }}
+                  onClick={() => generar('excel')}
+                  disabled={itemsPresupuesto.length === 0 || guardando}
+                  style={{ width: '100%', background: 'none', color: (itemsPresupuesto.length === 0 || guardando) ? 'var(--text3)' : '#3dd68c', border: `1px solid ${(itemsPresupuesto.length === 0 || guardando) ? 'var(--border)' : 'rgba(61,214,140,0.4)'}`, borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: (itemsPresupuesto.length === 0 || guardando) ? 'not-allowed' : 'pointer', opacity: (itemsPresupuesto.length === 0 || guardando) ? 0.5 : 1, fontFamily: 'var(--font)' }}
                 >
                   📊 Exportar a Excel
                 </button>
