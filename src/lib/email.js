@@ -11,7 +11,7 @@ export async function enviarPresupuestoPorEmail(p) {
 
   // jsPDF se carga on-demand para no engordar el bundle inicial
   const { presupuestoPDFBase64 } = await import('@/utils/presupuestoPdf')
-  const pdfBase64 = presupuestoPDFBase64(p)
+  const pdfBase64 = await presupuestoPDFBase64(p)
 
   const { data, error } = await supabase.functions.invoke('send-email', {
     body: {

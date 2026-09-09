@@ -7,6 +7,7 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const FROM_EMAIL = 'TEMPTECH <noreply@temptech.com.ar>'
 const ADMIN_EMAIL = Deno.env.get('ADMIN_EMAIL') || 'soporte@temptech.com.ar'
 const APP_URL = Deno.env.get('APP_URL') || 'https://portal.temptech.com.ar'
+const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +43,35 @@ async function sendEmail(
 
 function fmtARS(n: number) {
   return '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(Math.round(n || 0))
+}
+
+// Plantilla clara alineada a la marca (fondo blanco, logo oficial, azul marino)
+function brandTemplate(content: string) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8">
+    <style>
+      body { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f4f5f7; color: #2a2f3a; margin: 0; padding: 0; }
+      .wrap { max-width: 600px; margin: 0 auto; padding: 32px 20px; }
+      .head { text-align: center; margin-bottom: 22px; }
+      .head img { height: 42px; }
+      .card { background: #ffffff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 28px 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+      h2 { font-size: 20px; margin: 0 0 14px; color: #25374d; font-weight: 800; }
+      p { font-size: 14px; color: #5a6473; line-height: 1.7; margin: 0 0 12px; }
+      .highlight { color: #25374d; font-weight: 700; }
+      .footer { font-size: 12px; color: #9aa2af; text-align: center; margin-top: 20px; }
+    </style>
+    </head>
+    <body>
+      <div class="wrap">
+        <div class="head"><img src="${LOGO_URL}" alt="TEMPTECH"></div>
+        ${content}
+        <div class="footer">© ${new Date().getFullYear()} TEMPTECH · Portal de Atención al Cliente</div>
+      </div>
+    </body>
+    </html>
+  `
 }
 
 function baseTemplate(content: string) {
@@ -161,42 +191,42 @@ serve(async (req) => {
     else if (type === 'presupuesto') {
       const rows = (data.items || []).map((it: any) => `
         <tr>
-          <td style="padding:7px 8px;border-bottom:1px solid #252836;font-family:monospace;color:#ff6b2b;font-size:12px">${it.codigo || ''}</td>
-          <td style="padding:7px 8px;border-bottom:1px solid #252836">${it.nombre || ''}${it.modelo ? ` <span style="color:#9196a8">${it.modelo}</span>` : ''}</td>
-          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:center">${it.cantidad ?? ''}</td>
-          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:right;color:${it.descuento_pct > 0 ? '#3dd68c' : '#9196a8'}">${it.descuento_pct > 0 ? `${it.descuento_pct}%` : '—'}</td>
-          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:right">${fmtARS(it.precio_unitario)}</td>
-          <td style="padding:7px 8px;border-bottom:1px solid #252836;text-align:right;font-weight:600">${fmtARS(it.subtotal)}</td>
+          <td style="padding:8px 8px;border-bottom:1px solid #eceef1;font-family:monospace;color:#25374d;font-size:12px">${it.codigo || ''}</td>
+          <td style="padding:8px 8px;border-bottom:1px solid #eceef1;color:#2a2f3a">${it.nombre || ''}${it.modelo ? ` <span style="color:#8a93a3">${it.modelo}</span>` : ''}</td>
+          <td style="padding:8px 8px;border-bottom:1px solid #eceef1;text-align:center;color:#2a2f3a">${it.cantidad ?? ''}</td>
+          <td style="padding:8px 8px;border-bottom:1px solid #eceef1;text-align:right;color:${it.descuento_pct > 0 ? '#2e9e6b' : '#8a93a3'}">${it.descuento_pct > 0 ? `${it.descuento_pct}%` : '—'}</td>
+          <td style="padding:8px 8px;border-bottom:1px solid #eceef1;text-align:right;color:#2a2f3a">${fmtARS(it.precio_unitario)}</td>
+          <td style="padding:8px 8px;border-bottom:1px solid #eceef1;text-align:right;font-weight:700;color:#25374d">${fmtARS(it.subtotal)}</td>
         </tr>`).join('')
 
       const totalesHtml = data.incluirIVA
-        ? `<p style="text-align:right;margin:12px 0 0">
-             <span style="color:#9196a8">Neto: ${fmtARS(data.totalNeto)}</span><br>
-             <span style="color:#9196a8">IVA (21%): ${fmtARS(data.ivaMonto)}</span><br>
-             <span style="font-size:18px;font-weight:800;color:#e8eaf0">Total c/IVA: ${fmtARS(data.total)}</span>
+        ? `<p style="text-align:right;margin:14px 0 0">
+             <span style="color:#8a93a3">Neto: ${fmtARS(data.totalNeto)}</span><br>
+             <span style="color:#8a93a3">IVA (21%): ${fmtARS(data.ivaMonto)}</span><br>
+             <span style="font-size:18px;font-weight:800;color:#25374d">Total c/IVA: ${fmtARS(data.total)}</span>
            </p>`
-        : `<p style="text-align:right;margin:12px 0 0;font-size:18px;font-weight:800;color:#e8eaf0">Total: ${fmtARS(data.total)}</p>`
+        : `<p style="text-align:right;margin:14px 0 0;font-size:18px;font-weight:800;color:#25374d">Total: ${fmtARS(data.total)}</p>`
 
       ok = await sendEmail({
         to: data.to,
         subject: `TEMPTECH - Presupuesto${data.clienteNombre ? ` ${data.clienteNombre}` : ''}`,
-        html: baseTemplate(`
+        html: brandTemplate(`
           <div class="card">
             <h2>Presupuesto</h2>
             <p>Hola${data.clienteNombre ? ` <span class="highlight">${data.clienteNombre}</span>` : ''}, te enviamos el presupuesto solicitado. También lo adjuntamos en PDF.</p>
-            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
               <thead>
-                <tr style="text-align:left;color:#9196a8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">
-                  <th style="padding:6px 8px">Código</th><th style="padding:6px 8px">Producto</th>
-                  <th style="padding:6px 8px;text-align:center">Cant.</th><th style="padding:6px 8px;text-align:right">Desc.</th>
-                  <th style="padding:6px 8px;text-align:right">P. Unit.</th><th style="padding:6px 8px;text-align:right">Subtotal</th>
+                <tr style="background:#25374d;color:#ffffff;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">
+                  <th style="padding:9px 8px;border-radius:6px 0 0 0">Código</th><th style="padding:9px 8px">Producto</th>
+                  <th style="padding:9px 8px;text-align:center">Cant.</th><th style="padding:9px 8px;text-align:right">Desc.</th>
+                  <th style="padding:9px 8px;text-align:right">P. Unit.</th><th style="padding:9px 8px;text-align:right;border-radius:0 6px 0 0">Subtotal</th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>
             </table>
             ${totalesHtml}
-            ${data.notas ? `<p style="background:#1e2130;padding:14px;border-radius:8px;color:#c8cad4;margin-top:16px"><strong style="color:#9196a8">Condiciones:</strong> ${data.notas}</p>` : ''}
-            <p style="font-size:12px;color:#555b70;margin-top:16px">Validez: 7 días corridos. Precios sujetos a disponibilidad de stock.</p>
+            ${data.notas ? `<p style="background:#f4f6f8;padding:14px;border-radius:8px;color:#5a6473;margin-top:16px"><strong style="color:#25374d">Condiciones:</strong> ${data.notas}</p>` : ''}
+            <p style="font-size:12px;color:#9aa2af;margin-top:16px">Validez: 7 días corridos. Precios sujetos a disponibilidad de stock.</p>
           </div>
         `),
         attachments: data.attachment && data.attachment.content

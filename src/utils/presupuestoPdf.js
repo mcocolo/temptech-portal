@@ -1,37 +1,74 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
+
+// Paleta de marca
+const NAVY = [37, 55, 77]       // #25374D
+const TEXT = [40, 45, 55]
+const GRAY = [120, 128, 140]
+const LINE = [228, 230, 235]
+const GREEN = [46, 158, 107]
+
 function fmtARS(n) {
   return '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(Math.round(n || 0))
 }
 
+async function fetchImageDataURL(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise((resolve) => {
+      const fr = new FileReader()
+      fr.onloadend = () => resolve(fr.result)
+      fr.onerror = () => resolve(null)
+      fr.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
 // Construye el documento PDF del presupuesto y devuelve la instancia jsPDF.
-export function generarPresupuestoPDF({
+export async function generarPresupuestoPDF({
   clienteNombre, clienteCuitDni, clienteDireccion, clienteLocalidad, clienteEmail,
   items, incluirIVA, totalNeto, ivaMonto, total, notas, fecha,
 }) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const W = doc.internal.pageSize.getWidth()
   const M = 40
-  let y = 50
+  let y = 48
 
-  // Marca
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(20, 20, 20)
-  doc.text('TEMP', M, y)
-  const tw = doc.getTextWidth('TEMP')
-  doc.setTextColor(255, 107, 43); doc.text('TECH', M + tw, y)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120, 120, 120)
-  doc.text('PRESUPUESTO', W - M, y - 10, { align: 'right' })
-  doc.text(fecha || new Date().toLocaleDateString('es-AR'), W - M, y + 2, { align: 'right' })
+  // Logo oficial (con fallback a wordmark azul)
+  const logo = await fetchImageDataURL(LOGO_URL)
+  if (logo) {
+    try {
+      const props = doc.getImageProperties(logo)
+      const h = 30
+      const w = props.width * (h / props.height)
+      doc.addImage(logo, 'PNG', M, y - 22, w, h)
+    } catch {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...NAVY)
+      doc.text('TEMPTECH', M, y)
+    }
+  } else {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...NAVY)
+    doc.text('TEMPTECH', M, y)
+  }
 
-  y += 22
-  doc.setDrawColor(230, 230, 230); doc.line(M, y, W - M, y)
-  y += 22
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY)
+  doc.text('PRESUPUESTO', W - M, y - 12, { align: 'right' })
+  doc.text(fecha || new Date().toLocaleDateString('es-AR'), W - M, y, { align: 'right' })
+
+  y += 18
+  doc.setDrawColor(...LINE); doc.line(M, y, W - M, y)
+  y += 24
 
   // Datos del cliente
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(50, 50, 50)
-  doc.text(clienteNombre || '', M, y); y += 15
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110, 110, 110)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...NAVY)
+  doc.text(clienteNombre || '', M, y); y += 16
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY)
   const info = [
     clienteCuitDni && `CUIT/DNI: ${clienteCuitDni}`,
     [clienteDireccion, clienteLocalidad].filter(Boolean).join(', '),
@@ -54,8 +91,9 @@ export function generarPresupuestoPDF({
     head: [['Código', 'Producto', 'Cant.', 'Desc.', 'P. Unit.', 'Subtotal']],
     body,
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 5, textColor: [40, 40, 40], lineColor: [235, 235, 235] },
-    headStyles: { fillColor: [255, 107, 43], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+    styles: { fontSize: 8, cellPadding: 6, textColor: TEXT, lineColor: LINE, lineWidth: 0.5 },
+    headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+    alternateRowStyles: { fillColor: [248, 249, 251] },
     columnStyles: {
       0: { cellWidth: 68 },
       2: { halign: 'center', cellWidth: 40 },
@@ -71,24 +109,24 @@ export function generarPresupuestoPDF({
   const rx = W - M
   doc.setFontSize(9)
   if (incluirIVA) {
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(110, 110, 110)
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRAY)
     doc.text('Neto', rx - 150, y); doc.text(fmtARS(totalNeto), rx, y, { align: 'right' }); y += 14
     doc.text('IVA (21%)', rx - 150, y); doc.text(fmtARS(ivaMonto), rx, y, { align: 'right' }); y += 14
   }
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(20, 20, 20)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...NAVY)
   doc.text(`Total${incluirIVA ? ' c/IVA' : ''}`, rx - 150, y)
   doc.text(fmtARS(total), rx, y, { align: 'right' }); y += 26
 
   // Notas
   if (notas) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...TEXT)
     doc.text('Condiciones / Notas', M, y); y += 13
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(110, 110, 110)
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRAY)
     const wrapped = doc.splitTextToSize(String(notas), W - 2 * M)
     doc.text(wrapped, M, y); y += wrapped.length * 12 + 10
   }
 
-  doc.setFontSize(8); doc.setTextColor(150, 150, 150)
+  doc.setFontSize(8); doc.setTextColor(...GRAY)
   doc.text('Validez: 7 días corridos. Precios sujetos a disponibilidad de stock.', M, y)
 
   return doc
@@ -105,7 +143,7 @@ function arrayBufferToBase64(buf) {
 }
 
 // Devuelve el PDF en base64 (sin prefijo data:) para adjuntar en el email.
-export function presupuestoPDFBase64(payload) {
-  const doc = generarPresupuestoPDF(payload)
+export async function presupuestoPDFBase64(payload) {
+  const doc = await generarPresupuestoPDF(payload)
   return arrayBufferToBase64(doc.output('arraybuffer'))
 }

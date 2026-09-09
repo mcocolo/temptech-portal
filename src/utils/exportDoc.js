@@ -1,19 +1,22 @@
 import * as XLSX from 'xlsx-js-style'
 
+// Logo horizontal oficial (wordmark azul + isotipo) para los documentos
+const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
+
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n || 0)
 const fmtDate = (s) => s ? new Date(s + (s.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
 
-// ─── Estilos compartidos para Excel ──────────────────────────────────────────
+// ─── Estilos compartidos para Excel (paleta de marca: azul marino) ────────────
 const XL = {
-  headerBg:   { fgColor: { rgb: '1a1a2e' } },
-  accentBg:   { fgColor: { rgb: 'ff6b2b' } },
-  subheadBg:  { fgColor: { rgb: '2d2d4e' } },
-  altRowBg:   { fgColor: { rgb: 'f5f5fa' } },
+  headerBg:   { fgColor: { rgb: '25374d' } },
+  accentBg:   { fgColor: { rgb: '33465e' } },
+  subheadBg:  { fgColor: { rgb: '33465e' } },
+  altRowBg:   { fgColor: { rgb: 'f7f8fa' } },
   white:      { fgColor: { rgb: 'ffffff' } },
   fontBold:   (sz = 11) => ({ bold: true, sz, color: { rgb: 'ffffff' }, name: 'Arial' }),
-  fontNormal: (sz = 10, rgb = '1a1a2e') => ({ sz, color: { rgb }, name: 'Arial' }),
-  fontMono:   (sz = 9)  => ({ sz, color: { rgb: '4a6cf7' }, name: 'Courier New', bold: true }),
-  border: { top: { style: 'thin', color: { rgb: 'e0e0f0' } }, bottom: { style: 'thin', color: { rgb: 'e0e0f0' } }, left: { style: 'thin', color: { rgb: 'e0e0f0' } }, right: { style: 'thin', color: { rgb: 'e0e0f0' } } },
+  fontNormal: (sz = 10, rgb = '28303a') => ({ sz, color: { rgb }, name: 'Arial' }),
+  fontMono:   (sz = 9)  => ({ sz, color: { rgb: '25374d' }, name: 'Courier New', bold: true }),
+  border: { top: { style: 'thin', color: { rgb: 'e6e8ec' } }, bottom: { style: 'thin', color: { rgb: 'e6e8ec' } }, left: { style: 'thin', color: { rgb: 'e6e8ec' } }, right: { style: 'thin', color: { rgb: 'e6e8ec' } } },
   alignR: { horizontal: 'right', vertical: 'center' },
   alignC: { horizontal: 'center', vertical: 'center' },
   alignL: { horizontal: 'left', vertical: 'center' },
@@ -35,55 +38,50 @@ function htmlDoc(titulo, subtitulo, idStr, fechaStr, cuerpo) {
 <title>TEMPTECH — ${titulo}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a2e;background:#fff}
-  .header{background:#1a1a2e;color:#fff;padding:20px 32px;display:flex;justify-content:space-between;align-items:flex-start}
-  .logo{font-size:26px;font-weight:900;letter-spacing:-1px}
-  .logo-t{color:#ff6b2b}.logo-rest{color:#fff}
-  .logo-sub{font-size:9px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-top:2px}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#28303a;background:#fff}
+  .header{background:#fff;color:#25374d;padding:20px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #eceef1}
+  .logo img{height:42px;display:block}
   .doc-badge{text-align:right}
-  .doc-type{font-size:18px;font-weight:700;color:#ff6b2b;text-transform:uppercase;letter-spacing:2px}
-  .doc-id{font-size:12px;color:#aaa;margin-top:4px;font-family:monospace}
-  .doc-fecha{font-size:11px;color:#888;margin-top:2px}
-  .info-bar{background:#f5f5fa;border-bottom:2px solid #e0e0f0;padding:14px 32px;display:flex;gap:40px;flex-wrap:wrap}
-  .info-group label{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:3px}
-  .info-group span{font-size:13px;font-weight:600;color:#1a1a2e}
-  .info-group small{font-size:10px;color:#666;display:block}
+  .doc-type{font-size:18px;font-weight:800;color:#25374d;text-transform:uppercase;letter-spacing:2px}
+  .doc-id{font-size:12px;color:#9aa2af;margin-top:4px;font-family:monospace}
+  .doc-fecha{font-size:11px;color:#9aa2af;margin-top:2px}
+  .info-bar{background:#f7f8fa;border-bottom:2px solid #eceef1;padding:14px 32px;display:flex;gap:40px;flex-wrap:wrap}
+  .info-group label{font-size:9px;color:#9aa2af;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:3px}
+  .info-group span{font-size:13px;font-weight:600;color:#25374d}
+  .info-group small{font-size:10px;color:#6b7480;display:block}
   .section{padding:20px 32px}
-  .section-title{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e0e0f0}
+  .section-title{font-size:10px;font-weight:700;color:#9aa2af;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #eceef1}
   table{width:100%;border-collapse:collapse;font-size:11px}
-  thead tr{background:#1a1a2e;color:#fff}
+  thead tr{background:#25374d;color:#fff}
   thead th{padding:9px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
   thead th.r{text-align:right}
-  tbody tr:nth-child(even){background:#f9f9fc}
-  tbody tr:hover{background:#f0f0f8}
-  td{padding:9px 12px;border-bottom:1px solid #eee;vertical-align:top}
-  td.mono{font-family:monospace;font-size:10px;color:#4a6cf7;font-weight:700}
+  tbody tr:nth-child(even){background:#f7f8fa}
+  tbody tr:hover{background:#eef1f5}
+  td{padding:9px 12px;border-bottom:1px solid #eceef1;vertical-align:top}
+  td.mono{font-family:monospace;font-size:10px;color:#25374d;font-weight:700}
   td.r{text-align:right;font-weight:600}
   td.c{text-align:center}
-  td .sub{font-size:10px;color:#888;margin-top:2px}
-  .totales{background:#f5f5fa;border:1px solid #e0e0f0;border-radius:8px;padding:16px 20px;margin:0 32px 20px;max-width:380px;margin-left:auto}
+  td .sub{font-size:10px;color:#8a93a3;margin-top:2px}
+  .totales{background:#f7f8fa;border:1px solid #eceef1;border-radius:8px;padding:16px 20px;margin:0 32px 20px;max-width:380px;margin-left:auto}
   .totales-row{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}
-  .totales-row.grand{font-size:15px;font-weight:800;color:#1a1a2e;border-top:2px solid #1a1a2e;margin-top:8px;padding-top:10px}
-  .totales-row.iva{color:#888;font-size:11px}
+  .totales-row.grand{font-size:15px;font-weight:800;color:#25374d;border-top:2px solid #25374d;margin-top:8px;padding-top:10px}
+  .totales-row.iva{color:#8a93a3;font-size:11px}
   .pagos-table td{padding:7px 12px}
   .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase}
   .badge-green{background:#e6faf2;color:#1a8a5a;border:1px solid #3dd68c}
   .badge-blue{background:#e8eeff;color:#3457d5;border:1px solid #7b9fff}
   .badge-red{background:#fff0f3;color:#cc2244;border:1px solid #ff5577}
   .badge-orange{background:#fff5e6;color:#cc6600;border:1px solid #fb923c}
-  .notas{margin:0 32px 20px;padding:14px 18px;background:#fffbf0;border:1px solid #fde68a;border-radius:8px;font-size:11px;color:#666}
-  .notas strong{color:#92400e;display:block;margin-bottom:4px;font-size:10px;text-transform:uppercase;letter-spacing:1px}
-  .footer{background:#f5f5fa;border-top:1px solid #e0e0f0;padding:14px 32px;text-align:center;font-size:10px;color:#888;margin-top:20px}
+  .notas{margin:0 32px 20px;padding:14px 18px;background:#f7f8fa;border:1px solid #e6e8ec;border-radius:8px;font-size:11px;color:#5a6473}
+  .notas strong{color:#25374d;display:block;margin-bottom:4px;font-size:10px;text-transform:uppercase;letter-spacing:1px}
+  .footer{background:#f7f8fa;border-top:1px solid #eceef1;padding:14px 32px;text-align:center;font-size:10px;color:#9aa2af;margin-top:20px}
   @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none!important}}
-  .print-btn{position:fixed;bottom:24px;right:24px;background:#ff6b2b;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(255,107,43,.4);z-index:1000}
+  .print-btn{position:fixed;bottom:24px;right:24px;background:#25374d;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(37,55,77,.35);z-index:1000}
 </style>
 </head>
 <body>
 <div class="header">
-  <div>
-    <div class="logo"><span class="logo-t">TEMP</span><span class="logo-rest">TECH</span></div>
-    <div class="logo-sub">Portal de Clientes</div>
-  </div>
+  <div class="logo"><img src="${LOGO_URL}" alt="TEMPTECH"></div>
   <div class="doc-badge">
     <div class="doc-type">${titulo}</div>
     <div class="doc-id">#${idStr}</div>
