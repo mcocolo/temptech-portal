@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import { imprimirPresupuesto } from '@/utils/exportDoc'
+import { enviarPresupuestoPorEmail } from '@/lib/email'
+import toast from 'react-hot-toast'
 
 function formatPrecio(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0)
@@ -17,6 +19,7 @@ export default function Presupuestos() {
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [expandido, setExpandido] = useState(null)
+  const [enviandoId, setEnviandoId] = useState(null)
 
   useEffect(() => { if (isAdmin || isVendedor) cargar() }, [isAdmin, isVendedor])
 
@@ -39,12 +42,39 @@ export default function Presupuestos() {
     })
   }
 
+  async function reenviar(p) {
+    let to = p.cliente_email
+    if (!to) {
+      to = window.prompt('Este presupuesto no tiene email guardado. Ingresá el email del cliente:', '')
+      if (!to) return
+    }
+    setEnviandoId(p.id)
+    try {
+      await enviarPresupuestoPorEmail({
+        to,
+        clienteNombre: p.cliente_nombre,
+        items: p.items || [],
+        incluirIVA: p.incluir_iva,
+        totalNeto: p.total_neto,
+        ivaMonto: p.iva_monto,
+        total: p.total,
+        notas: p.notas || null,
+      })
+      toast.success('Presupuesto enviado por email ✅')
+    } catch (e) {
+      toast.error('No se pudo enviar: ' + (e?.message || e))
+    } finally {
+      setEnviandoId(null)
+    }
+  }
+
   if (!isAdmin && !isVendedor) return null
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = !q ? items : items.filter(p =>
     (p.cliente_nombre || '').toLowerCase().includes(q) ||
     (p.cliente_cuit_dni || '').toLowerCase().includes(q) ||
+    (p.cliente_email || '').toLowerCase().includes(q) ||
     (p.cliente_localidad || '').toLowerCase().includes(q) ||
     (p.created_by_nombre || '').toLowerCase().includes(q)
   )
@@ -63,7 +93,7 @@ export default function Presupuestos() {
 
       <input
         type="text"
-        placeholder="🔍 Buscar por cliente, CUIT/DNI, localidad o quién lo hizo..."
+        placeholder="🔍 Buscar por cliente, CUIT/DNI, email, localidad o quién lo hizo..."
         value={busqueda}
         onChange={e => setBusqueda(e.target.value)}
         style={{ width: '100%', maxWidth: 460, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 14px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', marginBottom: 20 }}
@@ -96,6 +126,7 @@ export default function Presupuestos() {
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
                       {p.cliente_cuit_dni ? `${p.cliente_cuit_dni} · ` : ''}{[p.cliente_direccion, p.cliente_localidad].filter(Boolean).join(', ')}
                     </div>
+                    {p.cliente_email && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>✉️ {p.cliente_email}</div>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtFechaHora(p.created_at)}</div>
@@ -137,10 +168,16 @@ export default function Presupuestos() {
                         {p.incluir_iva && <span style={{ color: 'var(--text3)', marginRight: 14 }}>Neto {formatPrecio(p.total_neto)} · IVA {formatPrecio(p.iva_monto)}</span>}
                         <strong>Total: {formatPrecio(p.total)}</strong>
                       </div>
-                      <button onClick={() => reimprimir(p)}
-                        style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        🖨️ Reimprimir PDF
-                      </button>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button onClick={() => reenviar(p)} disabled={enviandoId === p.id}
+                          style={{ background: 'none', color: enviandoId === p.id ? 'var(--text3)' : '#7b9fff', border: '1px solid rgba(74,108,247,0.4)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: enviandoId === p.id ? 'wait' : 'pointer', fontFamily: 'var(--font)', opacity: enviandoId === p.id ? 0.6 : 1 }}>
+                          {enviandoId === p.id ? 'Enviando…' : '✉️ Enviar por email'}
+                        </button>
+                        <button onClick={() => reimprimir(p)}
+                          style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          🖨️ Reimprimir PDF
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

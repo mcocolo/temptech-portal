@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { imprimirPresupuesto, exportarPresupuestoExcel } from '@/utils/exportDoc'
+import { enviarPresupuestoPorEmail } from '@/lib/email'
 import { useCatalogo } from '@/lib/catalogo'
 import toast from 'react-hot-toast'
 
@@ -115,6 +116,7 @@ export default function Presupuesto() {
   const [imagenAmpliada, setImagenAmpliada] = useState(null)
   const [notas, setNotas] = useState('')
   const [clienteNombre, setClienteNombre] = useState('')
+  const [clienteEmail, setClienteEmail] = useState('')
   const [clienteCuitDni, setClienteCuitDni] = useState('')
   const [clienteDireccion, setClienteDireccion] = useState('')
   const [clienteLocalidad, setClienteLocalidad] = useState('')
@@ -228,6 +230,7 @@ export default function Presupuesto() {
       created_by_nombre: profile?.full_name || profile?.razon_social || user?.email || null,
       distribuidor_id: (isAdmin && distSeleccionado && distSeleccionado !== 'manual') ? distSeleccionado.id : null,
       cliente_nombre: getNombreCliente(),
+      cliente_email: clienteEmail.trim() || null,
       cliente_cuit_dni: clienteCuitDni.trim() || null,
       cliente_direccion: clienteDireccion.trim() || null,
       cliente_localidad: clienteLocalidad.trim() || null,
@@ -241,15 +244,32 @@ export default function Presupuesto() {
     if (error) toast.error('El presupuesto se generó pero no se pudo registrar: ' + error.message)
   }
 
-  // Genera el documento (PDF/Excel) y registra el presupuesto en la base
-  async function generar(tipo) {
+  // Genera el documento (PDF/Excel/email) y registra el presupuesto en la base
+  async function generar(tipo) {   // tipo: 'pdf' | 'excel' | 'email'
     if (!validar()) return
+    if (tipo === 'email' && !clienteEmail.trim()) { toast.error('Ingresá el email del cliente'); return }
     setGuardando(true)
     try {
       if (tipo === 'pdf') imprimirPresupuesto(exportPayload())
-      else exportarPresupuestoExcel(exportPayload())
+      else if (tipo === 'excel') exportarPresupuestoExcel(exportPayload())
       await guardarPresupuesto()
-      toast.success('Presupuesto generado y registrado ✅')
+      if (tipo === 'email') {
+        await enviarPresupuestoPorEmail({
+          to: clienteEmail.trim(),
+          clienteNombre: getNombreCliente(),
+          items: itemsPresupuesto,
+          incluirIVA,
+          totalNeto: total,
+          ivaMonto,
+          total: totalConIVA,
+          notas: notas.trim() || null,
+        })
+        toast.success('Presupuesto enviado por email ✅')
+      } else {
+        toast.success('Presupuesto generado y registrado ✅')
+      }
+    } catch (e) {
+      toast.error((tipo === 'email' ? 'No se pudo enviar el email: ' : 'Error: ') + (e?.message || e))
     } finally {
       setGuardando(false)
     }
@@ -259,6 +279,7 @@ export default function Presupuesto() {
     setCantidades({})
     setNotas('')
     setClienteNombre('')
+    setClienteEmail('')
     setClienteCuitDni('')
     setClienteDireccion('')
     setClienteLocalidad('')
@@ -306,10 +327,11 @@ export default function Presupuesto() {
                 value={distSeleccionado && distSeleccionado !== 'manual' ? distSeleccionado.id : ''}
                 onChange={e => {
                   const id = e.target.value
-                  if (!id) { setDistSeleccionado(null); setClienteNombre(''); setClienteCuitDni(''); setClienteDireccion(''); setClienteLocalidad(''); setDescLinea({}); return }
+                  if (!id) { setDistSeleccionado(null); setClienteNombre(''); setClienteEmail(''); setClienteCuitDni(''); setClienteDireccion(''); setClienteLocalidad(''); setDescLinea({}); return }
                   const found = distribuidores.find(d => d.id === id)
                   setDistSeleccionado(found || null)
                   setClienteNombre('')
+                  setClienteEmail(found?.email || '')
                   setClienteCuitDni(found?.cuit || '')
                   setClienteDireccion(found?.domicilio || '')
                   setClienteLocalidad(found?.localidad || '')
@@ -527,6 +549,13 @@ export default function Presupuesto() {
                 />
               </div>
 
+              {/* Email (necesario para enviar por email) */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Email</label>
+                <input type="email" value={clienteEmail} onChange={e => setClienteEmail(e.target.value)} placeholder="cliente@email.com"
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+              </div>
+
               {/* Datos del cliente (requeridos para generar) */}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>CUIT ó DNI *</label>
@@ -611,6 +640,13 @@ export default function Presupuesto() {
                   style={{ width: '100%', background: (itemsPresupuesto.length === 0 || guardando) ? 'var(--surface2)' : 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: (itemsPresupuesto.length === 0 || guardando) ? 'not-allowed' : 'pointer', opacity: (itemsPresupuesto.length === 0 || guardando) ? 0.5 : 1, fontFamily: 'var(--font)' }}
                 >
                   🖨️ Imprimir / Guardar PDF
+                </button>
+                <button
+                  onClick={() => generar('email')}
+                  disabled={itemsPresupuesto.length === 0 || guardando}
+                  style={{ width: '100%', background: 'none', color: (itemsPresupuesto.length === 0 || guardando) ? 'var(--text3)' : '#7b9fff', border: `1px solid ${(itemsPresupuesto.length === 0 || guardando) ? 'var(--border)' : 'rgba(74,108,247,0.4)'}`, borderRadius: 'var(--radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: (itemsPresupuesto.length === 0 || guardando) ? 'not-allowed' : 'pointer', opacity: (itemsPresupuesto.length === 0 || guardando) ? 0.5 : 1, fontFamily: 'var(--font)' }}
+                >
+                  ✉️ Enviar por email
                 </button>
                 <button
                   onClick={() => generar('excel')}
