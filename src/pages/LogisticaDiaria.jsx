@@ -420,6 +420,17 @@ export default function LogisticaDiaria() {
     cargar()
   }
 
+  // Reordena una parada a la posición escrita (1..N) y renumera todo el grupo
+  async function setOrdenManual(item, grupo, pos) {
+    const n = Math.max(1, Math.min(grupo.length, parseInt(pos) || 0))
+    const idx = grupo.findIndex(i => i.id === item.id)
+    if (idx === -1 || idx === n - 1) return
+    const arr = grupo.filter(i => i.id !== item.id)
+    arr.splice(n - 1, 0, item)
+    await Promise.all(arr.map((it, i) => supabase.from('logistica_diaria').update({ orden: i }).eq('id', it.id)))
+    cargar()
+  }
+
   async function confirmarEntrega(item) {
     const yaConfirmado = !!item.estado_entrega
     const payload = yaConfirmado
@@ -799,7 +810,7 @@ export default function LogisticaDiaria() {
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {grupo.map((item, idx) => (
                     <ParadaRow key={item.id} item={item} idx={idx} grupo={grupo} isChofer={isChofer}
-                      onMover={mover} onEditar={abrirEditar} onConfirmar={confirmarEntrega} onDesasignar={desasignar}
+                      onMover={mover} onSetOrden={setOrdenManual} onEditar={abrirEditar} onConfirmar={confirmarEntrega} onDesasignar={desasignar}
                       confirmDel={confirmDel} setConfirmDel={setConfirmDel} onEliminar={eliminar} />
                   ))}
                 </div>
@@ -1142,19 +1153,27 @@ function ReporteKmModal({ onClose }) {
 }
 
 // ── Fila de parada (dentro de una ruta) ──
-function ParadaRow({ item, idx, grupo, isChofer, onMover, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar }) {
+function ParadaRow({ item, idx, grupo, isChofer, onMover, onSetOrden, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar }) {
   const t = TIPOS[item.tipo]
   const prodsCon = (item.productos || []).filter(p => p.cantidad > 0)
   const isDel = confirmDel === item.id
   return (
     <div style={{ display: 'flex', borderTop: idx > 0 ? '1px solid var(--border)' : 'none', background: item.estado_entrega ? 'rgba(61,214,140,0.04)' : 'transparent' }}>
-      <div style={{ width: 40, background: item.estado_entrega ? 'rgba(61,214,140,0.12)' : 'var(--surface2)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, padding: '8px 0' }}>
-        <span style={{ fontSize: 14, fontWeight: 800, color: item.estado_entrega ? '#3dd68c' : 'var(--text3)' }}>{idx + 1}</span>
-        {!isChofer && (
+      <div style={{ width: 46, background: item.estado_entrega ? 'rgba(61,214,140,0.12)' : 'var(--surface2)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, flexShrink: 0, padding: '8px 4px' }}>
+        {!isChofer ? (
           <>
-            <button onClick={() => onMover(item, -1, grupo)} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--border)' : 'var(--text3)', fontSize: 11, padding: 0, lineHeight: 1 }}>▲</button>
-            <button onClick={() => onMover(item, 1, grupo)} disabled={idx === grupo.length - 1} style={{ background: 'none', border: 'none', cursor: idx === grupo.length - 1 ? 'default' : 'pointer', color: idx === grupo.length - 1 ? 'var(--border)' : 'var(--text3)', fontSize: 11, padding: 0, lineHeight: 1 }}>▼</button>
+            <input type="number" min="1" defaultValue={idx + 1} key={`${item.id}_${idx}`}
+              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              onBlur={e => onSetOrden(item, grupo, e.target.value)}
+              title="Número de orden (escribilo para reordenar)"
+              style={{ width: 36, textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 2px', color: 'var(--text)', fontSize: 14, fontWeight: 800, fontFamily: 'var(--font)', outline: 'none' }} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => onMover(item, -1, grupo)} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--border)' : 'var(--text3)', fontSize: 11, padding: 0, lineHeight: 1 }}>▲</button>
+              <button onClick={() => onMover(item, 1, grupo)} disabled={idx === grupo.length - 1} style={{ background: 'none', border: 'none', cursor: idx === grupo.length - 1 ? 'default' : 'pointer', color: idx === grupo.length - 1 ? 'var(--border)' : 'var(--text3)', fontSize: 11, padding: 0, lineHeight: 1 }}>▼</button>
+            </div>
           </>
+        ) : (
+          <span style={{ fontSize: 16, fontWeight: 800, color: item.estado_entrega ? '#3dd68c' : 'var(--text3)' }}>{idx + 1}</span>
         )}
       </div>
       <div style={{ flex: 1, padding: '12px 16px', minWidth: 0 }}>
