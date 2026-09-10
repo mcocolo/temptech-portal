@@ -29,6 +29,7 @@ const EMPTY_FORM = {
   productos: {},
   pedido_id: null,
   venta_id: null,
+  repuesto_id: null,
   proveedor_id: null,
   fecha: '',
 }
@@ -60,6 +61,7 @@ export default function LogisticaDiaria() {
   const [confirmDel, setConfirmDel] = useState(null)
   const [pedidosPendientes, setPedidosPendientes] = useState([])
   const [ventasPendientes, setVentasPendientes] = useState([])
+  const [repuestosPendientes, setRepuestosPendientes] = useState([])
   const [choferInput, setChoferInput] = useState({})     // { camionetaId: nombre }
   const [asignar, setAsignar] = useState({})             // { itemId: { fecha, camioneta_id } }
   const [flotaOpen, setFlotaOpen] = useState(false)
@@ -145,13 +147,15 @@ export default function LogisticaDiaria() {
 
     // Pedidos / ventas por asignar (solo admin)
     if (!isChofer) {
-      const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }] = await Promise.all([
-        supabase.from('logistica_diaria').select('pedido_id,venta_id'),
+      const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }] = await Promise.all([
+        supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id'),
         supabase.from('pedidos').select('*').in('tipo_envio', ['correo', 'logistica']).in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
+        supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
       ])
       const asignadosPedidos = new Set((logAsign || []).map(l => l.pedido_id).filter(Boolean))
       const asignadosVentas = new Set((logAsign || []).map(l => l.venta_id).filter(Boolean))
+      const asignadosRepuestos = new Set((logAsign || []).map(l => l.repuesto_id).filter(Boolean))
       const pedidosFiltrados = (pedidosData || []).filter(p => !asignadosPedidos.has(p.id))
       if (pedidosFiltrados.length > 0) {
         const ids = [...new Set(pedidosFiltrados.map(p => p.distribuidor_id).filter(Boolean))]
@@ -160,6 +164,15 @@ export default function LogisticaDiaria() {
         setPedidosPendientes(pedidosFiltrados.map(p => ({ ...p, _profile: profsMap[p.distribuidor_id] || null })))
       } else setPedidosPendientes([])
       setVentasPendientes((ventasData || []).filter(v => !asignadosVentas.has(v.id)))
+
+      // Repuestos: pedidos pendientes que no estén ya en logística (traer los que se entregan por logística propia)
+      const repFiltrados = (repuestosData || []).filter(r => !asignadosRepuestos.has(r.id))
+      if (repFiltrados.length > 0) {
+        const ids = [...new Set(repFiltrados.map(r => r.tecnico_id).filter(Boolean))]
+        const { data: profsRep } = await supabase.from('profiles').select('id,domicilio,localidad,telefono').in('id', ids)
+        const repMap = Object.fromEntries((profsRep || []).map(p => [p.id, p]))
+        setRepuestosPendientes(repFiltrados.map(r => ({ ...r, _profile: repMap[r.tecnico_id] || null })))
+      } else setRepuestosPendientes([])
     }
 
     setLoading(false)
@@ -174,7 +187,7 @@ export default function LogisticaDiaria() {
       tipo: item.tipo, nombre: item.nombre || '', direccion: item.direccion || '', localidad: item.localidad || '',
       zona: item.zona || '', telefono: item.telefono || '', email: item.email || '', dni: item.dni || '',
       descripcion: item.descripcion || '', notas: item.notas || '', productos,
-      pedido_id: item.pedido_id || null, venta_id: item.venta_id || null,
+      pedido_id: item.pedido_id || null, venta_id: item.venta_id || null, repuesto_id: item.repuesto_id || null,
       proveedor_id: item.proveedor_id || null, fecha: item.fecha || '',
     })
     setEditId(item.id); setModalOpen(true)
@@ -196,6 +209,19 @@ export default function LogisticaDiaria() {
     const codigosLog = new Set(PRODUCTOS_LOG.map(p => p.codigo))
     for (const item of (pedido.items || [])) if (item.codigo && codigosLog.has(item.codigo) && item.cantidad > 0) productos[item.codigo] = (productos[item.codigo] || 0) + item.cantidad
     setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, productos, pedido_id: pedido.id })
+    setEditId(null); setModalOpen(true)
+  }
+
+  function abrirDesdeRepuesto(r) {
+    const nombre = r.razon_social || r.tecnico_nombre || r.tecnico_email || 'Repuestos'
+    const items = (r.items || []).map(i => `${i.codigo || i.descripcion || ''} x${i.cantidad}`).filter(Boolean).join(', ')
+    const prof = r._profile || {}
+    setForm({
+      ...EMPTY_FORM, tipo: 'entrega_pt', nombre,
+      descripcion: items ? `Repuestos: ${items}` : 'Repuestos',
+      telefono: prof.telefono || '', direccion: prof.domicilio || '', localidad: prof.localidad || '',
+      email: r.tecnico_email || '', repuesto_id: r.id,
+    })
     setEditId(null); setModalOpen(true)
   }
 
@@ -239,6 +265,7 @@ export default function LogisticaDiaria() {
       productos: productosArr,
       pedido_id: form.pedido_id || null,
       venta_id: form.venta_id || null,
+      repuesto_id: form.repuesto_id || null,
       proveedor_id: form.proveedor_id || null,
     }
 
@@ -548,10 +575,10 @@ export default function LogisticaDiaria() {
       )}
 
       {/* Pedidos / ventas por traer a ruta — solo admin */}
-      {!isChofer && (pedidosPendientes.length > 0 || ventasPendientes.length > 0) && (
+      {!isChofer && (pedidosPendientes.length > 0 || ventasPendientes.length > 0 || repuestosPendientes.length > 0) && (
         <div style={{ marginBottom: 24, background: 'rgba(74,108,247,0.04)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
-            🚚 Traer a logística ({pedidosPendientes.length + ventasPendientes.length})
+            🚚 Traer a logística ({pedidosPendientes.length + ventasPendientes.length + repuestosPendientes.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pedidosPendientes.map(pedido => {
@@ -596,6 +623,26 @@ export default function LogisticaDiaria() {
                 </div>
               )
             })}
+            {repuestosPendientes.map(r => {
+              const nombre = r.razon_social || r.tecnico_nombre || r.tecnico_email || 'Repuestos'
+              return (
+                <div key={r.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>#{r.id.slice(0, 8).toUpperCase()}</span>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{nombre}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#2dd4bf', background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.3)', padding: '1px 7px', borderRadius: 10 }}>🔧 Repuestos</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {(r.items || []).map((it, i) => (
+                        <span key={i} style={{ background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.25)', color: '#2dd4bf', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{it.codigo || it.descripcion} ×{it.cantidad}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={() => abrirDesdeRepuesto(r)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -620,7 +667,7 @@ export default function LogisticaDiaria() {
                         <span style={{ background: t?.bg, color: t?.color, border: `1px solid ${t?.border}`, fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>{t?.emoji} {t?.label}</span>
                         <span style={{ fontSize: 14, fontWeight: 700 }}>{item.nombre || item.descripcion}</span>
                         {item.fecha && <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', padding: '1px 8px', borderRadius: 10 }}>📅 {item.fecha.slice(8,10)}/{item.fecha.slice(5,7)}</span>}
-                        {(item.pedido_id || item.venta_id || item.devolucion_id) && <span style={{ fontSize: 9, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.25)', padding: '1px 7px', borderRadius: 10 }}>vinculado</span>}
+                        {(item.pedido_id || item.venta_id || item.devolucion_id || item.repuesto_id) && <span style={{ fontSize: 9, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.25)', padding: '1px 7px', borderRadius: 10 }}>vinculado</span>}
                       </div>
                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: 'var(--text3)' }}>
                         {item.direccion && <span>📍 {item.direccion}{item.localidad ? `, ${item.localidad}` : ''}</span>}
