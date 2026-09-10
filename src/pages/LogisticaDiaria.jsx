@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import { CATEGORIAS_PROVEEDOR } from './Proveedores'
-import { PRODUCTOS_LOG, codigoALogColumna } from '@/lib/productosLog'
+import { PRODUCTOS_LOG, codigoALogColumna, textoALogColumna, itemLogPorCodigo } from '@/lib/productosLog'
 import toast from 'react-hot-toast'
 
 const TIPOS = {
@@ -49,6 +49,16 @@ function diasDesde(iso) {
   if (!iso) return ''
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
   return d <= 0 ? 'hoy' : d === 1 ? 'hace 1 día' : `hace ${d} días`
+}
+
+// Productos de una parada; si no tiene cargados, los infiere del detalle (garantías viejas)
+function paradaProductos(item) {
+  const arr = (item.productos || []).filter(p => p.cantidad > 0)
+  if (arr.length) return arr
+  if (!TIPOS_CON_PRODUCTOS.includes(item.tipo)) return []
+  const c = textoALogColumna(item.descripcion || item.nombre || '')
+  const li = c ? itemLogPorCodigo(c) : null
+  return li ? [{ codigo: li.codigo, label: li.label, cantidad: 1 }] : []
 }
 
 export default function LogisticaDiaria() {
@@ -474,8 +484,9 @@ export default function LogisticaDiaria() {
       const detalle = item.nombre && item.descripcion ? `<div class="det">${esc(item.descripcion)}</div>` : ''
       // Ocultar la "Falla: ..." del caso en la hoja de ruta (no la necesita el chofer)
       const notasVis = (item.notas && !/^\s*falla\s*:/i.test(item.notas)) ? item.notas : ''
+      const prodsItem = paradaProductos(item)
       const prodTds = PRODUCTOS_LOG.map(p => {
-        const f = (item.productos || []).find(x => x.codigo === p.codigo)
+        const f = prodsItem.find(x => x.codigo === p.codigo)
         return `<td class="${YELLOW.has(p.codigo) ? 'y' : 'c'}">${f && f.cantidad ? f.cantidad : ''}</td>`
       }).join('')
       return `<tr>
@@ -493,7 +504,7 @@ export default function LogisticaDiaria() {
       </tr>`
     }).join('')
     const totales = {}
-    grupo.forEach(it => (it.productos || []).forEach(p => { if (p.cantidad > 0) totales[p.label] = (totales[p.label] || 0) + p.cantidad }))
+    grupo.forEach(it => paradaProductos(it).forEach(p => { if (p.cantidad > 0) totales[p.label] = (totales[p.label] || 0) + p.cantidad }))
     const resumen = Object.entries(totales).map(([l, c]) => `${esc(l)} &times;${c}`).join(' &nbsp;·&nbsp; ')
     return `<div class="ruta">
       <h2>TEMPTECH — Logística</h2>
@@ -687,7 +698,7 @@ export default function LogisticaDiaria() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {porAsignar.map(item => {
               const t = TIPOS[item.tipo]
-              const prodsCon = (item.productos || []).filter(p => p.cantidad > 0)
+              const prodsCon = paradaProductos(item)
               const a = asignar[item.id] || {}
               const isDel = confirmDel === item.id
               return (
@@ -1183,7 +1194,7 @@ function ReporteKmModal({ onClose }) {
 // ── Fila de parada (dentro de una ruta) ──
 function ParadaRow({ item, idx, grupo, isChofer, onMover, onSetOrden, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar, readOnly }) {
   const t = TIPOS[item.tipo]
-  const prodsCon = (item.productos || []).filter(p => p.cantidad > 0)
+  const prodsCon = paradaProductos(item)
   const isDel = confirmDel === item.id
   return (
     <div style={{ display: 'flex', borderTop: idx > 0 ? '1px solid var(--border)' : 'none', background: item.estado_entrega ? 'rgba(61,214,140,0.04)' : 'transparent' }}>

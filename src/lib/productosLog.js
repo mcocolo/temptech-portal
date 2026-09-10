@@ -38,3 +38,16 @@ export function codigoALogColumna(codigo) {
   // Resto: match exacto si la columna existe
   return PRODUCTOS_LOG.some(p => p.codigo === c) ? c : null
 }
+
+// Infiere la columna a partir de un texto libre (nombre/modelo/detalle del caso).
+// Fallback para paradas que no tienen el producto cargado (ej. garantías viejas).
+export function textoALogColumna(text) {
+  if (!text) return null
+  const t = String(text).toLowerCase()
+  const td = t.includes('doble')
+  const ts = !td && t.includes('toallero')
+  if (t.includes('1400')) return 'F1400BCO'
+  if (t.includes('500')) return td ? 'C500STV1TD' : ts ? 'C500STV1TS' : 'C500STV1'
+  if (t.includes('250')) return td ? 'C250STV1TD' : ts ? 'C250STV1TS' : 'C250STV1'
+  return null
+}
