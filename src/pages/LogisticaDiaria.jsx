@@ -273,15 +273,48 @@ export default function LogisticaDiaria() {
     setKmInput(prev => ({ ...prev, [camId]: { ...(prev[camId] || {}), [field]: val } }))
   }
 
+  const numOrNull = v => (v === '' || v == null ? null : Number(v))
+
+  // Upsert del registro completo del día (km + combustible + fotos) para no pisar campos
+  async function upsertRegistro(camId, rec) {
+    const { error } = await supabase.from('logistica_km').upsert({
+      fecha,
+      camioneta_id: camId,
+      km_inicial: numOrNull(rec.km_inicial),
+      km_final: numOrNull(rec.km_final),
+      combustible_monto: numOrNull(rec.combustible_monto),
+      foto_vehiculo_url: rec.foto_vehiculo_url || null,
+      foto_ticket_url: rec.foto_ticket_url || null,
+    }, { onConflict: 'fecha,camioneta_id' })
+    return error
+  }
+
   async function guardarKm(camId) {
     const v = kmInput[camId] || {}
-    const ki = v.km_inicial === '' || v.km_inicial == null ? null : Number(v.km_inicial)
-    const kf = v.km_final === '' || v.km_final == null ? null : Number(v.km_final)
+    const ki = numOrNull(v.km_inicial), kf = numOrNull(v.km_final)
     if (ki != null && kf != null && kf < ki) return toast.error('El Km final no puede ser menor al inicial')
-    const { error } = await supabase.from('logistica_km').upsert({ fecha, camioneta_id: camId, km_inicial: ki, km_final: kf }, { onConflict: 'fecha,camioneta_id' })
+    const error = await upsertRegistro(camId, v)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('Km guardado ✅')
+    toast.success('Guardado ✅')
     cargar()
+  }
+
+  async function subirFotoCierre(camId, campo, file) {
+    if (!file) return
+    try {
+      const safe = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `logistica/${fecha}_${camId}_${Date.now()}_${safe}`
+      const { error: upErr } = await supabase.storage.from('devoluciones').upload(path, file, { upsert: false })
+      if (upErr) throw upErr
+      const { data } = supabase.storage.from('devoluciones').getPublicUrl(path)
+      const rec = { ...(kmInput[camId] || {}), [campo]: data.publicUrl }
+      setKmInput(prev => ({ ...prev, [camId]: rec }))
+      const error = await upsertRegistro(camId, rec)
+      if (error) throw new Error(error.message)
+      toast.success('Foto subida ✅')
+    } catch (e) {
+      toast.error('Error al subir: ' + (e?.message || e))
+    }
   }
 
   async function eliminar(id) { await supabase.from('logistica_diaria').delete().eq('id', id); setConfirmDel(null); cargar() }
@@ -410,8 +443,14 @@ export default function LogisticaDiaria() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+          {isChofer ? (
+            <span style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', textTransform: 'capitalize' }}>
+              📅 {fmtFechaLarga(fecha)}
+            </span>
+          ) : (
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+          )}
           {!isChofer && (
             <button onClick={() => setFlotaOpen(true)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
@@ -618,6 +657,34 @@ export default function LogisticaDiaria() {
                       confirmDel={confirmDel} setConfirmDel={setConfirmDel} onEliminar={eliminar} />
                   ))}
                 </div>
+                {/* Cierre del día */}
+                {(() => {
+                  const rec = kmInput[camioneta.id] || {}
+                  const fileBtn = (campo, label, icon) => (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {rec[campo]
+                        ? <a href={rec[campo]} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3dd68c', fontWeight: 700, textDecoration: 'none' }}>{icon} Ver</a>
+                        : <span style={{ fontSize: 12, color: 'var(--text3)' }}>{icon} {label}</span>}
+                      <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
+                        {rec[campo] ? 'Cambiar' : 'Subir'}
+                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => subirFotoCierre(camioneta.id, campo, e.target.files?.[0])} />
+                      </label>
+                    </div>
+                  )
+                  return (
+                    <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cierre del día</span>
+                      {fileBtn('foto_vehiculo_url', 'Foto vehículo', '🚐')}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
+                        ⛽ Combustible $
+                        <input type="number" value={rec.combustible_monto ?? ''} onChange={e => setKm(camioneta.id, 'combustible_monto', e.target.value)} placeholder="0"
+                          style={{ width: 100, padding: '6px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+                      </div>
+                      {fileBtn('foto_ticket_url', 'Foto ticket', '🧾')}
+                      <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💾 Guardar cierre</button>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
