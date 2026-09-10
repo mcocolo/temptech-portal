@@ -115,11 +115,15 @@ export default function LogisticaDiaria() {
     const ultimo = {}
     for (const r of (kmHist || [])) if (!(r.camioneta_id in ultimo)) ultimo[r.camioneta_id] = r.km_final
     setUltimoKm(ultimo)
-    const emptyRec = c => ({ km_inicial: ultimo[c] ?? '', km_final: '', combustible_monto: '', foto_vehiculo_url: '', foto_ticket_url: '' })
+    // Km inicial del día = último km cargado, o el km base de la camioneta si nunca salió
+    const base = {}
+    for (const c of (cam.data || [])) base[c.id] = c.km_inicial
+    const baseKm = c => (ultimo[c] != null ? ultimo[c] : (base[c] != null ? base[c] : ''))
+    const emptyRec = c => ({ km_inicial: baseKm(c), km_final: '', combustible_monto: '', foto_vehiculo_url: '', foto_ticket_url: '' })
     const kmIn = {}
     for (const c of (cam.data || [])) kmIn[c.id] = emptyRec(c.id)
     for (const r of (kmData || [])) kmIn[r.camioneta_id] = {
-      km_inicial: r.km_inicial ?? (ultimo[r.camioneta_id] ?? ''),
+      km_inicial: r.km_inicial ?? baseKm(r.camioneta_id),
       km_final: r.km_final ?? '',
       combustible_monto: r.combustible_monto ?? '',
       foto_vehiculo_url: r.foto_vehiculo_url || '',
@@ -638,9 +642,9 @@ export default function LogisticaDiaria() {
                   return (
                     <div style={{ padding: '9px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12 }}>
                       <span style={{ color: 'var(--text3)', fontWeight: 700 }}>🛣️ Km</span>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
-                        Inicial <input type="number" value={km.km_inicial ?? ''} onChange={e => setKm(camioneta.id, 'km_inicial', e.target.value)} placeholder="—" style={kmSt} />
-                      </label>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
+                        Inicial <b style={{ color: 'var(--text2)', fontSize: 13 }}>{ki != null ? ki : '—'}</b>
+                      </span>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
                         Final <input type="number" value={km.km_final ?? ''} onChange={e => setKm(camioneta.id, 'km_final', e.target.value)} placeholder="—" style={kmSt} />
                       </label>
@@ -902,15 +906,19 @@ function FlotaModal({ camionetas, onClose, onChange }) {
   const [nombre, setNombre] = useState('')
   const [patente, setPatente] = useState('')
   const [modelo, setModelo] = useState('')
+  const [kmInicial, setKmInicial] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   async function agregar() {
     if (!nombre.trim()) return toast.error('Ingresá un nombre')
     setGuardando(true)
-    const { error } = await supabase.from('camionetas').insert({ nombre: nombre.trim(), patente: patente.trim() || null, modelo: modelo.trim() || null })
+    const { error } = await supabase.from('camionetas').insert({
+      nombre: nombre.trim(), patente: patente.trim() || null, modelo: modelo.trim() || null,
+      km_inicial: kmInicial === '' ? null : Number(kmInicial),
+    })
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    setNombre(''); setPatente(''); setModelo(''); onChange()
+    setNombre(''); setPatente(''); setModelo(''); setKmInicial(''); onChange()
   }
   async function toggleActiva(c) { await supabase.from('camionetas').update({ activa: !c.activa }).eq('id', c.id); onChange() }
   async function eliminar(c) { await supabase.from('camionetas').delete().eq('id', c.id); onChange() }
@@ -930,6 +938,7 @@ function FlotaModal({ camionetas, onClose, onChange }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>{c.nombre}</div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[c.modelo, c.patente].filter(Boolean).join(' · ') || '—'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>🛣️ Km inicial: <b style={{ color: 'var(--text2)' }}>{c.km_inicial != null ? c.km_inicial : '—'}</b> <span style={{ opacity: 0.6 }}>(fijo)</span></div>
                 </div>
                 <button onClick={() => toggleActiva(c)} style={{ background: c.activa ? 'rgba(61,214,140,0.12)' : 'var(--surface)', color: c.activa ? '#3dd68c' : 'var(--text3)', border: `1px solid ${c.activa ? 'rgba(61,214,140,0.35)' : 'var(--border)'}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>{c.activa ? 'Activa' : 'Inactiva'}</button>
                 <button onClick={() => eliminar(c)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
@@ -943,6 +952,7 @@ function FlotaModal({ camionetas, onClose, onChange }) {
               <input value={modelo} onChange={e => setModelo(e.target.value)} placeholder="Modelo (ej: Kangoo)" style={iSt} />
               <input value={patente} onChange={e => setPatente(e.target.value)} placeholder="Patente" style={iSt} />
             </div>
+            <input type="number" value={kmInicial} onChange={e => setKmInicial(e.target.value)} placeholder="Km inicial del vehículo (odómetro actual)" style={iSt} />
             <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>➕ Agregar</button>
           </div>
         </div>
