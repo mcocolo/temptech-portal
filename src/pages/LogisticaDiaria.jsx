@@ -86,7 +86,10 @@ export default function LogisticaDiaria() {
     if (isChofer) {
       // El chofer ve SOLO su ruta pendiente (fecha >= hoy, la más próxima). No ve las viejas.
       const hoy = new Date().toISOString().split('T')[0]
-      const nombre = (profile?.full_name || '').trim().toLowerCase()
+      // Resolver el nombre del chofer por su email (vínculo robusto); fallback al nombre del perfil
+      let nombre = (profile?.full_name || '').trim().toLowerCase()
+      const { data: chRow } = await supabase.from('choferes').select('nombre').eq('email', user?.email || '').limit(1)
+      if (chRow?.[0]?.nombre) nombre = chRow[0].nombre.trim().toLowerCase()
       const misTodos = await fetchAllRows(() => supabase.from('logistica_diaria').select('*').not('camioneta_id', 'is', null).gte('fecha', hoy).order('fecha').order('camioneta_id').order('orden'))
       const mine = (misTodos || []).filter(i => nombre && (i.chofer_asignado || '').trim().toLowerCase() === nombre)
       const fechas = [...new Set(mine.map(i => i.fecha))].sort()
@@ -1073,6 +1076,19 @@ function FlotaModal({ camionetas, choferes, onClose, onChange }) {
   }
   async function eliminarChofer(c) { await supabase.from('choferes').delete().eq('id', c.id); onChange() }
 
+  async function crearAcceso(c) {
+    if (!c.email) return toast.error('Cargá el email del chofer primero (editá el chofer)')
+    const password = window.prompt(`Contraseña para el acceso de ${c.nombre}\n(email: ${c.email}) — mínimo 6 caracteres:`, '')
+    if (password === null) return
+    if (password.trim().length < 6) return toast.error('La contraseña debe tener al menos 6 caracteres')
+    const { data, error } = await supabase.functions.invoke('crear-acceso-chofer', {
+      body: { email: c.email, password: password.trim(), nombre: c.nombre, chofer_id: c.id },
+    })
+    if (error || data?.error) { toast.error('Error: ' + (data?.error || error?.message)); return }
+    toast.success(`Acceso creado ✅  ${c.email}`)
+    onChange()
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto' }}>
@@ -1116,6 +1132,9 @@ function FlotaModal({ camionetas, choferes, onClose, onChange }) {
                   <div style={{ fontSize: 13, fontWeight: 700 }}>{c.nombre}</div>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[c.telefono, c.email].filter(Boolean).join(' · ') || '—'}</div>
                 </div>
+                {c.user_id
+                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '4px 10px' }}>✓ Acceso</span>
+                  : <button onClick={() => crearAcceso(c)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🔑 Crear acceso</button>}
                 <button onClick={() => eliminarChofer(c)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
               </div>
             ))}
