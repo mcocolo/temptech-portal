@@ -45,6 +45,12 @@ function fmtFechaLarga(f) {
   return new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
 }
 
+function diasDesde(iso) {
+  if (!iso) return ''
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  return d <= 0 ? 'hoy' : d === 1 ? 'hace 1 día' : `hace ${d} días`
+}
+
 export default function LogisticaDiaria() {
   const { isAdmin, isAdmin2, isChofer, user, profile } = useAuth()
   const [fecha, setFecha] = useState(() => new Date().toISOString().split('T')[0])
@@ -650,8 +656,23 @@ export default function LogisticaDiaria() {
       {/* ── POR ASIGNAR ── */}
       {!isChofer && porAsignar.length > 0 && (
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
             📥 Por asignar <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '1px 9px' }}>{porAsignar.length}</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12 }}>
+            Tareas cargadas que todavía no tienen día/camioneta. Asignáles cuando decidas hacerlas.
+          </div>
+          {/* Desglose por tipo */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {Object.entries(TIPOS).map(([key, t]) => {
+              const n = porAsignar.filter(i => i.tipo === key).length
+              if (!n) return null
+              return (
+                <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: t.bg, color: t.color, border: `1px solid ${t.border}`, borderRadius: 20, padding: '3px 11px', fontSize: 11, fontWeight: 700 }}>
+                  {t.emoji} {t.label}: {n}
+                </span>
+              )
+            })}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {porAsignar.map(item => {
@@ -667,6 +688,7 @@ export default function LogisticaDiaria() {
                         <span style={{ background: t?.bg, color: t?.color, border: `1px solid ${t?.border}`, fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>{t?.emoji} {t?.label}</span>
                         <span style={{ fontSize: 14, fontWeight: 700 }}>{item.nombre || item.descripcion}</span>
                         {item.fecha && <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', padding: '1px 8px', borderRadius: 10 }}>📅 {item.fecha.slice(8,10)}/{item.fecha.slice(5,7)}</span>}
+                        {item.created_at && <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 10 }}>🕒 {diasDesde(item.created_at)}</span>}
                         {(item.pedido_id || item.venta_id || item.devolucion_id || item.repuesto_id) && <span style={{ fontSize: 9, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.25)', padding: '1px 7px', borderRadius: 10 }}>vinculado</span>}
                       </div>
                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: 'var(--text3)' }}>
