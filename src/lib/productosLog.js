@@ -4,8 +4,10 @@
 export const PRODUCTOS_LOG = [
   { codigo: 'C250STV1',    label: '250w' },
   { codigo: 'C250STV1TS',  label: 'B250' },
+  { codigo: 'C250STV1TD',  label: '250 TD' },
   { codigo: 'C500STV1',    label: '500w' },
   { codigo: 'C500STV1TS',  label: 'B500w' },
+  { codigo: 'C500STV1TD',  label: '500 TD' },
   { codigo: 'F1400BCO',    label: '1400w' },
   { codigo: 'KF70SIL',     label: 'KF70' },
   { codigo: 'FE150TBL',    label: 'FE150BI' },
@@ -29,10 +31,10 @@ export function codigoALogColumna(codigo) {
   const c = String(codigo).toUpperCase().trim()
   // Paneles 1400w Firenze (todas las terminaciones) → columna 1400w
   if (c.startsWith('F1400')) return 'F1400BCO'
-  // Slim 250w: toallero (TS/TD) → B250; resto → 250w
-  if (c.startsWith('C250')) return (c.includes('TS') || c.includes('TD')) ? 'C250STV1TS' : 'C250STV1'
-  // Slim 500w: toallero (TS/TD) → B500; resto (incluye Madera Blanca) → 500w
-  if (c.startsWith('C500')) return (c.includes('TS') || c.includes('TD')) ? 'C500STV1TS' : 'C500STV1'
+  // Slim 250w: toallero doble → 250 TD; toallero simple → B250; resto → 250w
+  if (c.startsWith('C250')) return c.includes('TD') ? 'C250STV1TD' : c.includes('TS') ? 'C250STV1TS' : 'C250STV1'
+  // Slim 500w: toallero doble → 500 TD; toallero simple → B500; resto (incluye Madera Blanca) → 500w
+  if (c.startsWith('C500')) return c.includes('TD') ? 'C500STV1TD' : c.includes('TS') ? 'C500STV1TS' : 'C500STV1'
   // Resto: match exacto si la columna existe
   return PRODUCTOS_LOG.some(p => p.codigo === c) ? c : null
 }
