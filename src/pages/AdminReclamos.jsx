@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import { MOTIVOS, PROVINCIAS } from '@/lib/reclamos'
-import { itemLogPorCodigo } from '@/lib/productosLog'
+import { itemLogPorCodigo, codigoALogColumna } from '@/lib/productosLog'
 
 
 const T = {
@@ -837,7 +837,8 @@ export default function AdminReclamos({ openTracking } = {}) {
         let q = supabase.from('precios').select('codigo').eq('nombre', item.producto)
         if (item.modelo) q = q.eq('modelo', item.modelo)
         const { data: pr } = await q.limit(1)
-        const logItem = pr?.[0]?.codigo ? itemLogPorCodigo(pr[0].codigo) : null
+        const col = pr?.[0]?.codigo ? codigoALogColumna(pr[0].codigo) : null
+        const logItem = col ? itemLogPorCodigo(col) : null
         if (logItem) productos = [{ codigo: logItem.codigo, label: logItem.label, cantidad: 1 }]
       } catch (_) { /* si no matchea, queda vacío */ }
     }

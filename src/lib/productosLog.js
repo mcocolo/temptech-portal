@@ -20,3 +20,19 @@ export const PRODUCTOS_LOG = [
 export function itemLogPorCodigo(codigo) {
   return PRODUCTOS_LOG.find(p => p.codigo === codigo) || null
 }
+
+// Resuelve a qué COLUMNA de la planilla pertenece un código de precios.
+// Una columna agrupa varios modelos (ej. 1400w = todas las terminaciones Firenze;
+// el modelo puntual lo ve el chofer en el detalle).
+export function codigoALogColumna(codigo) {
+  if (!codigo) return null
+  const c = String(codigo).toUpperCase().trim()
+  // Paneles 1400w Firenze (todas las terminaciones) → columna 1400w
+  if (c.startsWith('F1400')) return 'F1400BCO'
+  // Slim 250w: toallero (TS/TD) → B250; resto → 250w
+  if (c.startsWith('C250')) return (c.includes('TS') || c.includes('TD')) ? 'C250STV1TS' : 'C250STV1'
+  // Slim 500w: toallero (TS/TD) → B500; resto (incluye Madera Blanca) → 500w
+  if (c.startsWith('C500')) return (c.includes('TS') || c.includes('TD')) ? 'C500STV1TS' : 'C500STV1'
+  // Resto: match exacto si la columna existe
+  return PRODUCTOS_LOG.some(p => p.codigo === c) ? c : null
+}

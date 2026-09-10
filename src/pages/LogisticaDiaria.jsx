@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import { CATEGORIAS_PROVEEDOR } from './Proveedores'
-import { PRODUCTOS_LOG } from '@/lib/productosLog'
+import { PRODUCTOS_LOG, codigoALogColumna } from '@/lib/productosLog'
 import toast from 'react-hot-toast'
 
 const TIPOS = {
@@ -202,9 +202,8 @@ export default function LogisticaDiaria() {
   function abrirDesdeVenta(venta) {
     const nombre = venta.cliente_nombre || venta.usuario_nombre || ''
     const productos = {}
-    const codigosLog = new Set(PRODUCTOS_LOG.map(p => p.codigo))
     const fuente = (venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0) ? venta.envio_etiquetas : venta.items || []
-    for (const item of fuente) if (item.codigo && codigosLog.has(item.codigo) && item.cantidad > 0) productos[item.codigo] = (productos[item.codigo] || 0) + item.cantidad
+    for (const item of fuente) { const col = codigoALogColumna(item.codigo); if (col && item.cantidad > 0) productos[col] = (productos[col] || 0) + item.cantidad }
     setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, telefono: venta.cliente_telefono || '', email: venta.cliente_email || '', productos, venta_id: venta.id })
     setEditId(null); setModalOpen(true)
   }
@@ -212,8 +211,7 @@ export default function LogisticaDiaria() {
   function abrirDesdePedido(pedido) {
     const nombre = pedido._profile?.razon_social || pedido._profile?.full_name || ''
     const productos = {}
-    const codigosLog = new Set(PRODUCTOS_LOG.map(p => p.codigo))
-    for (const item of (pedido.items || [])) if (item.codigo && codigosLog.has(item.codigo) && item.cantidad > 0) productos[item.codigo] = (productos[item.codigo] || 0) + item.cantidad
+    for (const item of (pedido.items || [])) { const col = codigoALogColumna(item.codigo); if (col && item.cantidad > 0) productos[col] = (productos[col] || 0) + item.cantidad }
     setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, productos, pedido_id: pedido.id })
     setEditId(null); setModalOpen(true)
   }
