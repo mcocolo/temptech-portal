@@ -272,25 +272,77 @@ export default function LogisticaDiaria() {
 
   function imprimirRutaCamioneta(camNombre, chofer, grupo) {
     const fechaDisplay = fmtFechaLarga(fecha)
-    const thSt = 'padding:5px 7px;background:#f3f4f6;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#6b7280;border:1px solid #d1d5db;white-space:nowrap;text-align:center'
-    const tdSt = 'padding:5px 7px;font-size:10px;border:1px solid #d1d5db;vertical-align:top'
-    const tdYellow = tdSt + ';background:#fefce8;text-align:center;font-weight:700'
-    const tdCenter = tdSt + ';text-align:center'
-    const YELLOW_CODES = ['C500STV1', 'F1400BCO']
-    const headers = ['#', 'Tipo', 'Nombre / Descripción', 'Dirección', 'Localidad', 'Zona', 'Tel.', 'Camb.', ...PRODUCTOS_LOG.map(p => p.label), 'Notas', 'Recibió conforme', 'DNI', 'Email']
-    const rows = grupo.map((item, i) => {
+    const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+    const filas = grupo.map((item, i) => {
       const t = TIPOS[item.tipo]
-      const esCambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo) ? '✓' : ''
-      const prods = PRODUCTOS_LOG.map(p => { const f = (item.productos || []).find(x => x.codigo === p.codigo); return f ? f.cantidad : '' })
-      return [i + 1, t?.label || item.tipo, item.nombre || item.descripcion || '', item.direccion || '', item.localidad || '', item.zona || '', item.telefono || '', esCambio, ...prods, item.notas || '', '', item.dni || '', item.email || '']
-    })
-    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Ruta ${camNombre} — ${fechaDisplay}</title>
-      <style>body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0;padding:12px}h2{font-size:15px;margin:0 0 2px}.sub{font-size:11px;color:#374151;margin:0 0 12px}.sub b{color:#111}table{border-collapse:collapse;width:100%}@media print{body{padding:6px}@page{size:landscape;margin:1cm}}</style>
-      </head><body>
-      <h2>TEMPTECH — Ruta ${camNombre}</h2>
-      <p class="sub">${fechaDisplay} &nbsp;·&nbsp; Chofer: <b>${chofer || '—'}</b> &nbsp;·&nbsp; ${grupo.length} parada${grupo.length !== 1 ? 's' : ''}</p>
-      <table><thead><tr>${headers.map((h, hi) => { const isY = hi >= 8 && hi < 8 + PRODUCTOS_LOG.length && YELLOW_CODES.includes(PRODUCTOS_LOG[hi - 8]?.codigo); return `<th style="${thSt}${isY ? ';background:#fef08a' : ''}">${h}</th>` }).join('')}</tr></thead>
-      <tbody>${rows.map(row => `<tr>${row.map((cell, ci) => { const isProd = ci >= 8 && ci < 8 + PRODUCTOS_LOG.length; const isY = isProd && YELLOW_CODES.includes(PRODUCTOS_LOG[ci - 8]?.codigo); const style = isY ? tdYellow : (isProd || ci === 7) ? tdCenter : tdSt; return `<td style="${style}">${cell !== '' ? cell : '&nbsp;'}</td>` }).join('')}</tr>`).join('')}</tbody></table>
+      const esCambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo)
+      const prods = (item.productos || []).filter(p => p.cantidad > 0).map(p => `${esc(p.label)}&times;${p.cantidad}`).join(' &nbsp; ')
+      const detalle = item.nombre && item.descripcion ? `<div class="det">${esc(item.descripcion)}</div>` : ''
+      const dir = [item.direccion, item.localidad].filter(Boolean).map(esc).join(', ')
+      const zona = item.zona ? `<span class="zona">${esc(item.zona)}</span>` : ''
+      return `<tr>
+        <td class="c num">${i + 1}</td>
+        <td class="c">${esc(t?.label || item.tipo)}${esCambio ? '<div class="cambio">CAMBIO</div>' : ''}</td>
+        <td><b>${esc(item.nombre || item.descripcion || '')}</b>${detalle}</td>
+        <td>${dir} ${zona}</td>
+        <td class="c">${esc(item.telefono || '')}</td>
+        <td class="prod">${prods || '&nbsp;'}</td>
+        <td class="firma">&nbsp;</td>
+        <td class="acl">&nbsp;</td>
+      </tr>`
+    }).join('')
+
+    // Resumen de productos (útil para cargar la camioneta)
+    const totales = {}
+    grupo.forEach(it => (it.productos || []).forEach(p => { if (p.cantidad > 0) totales[p.label] = (totales[p.label] || 0) + p.cantidad }))
+    const resumen = Object.entries(totales).map(([l, c]) => `${esc(l)} &times;${c}`).join(' &nbsp;·&nbsp; ')
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Ruta ${esc(camNombre)} — ${fechaDisplay}</title>
+      <style>
+        *{box-sizing:border-box}
+        body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:16px}
+        .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #25374d;padding-bottom:8px;margin-bottom:6px}
+        .logo{font-size:24px;font-weight:800;color:#25374d;letter-spacing:-.5px}
+        .logo span{color:#ff6b2b}
+        .meta{text-align:right;font-size:12px;color:#374151;line-height:1.5}
+        .meta b{color:#111;font-size:13px}
+        .chofer{display:inline-block;background:#25374d;color:#fff;font-weight:700;padding:3px 12px;border-radius:6px;font-size:13px}
+        table{border-collapse:collapse;width:100%;margin-top:6px;table-layout:fixed}
+        th{background:#25374d;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:7px 6px;border:1px solid #25374d;text-align:left}
+        th.c{text-align:center}
+        td{border:1px solid #b9c0cc;padding:8px 7px;font-size:12px;vertical-align:top;height:64px}
+        td.c{text-align:center}
+        td.num{font-weight:800;font-size:14px;color:#25374d}
+        .det{font-size:10px;color:#555;margin-top:3px}
+        .zona{display:inline-block;background:#eef1f5;border:1px solid #cbd2dc;border-radius:10px;padding:0 7px;font-size:10px;color:#374151;white-space:nowrap}
+        td.prod{font-size:12px;font-weight:700;color:#1a7a4a;line-height:1.7}
+        .cambio{display:inline-block;background:#fff3e6;color:#c2560f;border:1px solid #f0b483;border-radius:8px;padding:0 6px;font-size:9px;font-weight:800;margin-top:3px}
+        td.firma,td.acl{background:#fcfcfd}
+        tr{page-break-inside:avoid}
+        .resumen{margin-top:12px;font-size:11px;color:#374151;border-top:1px dashed #b9c0cc;padding-top:8px}
+        .resumen b{color:#25374d}
+        @media print{body{padding:8px}@page{size:landscape;margin:0.8cm}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+      </style></head><body>
+      <div class="head">
+        <div class="logo">TEMP<span>TECH</span> &nbsp;<span style="color:#374151;font-size:14px;font-weight:600">Hoja de Ruta</span></div>
+        <div class="meta">
+          <div><b>${esc(camNombre)}</b> &nbsp;·&nbsp; Chofer: <span class="chofer">${esc(chofer || '—')}</span></div>
+          <div>${fechaDisplay} &nbsp;·&nbsp; ${grupo.length} parada${grupo.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      <table>
+        <colgroup>
+          <col style="width:3%"><col style="width:9%"><col style="width:22%"><col style="width:20%">
+          <col style="width:9%"><col style="width:12%"><col style="width:14%"><col style="width:11%">
+        </colgroup>
+        <thead><tr>
+          <th class="c">#</th><th>Tipo</th><th>Cliente / Detalle</th><th>Dirección / Zona</th>
+          <th class="c">Tel.</th><th>Productos</th><th>Firma</th><th>Aclaración / DNI</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      ${resumen ? `<div class="resumen"><b>Total a cargar:</b> ${resumen}</div>` : ''}
       </body></html>`
     const w = window.open('', '_blank', 'width=1400,height=800')
     w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 350)
