@@ -91,7 +91,11 @@ export default function LogisticaDiaria() {
       const { data: chRow } = await supabase.from('choferes').select('nombre').eq('email', user?.email || '').limit(1)
       if (chRow?.[0]?.nombre) nombre = chRow[0].nombre.trim().toLowerCase()
       const misTodos = await fetchAllRows(() => supabase.from('logistica_diaria').select('*').not('camioneta_id', 'is', null).gte('fecha', hoy).order('fecha').order('camioneta_id').order('orden'))
-      const mine = (misTodos || []).filter(i => nombre && (i.chofer_asignado || '').trim().toLowerCase() === nombre)
+      const mineTodos = (misTodos || []).filter(i => nombre && (i.chofer_asignado || '').trim().toLowerCase() === nombre)
+      // Excluir rutas ya cerradas (día cerrado por el chofer)
+      const { data: cerradosData } = await supabase.from('logistica_km').select('fecha,camioneta_id').eq('cerrado', true).gte('fecha', hoy)
+      const cerrados = new Set((cerradosData || []).map(r => `${r.fecha}_${r.camioneta_id}`))
+      const mine = mineTodos.filter(i => !cerrados.has(`${i.fecha}_${i.camioneta_id}`))
       const fechas = [...new Set(mine.map(i => i.fecha))].sort()
       fechaEfectiva = fechas[0] || hoy
       rutaData = mine.filter(i => i.fecha === fechaEfectiva)
@@ -124,15 +128,18 @@ export default function LogisticaDiaria() {
     const base = {}
     for (const c of (cam.data || [])) base[c.id] = c.km_inicial
     const baseKm = c => (ultimo[c] != null ? ultimo[c] : (base[c] != null ? base[c] : ''))
-    const emptyRec = c => ({ km_inicial: baseKm(c), km_final: '', combustible_monto: '', foto_vehiculo_url: '', foto_ticket_url: '' })
+    const emptyRec = c => ({ km_inicial: baseKm(c), km_final: '', combustible_monto: '', combustible_litros: '', foto_vehiculo_url: '', foto_planilla_url: '', fotos_tickets: [], cerrado: false })
     const kmIn = {}
     for (const c of (cam.data || [])) kmIn[c.id] = emptyRec(c.id)
     for (const r of (kmData || [])) kmIn[r.camioneta_id] = {
       km_inicial: r.km_inicial ?? baseKm(r.camioneta_id),
       km_final: r.km_final ?? '',
       combustible_monto: r.combustible_monto ?? '',
+      combustible_litros: r.combustible_litros ?? '',
       foto_vehiculo_url: r.foto_vehiculo_url || '',
-      foto_ticket_url: r.foto_ticket_url || '',
+      foto_planilla_url: r.foto_planilla_url || '',
+      fotos_tickets: Array.isArray(r.fotos_tickets) ? r.fotos_tickets : [],
+      cerrado: !!r.cerrado,
     }
     setKmInput(kmIn)
 
@@ -285,15 +292,18 @@ export default function LogisticaDiaria() {
   const numOrNull = v => (v === '' || v == null ? null : Number(v))
 
   // Upsert del registro completo del día (km + combustible + fotos) para no pisar campos
-  async function upsertRegistro(camId, rec) {
+  async function upsertRegistro(camId, rec, extra = {}) {
     const { error } = await supabase.from('logistica_km').upsert({
       fecha,
       camioneta_id: camId,
       km_inicial: numOrNull(rec.km_inicial),
       km_final: numOrNull(rec.km_final),
       combustible_monto: numOrNull(rec.combustible_monto),
+      combustible_litros: numOrNull(rec.combustible_litros),
       foto_vehiculo_url: rec.foto_vehiculo_url || null,
-      foto_ticket_url: rec.foto_ticket_url || null,
+      foto_planilla_url: rec.foto_planilla_url || null,
+      fotos_tickets: Array.isArray(rec.fotos_tickets) ? rec.fotos_tickets : [],
+      ...extra,
     }, { onConflict: 'fecha,camioneta_id' })
     return error
   }
@@ -308,22 +318,59 @@ export default function LogisticaDiaria() {
     cargar()
   }
 
+  async function subirArchivo(file) {
+    const safe = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `logistica/${fecha}_${Date.now()}_${safe}`
+    const { error: upErr } = await supabase.storage.from('devoluciones').upload(path, file, { upsert: false })
+    if (upErr) throw upErr
+    return supabase.storage.from('devoluciones').getPublicUrl(path).data.publicUrl
+  }
+
+  // Fotos de campo único (vehículo, planilla)
   async function subirFotoCierre(camId, campo, file) {
     if (!file) return
     try {
-      const safe = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `logistica/${fecha}_${camId}_${Date.now()}_${safe}`
-      const { error: upErr } = await supabase.storage.from('devoluciones').upload(path, file, { upsert: false })
-      if (upErr) throw upErr
-      const { data } = supabase.storage.from('devoluciones').getPublicUrl(path)
-      const rec = { ...(kmInput[camId] || {}), [campo]: data.publicUrl }
+      const url = await subirArchivo(file)
+      const rec = { ...(kmInput[camId] || {}), [campo]: url }
       setKmInput(prev => ({ ...prev, [camId]: rec }))
       const error = await upsertRegistro(camId, rec)
       if (error) throw new Error(error.message)
       toast.success('Foto subida ✅')
-    } catch (e) {
-      toast.error('Error al subir: ' + (e?.message || e))
-    }
+    } catch (e) { toast.error('Error al subir: ' + (e?.message || e)) }
+  }
+
+  // Tickets (varios)
+  async function agregarTicket(camId, file) {
+    if (!file) return
+    try {
+      const url = await subirArchivo(file)
+      const actual = kmInput[camId] || {}
+      const rec = { ...actual, fotos_tickets: [...(actual.fotos_tickets || []), url] }
+      setKmInput(prev => ({ ...prev, [camId]: rec }))
+      const error = await upsertRegistro(camId, rec)
+      if (error) throw new Error(error.message)
+      toast.success('Ticket agregado ✅')
+    } catch (e) { toast.error('Error al subir: ' + (e?.message || e)) }
+  }
+  async function quitarTicket(camId, idx) {
+    const actual = kmInput[camId] || {}
+    const rec = { ...actual, fotos_tickets: (actual.fotos_tickets || []).filter((_, i) => i !== idx) }
+    setKmInput(prev => ({ ...prev, [camId]: rec }))
+    await upsertRegistro(camId, rec)
+  }
+
+  async function cerrarDia(camId) {
+    if (!window.confirm('¿Cerrar el día de esta camioneta? La ruta deja de aparecer como pendiente.')) return
+    const error = await upsertRegistro(camId, kmInput[camId] || {}, { cerrado: true, cerrado_at: new Date().toISOString() })
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Día cerrado ✅')
+    cargar()
+  }
+  async function reabrirDia(camId) {
+    const error = await upsertRegistro(camId, kmInput[camId] || {}, { cerrado: false, cerrado_at: null })
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Día reabierto')
+    cargar()
   }
 
   async function eliminar(id) { await supabase.from('logistica_diaria').delete().eq('id', id); setConfirmDel(null); cargar() }
@@ -675,6 +722,8 @@ export default function LogisticaDiaria() {
                 {/* Cierre del día */}
                 {(() => {
                   const rec = kmInput[camioneta.id] || {}
+                  const cerrado = !!rec.cerrado
+                  const cin = { padding: '6px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }
                   const fileBtn = (campo, label, icon) => (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {rec[campo]
@@ -687,16 +736,39 @@ export default function LogisticaDiaria() {
                     </div>
                   )
                   return (
-                    <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cierre del día</span>
-                      {fileBtn('foto_vehiculo_url', 'Foto vehículo', '🚐')}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
-                        ⛽ Combustible $
-                        <input type="number" value={rec.combustible_monto ?? ''} onChange={e => setKm(camioneta.id, 'combustible_monto', e.target.value)} placeholder="0"
-                          style={{ width: 100, padding: '6px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
+                    <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cierre del día</span>
+                        {cerrado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Día cerrado</span>}
                       </div>
-                      {fileBtn('foto_ticket_url', 'Foto ticket', '🧾')}
-                      <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💾 Guardar cierre</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                        {fileBtn('foto_vehiculo_url', 'Foto vehículo', '🚐')}
+                        {fileBtn('foto_planilla_url', 'Foto planilla firmada', '📄')}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
+                          ⛽ $ <input type="number" value={rec.combustible_monto ?? ''} onChange={e => setKm(camioneta.id, 'combustible_monto', e.target.value)} placeholder="0" style={{ ...cin, width: 90 }} />
+                          Litros <input type="number" value={rec.combustible_litros ?? ''} onChange={e => setKm(camioneta.id, 'combustible_litros', e.target.value)} placeholder="0" style={{ ...cin, width: 70 }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: 'var(--text3)' }}>🧾 Tickets:</span>
+                        {(rec.fotos_tickets || []).map((url, i) => (
+                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
+                            <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3dd68c', fontWeight: 700, textDecoration: 'none' }}>#{i + 1}</a>
+                            <button onClick={() => quitarTicket(camioneta.id, i)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                          </span>
+                        ))}
+                        {(rec.fotos_tickets || []).length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
+                        <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
+                          + Agregar ticket
+                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => agregarTicket(camioneta.id, e.target.files?.[0])} />
+                        </label>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💾 Guardar</button>
+                        {!cerrado
+                          ? <button onClick={() => cerrarDia(camioneta.id)} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✅ Cerrar día</button>
+                          : (!isChofer && <button onClick={() => reabrirDia(camioneta.id)} style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button>)}
+                      </div>
                     </div>
                   )
                 })()}
