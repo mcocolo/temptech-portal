@@ -62,6 +62,8 @@ export default function LogisticaDiaria() {
   const [choferInput, setChoferInput] = useState({})     // { camionetaId: nombre }
   const [asignar, setAsignar] = useState({})             // { itemId: { fecha, camioneta_id } }
   const [flotaOpen, setFlotaOpen] = useState(false)
+  const [kmInput, setKmInput] = useState({})             // { camionetaId: { km_inicial, km_final } }
+  const [ultimoKm, setUltimoKm] = useState({})           // { camionetaId: ultimo km_final conocido }
 
   useEffect(() => { cargar() }, [fecha])
 
@@ -88,6 +90,19 @@ export default function LogisticaDiaria() {
     const chIn = {}
     for (const it of (rutaData || [])) if (it.camioneta_id && it.chofer_asignado) chIn[it.camioneta_id] = it.chofer_asignado
     setChoferInput(chIn)
+
+    // Kilometraje: último km conocido (para autocompletar el inicial) + km del día
+    const [{ data: kmHist }, { data: kmData }] = await Promise.all([
+      supabase.from('logistica_km').select('camioneta_id,km_final,fecha').not('km_final', 'is', null).order('fecha', { ascending: false }),
+      supabase.from('logistica_km').select('*').eq('fecha', fecha),
+    ])
+    const ultimo = {}
+    for (const r of (kmHist || [])) if (!(r.camioneta_id in ultimo)) ultimo[r.camioneta_id] = r.km_final
+    setUltimoKm(ultimo)
+    const kmIn = {}
+    for (const c of (cam.data || [])) kmIn[c.id] = { km_inicial: ultimo[c.id] ?? '', km_final: '' }
+    for (const r of (kmData || [])) kmIn[r.camioneta_id] = { km_inicial: r.km_inicial ?? (ultimo[r.camioneta_id] ?? ''), km_final: r.km_final ?? '' }
+    setKmInput(kmIn)
 
     // Pedidos / ventas por asignar (solo admin)
     if (!isChofer) {
@@ -228,6 +243,21 @@ export default function LogisticaDiaria() {
     const { error } = await supabase.from('logistica_diaria').update({ chofer_asignado: nombre || null }).in('id', ids)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success(nombre ? `Chofer asignado: ${nombre}` : 'Chofer quitado')
+    cargar()
+  }
+
+  function setKm(camId, field, val) {
+    setKmInput(prev => ({ ...prev, [camId]: { ...(prev[camId] || {}), [field]: val } }))
+  }
+
+  async function guardarKm(camId) {
+    const v = kmInput[camId] || {}
+    const ki = v.km_inicial === '' || v.km_inicial == null ? null : Number(v.km_inicial)
+    const kf = v.km_final === '' || v.km_final == null ? null : Number(v.km_final)
+    if (ki != null && kf != null && kf < ki) return toast.error('El Km final no puede ser menor al inicial')
+    const { error } = await supabase.from('logistica_km').upsert({ fecha, camioneta_id: camId, km_inicial: ki, km_final: kf }, { onConflict: 'fecha,camioneta_id' })
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Km guardado ✅')
     cargar()
   }
 
@@ -536,6 +566,27 @@ export default function LogisticaDiaria() {
                     )}
                   </div>
                 </div>
+                {/* Km del día */}
+                {(() => {
+                  const km = kmInput[camioneta.id] || {}
+                  const ki = km.km_inicial === '' || km.km_inicial == null ? null : Number(km.km_inicial)
+                  const kf = km.km_final === '' || km.km_final == null ? null : Number(km.km_final)
+                  const rec = (ki != null && kf != null && kf >= ki) ? kf - ki : null
+                  const kmSt = { width: 96, padding: '6px 8px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
+                  return (
+                    <div style={{ padding: '9px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12 }}>
+                      <span style={{ color: 'var(--text3)', fontWeight: 700 }}>🛣️ Km</span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
+                        Inicial <input type="number" value={km.km_inicial ?? ''} onChange={e => setKm(camioneta.id, 'km_inicial', e.target.value)} placeholder="—" style={kmSt} />
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
+                        Final <input type="number" value={km.km_final ?? ''} onChange={e => setKm(camioneta.id, 'km_final', e.target.value)} placeholder="—" style={kmSt} />
+                      </label>
+                      <span style={{ color: 'var(--text3)' }}>Recorrido: <b style={{ color: rec != null ? '#3dd68c' : 'var(--text3)' }}>{rec != null ? `${rec} km` : '—'}</b></span>
+                      <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>Guardar km</button>
+                    </div>
+                  )
+                })()}
                 {/* Paradas */}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {grupo.map((item, idx) => (
