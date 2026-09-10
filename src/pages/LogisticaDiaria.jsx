@@ -474,6 +474,8 @@ export default function LogisticaDiaria() {
       const t = TIPOS[item.tipo]
       const cambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo) ? 'SI' : ''
       const detalle = item.nombre && item.descripcion ? `<div class="det">${esc(item.descripcion)}</div>` : ''
+      // Ocultar la "Falla: ..." del caso en la hoja de ruta (no la necesita el chofer)
+      const notasVis = (item.notas && !/^\s*falla\s*:/i.test(item.notas)) ? item.notas : ''
       const prodTds = PRODUCTOS_LOG.map(p => {
         const f = (item.productos || []).find(x => x.codigo === p.codigo)
         return `<td class="${YELLOW.has(p.codigo) ? 'y' : 'c'}">${f && f.cantidad ? f.cantidad : ''}</td>`
@@ -488,7 +490,7 @@ export default function LogisticaDiaria() {
         <td class="c">${esc(item.telefono || '')}</td>
         <td class="cambio">${cambio}</td>
         ${prodTds}
-        <td>${esc(item.notas || '')}</td>
+        <td>${esc(notasVis)}</td>
         <td></td>
       </tr>`
     }).join('')
@@ -528,6 +530,11 @@ export default function LogisticaDiaria() {
 
   if (!isAdmin && !isAdmin2 && !isChofer) return null
 
+  // Permisos: admin edita todo; chofer confirma/carga cierre; admin2 solo ve e imprime
+  const editaPlanilla = isAdmin                 // alta, asignar, editar, borrar, reordenar, camionetas/choferes, traer
+  const editaCierre = isAdmin || isChofer       // km, combustible, fotos, cerrar día
+  const soloLectura = isAdmin2                  // admin2: ver + imprimir
+
   const conProductos = TIPOS_CON_PRODUCTOS.includes(form.tipo)
   const usaProveedor = ['retiro_insumos', 'llevar_insumo'].includes(form.tipo)
 
@@ -559,22 +566,22 @@ export default function LogisticaDiaria() {
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
           )}
           {!isChofer && (
-            <>
-              <button onClick={() => setReporteOpen(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                📊 Reporte Km
-              </button>
-              <button onClick={() => setFlotaOpen(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                🚐 Camionetas y choferes
-              </button>
-            </>
+            <button onClick={() => setReporteOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              📊 Reporte Km
+            </button>
+          )}
+          {editaPlanilla && (
+            <button onClick={() => setFlotaOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              🚐 Camionetas y choferes
+            </button>
           )}
         </div>
       </div>
 
       {/* Botones de tipo — solo admin */}
-      {!isChofer && (
+      {editaPlanilla && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
           {Object.entries(TIPOS).map(([key, t]) => (
             <button key={key} onClick={() => abrirNuevo(key)}
@@ -586,7 +593,7 @@ export default function LogisticaDiaria() {
       )}
 
       {/* Pedidos / ventas por traer a ruta — solo admin */}
-      {!isChofer && (pedidosPendientes.length > 0 || ventasPendientes.length > 0 || repuestosPendientes.length > 0) && (
+      {editaPlanilla && (pedidosPendientes.length > 0 || ventasPendientes.length > 0 || repuestosPendientes.length > 0) && (
         <div style={{ marginBottom: 24, background: 'rgba(74,108,247,0.04)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
             🚚 Traer a logística ({pedidosPendientes.length + ventasPendientes.length + repuestosPendientes.length})
@@ -708,29 +715,33 @@ export default function LogisticaDiaria() {
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                      <button onClick={() => abrirEditar(item)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
-                      {isDel ? (
-                        <>
-                          <button onClick={() => eliminar(item.id)} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Eliminar</button>
-                          <button onClick={() => setConfirmDel(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>No</button>
-                        </>
-                      ) : (
-                        <button onClick={() => setConfirmDel(item.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
-                      )}
-                    </div>
+                    {editaPlanilla && (
+                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                        <button onClick={() => abrirEditar(item)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
+                        {isDel ? (
+                          <>
+                            <button onClick={() => eliminar(item.id)} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Eliminar</button>
+                            <button onClick={() => setConfirmDel(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>No</button>
+                          </>
+                        ) : (
+                          <button onClick={() => setConfirmDel(item.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {/* Asignar día + camioneta */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                    <input type="date" value={a.fecha ?? (item.fecha || fecha)} onChange={e => setAsignar(prev => ({ ...prev, [item.id]: { ...prev[item.id], fecha: e.target.value } }))}
-                      style={{ ...iSt, width: 'auto' }} />
-                    <select value={a.camioneta_id || ''} onChange={e => setAsignar(prev => ({ ...prev, [item.id]: { ...prev[item.id], camioneta_id: e.target.value || null } }))}
-                      style={{ ...iSt, width: 'auto', cursor: 'pointer' }}>
-                      <option value="">— Camioneta —</option>
-                      {camionetas.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.patente ? ` (${c.patente})` : ''}</option>)}
-                    </select>
-                    <button onClick={() => asignarRuta(item)} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Asignar a ruta →</button>
-                  </div>
+                  {editaPlanilla && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                      <input type="date" value={a.fecha ?? (item.fecha || fecha)} onChange={e => setAsignar(prev => ({ ...prev, [item.id]: { ...prev[item.id], fecha: e.target.value } }))}
+                        style={{ ...iSt, width: 'auto' }} />
+                      <select value={a.camioneta_id || ''} onChange={e => setAsignar(prev => ({ ...prev, [item.id]: { ...prev[item.id], camioneta_id: e.target.value || null } }))}
+                        style={{ ...iSt, width: 'auto', cursor: 'pointer' }}>
+                        <option value="">— Camioneta —</option>
+                        {camionetas.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.patente ? ` (${c.patente})` : ''}</option>)}
+                      </select>
+                      <button onClick={() => asignarRuta(item)} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Asignar a ruta →</button>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -773,14 +784,17 @@ export default function LogisticaDiaria() {
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>{grupo.length} parada{grupo.length !== 1 ? 's' : ''} · {completadas}/{grupo.length} ok</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    {isChofer ? (
-                      chofer && <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 700 }}>👤 {chofer}</span>
-                    ) : (
+                    {editaPlanilla ? (
                       <>
                         <input list="choferes-list" value={chofer} onChange={e => setChoferInput(prev => ({ ...prev, [camioneta.id]: e.target.value }))} placeholder="Chofer..."
                           style={{ ...iSt, width: 150, padding: '6px 10px' }} />
                         <button onClick={() => guardarChofer(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Asignar chofer</button>
                         <button onClick={() => imprimirRutaCamioneta(camioneta.nombre, chofer, grupo)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>🖨️ Hoja</button>
+                      </>
+                    ) : (
+                      <>
+                        {chofer && <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 700 }}>👤 {chofer}</span>}
+                        {!isChofer && <button onClick={() => imprimirRutaCamioneta(camioneta.nombre, chofer, grupo)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>🖨️ Hoja</button>}
                       </>
                     )}
                   </div>
@@ -798,11 +812,15 @@ export default function LogisticaDiaria() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
                         Inicial <b style={{ color: 'var(--text2)', fontSize: 13 }}>{ki != null ? ki : '—'}</b>
                       </span>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
-                        Final <input type="number" value={km.km_final ?? ''} onChange={e => setKm(camioneta.id, 'km_final', e.target.value)} placeholder="—" style={kmSt} />
-                      </label>
+                      {editaCierre ? (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
+                          Final <input type="number" value={km.km_final ?? ''} onChange={e => setKm(camioneta.id, 'km_final', e.target.value)} placeholder="—" style={kmSt} />
+                        </label>
+                      ) : (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>Final <b style={{ color: 'var(--text2)', fontSize: 13 }}>{kf != null ? kf : '—'}</b></span>
+                      )}
                       <span style={{ color: 'var(--text3)' }}>Recorrido: <b style={{ color: rec != null ? '#3dd68c' : 'var(--text3)' }}>{rec != null ? `${rec} km` : '—'}</b></span>
-                      <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>Guardar km</button>
+                      {editaCierre && <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>Guardar km</button>}
                     </div>
                   )
                 })()}
@@ -810,7 +828,7 @@ export default function LogisticaDiaria() {
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {grupo.map((item, idx) => (
                     <ParadaRow key={item.id} item={item} idx={idx} grupo={grupo} isChofer={isChofer}
-                      onMover={mover} onSetOrden={setOrdenManual} onEditar={abrirEditar} onConfirmar={confirmarEntrega} onDesasignar={desasignar}
+                      onMover={mover} onSetOrden={setOrdenManual} onEditar={abrirEditar} onConfirmar={confirmarEntrega} onDesasignar={desasignar} readOnly={soloLectura}
                       confirmDel={confirmDel} setConfirmDel={setConfirmDel} onEliminar={eliminar} />
                   ))}
                 </div>
@@ -824,10 +842,12 @@ export default function LogisticaDiaria() {
                       {rec[campo]
                         ? <a href={rec[campo]} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3dd68c', fontWeight: 700, textDecoration: 'none' }}>{icon} Ver</a>
                         : <span style={{ fontSize: 12, color: 'var(--text3)' }}>{icon} {label}</span>}
-                      <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
-                        {rec[campo] ? 'Cambiar' : 'Subir'}
-                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => subirFotoCierre(camioneta.id, campo, e.target.files?.[0])} />
-                      </label>
+                      {editaCierre && (
+                        <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
+                          {rec[campo] ? 'Cambiar' : 'Subir'}
+                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => subirFotoCierre(camioneta.id, campo, e.target.files?.[0])} />
+                        </label>
+                      )}
                     </div>
                   )
                   return (
@@ -840,8 +860,14 @@ export default function LogisticaDiaria() {
                         {fileBtn('foto_vehiculo_url', 'Foto vehículo', '🚐')}
                         {fileBtn('foto_planilla_url', 'Foto planilla firmada', '📄')}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
-                          ⛽ $ <input type="number" value={rec.combustible_monto ?? ''} onChange={e => setKm(camioneta.id, 'combustible_monto', e.target.value)} placeholder="0" style={{ ...cin, width: 90 }} />
-                          Litros <input type="number" value={rec.combustible_litros ?? ''} onChange={e => setKm(camioneta.id, 'combustible_litros', e.target.value)} placeholder="0" style={{ ...cin, width: 70 }} />
+                          {editaCierre ? (
+                            <>
+                              ⛽ $ <input type="number" value={rec.combustible_monto ?? ''} onChange={e => setKm(camioneta.id, 'combustible_monto', e.target.value)} placeholder="0" style={{ ...cin, width: 90 }} />
+                              Litros <input type="number" value={rec.combustible_litros ?? ''} onChange={e => setKm(camioneta.id, 'combustible_litros', e.target.value)} placeholder="0" style={{ ...cin, width: 70 }} />
+                            </>
+                          ) : (
+                            <>⛽ $ <b style={{ color: 'var(--text2)' }}>{rec.combustible_monto ?? '—'}</b> · <b style={{ color: 'var(--text2)' }}>{rec.combustible_litros ?? '—'}</b> L</>
+                          )}
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -849,21 +875,25 @@ export default function LogisticaDiaria() {
                         {(rec.fotos_tickets || []).map((url, i) => (
                           <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
                             <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3dd68c', fontWeight: 700, textDecoration: 'none' }}>#{i + 1}</a>
-                            <button onClick={() => quitarTicket(camioneta.id, i)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                            {editaCierre && <button onClick={() => quitarTicket(camioneta.id, i)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>}
                           </span>
                         ))}
                         {(rec.fotos_tickets || []).length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
-                        <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
-                          + Agregar ticket
-                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => agregarTicket(camioneta.id, e.target.files?.[0])} />
-                        </label>
+                        {editaCierre && (
+                          <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
+                            + Agregar ticket
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => agregarTicket(camioneta.id, e.target.files?.[0])} />
+                          </label>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💾 Guardar</button>
-                        {!cerrado
-                          ? <button onClick={() => cerrarDia(camioneta.id)} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✅ Cerrar día</button>
-                          : (!isChofer && <button onClick={() => reabrirDia(camioneta.id)} style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button>)}
-                      </div>
+                      {(editaCierre || editaPlanilla) && (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {editaCierre && <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💾 Guardar</button>}
+                          {!cerrado
+                            ? (editaCierre && <button onClick={() => cerrarDia(camioneta.id)} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✅ Cerrar día</button>)
+                            : (editaPlanilla && <button onClick={() => reabrirDia(camioneta.id)} style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button>)}
+                        </div>
+                      )}
                     </div>
                   )
                 })()}
@@ -1153,14 +1183,14 @@ function ReporteKmModal({ onClose }) {
 }
 
 // ── Fila de parada (dentro de una ruta) ──
-function ParadaRow({ item, idx, grupo, isChofer, onMover, onSetOrden, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar }) {
+function ParadaRow({ item, idx, grupo, isChofer, onMover, onSetOrden, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar, readOnly }) {
   const t = TIPOS[item.tipo]
   const prodsCon = (item.productos || []).filter(p => p.cantidad > 0)
   const isDel = confirmDel === item.id
   return (
     <div style={{ display: 'flex', borderTop: idx > 0 ? '1px solid var(--border)' : 'none', background: item.estado_entrega ? 'rgba(61,214,140,0.04)' : 'transparent' }}>
       <div style={{ width: 46, background: item.estado_entrega ? 'rgba(61,214,140,0.12)' : 'var(--surface2)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, flexShrink: 0, padding: '8px 4px' }}>
-        {!isChofer ? (
+        {(!isChofer && !readOnly) ? (
           <>
             <input type="number" min="1" defaultValue={idx + 1} key={`${item.id}_${idx}`}
               onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
@@ -1188,7 +1218,7 @@ function ParadaRow({ item, idx, grupo, isChofer, onMover, onSetOrden, onEditar, 
               <button onClick={() => onConfirmar(item)} style={{ background: item.estado_entrega ? 'rgba(255,85,119,0.08)' : 'rgba(61,214,140,0.12)', color: item.estado_entrega ? '#ff5577' : '#3dd68c', border: `1px solid ${item.estado_entrega ? 'rgba(255,85,119,0.35)' : 'rgba(61,214,140,0.4)'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                 {item.estado_entrega ? '↩ Deshacer' : (TIPOS_CON_PRODUCTOS.includes(item.tipo) ? '✅ Entregado' : '📥 Recibido')}
               </button>
-            ) : (
+            ) : readOnly ? null : (
               <>
                 <button onClick={() => onEditar(item)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
                 <button onClick={() => onDesasignar(item)} title="Volver a Por asignar" style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Quitar</button>
