@@ -432,72 +432,66 @@ export default function LogisticaDiaria() {
 
   const RUTA_STYLES = `
     *{box-sizing:border-box}
-    body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:16px}
+    body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:12px}
     .ruta{page-break-before:always}
     .ruta:first-child{page-break-before:auto}
-    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #25374d;padding-bottom:8px;margin-bottom:6px}
-    .logo{font-size:24px;font-weight:800;color:#25374d;letter-spacing:-.5px}
-    .logo span{color:#ff6b2b}
-    .meta{text-align:right;font-size:12px;color:#374151;line-height:1.5}
-    .meta b{color:#111;font-size:13px}
-    .chofer{display:inline-block;background:#25374d;color:#fff;font-weight:700;padding:3px 12px;border-radius:6px;font-size:13px}
-    table{border-collapse:collapse;width:100%;margin-top:6px;table-layout:fixed}
-    th{background:#25374d;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:7px 6px;border:1px solid #25374d;text-align:left}
-    th.c{text-align:center}
-    td{border:1px solid #b9c0cc;padding:8px 7px;font-size:12px;vertical-align:top;height:64px}
+    h2{font-size:15px;margin:0 0 2px}
+    .sub{font-size:11px;color:#374151;margin:0 0 8px}
+    .sub b{color:#111}
+    .chofer{display:inline-block;background:#111827;color:#fff;font-weight:700;padding:2px 12px;border-radius:4px}
+    table{border-collapse:collapse;width:100%}
+    th{background:#f3f4f6;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.2px;color:#374151;border:1px solid #b9c0cc;padding:4px 3px;text-align:center;word-break:break-word}
+    th.y{background:#fde047}
+    td{border:1px solid #b9c0cc;padding:5px;font-size:10px;vertical-align:top;height:46px}
     td.c{text-align:center}
-    td.num{font-weight:800;font-size:14px;color:#25374d}
-    .det{font-size:10px;color:#555;margin-top:3px}
-    .zona{display:inline-block;background:#eef1f5;border:1px solid #cbd2dc;border-radius:10px;padding:0 7px;font-size:10px;color:#374151;white-space:nowrap}
-    td.prod{font-size:12px;font-weight:700;color:#1a7a4a;line-height:1.7}
-    .cambio{display:inline-block;background:#fff3e6;color:#c2560f;border:1px solid #f0b483;border-radius:8px;padding:0 6px;font-size:9px;font-weight:800;margin-top:3px}
-    td.firma,td.acl{background:#fcfcfd}
+    td.y{background:#fefce8;text-align:center;font-weight:800}
+    td.num{text-align:center;font-weight:800}
+    td.cambio{text-align:center;font-weight:800;color:#c2560f}
+    .det{font-size:9px;color:#555;margin-top:2px}
     tr{page-break-inside:avoid}
-    .resumen{margin-top:12px;font-size:11px;color:#374151;border-top:1px dashed #b9c0cc;padding-top:8px}
-    .resumen b{color:#25374d}
-    @media print{body{padding:8px}@page{size:landscape;margin:0.8cm}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    .resumen{margin-top:8px;font-size:11px;color:#374151;border-top:1px dashed #b9c0cc;padding-top:6px}
+    .resumen b{color:#111}
+    @media print{body{padding:6px}@page{size:landscape;margin:0.7cm}th,th.y,td.y,.chofer{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   `
 
   function bloqueRuta(camNombre, chofer, grupo) {
     const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const fechaDisplay = fmtFechaLarga(fecha)
+    const YELLOW = new Set(['C500STV1', 'F1400BCO'])
+    const thProd = PRODUCTOS_LOG.map(p => `<th class="${YELLOW.has(p.codigo) ? 'y' : ''}" style="width:26px">${esc(p.label)}</th>`).join('')
     const filas = grupo.map((item, i) => {
       const t = TIPOS[item.tipo]
-      const esCambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo)
-      const prods = (item.productos || []).filter(p => p.cantidad > 0).map(p => `${esc(p.label)}&times;${p.cantidad}`).join(' &nbsp; ')
+      const cambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo) ? 'SI' : ''
       const detalle = item.nombre && item.descripcion ? `<div class="det">${esc(item.descripcion)}</div>` : ''
-      const dir = [item.direccion, item.localidad].filter(Boolean).map(esc).join(', ')
-      const zona = item.zona ? `<span class="zona">${esc(item.zona)}</span>` : ''
+      const prodTds = PRODUCTOS_LOG.map(p => {
+        const f = (item.productos || []).find(x => x.codigo === p.codigo)
+        return `<td class="${YELLOW.has(p.codigo) ? 'y' : 'c'}">${f && f.cantidad ? f.cantidad : ''}</td>`
+      }).join('')
       return `<tr>
-        <td class="c num">${i + 1}</td>
-        <td class="c">${esc(t?.label || item.tipo)}${esCambio ? '<div class="cambio">CAMBIO</div>' : ''}</td>
+        <td class="num">${i + 1}</td>
+        <td class="c" style="font-size:9px">${esc(t?.label || item.tipo)}</td>
         <td><b>${esc(item.nombre || item.descripcion || '')}</b>${detalle}</td>
-        <td>${dir} ${zona}</td>
+        <td>${esc(item.direccion || '')}</td>
+        <td>${esc(item.localidad || '')}</td>
+        <td class="c">${esc(item.zona || '')}</td>
         <td class="c">${esc(item.telefono || '')}</td>
-        <td class="prod">${prods || '&nbsp;'}</td>
-        <td class="firma">&nbsp;</td>
-        <td class="acl">&nbsp;</td>
+        <td class="cambio">${cambio}</td>
+        ${prodTds}
+        <td>${esc(item.notas || '')}</td>
+        <td></td>
       </tr>`
     }).join('')
     const totales = {}
     grupo.forEach(it => (it.productos || []).forEach(p => { if (p.cantidad > 0) totales[p.label] = (totales[p.label] || 0) + p.cantidad }))
     const resumen = Object.entries(totales).map(([l, c]) => `${esc(l)} &times;${c}`).join(' &nbsp;·&nbsp; ')
     return `<div class="ruta">
-      <div class="head">
-        <div class="logo">TEMP<span>TECH</span> &nbsp;<span style="color:#374151;font-size:14px;font-weight:600">Hoja de Ruta</span></div>
-        <div class="meta">
-          <div><b>${esc(camNombre)}</b> &nbsp;·&nbsp; Chofer: <span class="chofer">${esc(chofer || '—')}</span></div>
-          <div>${fechaDisplay} &nbsp;·&nbsp; ${grupo.length} parada${grupo.length !== 1 ? 's' : ''}</div>
-        </div>
-      </div>
+      <h2>TEMPTECH — Logística</h2>
+      <p class="sub"><b>${esc(camNombre)}</b> &nbsp;·&nbsp; Chofer: <span class="chofer">${esc(chofer || '—')}</span> &nbsp;·&nbsp; ${fechaDisplay} &nbsp;·&nbsp; ${grupo.length} parada${grupo.length !== 1 ? 's' : ''}</p>
       <table>
-        <colgroup>
-          <col style="width:3%"><col style="width:9%"><col style="width:22%"><col style="width:20%">
-          <col style="width:9%"><col style="width:12%"><col style="width:14%"><col style="width:11%">
-        </colgroup>
         <thead><tr>
-          <th class="c">#</th><th>Tipo</th><th>Cliente / Detalle</th><th>Dirección / Zona</th>
-          <th class="c">Tel.</th><th>Productos</th><th>Firma</th><th>Aclaración / DNI</th>
+          <th style="width:20px">#</th><th style="width:56px">Tipo</th><th style="width:150px">Nombre / Detalle</th>
+          <th style="width:130px">Dirección</th><th style="width:66px">Localidad</th><th style="width:56px">Zona</th><th style="width:72px">Tel.</th>
+          <th style="width:30px">Camb.</th>${thProd}<th style="width:70px">Notas</th><th style="width:110px">Recibió conforme</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
