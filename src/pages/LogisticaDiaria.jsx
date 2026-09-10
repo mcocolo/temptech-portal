@@ -63,6 +63,7 @@ export default function LogisticaDiaria() {
   const [choferInput, setChoferInput] = useState({})     // { camionetaId: nombre }
   const [asignar, setAsignar] = useState({})             // { itemId: { fecha, camioneta_id } }
   const [flotaOpen, setFlotaOpen] = useState(false)
+  const [reporteOpen, setReporteOpen] = useState(false)
   const [kmInput, setKmInput] = useState({})             // { camionetaId: { km_inicial, km_final } }
   const [ultimoKm, setUltimoKm] = useState({})           // { camionetaId: ultimo km_final conocido }
 
@@ -457,10 +458,16 @@ export default function LogisticaDiaria() {
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
           )}
           {!isChofer && (
-            <button onClick={() => setFlotaOpen(true)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              🚐 Camionetas
-            </button>
+            <>
+              <button onClick={() => setReporteOpen(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                📊 Reporte Km
+              </button>
+              <button onClick={() => setFlotaOpen(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                🚐 Camionetas
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -836,6 +843,132 @@ export default function LogisticaDiaria() {
 
       {/* ── MODAL flota (camionetas) ── */}
       {!isChofer && flotaOpen && <FlotaModal camionetas={camionetas} onClose={() => setFlotaOpen(false)} onChange={cargar} />}
+
+      {/* ── MODAL reporte de km / combustible ── */}
+      {!isChofer && reporteOpen && <ReporteKmModal onClose={() => setReporteOpen(false)} />}
+    </div>
+  )
+}
+
+function fmtMoney(n) {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0)
+}
+
+// ── Reporte de kilometraje y combustible por camioneta ──
+function ReporteKmModal({ onClose }) {
+  const hoy = new Date().toISOString().split('T')[0]
+  const [desde, setDesde] = useState(hoy.slice(0, 8) + '01')
+  const [hasta, setHasta] = useState(hoy)
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => { cargar() }, [desde, hasta])
+  async function cargar() {
+    setLoading(true)
+    const { data } = await supabase.from('logistica_km').select('*, camionetas(nombre,patente)').gte('fecha', desde).lte('fecha', hasta).order('fecha')
+    setRows(data || [])
+    setLoading(false)
+  }
+
+  const recorrido = r => (r.km_inicial != null && r.km_final != null && r.km_final >= r.km_inicial) ? (r.km_final - r.km_inicial) : null
+
+  const porCam = {}
+  for (const r of rows) {
+    const key = r.camioneta_id || 'sin'
+    if (!porCam[key]) porCam[key] = { nombre: r.camionetas?.nombre || 'Camioneta', patente: r.camionetas?.patente || '', dias: 0, km: 0, comb: 0 }
+    const g = porCam[key]
+    const rec = recorrido(r)
+    if (rec != null) g.km += rec
+    if (r.combustible_monto) g.comb += Number(r.combustible_monto)
+    if (r.km_final != null || r.combustible_monto != null) g.dias += 1
+  }
+  const grupos = Object.values(porCam).sort((a, b) => b.km - a.km)
+  const totKm = grupos.reduce((s, g) => s + g.km, 0)
+  const totComb = grupos.reduce((s, g) => s + g.comb, 0)
+
+  function imprimir() {
+    const per = `${new Date(desde + 'T12:00:00').toLocaleDateString('es-AR')} — ${new Date(hasta + 'T12:00:00').toLocaleDateString('es-AR')}`
+    const filResumen = grupos.map(g => `<tr><td>${g.nombre}${g.patente ? ` (${g.patente})` : ''}</td><td class="c">${g.dias}</td><td class="r">${g.km} km</td><td class="r">${fmtMoney(g.comb)}</td><td class="r">${g.km > 0 ? fmtMoney(g.comb / g.km) : '—'}</td></tr>`).join('')
+    const filDet = rows.map(r => `<tr><td>${new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td><td>${r.camionetas?.nombre || ''}</td><td class="r">${r.km_inicial ?? '—'}</td><td class="r">${r.km_final ?? '—'}</td><td class="r">${recorrido(r) != null ? recorrido(r) + ' km' : '—'}</td><td class="r">${r.combustible_monto != null ? fmtMoney(r.combustible_monto) : '—'}</td></tr>`).join('')
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte Km — ${per}</title>
+      <style>body{font-family:Arial,sans-serif;color:#111;margin:0;padding:16px;font-size:12px}h2{margin:0 0 2px;color:#25374d}.sub{color:#374151;margin:0 0 12px}h3{margin:16px 0 6px;color:#25374d;font-size:13px}table{border-collapse:collapse;width:100%;margin-bottom:8px}th{background:#25374d;color:#fff;font-size:10px;text-transform:uppercase;padding:6px 8px;text-align:left}td{border:1px solid #b9c0cc;padding:6px 8px}.c{text-align:center}.r{text-align:right}tfoot td{font-weight:800;background:#eef1f5}@media print{@page{size:landscape;margin:1cm}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+      </head><body>
+      <h2>TEMPTECH — Reporte de Km y Combustible</h2><p class="sub">${per}</p>
+      <h3>Resumen por camioneta</h3>
+      <table><thead><tr><th>Camioneta</th><th class="c">Días</th><th class="r">Km recorridos</th><th class="r">Combustible</th><th class="r">$ / km</th></tr></thead>
+      <tbody>${filResumen}</tbody>
+      <tfoot><tr><td>TOTAL</td><td class="c"></td><td class="r">${totKm} km</td><td class="r">${fmtMoney(totComb)}</td><td class="r">${totKm > 0 ? fmtMoney(totComb / totKm) : '—'}</td></tr></tfoot></table>
+      <h3>Detalle por día</h3>
+      <table><thead><tr><th>Fecha</th><th>Camioneta</th><th class="r">Km inicial</th><th class="r">Km final</th><th class="r">Recorrido</th><th class="r">Combustible</th></tr></thead>
+      <tbody>${filDet}</tbody></table>
+      </body></html>`
+    const w = window.open('', '_blank', 'width=1200,height=800')
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 350)
+  }
+
+  const inSt = { background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }
+  const th = { padding: '8px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left', borderBottom: '1px solid var(--border)' }
+  const td = { padding: '8px 10px', fontSize: 13, borderBottom: '1px solid var(--border)' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 820, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>📊 Reporte de Km y Combustible</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Rango + acciones */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>Desde <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={inSt} /></label>
+            <label style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>Hasta <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={inSt} /></label>
+            <button onClick={imprimir} disabled={!rows.length} style={{ marginLeft: 'auto', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: rows.length ? 'pointer' : 'not-allowed', opacity: rows.length ? 1 : 0.5, fontFamily: 'var(--font)' }}>🖨️ Imprimir</button>
+          </div>
+
+          {/* Totales */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 160, background: 'rgba(61,214,140,0.08)', border: '1px solid rgba(61,214,140,0.25)', borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700 }}>Km recorridos</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#3dd68c' }}>{totKm} <span style={{ fontSize: 14 }}>km</span></div>
+            </div>
+            <div style={{ flex: 1, minWidth: 160, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700 }}>Combustible</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#fb923c' }}>{fmtMoney(totComb)}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 160, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700 }}>Costo por km</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>{totKm > 0 ? fmtMoney(totComb / totKm) : '—'}</div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Cargando...</div>
+          ) : grupos.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Sin datos de km en el período.</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <th style={th}>Camioneta</th>
+                <th style={{ ...th, textAlign: 'center' }}>Días</th>
+                <th style={{ ...th, textAlign: 'right' }}>Km</th>
+                <th style={{ ...th, textAlign: 'right' }}>Combustible</th>
+                <th style={{ ...th, textAlign: 'right' }}>$ / km</th>
+              </tr></thead>
+              <tbody>
+                {grupos.map((g, i) => (
+                  <tr key={i}>
+                    <td style={{ ...td, fontWeight: 700 }}>{g.nombre}{g.patente ? <span style={{ color: 'var(--text3)', fontWeight: 400, fontSize: 11 }}> · {g.patente}</span> : ''}</td>
+                    <td style={{ ...td, textAlign: 'center' }}>{g.dias}</td>
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: '#3dd68c' }}>{g.km} km</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(g.comb)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: 'var(--text3)' }}>{g.km > 0 ? fmtMoney(g.comb / g.km) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
