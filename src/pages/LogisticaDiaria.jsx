@@ -11,6 +11,7 @@ const TIPOS = {
   cambio_producto: { label: 'Cambio de Producto', color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)',  emoji: '🔁' },
   cambio_garantia: { label: 'Cambio Garantía',   color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.35)',  emoji: '🔄' },
   retiro_insumos:  { label: 'Retiro Insumos',    color: '#7b9fff', bg: 'rgba(123,159,255,0.12)', border: 'rgba(123,159,255,0.35)', emoji: '📥' },
+  llevar_insumo:   { label: 'Llevar Insumo',     color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)',  border: 'rgba(45,212,191,0.35)',  emoji: '📤' },
   retiro_service:  { label: 'Retiro Service',    color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)', emoji: '🔧' },
   retiro_items:    { label: 'Retiro de Items',   color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', emoji: '📋' },
 }
@@ -198,7 +199,7 @@ export default function LogisticaDiaria() {
     setForm(prev => ({
       ...prev, proveedor_id: id,
       nombre: prev.nombre || p.nombre,
-      descripcion: prev.descripcion || `Retiro en ${p.nombre}`,
+      descripcion: prev.descripcion || `${prev.tipo === 'llevar_insumo' ? 'Llevar a' : 'Retiro en'} ${p.nombre}`,
       direccion: prev.direccion || p.direccion || '',
       localidad: prev.localidad || p.localidad || '',
       telefono: prev.telefono || p.telefono || '',
@@ -426,7 +427,7 @@ export default function LogisticaDiaria() {
   if (!isAdmin && !isAdmin2 && !isChofer) return null
 
   const conProductos = TIPOS_CON_PRODUCTOS.includes(form.tipo)
-  const esInsumos = form.tipo === 'retiro_insumos'
+  const usaProveedor = ['retiro_insumos', 'llevar_insumo'].includes(form.tipo)
 
   // Agrupar ruta por camioneta
   const grupos = camionetas
@@ -737,10 +738,10 @@ export default function LogisticaDiaria() {
                 </div>
               </div>
 
-              {/* Proveedor (solo retiro de insumos) */}
-              {esInsumos && (
+              {/* Proveedor (retiro o llevar insumo) */}
+              {usaProveedor && (
                 <div>
-                  <label style={lblSt}>Proveedor</label>
+                  <label style={lblSt}>{form.tipo === 'llevar_insumo' ? 'Proveedor / Destino' : 'Proveedor'}</label>
                   <select value={form.proveedor_id || ''} onChange={e => onProveedorSelect(e.target.value || null)} style={{ ...iSt, cursor: 'pointer' }}>
                     <option value="">— Elegir proveedor (autocompleta datos) —</option>
                     {proveedores.map(p => <option key={p.id} value={p.id}>{(CATEGORIAS_PROVEEDOR[p.categoria]?.emoji || '')} {p.nombre}</option>)}
