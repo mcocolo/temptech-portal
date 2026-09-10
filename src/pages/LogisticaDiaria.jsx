@@ -397,10 +397,37 @@ export default function LogisticaDiaria() {
     cargar()
   }
 
-  function imprimirRutaCamioneta(camNombre, chofer, grupo) {
-    const fechaDisplay = fmtFechaLarga(fecha)
-    const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const RUTA_STYLES = `
+    *{box-sizing:border-box}
+    body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:16px}
+    .ruta{page-break-before:always}
+    .ruta:first-child{page-break-before:auto}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #25374d;padding-bottom:8px;margin-bottom:6px}
+    .logo{font-size:24px;font-weight:800;color:#25374d;letter-spacing:-.5px}
+    .logo span{color:#ff6b2b}
+    .meta{text-align:right;font-size:12px;color:#374151;line-height:1.5}
+    .meta b{color:#111;font-size:13px}
+    .chofer{display:inline-block;background:#25374d;color:#fff;font-weight:700;padding:3px 12px;border-radius:6px;font-size:13px}
+    table{border-collapse:collapse;width:100%;margin-top:6px;table-layout:fixed}
+    th{background:#25374d;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:7px 6px;border:1px solid #25374d;text-align:left}
+    th.c{text-align:center}
+    td{border:1px solid #b9c0cc;padding:8px 7px;font-size:12px;vertical-align:top;height:64px}
+    td.c{text-align:center}
+    td.num{font-weight:800;font-size:14px;color:#25374d}
+    .det{font-size:10px;color:#555;margin-top:3px}
+    .zona{display:inline-block;background:#eef1f5;border:1px solid #cbd2dc;border-radius:10px;padding:0 7px;font-size:10px;color:#374151;white-space:nowrap}
+    td.prod{font-size:12px;font-weight:700;color:#1a7a4a;line-height:1.7}
+    .cambio{display:inline-block;background:#fff3e6;color:#c2560f;border:1px solid #f0b483;border-radius:8px;padding:0 6px;font-size:9px;font-weight:800;margin-top:3px}
+    td.firma,td.acl{background:#fcfcfd}
+    tr{page-break-inside:avoid}
+    .resumen{margin-top:12px;font-size:11px;color:#374151;border-top:1px dashed #b9c0cc;padding-top:8px}
+    .resumen b{color:#25374d}
+    @media print{body{padding:8px}@page{size:landscape;margin:0.8cm}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  `
 
+  function bloqueRuta(camNombre, chofer, grupo) {
+    const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const fechaDisplay = fmtFechaLarga(fecha)
     const filas = grupo.map((item, i) => {
       const t = TIPOS[item.tipo]
       const esCambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo)
@@ -419,38 +446,10 @@ export default function LogisticaDiaria() {
         <td class="acl">&nbsp;</td>
       </tr>`
     }).join('')
-
-    // Resumen de productos (útil para cargar la camioneta)
     const totales = {}
     grupo.forEach(it => (it.productos || []).forEach(p => { if (p.cantidad > 0) totales[p.label] = (totales[p.label] || 0) + p.cantidad }))
     const resumen = Object.entries(totales).map(([l, c]) => `${esc(l)} &times;${c}`).join(' &nbsp;·&nbsp; ')
-
-    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Ruta ${esc(camNombre)} — ${fechaDisplay}</title>
-      <style>
-        *{box-sizing:border-box}
-        body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:16px}
-        .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #25374d;padding-bottom:8px;margin-bottom:6px}
-        .logo{font-size:24px;font-weight:800;color:#25374d;letter-spacing:-.5px}
-        .logo span{color:#ff6b2b}
-        .meta{text-align:right;font-size:12px;color:#374151;line-height:1.5}
-        .meta b{color:#111;font-size:13px}
-        .chofer{display:inline-block;background:#25374d;color:#fff;font-weight:700;padding:3px 12px;border-radius:6px;font-size:13px}
-        table{border-collapse:collapse;width:100%;margin-top:6px;table-layout:fixed}
-        th{background:#25374d;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:7px 6px;border:1px solid #25374d;text-align:left}
-        th.c{text-align:center}
-        td{border:1px solid #b9c0cc;padding:8px 7px;font-size:12px;vertical-align:top;height:64px}
-        td.c{text-align:center}
-        td.num{font-weight:800;font-size:14px;color:#25374d}
-        .det{font-size:10px;color:#555;margin-top:3px}
-        .zona{display:inline-block;background:#eef1f5;border:1px solid #cbd2dc;border-radius:10px;padding:0 7px;font-size:10px;color:#374151;white-space:nowrap}
-        td.prod{font-size:12px;font-weight:700;color:#1a7a4a;line-height:1.7}
-        .cambio{display:inline-block;background:#fff3e6;color:#c2560f;border:1px solid #f0b483;border-radius:8px;padding:0 6px;font-size:9px;font-weight:800;margin-top:3px}
-        td.firma,td.acl{background:#fcfcfd}
-        tr{page-break-inside:avoid}
-        .resumen{margin-top:12px;font-size:11px;color:#374151;border-top:1px dashed #b9c0cc;padding-top:8px}
-        .resumen b{color:#25374d}
-        @media print{body{padding:8px}@page{size:landscape;margin:0.8cm}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-      </style></head><body>
+    return `<div class="ruta">
       <div class="head">
         <div class="logo">TEMP<span>TECH</span> &nbsp;<span style="color:#374151;font-size:14px;font-weight:600">Hoja de Ruta</span></div>
         <div class="meta">
@@ -470,9 +469,23 @@ export default function LogisticaDiaria() {
         <tbody>${filas}</tbody>
       </table>
       ${resumen ? `<div class="resumen"><b>Total a cargar:</b> ${resumen}</div>` : ''}
-      </body></html>`
+    </div>`
+  }
+
+  function abrirImpresion(titulo, cuerpo) {
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${titulo}</title><style>${RUTA_STYLES}</style></head><body>${cuerpo}</body></html>`
     const w = window.open('', '_blank', 'width=1400,height=800')
-    w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 350)
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 400)
+  }
+
+  function imprimirRutaCamioneta(camNombre, chofer, grupo) {
+    abrirImpresion(`Ruta ${camNombre} — ${fmtFechaLarga(fecha)}`, bloqueRuta(camNombre, chofer, grupo))
+  }
+
+  function imprimirTodas() {
+    if (!grupos.length) return
+    const cuerpo = grupos.map(({ camioneta, items }) => bloqueRuta(camioneta.nombre, choferInput[camioneta.id] || '', items)).join('')
+    abrirImpresion(`Rutas del ${fmtFechaLarga(fecha)}`, cuerpo)
   }
 
   if (!isAdmin && !isAdmin2 && !isChofer) return null
@@ -652,8 +665,16 @@ export default function LogisticaDiaria() {
       )}
 
       {/* ── RUTAS POR CAMIONETA (fecha seleccionada) ── */}
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-        🚐 Rutas del {fmtFechaLarga(fecha)}
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+          🚐 Rutas del {fmtFechaLarga(fecha)}
+        </div>
+        {!isChofer && grupos.length > 1 && (
+          <button onClick={imprimirTodas}
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            🖨️ Imprimir todas ({grupos.length})
+          </button>
+        )}
       </div>
 
       {loading ? (
