@@ -43,6 +43,7 @@ import VideosTecnicos from '@/pages/VideosTecnicos'
 import PedidosRepuestos from '@/pages/PedidosRepuestos'
 import AdminAprobaciones from '@/pages/AdminAprobaciones'
 import MapaLocales from '@/pages/MapaLocales'
+import Proveedores from '@/pages/Proveedores'
 
 
 
@@ -118,6 +119,7 @@ function AppRoutes() {
               <Route path="/pedidos-repuestos"          element={<PedidosRepuestos />} />
               <Route path="/admin-aprobaciones"         element={<AdminAprobaciones />} />
               <Route path="/mapa-locales"               element={<MapaLocales />} />
+              <Route path="/proveedores"                element={<Proveedores />} />
               <Route path="/pedidos-meli"              element={<PedidosCanal key="meli" />} />
               <Route path="/pedidos-pagina"            element={<PedidosCanal key="pagina" />} />
               <Route path="/pedidos-vo"                element={<PedidosCanal key="vo" />} />

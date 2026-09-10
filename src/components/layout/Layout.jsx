@@ -56,6 +56,7 @@ const ADMIN_NAV = [
   { label: 'Preventas',           icon: Package,    path: '/admin-preventas',    isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,  path: '/ingreso-egreso-pt',  isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,      path: '/logistica',          isAdmin: true },
+  { label: 'Proveedores',        icon: Box,        path: '/proveedores',        isAdmin: true },
   { label: 'Reportes',           icon: BarChart2,  path: '/reportes',           isAdmin: true },
   { label: 'Presupuestos',       icon: ClipboardList, path: '/presupuestos',    isAdmin: true },
   { section: 'PostVenta' },
@@ -85,6 +86,7 @@ const ADMIN2_NAV = [
   { label: 'Pedidos VO',          icon: Package,       path: '/pedidos-vo',        isAdmin: true },
   { label: 'Ingreso / Egreso PT', icon: BarChart2,     path: '/ingreso-egreso-pt', isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,         path: '/logistica',         isAdmin: true },
+  { label: 'Proveedores',        icon: Box,           path: '/proveedores',       isAdmin: true },
   { label: 'Ingreso en Tránsito', icon: Archive, isAdmin: true, submenu: 'transito', children: [
     { label: 'Mercado Libre', icon: ShoppingBag, path: '/ingreso-transito/meli' },
     { label: 'Página Web',    icon: Globe,       path: '/ingreso-transito/pagina' },
