@@ -79,29 +79,52 @@ export default function LogisticaDiaria() {
     setProveedores(prov.data || [])
     setChoferes(chof.data || [])
 
-    const [rutaData, pendData] = await Promise.all([
-      fetchAllRows(() => supabase.from('logistica_diaria').select('*').eq('fecha', fecha).not('camioneta_id', 'is', null).order('camioneta_id').order('orden')),
-      fetchAllRows(() => supabase.from('logistica_diaria').select('*').is('camioneta_id', null).order('created_at', { ascending: true })),
-    ])
-    setRutaItems(rutaData || [])
-    setPorAsignar(pendData || [])
+    let fechaEfectiva = fecha
+    let rutaData = []
+    if (isChofer) {
+      // El chofer ve SOLO su ruta pendiente (fecha >= hoy, la más próxima). No ve las viejas.
+      const hoy = new Date().toISOString().split('T')[0]
+      const nombre = (profile?.full_name || '').trim().toLowerCase()
+      const misTodos = await fetchAllRows(() => supabase.from('logistica_diaria').select('*').not('camioneta_id', 'is', null).gte('fecha', hoy).order('fecha').order('camioneta_id').order('orden'))
+      const mine = (misTodos || []).filter(i => nombre && (i.chofer_asignado || '').trim().toLowerCase() === nombre)
+      const fechas = [...new Set(mine.map(i => i.fecha))].sort()
+      fechaEfectiva = fechas[0] || hoy
+      rutaData = mine.filter(i => i.fecha === fechaEfectiva)
+      setPorAsignar([])
+      if (fechaEfectiva !== fecha) setFecha(fechaEfectiva)
+    } else {
+      const [rd, pendData] = await Promise.all([
+        fetchAllRows(() => supabase.from('logistica_diaria').select('*').eq('fecha', fecha).not('camioneta_id', 'is', null).order('camioneta_id').order('orden')),
+        fetchAllRows(() => supabase.from('logistica_diaria').select('*').is('camioneta_id', null).order('created_at', { ascending: true })),
+      ])
+      rutaData = rd || []
+      setPorAsignar(pendData || [])
+    }
+    setRutaItems(rutaData)
 
     // Pre-cargar chofer inputs por camioneta desde lo ya guardado
     const chIn = {}
-    for (const it of (rutaData || [])) if (it.camioneta_id && it.chofer_asignado) chIn[it.camioneta_id] = it.chofer_asignado
+    for (const it of rutaData) if (it.camioneta_id && it.chofer_asignado) chIn[it.camioneta_id] = it.chofer_asignado
     setChoferInput(chIn)
 
-    // Kilometraje: último km conocido (para autocompletar el inicial) + km del día
+    // Kilometraje / cierre: último km conocido (autocompleta inicial) + registro del día
     const [{ data: kmHist }, { data: kmData }] = await Promise.all([
       supabase.from('logistica_km').select('camioneta_id,km_final,fecha').not('km_final', 'is', null).order('fecha', { ascending: false }),
-      supabase.from('logistica_km').select('*').eq('fecha', fecha),
+      supabase.from('logistica_km').select('*').eq('fecha', fechaEfectiva),
     ])
     const ultimo = {}
     for (const r of (kmHist || [])) if (!(r.camioneta_id in ultimo)) ultimo[r.camioneta_id] = r.km_final
     setUltimoKm(ultimo)
+    const emptyRec = c => ({ km_inicial: ultimo[c] ?? '', km_final: '', combustible_monto: '', foto_vehiculo_url: '', foto_ticket_url: '' })
     const kmIn = {}
-    for (const c of (cam.data || [])) kmIn[c.id] = { km_inicial: ultimo[c.id] ?? '', km_final: '' }
-    for (const r of (kmData || [])) kmIn[r.camioneta_id] = { km_inicial: r.km_inicial ?? (ultimo[r.camioneta_id] ?? ''), km_final: r.km_final ?? '' }
+    for (const c of (cam.data || [])) kmIn[c.id] = emptyRec(c.id)
+    for (const r of (kmData || [])) kmIn[r.camioneta_id] = {
+      km_inicial: r.km_inicial ?? (ultimo[r.camioneta_id] ?? ''),
+      km_final: r.km_final ?? '',
+      combustible_monto: r.combustible_monto ?? '',
+      foto_vehiculo_url: r.foto_vehiculo_url || '',
+      foto_ticket_url: r.foto_ticket_url || '',
+    }
     setKmInput(kmIn)
 
     // Pedidos / ventas por asignar (solo admin)
