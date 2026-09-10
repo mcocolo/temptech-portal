@@ -423,6 +423,7 @@ export default function LogisticaDiaria() {
                         {item.zona && <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 12, color: 'var(--text2)', fontWeight: 600 }}>{item.zona}</span>}
                         {item.telefono && <span>📞 {item.telefono}</span>}
                       </div>
+                      {item.descripcion && item.nombre && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>📝 {item.descripcion}</div>}
                       {prodsCon.length > 0 && (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
                           {prodsCon.map(p => <span key={p.codigo} style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 6, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{p.label} ×{p.cantidad}</span>)}
@@ -573,6 +574,15 @@ export default function LogisticaDiaria() {
                   placeholder={conProductos ? 'Ej: Juan García / Bella Tienda SA' : 'Ej: Retirar chiller / Retirar silicona x2'} style={iSt} />
               </div>
 
+              {/* Detalle / producto del caso (editable también en tipos con productos) */}
+              {conProductos && (
+                <div>
+                  <label style={lblSt}>Detalle / producto del caso (opcional)</label>
+                  <input value={form.descripcion} onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
+                    placeholder="Ej: Panel Calefactor Slim 500w — No calienta" style={iSt} />
+                </div>
+              )}
+
               {/* Dirección + Localidad */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div><label style={lblSt}>Dirección</label><input value={form.direccion} onChange={e => setForm(p => ({ ...p, direccion: e.target.value }))} placeholder="Ej: Av. Rivadavia 1234" style={iSt} /></div>
@@ -697,6 +707,7 @@ function ParadaRow({ item, idx, grupo, isChofer, onMover, onEditar, onConfirmar,
           {item.telefono && <span>📞 {item.telefono}</span>}
           {item.dni && <span style={{ color: 'var(--text2)' }}>DNI: {item.dni}</span>}
         </div>
+        {item.descripcion && item.nombre && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>📝 {item.descripcion}</div>}
         {prodsCon.length > 0 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
             {prodsCon.map(p => <span key={p.codigo} style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 6, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{p.label} ×{p.cantidad}</span>)}
