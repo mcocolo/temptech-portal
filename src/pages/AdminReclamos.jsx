@@ -823,6 +823,34 @@ export default function AdminReclamos({ openTracking } = {}) {
     await cargar()
   }
 
+  // Trae (o actualiza) el caso a la planilla de Logística cuando se despacha por
+  // "Logística Propia". Queda "Por asignar" (sin camioneta) con la fecha del caso.
+  async function traerALogistica(item, { tipoLog, fecha }) {
+    const direccion = [item.direccion, item.piso ? `Piso ${item.piso}` : '', item.departamento ? `Depto ${item.departamento}` : '']
+      .filter(Boolean).join(', ')
+    const payload = {
+      tipo: tipoLog,
+      fecha: fecha || null,
+      nombre: `${item.nombre_apellido || 'Cliente'} ${item.tracking_id || ''}`.trim(),
+      direccion: direccion || null,
+      localidad: item.localidad || null,
+      telefono: item.telefono || null,
+      email: item.email || null,
+      descripcion: [item.producto, item.modelo, item.motivo].filter(Boolean).join(' — ') || null,
+      notas: item.descripcion_falla ? `Falla: ${String(item.descripcion_falla).slice(0, 280)}` : null,
+      devolucion_id: item.id,
+      camioneta_id: null,
+    }
+    try {
+      const { data: existentes } = await supabase.from('logistica_diaria').select('id').eq('devolucion_id', item.id).limit(1)
+      if (existentes && existentes.length) {
+        await supabase.from('logistica_diaria').update({ tipo: payload.tipo, fecha: payload.fecha }).eq('id', existentes[0].id)
+      } else {
+        await supabase.from('logistica_diaria').insert({ ...payload, orden: 0 })
+      }
+    } catch (e) { /* no bloquea la resolución */ }
+  }
+
   async function guardarEnvio(item, { empresa, codigo, fechaEnvio, textoEmail, tipo, adjuntosUrls }) {
     const notaTexto = window.prompt(`Nota para ${tipo.toUpperCase()}:`, '')
     if (notaTexto === null) return
@@ -855,6 +883,14 @@ export default function AdminReclamos({ openTracking } = {}) {
 
     if (error) { alert(`Error al guardar ${tipo}`); return }
 
+    // Si sale por Logística Propia, lo llevamos a la planilla de logística
+    if (empresa === 'Logistica Propia') {
+      await traerALogistica(item, {
+        tipoLog: tipo === 'Devolucion' ? 'retiro_service' : 'cambio_garantia',
+        fecha: fechaEnvio || null,
+      })
+    }
+
     try {
       const { error: emailError } = await supabase.functions.invoke('send-email', {
         body: {
@@ -885,6 +921,9 @@ export default function AdminReclamos({ openTracking } = {}) {
       notas: unirNotas(item.notas, nuevaNota),
     }).eq('id', item.id)
     if (error) { alert('Error al guardar'); return }
+
+    // Notificar Service siempre es Logística Propia → a la planilla de logística
+    await traerALogistica(item, { tipoLog: 'retiro_service', fecha: fechaVisita || null })
 
     try {
       const { error: emailError } = await supabase.functions.invoke('enviar-email-resolucion', {
