@@ -75,7 +75,7 @@ export default function LogisticaDiaria() {
     const [cam, prov, chof] = await Promise.all([
       supabase.from('camionetas').select('*').eq('activa', true).order('nombre'),
       supabase.from('proveedores').select('id,nombre,categoria,telefono,direccion,localidad').order('nombre'),
-      supabase.from('profiles').select('id,full_name').eq('role', 'chofer').order('full_name'),
+      supabase.from('choferes').select('*').eq('activo', true).order('nombre'),
     ])
     setCamionetas(cam.data || [])
     setProveedores(prov.data || [])
@@ -465,7 +465,7 @@ export default function LogisticaDiaria() {
               </button>
               <button onClick={() => setFlotaOpen(true)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                🚐 Camionetas
+                🚐 Camionetas y choferes
               </button>
             </>
           )}
@@ -720,7 +720,7 @@ export default function LogisticaDiaria() {
       )}
 
       <datalist id="choferes-list">
-        {choferes.map(c => <option key={c.id} value={c.full_name} />)}
+        {choferes.map(c => <option key={c.id} value={c.nombre} />)}
       </datalist>
 
       {/* ── MODAL alta/edición de parada ── */}
@@ -842,7 +842,7 @@ export default function LogisticaDiaria() {
       )}
 
       {/* ── MODAL flota (camionetas) ── */}
-      {!isChofer && flotaOpen && <FlotaModal camionetas={camionetas} onClose={() => setFlotaOpen(false)} onChange={cargar} />}
+      {!isChofer && flotaOpen && <FlotaModal camionetas={camionetas} choferes={choferes} onClose={() => setFlotaOpen(false)} onChange={cargar} />}
 
       {/* ── MODAL reporte de km / combustible ── */}
       {!isChofer && reporteOpen && <ReporteKmModal onClose={() => setReporteOpen(false)} />}
@@ -1036,12 +1036,18 @@ function ParadaRow({ item, idx, grupo, isChofer, onMover, onEditar, onConfirmar,
 }
 
 // ── Modal de gestión de camionetas ──
-function FlotaModal({ camionetas, onClose, onChange }) {
+function FlotaModal({ camionetas, choferes, onClose, onChange }) {
   const [nombre, setNombre] = useState('')
   const [patente, setPatente] = useState('')
   const [modelo, setModelo] = useState('')
   const [kmInicial, setKmInicial] = useState('')
   const [guardando, setGuardando] = useState(false)
+
+  // Choferes
+  const [chNombre, setChNombre] = useState('')
+  const [chTel, setChTel] = useState('')
+  const [chEmail, setChEmail] = useState('')
+  const [guardandoCh, setGuardandoCh] = useState(false)
 
   async function agregar() {
     if (!nombre.trim()) return toast.error('Ingresá un nombre')
@@ -1056,6 +1062,16 @@ function FlotaModal({ camionetas, onClose, onChange }) {
   }
   async function toggleActiva(c) { await supabase.from('camionetas').update({ activa: !c.activa }).eq('id', c.id); onChange() }
   async function eliminar(c) { await supabase.from('camionetas').delete().eq('id', c.id); onChange() }
+
+  async function agregarChofer() {
+    if (!chNombre.trim()) return toast.error('Ingresá el nombre del chofer')
+    setGuardandoCh(true)
+    const { error } = await supabase.from('choferes').insert({ nombre: chNombre.trim(), telefono: chTel.trim() || null, email: chEmail.trim() || null })
+    setGuardandoCh(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    setChNombre(''); setChTel(''); setChEmail(''); onChange()
+  }
+  async function eliminarChofer(c) { await supabase.from('choferes').delete().eq('id', c.id); onChange() }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -1087,7 +1103,31 @@ function FlotaModal({ camionetas, onClose, onChange }) {
               <input value={patente} onChange={e => setPatente(e.target.value)} placeholder="Patente" style={iSt} />
             </div>
             <input type="number" value={kmInicial} onChange={e => setKmInicial(e.target.value)} placeholder="Km inicial del vehículo (odómetro actual)" style={iSt} />
-            <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>➕ Agregar</button>
+            <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>➕ Agregar camioneta</button>
+          </div>
+
+          {/* ── Choferes ── */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>👤 Choferes</div>
+            {(choferes || []).length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>Todavía no hay choferes. Agregá el primero.</div>}
+            {(choferes || []).map(c => (
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{c.nombre}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[c.telefono, c.email].filter(Boolean).join(' · ') || '—'}</div>
+                </div>
+                <button onClick={() => eliminarChofer(c)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Agregar chofer</div>
+              <input value={chNombre} onChange={e => setChNombre(e.target.value)} placeholder="Nombre y apellido" style={iSt} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <input value={chTel} onChange={e => setChTel(e.target.value)} placeholder="Teléfono" style={iSt} />
+                <input value={chEmail} onChange={e => setChEmail(e.target.value)} placeholder="Email" style={iSt} />
+              </div>
+              <button onClick={agregarChofer} disabled={guardandoCh} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: guardandoCh ? 'not-allowed' : 'pointer', opacity: guardandoCh ? 0.7 : 1, fontFamily: 'var(--font)' }}>➕ Agregar chofer</button>
+            </div>
           </div>
         </div>
       </div>
