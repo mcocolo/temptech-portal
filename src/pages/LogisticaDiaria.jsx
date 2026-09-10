@@ -950,31 +950,34 @@ function ReporteKmModal({ onClose }) {
   const porCam = {}
   for (const r of rows) {
     const key = r.camioneta_id || 'sin'
-    if (!porCam[key]) porCam[key] = { nombre: r.camionetas?.nombre || 'Camioneta', patente: r.camionetas?.patente || '', dias: 0, km: 0, comb: 0 }
+    if (!porCam[key]) porCam[key] = { nombre: r.camionetas?.nombre || 'Camioneta', patente: r.camionetas?.patente || '', dias: 0, km: 0, comb: 0, litros: 0 }
     const g = porCam[key]
     const rec = recorrido(r)
     if (rec != null) g.km += rec
     if (r.combustible_monto) g.comb += Number(r.combustible_monto)
+    if (r.combustible_litros) g.litros += Number(r.combustible_litros)
     if (r.km_final != null || r.combustible_monto != null) g.dias += 1
   }
   const grupos = Object.values(porCam).sort((a, b) => b.km - a.km)
   const totKm = grupos.reduce((s, g) => s + g.km, 0)
   const totComb = grupos.reduce((s, g) => s + g.comb, 0)
+  const totLitros = grupos.reduce((s, g) => s + g.litros, 0)
+  const rend = (km, l) => (l > 0 ? (km / l).toFixed(1) : '—')
 
   function imprimir() {
     const per = `${new Date(desde + 'T12:00:00').toLocaleDateString('es-AR')} — ${new Date(hasta + 'T12:00:00').toLocaleDateString('es-AR')}`
-    const filResumen = grupos.map(g => `<tr><td>${g.nombre}${g.patente ? ` (${g.patente})` : ''}</td><td class="c">${g.dias}</td><td class="r">${g.km} km</td><td class="r">${fmtMoney(g.comb)}</td><td class="r">${g.km > 0 ? fmtMoney(g.comb / g.km) : '—'}</td></tr>`).join('')
-    const filDet = rows.map(r => `<tr><td>${new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td><td>${r.camionetas?.nombre || ''}</td><td class="r">${r.km_inicial ?? '—'}</td><td class="r">${r.km_final ?? '—'}</td><td class="r">${recorrido(r) != null ? recorrido(r) + ' km' : '—'}</td><td class="r">${r.combustible_monto != null ? fmtMoney(r.combustible_monto) : '—'}</td></tr>`).join('')
+    const filResumen = grupos.map(g => `<tr><td>${g.nombre}${g.patente ? ` (${g.patente})` : ''}</td><td class="c">${g.dias}</td><td class="r">${g.km} km</td><td class="r">${g.litros || '—'}</td><td class="r">${fmtMoney(g.comb)}</td><td class="r">${rend(g.km, g.litros)}</td><td class="r">${g.km > 0 ? fmtMoney(g.comb / g.km) : '—'}</td></tr>`).join('')
+    const filDet = rows.map(r => `<tr><td>${new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR')}</td><td>${r.camionetas?.nombre || ''}</td><td class="r">${r.km_inicial ?? '—'}</td><td class="r">${r.km_final ?? '—'}</td><td class="r">${recorrido(r) != null ? recorrido(r) + ' km' : '—'}</td><td class="r">${r.combustible_litros != null ? r.combustible_litros + ' L' : '—'}</td><td class="r">${r.combustible_monto != null ? fmtMoney(r.combustible_monto) : '—'}</td></tr>`).join('')
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte Km — ${per}</title>
       <style>body{font-family:Arial,sans-serif;color:#111;margin:0;padding:16px;font-size:12px}h2{margin:0 0 2px;color:#25374d}.sub{color:#374151;margin:0 0 12px}h3{margin:16px 0 6px;color:#25374d;font-size:13px}table{border-collapse:collapse;width:100%;margin-bottom:8px}th{background:#25374d;color:#fff;font-size:10px;text-transform:uppercase;padding:6px 8px;text-align:left}td{border:1px solid #b9c0cc;padding:6px 8px}.c{text-align:center}.r{text-align:right}tfoot td{font-weight:800;background:#eef1f5}@media print{@page{size:landscape;margin:1cm}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
       </head><body>
       <h2>TEMPTECH — Reporte de Km y Combustible</h2><p class="sub">${per}</p>
       <h3>Resumen por camioneta</h3>
-      <table><thead><tr><th>Camioneta</th><th class="c">Días</th><th class="r">Km recorridos</th><th class="r">Combustible</th><th class="r">$ / km</th></tr></thead>
+      <table><thead><tr><th>Camioneta</th><th class="c">Días</th><th class="r">Km recorridos</th><th class="r">Litros</th><th class="r">Combustible</th><th class="r">km/L</th><th class="r">$ / km</th></tr></thead>
       <tbody>${filResumen}</tbody>
-      <tfoot><tr><td>TOTAL</td><td class="c"></td><td class="r">${totKm} km</td><td class="r">${fmtMoney(totComb)}</td><td class="r">${totKm > 0 ? fmtMoney(totComb / totKm) : '—'}</td></tr></tfoot></table>
+      <tfoot><tr><td>TOTAL</td><td class="c"></td><td class="r">${totKm} km</td><td class="r">${totLitros || '—'}</td><td class="r">${fmtMoney(totComb)}</td><td class="r">${rend(totKm, totLitros)}</td><td class="r">${totKm > 0 ? fmtMoney(totComb / totKm) : '—'}</td></tr></tfoot></table>
       <h3>Detalle por día</h3>
-      <table><thead><tr><th>Fecha</th><th>Camioneta</th><th class="r">Km inicial</th><th class="r">Km final</th><th class="r">Recorrido</th><th class="r">Combustible</th></tr></thead>
+      <table><thead><tr><th>Fecha</th><th>Camioneta</th><th class="r">Km inicial</th><th class="r">Km final</th><th class="r">Recorrido</th><th class="r">Litros</th><th class="r">Combustible</th></tr></thead>
       <tbody>${filDet}</tbody></table>
       </body></html>`
     const w = window.open('', '_blank', 'width=1200,height=800')
@@ -1006,13 +1009,15 @@ function ReporteKmModal({ onClose }) {
               <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700 }}>Km recorridos</div>
               <div style={{ fontSize: 26, fontWeight: 800, color: '#3dd68c' }}>{totKm} <span style={{ fontSize: 14 }}>km</span></div>
             </div>
-            <div style={{ flex: 1, minWidth: 160, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
+            <div style={{ flex: 1, minWidth: 150, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
               <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700 }}>Combustible</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: '#fb923c' }}>{fmtMoney(totComb)}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#fb923c' }}>{fmtMoney(totComb)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{totLitros > 0 ? `${totLitros} L · ${fmtMoney(totComb / totLitros)}/L` : '— L'}</div>
             </div>
-            <div style={{ flex: 1, minWidth: 160, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
-              <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700 }}>Costo por km</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>{totKm > 0 ? fmtMoney(totComb / totKm) : '—'}</div>
+            <div style={{ flex: 1, minWidth: 150, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 700 }}>Rendimiento</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>{rend(totKm, totLitros)} <span style={{ fontSize: 13 }}>km/L</span></div>
+              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{totKm > 0 ? `${fmtMoney(totComb / totKm)}/km` : '—'}</div>
             </div>
           </div>
 
@@ -1026,7 +1031,9 @@ function ReporteKmModal({ onClose }) {
                 <th style={th}>Camioneta</th>
                 <th style={{ ...th, textAlign: 'center' }}>Días</th>
                 <th style={{ ...th, textAlign: 'right' }}>Km</th>
+                <th style={{ ...th, textAlign: 'right' }}>Litros</th>
                 <th style={{ ...th, textAlign: 'right' }}>Combustible</th>
+                <th style={{ ...th, textAlign: 'right' }}>km/L</th>
                 <th style={{ ...th, textAlign: 'right' }}>$ / km</th>
               </tr></thead>
               <tbody>
@@ -1035,7 +1042,9 @@ function ReporteKmModal({ onClose }) {
                     <td style={{ ...td, fontWeight: 700 }}>{g.nombre}{g.patente ? <span style={{ color: 'var(--text3)', fontWeight: 400, fontSize: 11 }}> · {g.patente}</span> : ''}</td>
                     <td style={{ ...td, textAlign: 'center' }}>{g.dias}</td>
                     <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: '#3dd68c' }}>{g.km} km</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{g.litros || '—'}</td>
                     <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(g.comb)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: 'var(--text2)' }}>{rend(g.km, g.litros)}</td>
                     <td style={{ ...td, textAlign: 'right', color: 'var(--text3)' }}>{g.km > 0 ? fmtMoney(g.comb / g.km) : '—'}</td>
                   </tr>
                 ))}
