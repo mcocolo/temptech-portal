@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import { MOTIVOS, PROVINCIAS } from '@/lib/reclamos'
+import { itemLogPorCodigo } from '@/lib/productosLog'
 
 
 const T = {
@@ -828,6 +829,19 @@ export default function AdminReclamos({ openTracking } = {}) {
   async function traerALogistica(item, { tipoLog, fecha }) {
     const direccion = [item.direccion, item.piso ? `Piso ${item.piso}` : '', item.departamento ? `Depto ${item.departamento}` : '']
       .filter(Boolean).join(', ')
+
+    // Mapear el producto del caso a la columna de la planilla (por código de precios)
+    let productos = []
+    if (['cambio_garantia', 'cambio_producto'].includes(tipoLog) && item.producto) {
+      try {
+        let q = supabase.from('precios').select('codigo').eq('nombre', item.producto)
+        if (item.modelo) q = q.eq('modelo', item.modelo)
+        const { data: pr } = await q.limit(1)
+        const logItem = pr?.[0]?.codigo ? itemLogPorCodigo(pr[0].codigo) : null
+        if (logItem) productos = [{ codigo: logItem.codigo, label: logItem.label, cantidad: 1 }]
+      } catch (_) { /* si no matchea, queda vacío */ }
+    }
+
     const payload = {
       tipo: tipoLog,
       fecha: fecha || null,
@@ -838,12 +852,14 @@ export default function AdminReclamos({ openTracking } = {}) {
       email: item.email || null,
       descripcion: [item.producto, item.modelo, item.motivo].filter(Boolean).join(' — ') || null,
       notas: item.descripcion_falla ? `Falla: ${String(item.descripcion_falla).slice(0, 280)}` : null,
+      productos,
       devolucion_id: item.id,
       camioneta_id: null,
     }
     try {
       const { data: existentes } = await supabase.from('logistica_diaria').select('id').eq('devolucion_id', item.id).limit(1)
       if (existentes && existentes.length) {
+        // No pisamos productos ya cargados/editados a mano; solo tipo y fecha
         await supabase.from('logistica_diaria').update({ tipo: payload.tipo, fecha: payload.fecha }).eq('id', existentes[0].id)
       } else {
         await supabase.from('logistica_diaria').insert({ ...payload, orden: 0 })

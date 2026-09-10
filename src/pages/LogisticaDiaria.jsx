@@ -3,23 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import { CATEGORIAS_PROVEEDOR } from './Proveedores'
+import { PRODUCTOS_LOG } from '@/lib/productosLog'
 import toast from 'react-hot-toast'
-
-const PRODUCTOS_LOG = [
-  { codigo: 'C250STV1',    label: '250w' },
-  { codigo: 'C250STV1TS',  label: 'B250' },
-  { codigo: 'C500STV1',    label: '500w' },
-  { codigo: 'C500STV1TS',  label: 'B500w' },
-  { codigo: 'F1400BCO',    label: '1400w' },
-  { codigo: 'KF70SIL',     label: 'KF70' },
-  { codigo: 'FE150TBL',    label: 'FE150BI' },
-  { codigo: 'FE150TBLACK', label: 'E150BLAC' },
-  { codigo: 'FE150TSIL',   label: 'FE150SIL' },
-  { codigo: 'FM318BL',     label: 'FM318' },
-  { codigo: 'FM324BL',     label: 'FM324' },
-  { codigo: 'BF14EBL',     label: 'BF14' },
-  { codigo: 'BF323EBL',    label: 'BF23' },
-]
 
 const TIPOS = {
   entrega_pt:      { label: 'Entrega PT',        color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)',  emoji: '📦' },
