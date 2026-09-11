@@ -888,8 +888,10 @@ export default function AdminReclamos({ openTracking } = {}) {
       textoFinal += '\n\nArchivos adjuntos:\n' + adjuntosUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')
     }
 
+    // La Resolución deja registro y cierra el caso automáticamente
+    const nuevoEstado = tipo === 'Resolucion' ? 'cerrado' : tipo
     const { error } = await supabase.from('devoluciones').update({
-      estado: tipo,
+      estado: nuevoEstado,
       empresa_envio: empresa || null,
       codigo_seguimiento: empresa !== 'Logistica Propia' ? codigo : null,
       fecha_envio: empresa === 'Logistica Propia' ? fechaEnvio : null,
@@ -924,7 +926,7 @@ export default function AdminReclamos({ openTracking } = {}) {
 
     setPanelAbierto(null)
     await cargar()
-    alert(`${tipo === 'Devolucion' ? 'Devolución' : 'Resolución'} guardada y email enviado ✅`)
+    alert(`${tipo === 'Devolucion' ? 'Devolución' : 'Resolución'} guardada y email enviado ✅${nuevoEstado === 'cerrado' ? ' · caso CERRADO' : ''}`)
   }
 
   async function guardarNotificarService(item, { fechaVisita, textoEmail }) {
