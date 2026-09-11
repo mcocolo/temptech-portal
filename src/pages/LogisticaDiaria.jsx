@@ -820,6 +820,8 @@ export default function LogisticaDiaria() {
                 {/* Km del día */}
                 {(() => {
                   const km = kmInput[camioneta.id] || {}
+                  const cerrado = !!km.cerrado
+                  const puedeCargar = editaCierre && !cerrado
                   const ki = km.km_inicial === '' || km.km_inicial == null ? null : Number(km.km_inicial)
                   const kf = km.km_final === '' || km.km_final == null ? null : Number(km.km_final)
                   const rec = (ki != null && kf != null && kf >= ki) ? kf - ki : null
@@ -830,7 +832,7 @@ export default function LogisticaDiaria() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
                         Inicial <b style={{ color: 'var(--text2)', fontSize: 13 }}>{ki != null ? ki : '—'}</b>
                       </span>
-                      {editaCierre ? (
+                      {puedeCargar ? (
                         <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
                           Final <input type="number" value={km.km_final ?? ''} onChange={e => setKm(camioneta.id, 'km_final', e.target.value)} placeholder="—" style={kmSt} />
                         </label>
@@ -838,7 +840,7 @@ export default function LogisticaDiaria() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>Final <b style={{ color: 'var(--text2)', fontSize: 13 }}>{kf != null ? kf : '—'}</b></span>
                       )}
                       <span style={{ color: 'var(--text3)' }}>Recorrido: <b style={{ color: rec != null ? '#3dd68c' : 'var(--text3)' }}>{rec != null ? `${rec} km` : '—'}</b></span>
-                      {editaCierre && <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>Guardar km</button>}
+                      {puedeCargar && <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>Guardar km</button>}
                     </div>
                   )
                 })()}
@@ -854,13 +856,14 @@ export default function LogisticaDiaria() {
                 {(() => {
                   const rec = kmInput[camioneta.id] || {}
                   const cerrado = !!rec.cerrado
+                  const puedeCargar = editaCierre && !cerrado
                   const cin = { padding: '6px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }
                   const fileBtn = (campo, label, icon) => (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {rec[campo]
                         ? <a href={rec[campo]} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3dd68c', fontWeight: 700, textDecoration: 'none' }}>{icon} Ver</a>
                         : <span style={{ fontSize: 12, color: 'var(--text3)' }}>{icon} {label}</span>}
-                      {editaCierre && (
+                      {puedeCargar && (
                         <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
                           {rec[campo] ? 'Cambiar' : 'Subir'}
                           <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => subirFotoCierre(camioneta.id, campo, e.target.files?.[0])} />
@@ -878,7 +881,7 @@ export default function LogisticaDiaria() {
                         {fileBtn('foto_vehiculo_url', 'Foto vehículo', '🚐')}
                         {fileBtn('foto_planilla_url', 'Foto planilla firmada', '📄')}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)' }}>
-                          {editaCierre ? (
+                          {puedeCargar ? (
                             <>
                               ⛽ $ <input type="number" value={rec.combustible_monto ?? ''} onChange={e => setKm(camioneta.id, 'combustible_monto', e.target.value)} placeholder="0" style={{ ...cin, width: 90 }} />
                               Litros <input type="number" value={rec.combustible_litros ?? ''} onChange={e => setKm(camioneta.id, 'combustible_litros', e.target.value)} placeholder="0" style={{ ...cin, width: 70 }} />
@@ -893,11 +896,11 @@ export default function LogisticaDiaria() {
                         {(rec.fotos_tickets || []).map((url, i) => (
                           <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
                             <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3dd68c', fontWeight: 700, textDecoration: 'none' }}>#{i + 1}</a>
-                            {editaCierre && <button onClick={() => quitarTicket(camioneta.id, i)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>}
+                            {puedeCargar && <button onClick={() => quitarTicket(camioneta.id, i)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>}
                           </span>
                         ))}
                         {(rec.fotos_tickets || []).length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>}
-                        {editaCierre && (
+                        {puedeCargar && (
                           <label style={{ cursor: 'pointer', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.08)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontWeight: 700 }}>
                             + Agregar ticket
                             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => agregarTicket(camioneta.id, e.target.files?.[0])} />
@@ -906,7 +909,7 @@ export default function LogisticaDiaria() {
                       </div>
                       {(editaCierre || editaPlanilla) && (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          {editaCierre && <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💾 Guardar</button>}
+                          {puedeCargar && <button onClick={() => guardarKm(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💾 Guardar</button>}
                           {!cerrado
                             ? (editaCierre && <button onClick={() => cerrarDia(camioneta.id)} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✅ Cerrar día</button>)
                             : (editaPlanilla && <button onClick={() => reabrirDia(camioneta.id)} style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button>)}
