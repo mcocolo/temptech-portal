@@ -401,10 +401,19 @@ export default function LogisticaDiaria() {
   }
 
   async function cerrarDia(camId) {
-    if (!window.confirm('¿Cerrar el día de esta camioneta? La ruta deja de aparecer como pendiente.')) return
+    const noHechas = rutaItems.filter(i => i.camioneta_id === camId && !i.estado_entrega)
+    const hechas = rutaItems.filter(i => i.camioneta_id === camId && i.estado_entrega).length
+    if (!window.confirm(`¿Cerrar el día de esta camioneta?\n\n• ${hechas} hecha(s) quedan registradas.\n• ${noHechas.length} sin hacer vuelven a "Por asignar" (sin fecha).`)) return
     const error = await upsertRegistro(camId, kmInput[camId] || {}, { cerrado: true, cerrado_at: new Date().toISOString() })
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('Día cerrado ✅')
+    // Las no hechas vuelven al backlog (sin fecha ni camioneta ni chofer)
+    if (noHechas.length) {
+      const { error: e2 } = await supabase.from('logistica_diaria')
+        .update({ camioneta_id: null, fecha: null, orden: 0, chofer_asignado: null, chofer_id: null })
+        .in('id', noHechas.map(i => i.id))
+      if (e2) { toast.error('Se cerró pero falló mover las no hechas: ' + e2.message); cargar(); return }
+    }
+    toast.success(`Día cerrado ✅  ${noHechas.length ? `· ${noHechas.length} volvieron a Por asignar` : ''}`)
     cargar()
   }
   async function reabrirDia(camId) {
