@@ -61,7 +61,8 @@ export default function Produccion() {
   const [guardando, setGuardando] = useState(false)
   const [modalParte, setModalParte] = useState(null)   // lote
   const [modalNcf, setModalNcf] = useState(null)       // lote
-  const [modalAvance, setModalAvance] = useState(null) // lote (avance parcial)
+  const [modalAvance, setModalAvance] = useState(null) // lote (avance parcial → dividir)
+  const [avanceCell, setAvanceCell] = useState(null)   // { lote, etapa } (avance dentro de una etapa)
   const [expandido, setExpandido] = useState(null)
   const [vista, setVista] = useState('tablero')        // tablero | listado
   const [busqueda, setBusqueda] = useState('')
@@ -216,7 +217,7 @@ export default function Produccion() {
                   {items.map(lote => {
                     const sig = siguienteEtapa(lote.etapa)
                     const isExp = expandido === lote.id
-                    const hechoEtapa = avanceEtapa(lote.id, lote.etapa)
+                    const hechoEtapa = (lote.avance && lote.avance[lote.etapa]) || 0
                     return (
                       <div key={lote.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -318,8 +319,19 @@ export default function Produccion() {
                           <td style={{ ...td, textAlign: 'left' }}><span style={{ color: etapaColor(l.etapa), fontWeight: 700 }}>{l.modelo}</span>{l.temporada ? <span style={{ color: 'var(--text3)' }}> · T{l.temporada}</span> : ''}</td>
                           <td style={td}>{l.cantidad_actual}{l.cantidad_actual !== l.cantidad_objetivo ? <span style={{ color: 'var(--text3)' }}>/{l.cantidad_objetivo}</span> : ''}</td>
                           {ETAPAS_PROC.map(e => {
-                            const s = estadoEtapaLote(l, e.key)
-                            return <td key={e.key} style={td}>{s === 'done' ? <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 14 }}>✓</span> : s === 'proc' ? <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }}>•</span> : <span style={{ color: 'var(--border2)' }}>·</span>}</td>
+                            const c = FLUJO.indexOf(l.etapa), i = FLUJO.indexOf(e.key)
+                            const target = l.cantidad_actual
+                            const hecho = (l.avance && l.avance[e.key]) || 0
+                            const completa = l.etapa === 'terminado' || i < c || (i === c && hecho >= target && hecho > 0)
+                            const enProceso = i === c && !completa
+                            const puedeClick = !readOnly && l.etapa !== 'terminado' && i <= c
+                            let inner
+                            if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 14 }}>✓</span>
+                            else if (enProceso && hecho > 0) inner = <span style={{ color: '#fb923c', fontWeight: 800 }}>{hecho}/{target}</span>
+                            else if (enProceso) inner = <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }}>•</span>
+                            else inner = <span style={{ color: 'var(--border2)' }}>·</span>
+                            return <td key={e.key} style={{ ...td, cursor: puedeClick ? 'pointer' : 'default' }} title={puedeClick ? 'Cargar avance' : undefined}
+                              onClick={puedeClick ? () => setAvanceCell({ lote: l, etapa: e.key }) : undefined}>{inner}</td>
                           })}
                           <td style={td}><span style={{ fontSize: 11, fontWeight: 700, color: est.color, background: `${est.color}18`, border: `1px solid ${est.color}44`, borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>{est.txt}</span></td>
                           {!readOnly && <td style={td}><button onClick={() => abrirEditarLote(l)} style={btn('#7b9fff')}>✏️</button></td>}
@@ -381,9 +393,45 @@ export default function Produccion() {
       {/* MODAL NO CONFORMIDAD */}
       {modalNcf && <NcfModal lote={modalNcf} etapa={modalNcf.etapa} usuario={nombreUsuario} onClose={() => setModalNcf(null)} onDone={cargar} />}
 
-      {/* MODAL AVANCE PARCIAL */}
+      {/* MODAL AVANCE PARCIAL (dividir lote) */}
       {modalAvance && <AvanceParcialModal lote={modalAvance} siguiente={siguienteEtapa(modalAvance.etapa)} usuario={nombreUsuario} onClose={() => setModalAvance(null)} onDone={cargar} />}
+
+      {/* MODAL AVANCE DENTRO DE UNA ETAPA (hecho/total) */}
+      {avanceCell && <AvanceEtapaModal lote={avanceCell.lote} etapa={avanceCell.etapa} siguiente={siguienteEtapa(avanceCell.etapa)} onClose={() => setAvanceCell(null)} onDone={cargar} />}
     </div>
+  )
+}
+
+function AvanceEtapaModal({ lote, etapa, siguiente, onClose, onDone }) {
+  const target = lote.cantidad_actual
+  const [cantidad, setCantidad] = useState(String((lote.avance && lote.avance[etapa]) || ''))
+  const [g, setG] = useState(false)
+  const hecho = Math.min(target, Math.max(0, parseInt(cantidad) || 0))
+  const falta = Math.max(0, target - hecho)
+  async function guardar() {
+    setG(true)
+    const nuevoAvance = { ...(lote.avance || {}), [etapa]: hecho }
+    const patch = { avance: nuevoAvance }
+    // Si es la etapa actual y se completó, el lote avanza a la siguiente
+    if (etapa === lote.etapa && hecho >= target && siguiente) {
+      patch.etapa = siguiente
+      patch.estado = siguiente === 'terminado' ? 'terminado' : 'en_proceso'
+    }
+    const { error } = await supabase.from('produccion_lotes').update(patch).eq('id', lote.id)
+    setG(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(hecho >= target ? `${etapaLabel(etapa)} completa ✅` : `Avance guardado: ${hecho}/${target}`)
+    onClose(); onDone()
+  }
+  return (
+    <Modal titulo={`Avance · Lote #${lote.numero}`} onClose={onClose}>
+      <div style={{ fontSize: 13, color: 'var(--text2)' }}>Etapa: <b style={{ color: etapaColor(etapa) }}>{etapaLabel(etapa)}</b> · {lote.modelo}</div>
+      <div style={{ fontSize: 13, color: 'var(--text3)' }}>Total de la etapa: <b style={{ color: 'var(--text2)' }}>{target}</b> u.</div>
+      <div><label style={lbl}>Cantidad hecha en {etapaLabel(etapa)}</label><input type="number" min="0" max={target} value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: falta > 0 ? '#fb923c' : '#3dd68c' }}>{falta > 0 ? `Falta: ${falta} u.` : '✅ Etapa completa'}</div>
+      {falta === 0 && etapa === lote.etapa && siguiente && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Al guardar, el lote pasa a <b>{etapaLabel(siguiente)}</b>.</div>}
+      <button onClick={guardar} disabled={g} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: g ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>{g ? 'Guardando...' : 'Guardar avance'}</button>
+    </Modal>
   )
 }
 
@@ -415,6 +463,10 @@ function ParteModal({ lote, etapa, usuario, onClose, onDone }) {
     if (c <= 0) return toast.error('Ingresá una cantidad')
     setG(true)
     const { error } = await supabase.from('produccion_partes').insert({ lote_id: lote.id, etapa, fecha, cantidad: c, usuario, notas: notas.trim() || null })
+    if (!error) {
+      const prev = (lote.avance && lote.avance[etapa]) || 0
+      await supabase.from('produccion_lotes').update({ avance: { ...(lote.avance || {}), [etapa]: Math.min(lote.cantidad_actual, prev + c) } }).eq('id', lote.id)
+    }
     setG(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success(`Parte cargado: +${c} en ${etapaLabel(etapa)} ✅`)
