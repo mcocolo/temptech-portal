@@ -45,6 +45,16 @@ function estadoLoteLabel(lote) {
   if (lote.etapa === 'por_iniciar') return { txt: 'Por iniciar', color: '#94a3b8' }
   return { txt: 'En proceso', color: '#fb923c' }
 }
+// Rellena el avance de las etapas ANTERIORES a `etapa` con la cantidad completa
+function backfillAvance(existing, etapa, cantidad) {
+  const c = FLUJO.indexOf(etapa)
+  const av = { ...(existing || {}) }
+  for (const e of ETAPAS_PROC) {
+    const i = FLUJO.indexOf(e.key)
+    if (etapa === 'terminado' || i < c) { if (av[e.key] == null) av[e.key] = cantidad }
+  }
+  return av
+}
 
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
@@ -112,12 +122,14 @@ export default function Produccion() {
     setGuardando(true)
     let error
     if (editandoLote) {
+      const nuevoActual = editandoLote.cantidad_actual === editandoLote.cantidad_objetivo ? cantidad : editandoLote.cantidad_actual
       const patch = {
         numero, modelo: form.modelo, cantidad_objetivo: cantidad,
         hojas: cfg?.hojas ?? editandoLote.hojas, temporada: parseInt(form.temporada) || null,
         etapa: form.etapa, estado: estadoDe(form.etapa), notas: form.notas.trim() || null,
+        // Las etapas anteriores a la elegida se dan por hechas con la cantidad completa
+        avance: backfillAvance(editandoLote.avance, form.etapa, nuevoActual),
       }
-      // si el actual seguía igual al objetivo, lo ajusto al nuevo objetivo
       if (editandoLote.cantidad_actual === editandoLote.cantidad_objetivo) patch.cantidad_actual = cantidad
       ;({ error } = await supabase.from('produccion_lotes').update(patch).eq('id', editandoLote.id))
     } else {
@@ -153,6 +165,8 @@ export default function Produccion() {
     const patch = { etapa: nuevaEtapa }
     if (nuevaEtapa !== 'por_iniciar' && lote.estado === 'planificado') patch.estado = 'en_proceso'
     if (nuevaEtapa === 'terminado') patch.estado = 'terminado'
+    // La etapa que se deja se da por completa con la cantidad actual
+    if (ETAPAS_PROC.some(e => e.key === lote.etapa)) patch.avance = { ...(lote.avance || {}), [lote.etapa]: lote.cantidad_actual }
     const { error } = await supabase.from('produccion_lotes').update(patch).eq('id', lote.id)
     if (error) { toast.error('Error: ' + error.message); return }
     if (descontar) await descontarHojas(lote)
@@ -321,12 +335,14 @@ export default function Produccion() {
                           {ETAPAS_PROC.map(e => {
                             const c = FLUJO.indexOf(l.etapa), i = FLUJO.indexOf(e.key)
                             const target = l.cantidad_actual
-                            const hecho = (l.avance && l.avance[e.key]) || 0
-                            const completa = l.etapa === 'terminado' || i < c || (i === c && hecho >= target && hecho > 0)
+                            const raw = (l.avance && l.avance[e.key] != null) ? l.avance[e.key] : null
+                            const completaPos = l.etapa === 'terminado' || i < c
+                            const hecho = raw != null ? raw : (completaPos ? target : 0)
+                            const completa = completaPos || (i === c && hecho >= target && hecho > 0)
                             const enProceso = i === c && !completa
-                            const puedeClick = !readOnly && l.etapa !== 'terminado' && i <= c
+                            const puedeClick = !readOnly && i <= c
                             let inner
-                            if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 14 }}>✓</span>
+                            if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800 }}>{hecho}</span>
                             else if (enProceso && hecho > 0) inner = <span style={{ color: '#fb923c', fontWeight: 800 }}>{hecho}/{target}</span>
                             else if (enProceso) inner = <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }}>•</span>
                             else inner = <span style={{ color: 'var(--border2)' }}>·</span>
@@ -404,7 +420,9 @@ export default function Produccion() {
 
 function AvanceEtapaModal({ lote, etapa, siguiente, onClose, onDone }) {
   const target = lote.cantidad_actual
-  const [cantidad, setCantidad] = useState(String((lote.avance && lote.avance[etapa]) || ''))
+  const raw = (lote.avance && lote.avance[etapa] != null) ? lote.avance[etapa] : null
+  const completaPos = lote.etapa === 'terminado' || FLUJO.indexOf(etapa) < FLUJO.indexOf(lote.etapa)
+  const [cantidad, setCantidad] = useState(String(raw != null ? raw : (completaPos ? target : '')))
   const [g, setG] = useState(false)
   const hecho = Math.min(target, Math.max(0, parseInt(cantidad) || 0))
   const falta = Math.max(0, target - hecho)
