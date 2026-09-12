@@ -1,0 +1,373 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
+import { fetchAllRows } from '@/lib/fetchAll'
+import toast from 'react-hot-toast'
+
+// Modelos y rendimiento (cantidad de lote por defecto y hojas MPSTD6 que consume)
+const MODELOS_PROD = [
+  { modelo: '250w',    cantidad: 384, hojas: 48 },
+  { modelo: '250w TD', cantidad: 384, hojas: 48 },
+  { modelo: '500w',    cantidad: 400, hojas: 100 },
+  { modelo: '500w TD', cantidad: 400, hojas: 100 },
+]
+const HOJA_CODIGO = 'MPSTD6'
+
+// Flujo de etapas — Fase 1 (hasta febrero). Cables+Kits / Eléctrica+Embalaje se suman después.
+const ETAPAS = [
+  { key: 'por_iniciar',  label: 'Por iniciar',            color: '#94a3b8' },
+  { key: 'corte',        label: 'Corte',                  color: '#7b9fff' },
+  { key: 'armado',       label: 'Aguj1 + Alambre + Pegado', color: '#38bdf8' },
+  { key: 'encuadre',     label: 'Encuadre',               color: '#3dd68c' },
+  { key: 'aguj2',        label: 'Aguj N°2',               color: '#a78bfa' },
+  { key: 'enduido_lija', label: 'Enduido + Lija',         color: '#fbbf24' },
+  { key: 'pintura',      label: 'Pintura',                color: '#fb923c' },
+  { key: 'terminado',    label: 'Terminado (fase 1)',     color: '#2dd4bf' },
+]
+const FLUJO = ETAPAS.map(e => e.key)
+const etapaLabel = k => (ETAPAS.find(e => e.key === k)?.label || k)
+const etapaColor = k => (ETAPAS.find(e => e.key === k)?.color || '#888')
+
+const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
+const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
+
+export default function Produccion() {
+  const { isAdmin, isAdmin2, user, profile } = useAuth()
+  const [lotes, setLotes] = useState([])
+  const [partes, setPartes] = useState([])
+  const [ncf, setNcf] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [nuevoOpen, setNuevoOpen] = useState(false)
+  const [form, setForm] = useState({ numero: '', modelo: '500w', cantidad: 400, temporada: 2027, notas: '' })
+  const [guardando, setGuardando] = useState(false)
+  const [modalParte, setModalParte] = useState(null)   // lote
+  const [modalNcf, setModalNcf] = useState(null)       // lote
+  const [modalAvance, setModalAvance] = useState(null) // lote (avance parcial)
+  const [expandido, setExpandido] = useState(null)
+
+  const nombreUsuario = profile?.full_name || user?.email || 'Producción'
+
+  useEffect(() => { cargar() }, [])
+
+  async function cargar() {
+    setLoading(true)
+    const [l, p, n] = await Promise.all([
+      fetchAllRows(() => supabase.from('produccion_lotes').select('*').not('estado', 'eq', 'cancelado').order('numero')),
+      fetchAllRows(() => supabase.from('produccion_partes').select('*').order('fecha', { ascending: false })),
+      fetchAllRows(() => supabase.from('produccion_no_conformidades').select('*').order('created_at', { ascending: false })),
+    ])
+    setLotes(l || []); setPartes(p || []); setNcf(n || [])
+    setLoading(false)
+  }
+
+  function abrirNuevo() {
+    const maxNum = lotes.reduce((m, l) => Math.max(m, l.numero || 0), 510)
+    setForm({ numero: maxNum + 1, modelo: '500w', cantidad: 400, temporada: 2027, notas: '' })
+    setNuevoOpen(true)
+  }
+  function onModelo(modelo) {
+    const cfg = MODELOS_PROD.find(m => m.modelo === modelo)
+    setForm(f => ({ ...f, modelo, cantidad: cfg ? cfg.cantidad : f.cantidad }))
+  }
+
+  async function crearLote() {
+    const numero = parseInt(form.numero) || null
+    const cantidad = parseInt(form.cantidad) || 0
+    if (!numero) return toast.error('Ingresá el número de lote')
+    if (cantidad <= 0) return toast.error('Ingresá la cantidad')
+    if (lotes.some(l => l.numero === numero)) return toast.error(`Ya existe el lote ${numero}`)
+    const cfg = MODELOS_PROD.find(m => m.modelo === form.modelo)
+    setGuardando(true)
+    const { error } = await supabase.from('produccion_lotes').insert({
+      numero, modelo: form.modelo, cantidad_objetivo: cantidad, cantidad_actual: cantidad,
+      hojas: cfg?.hojas ?? null, temporada: parseInt(form.temporada) || null,
+      etapa: 'por_iniciar', estado: 'planificado', notas: form.notas.trim() || null, created_by: nombreUsuario,
+    })
+    setGuardando(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(`Lote ${numero} creado ✅`)
+    setNuevoOpen(false); cargar()
+  }
+
+  // Descuenta las hojas MPSTD6 del stock de insumos al iniciar el Corte
+  async function descontarHojas(lote) {
+    if (!lote.hojas) return
+    try {
+      const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', HOJA_CODIGO).limit(1)
+      const row = ins?.[0]
+      if (!row) { toast('⚠️ No encontré el insumo ' + HOJA_CODIGO + ' para descontar', { icon: '⚠️' }); return }
+      const nuevo = Math.max(0, (row.stock_actual || 0) - lote.hojas)
+      await supabase.from('insumos').update({ stock_actual: nuevo, updated_at: new Date().toISOString() }).eq('id', row.id)
+      await supabase.from('movimientos_insumos').insert({
+        insumo_id: row.id, tipo: 'egreso', cantidad: lote.hojas, sector: 'Corte',
+        motivo: `Lote ${lote.numero} · ${lote.modelo}`, usuario_id: user?.id, usuario_nombre: nombreUsuario,
+      })
+    } catch (e) { /* no bloquea el inicio del lote */ }
+  }
+
+  async function avanzarEtapa(lote, nuevaEtapa, descontar = false) {
+    const patch = { etapa: nuevaEtapa }
+    if (nuevaEtapa !== 'por_iniciar' && lote.estado === 'planificado') patch.estado = 'en_proceso'
+    if (nuevaEtapa === 'terminado') patch.estado = 'terminado'
+    const { error } = await supabase.from('produccion_lotes').update(patch).eq('id', lote.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    if (descontar) await descontarHojas(lote)
+    cargar()
+  }
+
+  function siguienteEtapa(etapa) {
+    const i = FLUJO.indexOf(etapa)
+    return i >= 0 && i < FLUJO.length - 1 ? FLUJO[i + 1] : null
+  }
+
+  async function eliminarLote(lote) {
+    if (!window.confirm(`¿Eliminar el lote ${lote.numero}? (se borra su historial)`)) return
+    await supabase.from('produccion_lotes').delete().eq('id', lote.id)
+    cargar()
+  }
+
+  if (!isAdmin && !isAdmin2) return null
+  const readOnly = isAdmin2
+
+  const lotesPorEtapa = k => lotes.filter(l => l.etapa === k)
+  const partesLote = id => partes.filter(p => p.lote_id === id)
+  const ncfLote = id => ncf.filter(n => n.lote_id === id)
+  const avanceEtapa = (loteId, etapa) => partesLote(loteId).filter(p => p.etapa === etapa).reduce((s, p) => s + (p.cantidad || 0), 0)
+
+  return (
+    <div style={{ animation: 'fadeUp 0.35s ease' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Producción</h1>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Tablero de lotes por sector · el lote avanza etapa por etapa</p>
+        </div>
+        {!readOnly && (
+          <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo lote</button>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
+      ) : (
+        <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12 }}>
+          {ETAPAS.map(et => {
+            const items = lotesPorEtapa(et.key)
+            return (
+              <div key={et.key} style={{ flex: '0 0 300px', width: 300, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', alignSelf: 'flex-start' }}>
+                <div style={{ padding: '10px 14px', borderBottom: `2px solid ${et.color}`, background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: et.color }}>{et.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1px 9px' }}>{items.length}</span>
+                </div>
+                <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8, minHeight: 60 }}>
+                  {items.length === 0 && <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '14px 0' }}>—</div>}
+                  {items.map(lote => {
+                    const sig = siguienteEtapa(lote.etapa)
+                    const isExp = expandido === lote.id
+                    const hechoEtapa = avanceEtapa(lote.id, lote.etapa)
+                    return (
+                      <div key={lote.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: 14, fontWeight: 800 }}>#{lote.numero}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: etapaColor(lote.etapa), background: `${etapaColor(lote.etapa)}18`, border: `1px solid ${etapaColor(lote.etapa)}44`, borderRadius: 20, padding: '1px 9px' }}>{lote.modelo}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
+                          <b style={{ fontSize: 15 }}>{lote.cantidad_actual}</b> <span style={{ color: 'var(--text3)' }}>/ {lote.cantidad_objetivo} u.</span>
+                          {lote.temporada ? <span style={{ color: 'var(--text3)' }}> · T{lote.temporada}</span> : ''}
+                        </div>
+                        {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
+                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Avance en {etapaLabel(lote.etapa)}: <b style={{ color: hechoEtapa >= lote.cantidad_actual ? '#3dd68c' : 'var(--text2)' }}>{hechoEtapa}/{lote.cantidad_actual}</b></div>
+                        )}
+
+                        {!readOnly && (
+                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
+                            {lote.etapa === 'por_iniciar' ? (
+                              <button onClick={() => avanzarEtapa(lote, 'corte', true)} style={btn('#7b9fff')}>▶ Iniciar Corte</button>
+                            ) : lote.etapa !== 'terminado' ? (
+                              <>
+                                <button onClick={() => setModalParte(lote)} style={btn('#3dd68c')}>＋ Parte</button>
+                                <button onClick={() => setModalNcf(lote)} style={btn('#ff5577')}>⚠ No conf.</button>
+                                {sig && <button onClick={() => avanzarEtapa(lote, sig)} style={btn('#fb923c')}>→ {sig === 'terminado' ? 'Terminar' : 'Avanzar'}</button>}
+                                {sig && sig !== 'terminado' && <button onClick={() => setModalAvance(lote)} style={btn('var(--text3)')} title="Avanzar solo una parte (trabajo en paralelo)">⋯</button>}
+                              </>
+                            ) : null}
+                            <button onClick={() => setExpandido(isExp ? null : lote.id)} style={btn('var(--text3)')}>{isExp ? '▲' : '📜'}</button>
+                          </div>
+                        )}
+
+                        {isExp && (
+                          <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 4 }}>Trazabilidad</div>
+                            {partesLote(lote.id).length === 0 && ncfLote(lote.id).length === 0 && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Sin movimientos.</div>}
+                            {partesLote(lote.id).map(p => (
+                              <div key={p.id} style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 2 }}>📦 {etapaLabel(p.etapa)}: +{p.cantidad} · {p.fecha} {p.usuario ? `· ${p.usuario}` : ''}</div>
+                            ))}
+                            {ncfLote(lote.id).map(n => (
+                              <div key={n.id} style={{ fontSize: 11, color: '#ff5577', marginBottom: 2 }}>⚠ {etapaLabel(n.etapa)}: -{n.cantidad}{n.recuperable ? ` (recup. ${n.cantidad_recuperada})` : ''} {n.motivo ? `· ${n.motivo}` : ''}</div>
+                            ))}
+                            {!readOnly && <button onClick={() => eliminarLote(lote)} style={{ ...btn('#ff5577'), marginTop: 6 }}>🗑 Eliminar lote</button>}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* MODAL NUEVO LOTE */}
+      {nuevoOpen && (
+        <Modal titulo="➕ Nuevo lote" onClose={() => setNuevoOpen(false)}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div><label style={lbl}>N° de lote *</label><input type="number" value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} placeholder="Ej: 511" style={iSt} /></div>
+            <div><label style={lbl}>Temporada</label><input type="number" value={form.temporada} onChange={e => setForm(f => ({ ...f, temporada: e.target.value }))} style={iSt} /></div>
+          </div>
+          <div>
+            <label style={lbl}>Modelo *</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {MODELOS_PROD.map(m => (
+                <button key={m.modelo} onClick={() => onModelo(m.modelo)}
+                  style={{ padding: '7px 12px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: form.modelo === m.modelo ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: form.modelo === m.modelo ? '#7b9fff' : 'var(--text3)', border: `1px solid ${form.modelo === m.modelo ? 'rgba(74,108,247,0.5)' : 'var(--border)'}` }}>
+                  {m.modelo}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div><label style={lbl}>Cantidad *</label><input type="number" value={form.cantidad} onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} style={iSt} /></div>
+            <div><label style={lbl}>Hojas MPSTD6</label><input value={MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas ?? '—'} disabled style={{ ...iSt, opacity: 0.7 }} /></div>
+          </div>
+          <div><label style={lbl}>Notas</label><input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" style={iSt} /></div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Al iniciar el Corte se descuentan las <b>{MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas}</b> hojas MPSTD6 del stock de insumos.</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={crearLote} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando...' : '✓ Crear lote'}</button>
+            <button onClick={() => setNuevoOpen(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL PARTE DIARIO */}
+      {modalParte && <ParteModal lote={modalParte} etapa={modalParte.etapa} usuario={nombreUsuario} onClose={() => setModalParte(null)} onDone={cargar} />}
+
+      {/* MODAL NO CONFORMIDAD */}
+      {modalNcf && <NcfModal lote={modalNcf} etapa={modalNcf.etapa} usuario={nombreUsuario} onClose={() => setModalNcf(null)} onDone={cargar} />}
+
+      {/* MODAL AVANCE PARCIAL */}
+      {modalAvance && <AvanceParcialModal lote={modalAvance} siguiente={siguienteEtapa(modalAvance.etapa)} usuario={nombreUsuario} onClose={() => setModalAvance(null)} onDone={cargar} />}
+    </div>
+  )
+}
+
+function btn(color) {
+  return { background: `${color === 'var(--text3)' ? 'var(--surface)' : color + '18'}`, color: color === 'var(--text3)' ? 'var(--text3)' : color, border: `1px solid ${color === 'var(--text3)' ? 'var(--border)' : color + '55'}`, borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }
+}
+
+function Modal({ titulo, onClose, children }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)' }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{titulo}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function ParteModal({ lote, etapa, usuario, onClose, onDone }) {
+  const [cantidad, setCantidad] = useState('')
+  const [fecha, setFecha] = useState(() => new Date().toISOString().split('T')[0])
+  const [notas, setNotas] = useState('')
+  const [g, setG] = useState(false)
+  async function guardar() {
+    const c = parseInt(cantidad) || 0
+    if (c <= 0) return toast.error('Ingresá una cantidad')
+    setG(true)
+    const { error } = await supabase.from('produccion_partes').insert({ lote_id: lote.id, etapa, fecha, cantidad: c, usuario, notas: notas.trim() || null })
+    setG(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(`Parte cargado: +${c} en ${etapaLabel(etapa)} ✅`)
+    onClose(); onDone()
+  }
+  return (
+    <Modal titulo={`＋ Parte · Lote #${lote.numero}`} onClose={onClose}>
+      <div style={{ fontSize: 12, color: 'var(--text3)' }}>Etapa: <b style={{ color: etapaColor(etapa) }}>{etapaLabel(etapa)}</b> · {lote.modelo} · {lote.cantidad_actual} u.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div><label style={lbl}>Cantidad hecha *</label><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
+        <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={iSt} /></div>
+      </div>
+      <div><label style={lbl}>Notas</label><input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Opcional" style={iSt} /></div>
+      <button onClick={guardar} disabled={g} style={{ background: 'rgba(61,214,140,0.15)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: g ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>{g ? 'Guardando...' : 'Guardar parte'}</button>
+    </Modal>
+  )
+}
+
+function NcfModal({ lote, etapa, usuario, onClose, onDone }) {
+  const [cantidad, setCantidad] = useState('')
+  const [motivo, setMotivo] = useState('')
+  const [recuperable, setRecuperable] = useState(false)
+  const [recuperada, setRecuperada] = useState('')
+  const [g, setG] = useState(false)
+  async function guardar() {
+    const c = parseInt(cantidad) || 0
+    if (c <= 0) return toast.error('Ingresá la cantidad')
+    const rec = recuperable ? (parseInt(recuperada) || 0) : 0
+    const baja = Math.max(0, c - rec)   // lo que se pierde definitivamente
+    setG(true)
+    const { error } = await supabase.from('produccion_no_conformidades').insert({ lote_id: lote.id, etapa, cantidad: c, motivo: motivo.trim() || null, recuperable, cantidad_recuperada: rec, usuario })
+    if (!error) {
+      const nuevo = Math.max(0, (lote.cantidad_actual || 0) - baja)
+      await supabase.from('produccion_lotes').update({ cantidad_actual: nuevo }).eq('id', lote.id)
+    }
+    setG(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(`No conformidad registrada (-${baja} u.)`)
+    onClose(); onDone()
+  }
+  return (
+    <Modal titulo={`⚠ No conformidad · Lote #${lote.numero}`} onClose={onClose}>
+      <div style={{ fontSize: 12, color: 'var(--text3)' }}>Etapa: <b style={{ color: etapaColor(etapa) }}>{etapaLabel(etapa)}</b> · {lote.modelo} · actual {lote.cantidad_actual} u.</div>
+      <div><label style={lbl}>Cantidad con problema *</label><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
+      <div><label style={lbl}>Motivo</label><input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ej: mal pegado, roto..." style={iSt} /></div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
+        <input type="checkbox" checked={recuperable} onChange={e => setRecuperable(e.target.checked)} style={{ width: 15, height: 15 }} />
+        ¿Se puede recuperar parte?
+      </label>
+      {recuperable && <div><label style={lbl}>Cantidad recuperada</label><input type="number" value={recuperada} onChange={e => setRecuperada(e.target.value)} placeholder="0" style={iSt} /></div>}
+      <div style={{ fontSize: 11, color: 'var(--text3)' }}>Se descuentan del lote las piezas perdidas (cantidad − recuperadas).</div>
+      <button onClick={guardar} disabled={g} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.4)', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: g ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>{g ? 'Guardando...' : 'Registrar no conformidad'}</button>
+    </Modal>
+  )
+}
+
+function AvanceParcialModal({ lote, siguiente, usuario, onClose, onDone }) {
+  const [cantidad, setCantidad] = useState('')
+  const [g, setG] = useState(false)
+  async function guardar() {
+    const c = parseInt(cantidad) || 0
+    if (c <= 0 || c >= lote.cantidad_actual) return toast.error(`Ingresá entre 1 y ${lote.cantidad_actual - 1}`)
+    setG(true)
+    // Se crea un lote "hijo" con la parte que avanza; el original queda con el resto
+    const { error } = await supabase.from('produccion_lotes').insert({
+      numero: lote.numero, modelo: lote.modelo, cantidad_objetivo: c, cantidad_actual: c,
+      hojas: null, temporada: lote.temporada, etapa: siguiente, estado: 'en_proceso',
+      notas: `Parcial de lote ${lote.numero}`, created_by: usuario,
+    })
+    if (!error) await supabase.from('produccion_lotes').update({ cantidad_actual: lote.cantidad_actual - c }).eq('id', lote.id)
+    setG(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(`Avanzaron ${c} u. a ${etapaLabel(siguiente)}`)
+    onClose(); onDone()
+  }
+  return (
+    <Modal titulo={`⋯ Avance parcial · Lote #${lote.numero}`} onClose={onClose}>
+      <div style={{ fontSize: 12, color: 'var(--text3)' }}>Pasás una parte a <b style={{ color: etapaColor(siguiente) }}>{etapaLabel(siguiente)}</b>; el resto queda en {etapaLabel(lote.etapa)}.</div>
+      <div><label style={lbl}>Cantidad que avanza (de {lote.cantidad_actual})</label><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
+      <button onClick={guardar} disabled={g} style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: g ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>{g ? 'Guardando...' : 'Avanzar parcial'}</button>
+    </Modal>
+  )
+}
