@@ -105,7 +105,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
         const row = ins?.[0]
         if (row) {
           await supabase.from('insumos').update({ stock_actual: Math.max(0, (row.stock_actual || 0) - deltaHojas), updated_at: new Date().toISOString() }).eq('id', row.id)
-          await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: deltaHojas > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(deltaHojas), sector: 'Corte', motivo: `OT Corte · Lote ${lote.numero}`, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+          await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: deltaHojas > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(deltaHojas), sector: 'Corte', motivo: `OT Corte · Lote ${lote.modelo === '1400w' ? 'F' : ''}${lote.numero}`, usuario_id: user?.id, usuario_nombre: nombreUsuario })
         }
       } catch (_) { /* no bloquea */ }
     }
@@ -151,7 +151,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 680, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>📋 OT de Corte · Lote #{lote.numero}</div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>📋 OT de Corte · Lote {lote.modelo === '1400w' ? 'F' : '#'}{lote.numero}</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{lote.modelo} · {lote.cantidad_objetivo} u. → <b style={{ color: 'var(--text2)' }}>{lote.hojas} hojas STD</b> ({ratio} u/hoja)</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>

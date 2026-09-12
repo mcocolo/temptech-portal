@@ -15,6 +15,8 @@ const MODELOS_PROD = [
   { modelo: '1400w',   cantidad: 320, hojas: 80 },   // BL/SMA=80 (T+CT), resto=40 (solo CT) — editable por lote
 ]
 const HOJA_CODIGO = 'MPSTD6'
+// Denominación del lote: 1400w (Firenze) lleva prefijo "F"; el resto "#"
+export const fmtLote = l => !l ? '' : (l.numero == null ? '—' : (l.modelo === '1400w' ? `F${l.numero}` : `#${l.numero}`))
 
 // Flujo de etapas — Fase 1 (hasta febrero). Cables+Kits / Eléctrica+Embalaje se suman después.
 const ETAPAS = [
@@ -119,7 +121,7 @@ export default function Produccion() {
     const cantidad = parseInt(form.cantidad) || 0
     if (!numero) return toast.error('Ingresá el número de lote')
     if (cantidad <= 0) return toast.error('Ingresá la cantidad')
-    if (lotes.some(l => l.numero === numero && l.id !== editandoLote?.id)) return toast.error(`Ya existe el lote ${numero}`)
+    if (lotes.some(l => l.numero === numero && l.modelo === form.modelo && l.id !== editandoLote?.id)) return toast.error(`Ya existe el lote ${form.modelo === '1400w' ? 'F' : ''}${numero}`)
     const cfg = MODELOS_PROD.find(m => m.modelo === form.modelo)
     const estadoDe = et => et === 'terminado' ? 'terminado' : et === 'por_iniciar' ? 'planificado' : 'en_proceso'
     setGuardando(true)
@@ -146,7 +148,7 @@ export default function Produccion() {
     }
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success(editandoLote ? `Lote ${numero} actualizado ✅` : `Lote ${numero} creado ✅`)
+    toast.success(`Lote ${form.modelo === '1400w' ? 'F' : ''}${numero} ${editandoLote ? 'actualizado' : 'creado'} ✅`)
     cerrarModal(); cargar()
   }
 
@@ -161,7 +163,7 @@ export default function Produccion() {
       await supabase.from('insumos').update({ stock_actual: nuevo, updated_at: new Date().toISOString() }).eq('id', row.id)
       await supabase.from('movimientos_insumos').insert({
         insumo_id: row.id, tipo: 'egreso', cantidad: lote.hojas, sector: 'Corte',
-        motivo: `Lote ${lote.numero} · ${lote.modelo}`, usuario_id: user?.id, usuario_nombre: nombreUsuario,
+        motivo: `Lote ${fmtLote(lote)} · ${lote.modelo}`, usuario_id: user?.id, usuario_nombre: nombreUsuario,
       })
     } catch (e) { /* no bloquea el inicio del lote */ }
   }
@@ -184,7 +186,7 @@ export default function Produccion() {
   }
 
   async function eliminarLote(lote) {
-    if (!window.confirm(`¿Eliminar el lote ${lote.numero}? (se borra su historial)`)) return
+    if (!window.confirm(`¿Eliminar el lote ${fmtLote(lote)}? (se borra su historial)`)) return
     await supabase.from('produccion_lotes').delete().eq('id', lote.id)
     cargar()
   }
@@ -240,7 +242,7 @@ export default function Produccion() {
                     return (
                       <div key={lote.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <span style={{ fontSize: 14, fontWeight: 800 }}>#{lote.numero}</span>
+                          <span style={{ fontSize: 14, fontWeight: 800 }}>{fmtLote(lote)}</span>
                           <span style={{ fontSize: 11, fontWeight: 700, color: etapaColor(lote.etapa), background: `${etapaColor(lote.etapa)}18`, border: `1px solid ${etapaColor(lote.etapa)}44`, borderRadius: 20, padding: '1px 9px' }}>{lote.modelo}</span>
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
@@ -303,7 +305,7 @@ export default function Produccion() {
           const filtrados = lotes.filter(l =>
             (!fModelo || l.modelo === fModelo) &&
             (!fTemporada || String(l.temporada) === String(fTemporada)) &&
-            (!q || String(l.numero).includes(q))
+            (!q || String(l.numero).includes(q) || fmtLote(l).toLowerCase().includes(q) || (l.terminacion || '').toLowerCase().includes(q))
           )
           const th = { padding: '8px 6px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textAlign: 'center' }
           const td = { padding: '7px 6px', fontSize: 12, borderBottom: '1px solid var(--border)', textAlign: 'center' }
@@ -336,7 +338,7 @@ export default function Produccion() {
                       const est = estadoLoteLabel(l)
                       return (
                         <tr key={l.id} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <td style={{ ...td, textAlign: 'left', paddingLeft: 14, fontWeight: 800 }}>#{l.numero}</td>
+                          <td style={{ ...td, textAlign: 'left', paddingLeft: 14, fontWeight: 800 }}>{fmtLote(l)}</td>
                           <td style={{ ...td, textAlign: 'left' }}><span style={{ color: etapaColor(l.etapa), fontWeight: 700 }}>{l.modelo}</span>{l.terminacion ? <span style={{ color: '#fb923c' }}> · {l.terminacion}</span> : ''}{l.temporada ? <span style={{ color: 'var(--text3)' }}> · T{l.temporada}</span> : ''}</td>
                           <td style={td}>{l.cantidad_actual}{l.cantidad_actual !== l.cantidad_objetivo ? <span style={{ color: 'var(--text3)' }}>/{l.cantidad_objetivo}</span> : ''}</td>
                           {ETAPAS_PROC.map(e => {
@@ -372,7 +374,7 @@ export default function Produccion() {
 
       {/* MODAL NUEVO LOTE */}
       {nuevoOpen && (
-        <Modal titulo={editandoLote ? `✏️ Editar lote #${editandoLote.numero}` : '➕ Nuevo lote'} onClose={cerrarModal}>
+        <Modal titulo={editandoLote ? `✏️ Editar lote ${fmtLote(editandoLote)}` : '➕ Nuevo lote'} onClose={cerrarModal}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><label style={lbl}>N° de lote *</label><input type="number" value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} placeholder="Ej: 511" style={iSt} /></div>
             <div><label style={lbl}>Temporada</label><input type="number" value={form.temporada} onChange={e => setForm(f => ({ ...f, temporada: e.target.value }))} style={iSt} /></div>
@@ -455,7 +457,7 @@ function AvanceEtapaModal({ lote, etapa, siguiente, onClose, onDone }) {
     onClose(); onDone()
   }
   return (
-    <Modal titulo={`Avance · Lote #${lote.numero}`} onClose={onClose}>
+    <Modal titulo={`Avance · Lote ${fmtLote(lote)}`} onClose={onClose}>
       <div style={{ fontSize: 13, color: 'var(--text2)' }}>Etapa: <b style={{ color: etapaColor(etapa) }}>{etapaLabel(etapa)}</b> · {lote.modelo}</div>
       <div style={{ fontSize: 13, color: 'var(--text3)' }}>Total de la etapa: <b style={{ color: 'var(--text2)' }}>{target}</b> u.</div>
       <div><label style={lbl}>Cantidad hecha en {etapaLabel(etapa)}</label><input type="number" min="0" max={target} value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
@@ -504,7 +506,7 @@ function ParteModal({ lote, etapa, usuario, onClose, onDone }) {
     onClose(); onDone()
   }
   return (
-    <Modal titulo={`＋ Parte · Lote #${lote.numero}`} onClose={onClose}>
+    <Modal titulo={`＋ Parte · Lote ${fmtLote(lote)}`} onClose={onClose}>
       <div style={{ fontSize: 12, color: 'var(--text3)' }}>Etapa: <b style={{ color: etapaColor(etapa) }}>{etapaLabel(etapa)}</b> · {lote.modelo} · {lote.cantidad_actual} u.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div><label style={lbl}>Cantidad hecha *</label><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
@@ -539,7 +541,7 @@ function NcfModal({ lote, etapa, usuario, onClose, onDone }) {
     onClose(); onDone()
   }
   return (
-    <Modal titulo={`⚠ No conformidad · Lote #${lote.numero}`} onClose={onClose}>
+    <Modal titulo={`⚠ No conformidad · Lote ${fmtLote(lote)}`} onClose={onClose}>
       <div style={{ fontSize: 12, color: 'var(--text3)' }}>Etapa: <b style={{ color: etapaColor(etapa) }}>{etapaLabel(etapa)}</b> · {lote.modelo} · actual {lote.cantidad_actual} u.</div>
       <div><label style={lbl}>Cantidad con problema *</label><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
       <div><label style={lbl}>Motivo</label><input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ej: mal pegado, roto..." style={iSt} /></div>
@@ -565,7 +567,7 @@ function AvanceParcialModal({ lote, siguiente, usuario, onClose, onDone }) {
     const { error } = await supabase.from('produccion_lotes').insert({
       numero: lote.numero, modelo: lote.modelo, cantidad_objetivo: c, cantidad_actual: c,
       hojas: null, temporada: lote.temporada, etapa: siguiente, estado: 'en_proceso',
-      notas: `Parcial de lote ${lote.numero}`, created_by: usuario,
+      notas: `Parcial de lote ${fmtLote(lote)}`, created_by: usuario,
     })
     if (!error) await supabase.from('produccion_lotes').update({ cantidad_actual: lote.cantidad_actual - c }).eq('id', lote.id)
     setG(false)
@@ -574,7 +576,7 @@ function AvanceParcialModal({ lote, siguiente, usuario, onClose, onDone }) {
     onClose(); onDone()
   }
   return (
-    <Modal titulo={`⋯ Avance parcial · Lote #${lote.numero}`} onClose={onClose}>
+    <Modal titulo={`⋯ Avance parcial · Lote ${fmtLote(lote)}`} onClose={onClose}>
       <div style={{ fontSize: 12, color: 'var(--text3)' }}>Pasás una parte a <b style={{ color: etapaColor(siguiente) }}>{etapaLabel(siguiente)}</b>; el resto queda en {etapaLabel(lote.etapa)}.</div>
       <div><label style={lbl}>Cantidad que avanza (de {lote.cantidad_actual})</label><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} style={iSt} autoFocus /></div>
       <button onClick={guardar} disabled={g} style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: g ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>{g ? 'Guardando...' : 'Avanzar parcial'}</button>
