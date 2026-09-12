@@ -12,6 +12,7 @@ const MODELOS_PROD = [
   { modelo: '500w',    cantidad: 400, hojas: 100 },
   { modelo: '500w TD', cantidad: 400, hojas: 100 },
   { modelo: '500w MB', cantidad: 400, hojas: 100 },
+  { modelo: '1400w',   cantidad: 320, hojas: 80 },   // BL/SMA=80 (T+CT), resto=40 (solo CT) — editable por lote
 ]
 const HOJA_CODIGO = 'MPSTD6'
 
@@ -99,18 +100,18 @@ export default function Produccion() {
   function abrirNuevo() {
     const maxNum = lotes.reduce((m, l) => Math.max(m, l.numero || 0), 510)
     setEditandoLote(null)
-    setForm({ numero: maxNum + 1, modelo: '500w', cantidad: 400, temporada: 2027, notas: '', etapa: 'por_iniciar' })
+    setForm({ numero: maxNum + 1, modelo: '500w', cantidad: 400, hojas: 100, terminacion: '', temporada: 2027, notas: '', etapa: 'por_iniciar' })
     setNuevoOpen(true)
   }
   function abrirEditarLote(lote) {
     setEditandoLote(lote)
-    setForm({ numero: lote.numero ?? '', modelo: lote.modelo, cantidad: lote.cantidad_objetivo, temporada: lote.temporada ?? '', notas: lote.notas ?? '', etapa: lote.etapa })
+    setForm({ numero: lote.numero ?? '', modelo: lote.modelo, cantidad: lote.cantidad_objetivo, hojas: lote.hojas ?? '', terminacion: lote.terminacion ?? '', temporada: lote.temporada ?? '', notas: lote.notas ?? '', etapa: lote.etapa })
     setNuevoOpen(true)
   }
   function cerrarModal() { setNuevoOpen(false); setEditandoLote(null) }
   function onModelo(modelo) {
     const cfg = MODELOS_PROD.find(m => m.modelo === modelo)
-    setForm(f => ({ ...f, modelo, cantidad: (!editandoLote && cfg) ? cfg.cantidad : f.cantidad }))
+    setForm(f => ({ ...f, modelo, cantidad: (!editandoLote && cfg) ? cfg.cantidad : f.cantidad, hojas: (!editandoLote && cfg) ? cfg.hojas : f.hojas }))
   }
 
   async function guardarLote() {
@@ -127,7 +128,8 @@ export default function Produccion() {
       const nuevoActual = editandoLote.cantidad_actual === editandoLote.cantidad_objetivo ? cantidad : editandoLote.cantidad_actual
       const patch = {
         numero, modelo: form.modelo, cantidad_objetivo: cantidad,
-        hojas: cfg?.hojas ?? editandoLote.hojas, temporada: parseInt(form.temporada) || null,
+        hojas: (form.hojas === '' || form.hojas == null) ? (cfg?.hojas ?? editandoLote.hojas) : (parseInt(form.hojas) || null),
+        terminacion: form.terminacion.trim() || null, temporada: parseInt(form.temporada) || null,
         etapa: form.etapa, estado: estadoDe(form.etapa), notas: form.notas.trim() || null,
         // Las etapas anteriores a la elegida se dan por hechas con la cantidad completa
         avance: backfillAvance(editandoLote.avance, form.etapa, nuevoActual),
@@ -137,7 +139,8 @@ export default function Produccion() {
     } else {
       ;({ error } = await supabase.from('produccion_lotes').insert({
         numero, modelo: form.modelo, cantidad_objetivo: cantidad, cantidad_actual: cantidad,
-        hojas: cfg?.hojas ?? null, temporada: parseInt(form.temporada) || null,
+        hojas: (form.hojas === '' || form.hojas == null) ? (cfg?.hojas ?? null) : (parseInt(form.hojas) || null),
+        terminacion: form.terminacion.trim() || null, temporada: parseInt(form.temporada) || null,
         etapa: 'por_iniciar', estado: 'planificado', notas: form.notas.trim() || null, created_by: nombreUsuario,
       }))
     }
@@ -243,6 +246,7 @@ export default function Produccion() {
                         <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
                           <b style={{ fontSize: 15 }}>{lote.cantidad_actual}</b> <span style={{ color: 'var(--text3)' }}>/ {lote.cantidad_objetivo} u.</span>
                           {lote.temporada ? <span style={{ color: 'var(--text3)' }}> · T{lote.temporada}</span> : ''}
+                          {lote.terminacion ? <span style={{ color: '#fb923c' }}> · {lote.terminacion}</span> : ''}
                         </div>
                         {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
                           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Avance en {etapaLabel(lote.etapa)}: <b style={{ color: hechoEtapa >= lote.cantidad_actual ? '#3dd68c' : 'var(--text2)' }}>{hechoEtapa}/{lote.cantidad_actual}</b></div>
@@ -333,7 +337,7 @@ export default function Produccion() {
                       return (
                         <tr key={l.id} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <td style={{ ...td, textAlign: 'left', paddingLeft: 14, fontWeight: 800 }}>#{l.numero}</td>
-                          <td style={{ ...td, textAlign: 'left' }}><span style={{ color: etapaColor(l.etapa), fontWeight: 700 }}>{l.modelo}</span>{l.temporada ? <span style={{ color: 'var(--text3)' }}> · T{l.temporada}</span> : ''}</td>
+                          <td style={{ ...td, textAlign: 'left' }}><span style={{ color: etapaColor(l.etapa), fontWeight: 700 }}>{l.modelo}</span>{l.terminacion ? <span style={{ color: '#fb923c' }}> · {l.terminacion}</span> : ''}{l.temporada ? <span style={{ color: 'var(--text3)' }}> · T{l.temporada}</span> : ''}</td>
                           <td style={td}>{l.cantidad_actual}{l.cantidad_actual !== l.cantidad_objetivo ? <span style={{ color: 'var(--text3)' }}>/{l.cantidad_objetivo}</span> : ''}</td>
                           {ETAPAS_PROC.map(e => {
                             const c = FLUJO.indexOf(l.etapa), i = FLUJO.indexOf(e.key)
@@ -386,8 +390,11 @@ export default function Produccion() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><label style={lbl}>Cantidad *</label><input type="number" value={form.cantidad} onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} style={iSt} /></div>
-            <div><label style={lbl}>Hojas MPSTD6</label><input value={MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas ?? '—'} disabled style={{ ...iSt, opacity: 0.7 }} /></div>
+            <div><label style={lbl}>Hojas MPSTD6</label><input type="number" value={form.hojas} onChange={e => setForm(f => ({ ...f, hojas: e.target.value }))} placeholder="—" style={iSt} /></div>
           </div>
+          {form.modelo === '1400w' && (
+            <div><label style={lbl}>Terminación (color)</label><input value={form.terminacion} onChange={e => setForm(f => ({ ...f, terminacion: e.target.value }))} placeholder="Ej: Blanco, Madera Veteada, Smart Wifi…" style={iSt} /></div>
+          )}
           {editandoLote && (
             <div>
               <label style={lbl}>Etapa</label>
@@ -398,7 +405,7 @@ export default function Produccion() {
             </div>
           )}
           <div><label style={lbl}>Notas</label><input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" style={iSt} /></div>
-          {!editandoLote && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Al iniciar el Corte se descuentan las <b>{MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas}</b> hojas MPSTD6 del stock de insumos.</div>}
+          {!editandoLote && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Al iniciar el Corte se descuentan las <b>{form.hojas || MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas}</b> hojas MPSTD6 del stock de insumos.</div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={guardarLote} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando...' : editandoLote ? '✓ Guardar cambios' : '✓ Crear lote'}</button>
             <button onClick={cerrarModal} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
