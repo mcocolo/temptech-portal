@@ -16,7 +16,7 @@ const MODELOS_PROD = [
 ]
 const HOJA_CODIGO = 'MPSTD6'
 // Denominación del lote: 1400w (Firenze) lleva prefijo "F"; el resto "#"
-export const fmtLote = l => !l ? '' : (l.numero == null ? '—' : (l.modelo === '1400w' ? `F${l.numero}` : `#${l.numero}`))
+export const fmtLote = l => !l ? '' : (l.etiqueta ? l.etiqueta : (l.numero == null ? '—' : (l.modelo === '1400w' ? `F${l.numero}` : `#${l.numero}`)))
 
 // Flujo de etapas — Fase 1 (hasta febrero). Cables+Kits / Eléctrica+Embalaje se suman después.
 const ETAPAS = [
