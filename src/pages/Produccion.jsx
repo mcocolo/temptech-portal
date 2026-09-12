@@ -29,6 +29,23 @@ const FLUJO = ETAPAS.map(e => e.key)
 const etapaLabel = k => (ETAPAS.find(e => e.key === k)?.label || k)
 const etapaColor = k => (ETAPAS.find(e => e.key === k)?.color || '#888')
 
+// Etapas "de proceso" (sin Por iniciar ni Terminado) para la matriz de estado
+const ETAPAS_PROC = ETAPAS.filter(e => e.key !== 'por_iniciar' && e.key !== 'terminado')
+// Estado de una etapa para un lote: 'done' (✓ completó), 'proc' (• en proceso), 'none'
+function estadoEtapaLote(lote, etapaKey) {
+  if (lote.etapa === 'terminado') return 'done'
+  const c = FLUJO.indexOf(lote.etapa)
+  const i = FLUJO.indexOf(etapaKey)
+  if (i < c) return 'done'
+  if (i === c) return 'proc'
+  return 'none'
+}
+function estadoLoteLabel(lote) {
+  if (lote.etapa === 'terminado') return { txt: 'Terminado', color: '#2dd4bf' }
+  if (lote.etapa === 'por_iniciar') return { txt: 'Por iniciar', color: '#94a3b8' }
+  return { txt: 'En proceso', color: '#fb923c' }
+}
+
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
 
@@ -45,6 +62,10 @@ export default function Produccion() {
   const [modalNcf, setModalNcf] = useState(null)       // lote
   const [modalAvance, setModalAvance] = useState(null) // lote (avance parcial)
   const [expandido, setExpandido] = useState(null)
+  const [vista, setVista] = useState('tablero')        // tablero | listado
+  const [busqueda, setBusqueda] = useState('')
+  const [fModelo, setFModelo] = useState('')
+  const [fTemporada, setFTemporada] = useState('')
 
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
 
@@ -140,16 +161,26 @@ export default function Produccion() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Producción</h1>
-          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Tablero de lotes por sector · el lote avanza etapa por etapa</p>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Lotes por sector · el lote avanza etapa por etapa</p>
         </div>
-        {!readOnly && (
-          <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo lote</button>
-        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
+            {[['tablero', '🗂 Tablero'], ['listado', '📋 Estado de lotes']].map(([v, l]) => (
+              <button key={v} onClick={() => setVista(v)}
+                style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: vista === v ? 'var(--brand-gradient)' : 'transparent', color: vista === v ? '#fff' : 'var(--text3)' }}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {!readOnly && (
+            <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo lote</button>
+          )}
+        </div>
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
-      ) : (
+      ) : vista === 'tablero' ? (
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12 }}>
           {ETAPAS.map(et => {
             const items = lotesPorEtapa(et.key)
@@ -216,6 +247,64 @@ export default function Produccion() {
             )
           })}
         </div>
+      ) : (
+        (() => {
+          const q = busqueda.trim()
+          const modelos = [...new Set(lotes.map(l => l.modelo))].sort()
+          const temporadas = [...new Set(lotes.map(l => l.temporada).filter(Boolean))].sort()
+          const filtrados = lotes.filter(l =>
+            (!fModelo || l.modelo === fModelo) &&
+            (!fTemporada || String(l.temporada) === String(fTemporada)) &&
+            (!q || String(l.numero).includes(q))
+          )
+          const th = { padding: '8px 6px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textAlign: 'center' }
+          const td = { padding: '7px 6px', fontSize: 12, borderBottom: '1px solid var(--border)', textAlign: 'center' }
+          return (
+            <div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+                <input placeholder="🔍 N° de lote..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, width: 150 }} />
+                <select value={fModelo} onChange={e => setFModelo(e.target.value)} style={{ ...iSt, width: 'auto', cursor: 'pointer' }}>
+                  <option value="">Todos los modelos</option>
+                  {modelos.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <select value={fTemporada} onChange={e => setFTemporada(e.target.value)} style={{ ...iSt, width: 'auto', cursor: 'pointer' }}>
+                  <option value="">Todas las temporadas</option>
+                  {temporadas.map(t => <option key={t} value={t}>T{t}</option>)}
+                </select>
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>{filtrados.length} lotes</span>
+              </div>
+              <div style={{ overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>
+                    <th style={{ ...th, textAlign: 'left', paddingLeft: 14 }}>Lote</th>
+                    <th style={{ ...th, textAlign: 'left' }}>Modelo</th>
+                    <th style={th}>Cant.</th>
+                    {ETAPAS_PROC.map(e => <th key={e.key} style={{ ...th, color: e.color }}>{e.label}</th>)}
+                    <th style={th}>Estado</th>
+                  </tr></thead>
+                  <tbody>
+                    {filtrados.map(l => {
+                      const est = estadoLoteLabel(l)
+                      return (
+                        <tr key={l.id} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <td style={{ ...td, textAlign: 'left', paddingLeft: 14, fontWeight: 800 }}>#{l.numero}</td>
+                          <td style={{ ...td, textAlign: 'left' }}><span style={{ color: etapaColor(l.etapa), fontWeight: 700 }}>{l.modelo}</span>{l.temporada ? <span style={{ color: 'var(--text3)' }}> · T{l.temporada}</span> : ''}</td>
+                          <td style={td}>{l.cantidad_actual}{l.cantidad_actual !== l.cantidad_objetivo ? <span style={{ color: 'var(--text3)' }}>/{l.cantidad_objetivo}</span> : ''}</td>
+                          {ETAPAS_PROC.map(e => {
+                            const s = estadoEtapaLote(l, e.key)
+                            return <td key={e.key} style={td}>{s === 'done' ? <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 14 }}>✓</span> : s === 'proc' ? <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }}>•</span> : <span style={{ color: 'var(--border2)' }}>·</span>}</td>
+                          })}
+                          <td style={td}><span style={{ fontSize: 11, fontWeight: 700, color: est.color, background: `${est.color}18`, border: `1px solid ${est.color}44`, borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>{est.txt}</span></td>
+                        </tr>
+                      )
+                    })}
+                    {filtrados.length === 0 && <tr><td colSpan={4 + ETAPAS_PROC.length} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin lotes.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()
       )}
 
       {/* MODAL NUEVO LOTE */}
