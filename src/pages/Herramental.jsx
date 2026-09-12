@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
-const EMPTY = { nombre: '', tipo: 'Disco', codigo: '', lote: '', sectores: [], fecha_ingreso: '', foto_url: '' }
+const EMPTY = { nombre: '', tipo: 'Disco', codigo: '', lote: '', sectores: [], fecha_ingreso: '', foto_url: '', usos_250w: '', usos_500w: '', usos_1400w: '' }
 export const TIPOS_HERR = ['Disco', 'Cinta', 'Pie', 'Otro']
 const SECTORES_HERR = ['Corte', 'Aguj1+Alambre+Pegado', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
 const secsDe = h => (Array.isArray(h.sectores) && h.sectores.length) ? h.sectores : (h.sector ? [h.sector] : [])
@@ -34,7 +34,7 @@ export default function Herramental() {
   }
 
   function abrirNuevo() { setForm({ ...EMPTY, tipo: filtroTipo || 'Disco' }); setEditId(null); setModalOpen(true) }
-  function abrirEditar(h) { setForm({ nombre: h.nombre || '', tipo: h.tipo || 'Disco', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '' }); setEditId(h.id); setModalOpen(true) }
+  function abrirEditar(h) { setForm({ nombre: h.nombre || '', tipo: h.tipo || 'Disco', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '', usos_250w: h.usos_250w ?? '', usos_500w: h.usos_500w ?? '', usos_1400w: h.usos_1400w ?? '' }); setEditId(h.id); setModalOpen(true) }
 
   async function subirFoto(file) {
     if (!file) return
@@ -50,7 +50,7 @@ export default function Herramental() {
 
   async function guardar() {
     if (!form.nombre.trim()) return toast.error('Ingresá el nombre')
-    const payload = { nombre: form.nombre.trim(), tipo: form.tipo || null, codigo: form.codigo.trim() || null, lote: form.lote.trim() || null, sectores: form.sectores, sector: form.sectores[0] || null, fecha_ingreso: form.fecha_ingreso || null, foto_url: form.foto_url || null }
+    const payload = { nombre: form.nombre.trim(), tipo: form.tipo || null, codigo: form.codigo.trim() || null, lote: form.lote.trim() || null, sectores: form.sectores, sector: form.sectores[0] || null, fecha_ingreso: form.fecha_ingreso || null, foto_url: form.foto_url || null, usos_250w: parseInt(form.usos_250w) || 0, usos_500w: parseInt(form.usos_500w) || 0, usos_1400w: parseInt(form.usos_1400w) || 0 }
     setGuardando(true)
     const { error } = editId
       ? await supabase.from('herramental').update(payload).eq('id', editId)
@@ -126,6 +126,11 @@ export default function Herramental() {
                   {h.lote && <div>Lote: <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{h.lote}</span></div>}
                   {secsDe(h).length > 0 && <div>Sectores: <span style={{ color: 'var(--text2)' }}>{secsDe(h).join(', ')}</span></div>}
                   {h.fecha_ingreso && <div>Ingreso: {new Date(h.fecha_ingreso + 'T12:00:00').toLocaleDateString('es-AR')}</div>}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                    <span style={{ background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', color: '#7b9fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>250w: {h.usos_250w || 0}</span>
+                    <span style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>500w: {h.usos_500w || 0}</span>
+                    <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w: {h.usos_1400w || 0}</span>
+                  </div>
                 </div>
                 {!readOnly && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
@@ -178,6 +183,14 @@ export default function Herramental() {
                 </div>
               </div>
               <div><label style={lbl}>Fecha de ingreso</label><input type="date" value={form.fecha_ingreso} onChange={e => setForm(f => ({ ...f, fecha_ingreso: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
+              <div>
+                <label style={lbl}>Usos acumulados (se suman con las OT)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <div><div style={{ fontSize: 10, color: '#7b9fff', marginBottom: 3 }}>250w</div><input type="number" min="0" value={form.usos_250w} onChange={e => setForm(f => ({ ...f, usos_250w: e.target.value }))} placeholder="0" style={iSt} /></div>
+                  <div><div style={{ fontSize: 10, color: '#3dd68c', marginBottom: 3 }}>500w</div><input type="number" min="0" value={form.usos_500w} onChange={e => setForm(f => ({ ...f, usos_500w: e.target.value }))} placeholder="0" style={iSt} /></div>
+                  <div><div style={{ fontSize: 10, color: '#fb923c', marginBottom: 3 }}>1400w</div><input type="number" min="0" value={form.usos_1400w} onChange={e => setForm(f => ({ ...f, usos_1400w: e.target.value }))} placeholder="0" style={iSt} /></div>
+                </div>
+              </div>
               <div>
                 <label style={lbl}>Foto</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

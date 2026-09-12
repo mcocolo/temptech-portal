@@ -42,6 +42,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
   const [f, setF] = useState({
+    disco_id: '', cinta_id: '', pie_id: '',
     disco_txt: '', cinta_txt: '', pie_txt: '', herramental_cambio: '',
     fecha_inicio: new Date().toISOString().split('T')[0], hora_inicio: '',
     fecha_fin: '', hora_fin: '',
@@ -61,6 +62,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     if (ot.data) {
       setPrevOt(ot.data)
       setF({
+        disco_id: ot.data.disco_id || '', cinta_id: ot.data.cinta_id || '', pie_id: ot.data.pie_id || '',
         disco_txt: ot.data.disco_txt || '', cinta_txt: ot.data.cinta_txt || '', pie_txt: ot.data.pie_txt || '',
         herramental_cambio: ot.data.herramental_cambio || '',
         fecha_inicio: ot.data.fecha_inicio || '', hora_inicio: ot.data.hora_inicio || '',
@@ -85,7 +87,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
       lote_id: lote.id, etapa: 'corte',
       fecha_inicio: f.fecha_inicio || null, hora_inicio: f.hora_inicio || null,
       fecha_fin: f.fecha_fin || null, hora_fin: f.hora_fin || null,
-      personal: f.personal, disco_txt: f.disco_txt || null, cinta_txt: f.cinta_txt || null, pie_txt: f.pie_txt || null,
+      personal: f.personal,
+      disco_id: f.disco_id || null, cinta_id: f.cinta_id || null, pie_id: f.pie_id || null,
+      disco_txt: f.disco_txt || null, cinta_txt: f.cinta_txt || null, pie_txt: f.pie_txt || null,
       herramental_cambio: f.herramental_cambio.trim() || null,
       mediciones: f.mediciones.map(m => m === '' ? null : Number(m)),
       medida_objetivo: f.medida_objetivo === '' ? null : Number(f.medida_objetivo),
@@ -116,18 +120,29 @@ export default function CorteOT({ lote, onClose, onDone }) {
     }
     await supabase.from('produccion_lotes').update(patch).eq('id', lote.id)
 
+    // Sumar usos al herramental usado (por el delta de piezas de este guardado)
+    const deltaPiezas = piezas - (prevOt?.piezas || 0)
+    if (deltaPiezas !== 0) {
+      const col = lote.modelo.includes('1400') ? 'usos_1400w' : lote.modelo.includes('250') ? 'usos_250w' : 'usos_500w'
+      for (const id of [f.disco_id, f.cinta_id, f.pie_id].filter(Boolean)) {
+        try {
+          const { data: hr } = await supabase.from('herramental').select(col).eq('id', id).single()
+          if (hr) await supabase.from('herramental').update({ [col]: Math.max(0, (hr[col] || 0) + deltaPiezas) }).eq('id', id)
+        } catch (_) { /* no bloquea */ }
+      }
+    }
+
     setG(false)
     toast.success('OT de Corte guardada ✅')
     onClose(); onDone()
   }
 
-  const HerrSelect = ({ tipo, campo, label }) => (
+  const HerrSelect = ({ tipo, base, label }) => (
     <div>
       <label style={lbl}>{label}</label>
-      <select value={f[campo]} onChange={e => setF(s => ({ ...s, [campo]: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
+      <select value={f[base + '_id'] || ''} onChange={e => { const h = herr.find(x => x.id === e.target.value); setF(s => ({ ...s, [base + '_id']: e.target.value || '', [base + '_txt']: h ? herrTxt(h) : '' })) }} style={{ ...iSt, cursor: 'pointer' }}>
         <option value="">— Elegir —</option>
-        {opciones(tipo).map(h => <option key={h.id} value={herrTxt(h)}>{herrTxt(h)}</option>)}
-        {f[campo] && !opciones(tipo).some(h => herrTxt(h) === f[campo]) && <option value={f[campo]}>{f[campo]}</option>}
+        {opciones(tipo).map(h => <option key={h.id} value={h.id}>{herrTxt(h)}</option>)}
       </select>
     </div>
   )
@@ -148,9 +163,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>🔧 Herramental</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-              <HerrSelect tipo="disco" campo="disco_txt" label="Disco Diamantado" />
-              <HerrSelect tipo="cinta" campo="cinta_txt" label="Cinta Métrica" />
-              <HerrSelect tipo="pie" campo="pie_txt" label="Pie Metálico" />
+              <HerrSelect tipo="disco" base="disco" label="Disco Diamantado" />
+              <HerrSelect tipo="cinta" base="cinta" label="Cinta Métrica" />
+              <HerrSelect tipo="pie" base="pie" label="Pie Metálico" />
             </div>
           </div>
 
