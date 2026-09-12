@@ -10,6 +10,7 @@ const MODELOS_PROD = [
   { modelo: '250w TD', cantidad: 384, hojas: 48 },
   { modelo: '500w',    cantidad: 400, hojas: 100 },
   { modelo: '500w TD', cantidad: 400, hojas: 100 },
+  { modelo: '500w MB', cantidad: 400, hojas: 100 },
 ]
 const HOJA_CODIGO = 'MPSTD6'
 
