@@ -6,9 +6,8 @@ import toast from 'react-hot-toast'
 
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
-const EMPTY = { nombre: '', tipo: 'Disco', codigo: '', lote: '', sectores: [], fecha_ingreso: '', foto_url: '', usos_250w: '', usos_500w: '', usos_1400w: '' }
-export const TIPOS_HERR = ['Disco', 'Cinta', 'Pie', 'Otro']
-const SECTORES_HERR = ['Corte', 'Aguj1+Alambre+Pegado', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
+const EMPTY = { nombre: '', codigo: '', lote: '', sectores: [], fecha_ingreso: '', foto_url: '', usos_250w: '', usos_500w: '', usos_1400w: '' }
+const SECTORES_HERR = ['Corte', 'Aguj1+Alambre+Pegado', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w T', '1400w CT']
 const secsDe = h => (Array.isArray(h.sectores) && h.sectores.length) ? h.sectores : (h.sector ? [h.sector] : [])
 
 export default function Herramental() {
@@ -16,7 +15,6 @@ export default function Herramental() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
-  const [filtroTipo, setFiltroTipo] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(EMPTY)
@@ -28,13 +26,13 @@ export default function Herramental() {
 
   async function cargar() {
     setLoading(true)
-    const data = await fetchAllRows(() => supabase.from('herramental').select('*').order('tipo').order('nombre'))
+    const data = await fetchAllRows(() => supabase.from('herramental').select('*').order('nombre'))
     setItems(data || [])
     setLoading(false)
   }
 
-  function abrirNuevo() { setForm({ ...EMPTY, tipo: filtroTipo || 'Disco' }); setEditId(null); setModalOpen(true) }
-  function abrirEditar(h) { setForm({ nombre: h.nombre || '', tipo: h.tipo || 'Disco', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '', usos_250w: h.usos_250w ?? '', usos_500w: h.usos_500w ?? '', usos_1400w: h.usos_1400w ?? '' }); setEditId(h.id); setModalOpen(true) }
+  function abrirNuevo() { setForm({ ...EMPTY }); setEditId(null); setModalOpen(true) }
+  function abrirEditar(h) { setForm({ nombre: h.nombre || '', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '', usos_250w: h.usos_250w ?? '', usos_500w: h.usos_500w ?? '', usos_1400w: h.usos_1400w ?? '' }); setEditId(h.id); setModalOpen(true) }
 
   async function subirFoto(file) {
     if (!file) return
@@ -50,7 +48,7 @@ export default function Herramental() {
 
   async function guardar() {
     if (!form.nombre.trim()) return toast.error('Ingresá el nombre')
-    const payload = { nombre: form.nombre.trim(), tipo: form.tipo || null, codigo: form.codigo.trim() || null, lote: form.lote.trim() || null, sectores: form.sectores, sector: form.sectores[0] || null, fecha_ingreso: form.fecha_ingreso || null, foto_url: form.foto_url || null, usos_250w: parseInt(form.usos_250w) || 0, usos_500w: parseInt(form.usos_500w) || 0, usos_1400w: parseInt(form.usos_1400w) || 0 }
+    const payload = { nombre: form.nombre.trim(), codigo: form.codigo.trim() || null, lote: form.lote.trim() || null, sectores: form.sectores, sector: form.sectores[0] || null, fecha_ingreso: form.fecha_ingreso || null, foto_url: form.foto_url || null, usos_250w: parseInt(form.usos_250w) || 0, usos_500w: parseInt(form.usos_500w) || 0, usos_1400w: parseInt(form.usos_1400w) || 0 }
     setGuardando(true)
     const { error } = editId
       ? await supabase.from('herramental').update(payload).eq('id', editId)
@@ -73,8 +71,7 @@ export default function Herramental() {
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(h =>
-    (!filtroTipo || h.tipo === filtroTipo) &&
-    (!q || [h.nombre, h.codigo, h.lote, h.sector].some(v => (v || '').toLowerCase().includes(q)))
+    (!q || [h.nombre, h.codigo, h.lote, ...secsDe(h)].some(v => (v || '').toLowerCase().includes(q)))
   )
 
   return (
@@ -89,26 +86,13 @@ export default function Herramental() {
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {['', ...TIPOS_HERR].map(t => {
-          const active = filtroTipo === t
-          const count = t ? items.filter(h => h.tipo === t).length : items.length
-          return (
-            <button key={t || 'todos'} onClick={() => setFiltroTipo(t)}
-              style={{ background: active ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: active ? '#7b9fff' : 'var(--text3)', border: `1px solid ${active ? 'rgba(74,108,247,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              {t || 'Todos'} <span style={{ opacity: 0.7 }}>({count})</span>
-            </button>
-          )
-        })}
-      </div>
-
-      <input type="text" placeholder="🔍 Buscar por nombre, código, lote o sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420, marginBottom: 18 }} />
+      <input type="text" placeholder="🔍 Buscar por nombre, código, lote o sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420, marginBottom: 18, marginTop: 4 }} />
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando...</div>
       ) : filtrados.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
-          {busqueda || filtroTipo ? 'Sin resultados.' : 'Todavía no hay herramental. Agregá la primera herramienta.'}
+          {busqueda ? 'Sin resultados.' : 'Todavía no hay herramental. Agregá la primera herramienta.'}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
@@ -116,10 +100,7 @@ export default function Herramental() {
             const isDel = confirmDel === h.id
             return (
               <div key={h.id} style={{ background: 'var(--surface)', border: `1px solid ${isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{h.nombre}</div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{h.tipo || '—'}</span>
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{h.nombre}</div>
                 {h.foto_url && <img src={h.foto_url} alt="" onClick={() => window.open(h.foto_url, '_blank')} style={{ width: '100%', height: 110, objectFit: 'contain', background: 'rgba(0,0,0,0.2)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 8, cursor: 'zoom-in' }} />}
                 <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {h.codigo && <div>Código: <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{h.codigo}</span></div>}
@@ -160,14 +141,6 @@ export default function Herramental() {
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div><label style={lbl}>Nombre *</label><input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Disco Diamantado 230mm" style={iSt} autoFocus /></div>
-              <div>
-                <label style={lbl}>Tipo</label>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {TIPOS_HERR.map(t => (
-                    <button key={t} onClick={() => setForm(f => ({ ...f, tipo: t }))} style={{ padding: '6px 12px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: form.tipo === t ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: form.tipo === t ? '#7b9fff' : 'var(--text3)', border: `1px solid ${form.tipo === t ? 'rgba(74,108,247,0.5)' : 'var(--border)'}` }}>{t}</button>
-                  ))}
-                </div>
-              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div><label style={lbl}>Código</label><input value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} placeholder="Código" style={iSt} /></div>
                 <div><label style={lbl}>Lote</label><input value={form.lote} onChange={e => setForm(f => ({ ...f, lote: e.target.value }))} placeholder="Lote" style={iSt} /></div>

@@ -74,7 +74,6 @@ export default function CorteOT({ lote, onClose, onDone }) {
   }
 
   const herrTxt = h => `${h.nombre}${h.codigo ? ` · ${h.codigo}` : ''}${h.lote ? ` · L:${h.lote}` : ''}`
-  const opciones = tipo => herr.filter(h => (h.tipo || '').toLowerCase() === tipo)
   const hojas = parseInt(f.hojas_usadas) || 0
   const piezas = Math.round(hojas * ratio)
   const duracion = calcularDuracion(f.fecha_inicio, f.hora_inicio, f.fecha_fin, f.hora_fin)
@@ -137,12 +136,12 @@ export default function CorteOT({ lote, onClose, onDone }) {
     onClose(); onDone()
   }
 
-  const HerrSelect = ({ tipo, base, label }) => (
+  const HerrSelect = ({ base, label }) => (
     <div>
       <label style={lbl}>{label}</label>
       <select value={f[base + '_id'] || ''} onChange={e => { const h = herr.find(x => x.id === e.target.value); setF(s => ({ ...s, [base + '_id']: e.target.value || '', [base + '_txt']: h ? herrTxt(h) : '' })) }} style={{ ...iSt, cursor: 'pointer' }}>
         <option value="">— Elegir —</option>
-        {opciones(tipo).map(h => <option key={h.id} value={h.id}>{herrTxt(h)}</option>)}
+        {herr.map(h => <option key={h.id} value={h.id}>{herrTxt(h)}</option>)}
       </select>
     </div>
   )
@@ -163,9 +162,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>🔧 Herramental</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-              <HerrSelect tipo="disco" base="disco" label="Disco Diamantado" />
-              <HerrSelect tipo="cinta" base="cinta" label="Cinta Métrica" />
-              <HerrSelect tipo="pie" base="pie" label="Pie Metálico" />
+              <HerrSelect base="disco" label="Disco Diamantado" />
+              <HerrSelect base="cinta" label="Cinta Métrica" />
+              <HerrSelect base="pie" label="Pie Metálico" />
             </div>
           </div>
 
