@@ -56,7 +56,8 @@ export default function Produccion() {
   const [ncf, setNcf] = useState([])
   const [loading, setLoading] = useState(true)
   const [nuevoOpen, setNuevoOpen] = useState(false)
-  const [form, setForm] = useState({ numero: '', modelo: '500w', cantidad: 400, temporada: 2027, notas: '' })
+  const [editandoLote, setEditandoLote] = useState(null)
+  const [form, setForm] = useState({ numero: '', modelo: '500w', cantidad: 400, temporada: 2027, notas: '', etapa: 'por_iniciar' })
   const [guardando, setGuardando] = useState(false)
   const [modalParte, setModalParte] = useState(null)   // lote
   const [modalNcf, setModalNcf] = useState(null)       // lote
@@ -84,31 +85,51 @@ export default function Produccion() {
 
   function abrirNuevo() {
     const maxNum = lotes.reduce((m, l) => Math.max(m, l.numero || 0), 510)
-    setForm({ numero: maxNum + 1, modelo: '500w', cantidad: 400, temporada: 2027, notas: '' })
+    setEditandoLote(null)
+    setForm({ numero: maxNum + 1, modelo: '500w', cantidad: 400, temporada: 2027, notas: '', etapa: 'por_iniciar' })
     setNuevoOpen(true)
   }
+  function abrirEditarLote(lote) {
+    setEditandoLote(lote)
+    setForm({ numero: lote.numero ?? '', modelo: lote.modelo, cantidad: lote.cantidad_objetivo, temporada: lote.temporada ?? '', notas: lote.notas ?? '', etapa: lote.etapa })
+    setNuevoOpen(true)
+  }
+  function cerrarModal() { setNuevoOpen(false); setEditandoLote(null) }
   function onModelo(modelo) {
     const cfg = MODELOS_PROD.find(m => m.modelo === modelo)
-    setForm(f => ({ ...f, modelo, cantidad: cfg ? cfg.cantidad : f.cantidad }))
+    setForm(f => ({ ...f, modelo, cantidad: (!editandoLote && cfg) ? cfg.cantidad : f.cantidad }))
   }
 
-  async function crearLote() {
+  async function guardarLote() {
     const numero = parseInt(form.numero) || null
     const cantidad = parseInt(form.cantidad) || 0
     if (!numero) return toast.error('Ingresá el número de lote')
     if (cantidad <= 0) return toast.error('Ingresá la cantidad')
-    if (lotes.some(l => l.numero === numero)) return toast.error(`Ya existe el lote ${numero}`)
+    if (lotes.some(l => l.numero === numero && l.id !== editandoLote?.id)) return toast.error(`Ya existe el lote ${numero}`)
     const cfg = MODELOS_PROD.find(m => m.modelo === form.modelo)
+    const estadoDe = et => et === 'terminado' ? 'terminado' : et === 'por_iniciar' ? 'planificado' : 'en_proceso'
     setGuardando(true)
-    const { error } = await supabase.from('produccion_lotes').insert({
-      numero, modelo: form.modelo, cantidad_objetivo: cantidad, cantidad_actual: cantidad,
-      hojas: cfg?.hojas ?? null, temporada: parseInt(form.temporada) || null,
-      etapa: 'por_iniciar', estado: 'planificado', notas: form.notas.trim() || null, created_by: nombreUsuario,
-    })
+    let error
+    if (editandoLote) {
+      const patch = {
+        numero, modelo: form.modelo, cantidad_objetivo: cantidad,
+        hojas: cfg?.hojas ?? editandoLote.hojas, temporada: parseInt(form.temporada) || null,
+        etapa: form.etapa, estado: estadoDe(form.etapa), notas: form.notas.trim() || null,
+      }
+      // si el actual seguía igual al objetivo, lo ajusto al nuevo objetivo
+      if (editandoLote.cantidad_actual === editandoLote.cantidad_objetivo) patch.cantidad_actual = cantidad
+      ;({ error } = await supabase.from('produccion_lotes').update(patch).eq('id', editandoLote.id))
+    } else {
+      ;({ error } = await supabase.from('produccion_lotes').insert({
+        numero, modelo: form.modelo, cantidad_objetivo: cantidad, cantidad_actual: cantidad,
+        hojas: cfg?.hojas ?? null, temporada: parseInt(form.temporada) || null,
+        etapa: 'por_iniciar', estado: 'planificado', notas: form.notas.trim() || null, created_by: nombreUsuario,
+      }))
+    }
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success(`Lote ${numero} creado ✅`)
-    setNuevoOpen(false); cargar()
+    toast.success(editandoLote ? `Lote ${numero} actualizado ✅` : `Lote ${numero} creado ✅`)
+    cerrarModal(); cargar()
   }
 
   // Descuenta las hojas MPSTD6 del stock de insumos al iniciar el Corte
@@ -236,7 +257,12 @@ export default function Produccion() {
                             {ncfLote(lote.id).map(n => (
                               <div key={n.id} style={{ fontSize: 11, color: '#ff5577', marginBottom: 2 }}>⚠ {etapaLabel(n.etapa)}: -{n.cantidad}{n.recuperable ? ` (recup. ${n.cantidad_recuperada})` : ''} {n.motivo ? `· ${n.motivo}` : ''}</div>
                             ))}
-                            {!readOnly && <button onClick={() => eliminarLote(lote)} style={{ ...btn('#ff5577'), marginTop: 6 }}>🗑 Eliminar lote</button>}
+                            {!readOnly && (
+                              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                                <button onClick={() => abrirEditarLote(lote)} style={btn('#7b9fff')}>✏️ Editar</button>
+                                <button onClick={() => eliminarLote(lote)} style={btn('#ff5577')}>🗑 Eliminar</button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -281,6 +307,7 @@ export default function Produccion() {
                     <th style={th}>Cant.</th>
                     {ETAPAS_PROC.map(e => <th key={e.key} style={{ ...th, color: e.color }}>{e.label}</th>)}
                     <th style={th}>Estado</th>
+                    {!readOnly && <th style={th}></th>}
                   </tr></thead>
                   <tbody>
                     {filtrados.map(l => {
@@ -295,10 +322,11 @@ export default function Produccion() {
                             return <td key={e.key} style={td}>{s === 'done' ? <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 14 }}>✓</span> : s === 'proc' ? <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }}>•</span> : <span style={{ color: 'var(--border2)' }}>·</span>}</td>
                           })}
                           <td style={td}><span style={{ fontSize: 11, fontWeight: 700, color: est.color, background: `${est.color}18`, border: `1px solid ${est.color}44`, borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>{est.txt}</span></td>
+                          {!readOnly && <td style={td}><button onClick={() => abrirEditarLote(l)} style={btn('#7b9fff')}>✏️</button></td>}
                         </tr>
                       )
                     })}
-                    {filtrados.length === 0 && <tr><td colSpan={4 + ETAPAS_PROC.length} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin lotes.</td></tr>}
+                    {filtrados.length === 0 && <tr><td colSpan={4 + ETAPAS_PROC.length + (readOnly ? 0 : 1)} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin lotes.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -309,7 +337,7 @@ export default function Produccion() {
 
       {/* MODAL NUEVO LOTE */}
       {nuevoOpen && (
-        <Modal titulo="➕ Nuevo lote" onClose={() => setNuevoOpen(false)}>
+        <Modal titulo={editandoLote ? `✏️ Editar lote #${editandoLote.numero}` : '➕ Nuevo lote'} onClose={cerrarModal}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><label style={lbl}>N° de lote *</label><input type="number" value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} placeholder="Ej: 511" style={iSt} /></div>
             <div><label style={lbl}>Temporada</label><input type="number" value={form.temporada} onChange={e => setForm(f => ({ ...f, temporada: e.target.value }))} style={iSt} /></div>
@@ -329,11 +357,20 @@ export default function Produccion() {
             <div><label style={lbl}>Cantidad *</label><input type="number" value={form.cantidad} onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} style={iSt} /></div>
             <div><label style={lbl}>Hojas MPSTD6</label><input value={MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas ?? '—'} disabled style={{ ...iSt, opacity: 0.7 }} /></div>
           </div>
+          {editandoLote && (
+            <div>
+              <label style={lbl}>Etapa</label>
+              <select value={form.etapa} onChange={e => setForm(f => ({ ...f, etapa: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
+                {ETAPAS.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Podés mover el lote a cualquier etapa (ej. "Terminado" si ya se hizo hasta Pintura).</div>
+            </div>
+          )}
           <div><label style={lbl}>Notas</label><input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" style={iSt} /></div>
-          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Al iniciar el Corte se descuentan las <b>{MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas}</b> hojas MPSTD6 del stock de insumos.</div>
+          {!editandoLote && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Al iniciar el Corte se descuentan las <b>{MODELOS_PROD.find(m => m.modelo === form.modelo)?.hojas}</b> hojas MPSTD6 del stock de insumos.</div>}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={crearLote} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando...' : '✓ Crear lote'}</button>
-            <button onClick={() => setNuevoOpen(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+            <button onClick={guardarLote} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando...' : editandoLote ? '✓ Guardar cambios' : '✓ Crear lote'}</button>
+            <button onClick={cerrarModal} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
           </div>
         </Modal>
       )}
