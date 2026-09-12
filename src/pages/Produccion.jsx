@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
+import CorteOT from '@/components/CorteOT'
 import toast from 'react-hot-toast'
 
 // Modelos y rendimiento (cantidad de lote por defecto y hojas MPSTD6 que consume)
@@ -73,6 +74,7 @@ export default function Produccion() {
   const [modalNcf, setModalNcf] = useState(null)       // lote
   const [modalAvance, setModalAvance] = useState(null) // lote (avance parcial → dividir)
   const [avanceCell, setAvanceCell] = useState(null)   // { lote, etapa } (avance dentro de una etapa)
+  const [otLote, setOtLote] = useState(null)           // lote cuya OT de Corte se está cargando
   const [expandido, setExpandido] = useState(null)
   const [vista, setVista] = useState('tablero')        // tablero | listado
   const [busqueda, setBusqueda] = useState('')
@@ -249,9 +251,10 @@ export default function Produccion() {
                         {!readOnly && (
                           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
                             {lote.etapa === 'por_iniciar' ? (
-                              <button onClick={() => avanzarEtapa(lote, 'corte', true)} style={btn('#7b9fff')}>▶ Iniciar Corte</button>
+                              <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 OT Corte</button>
                             ) : lote.etapa !== 'terminado' ? (
                               <>
+                                {lote.etapa === 'corte' && <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 OT</button>}
                                 <button onClick={() => setModalParte(lote)} style={btn('#3dd68c')}>＋ Parte</button>
                                 <button onClick={() => setModalNcf(lote)} style={btn('#ff5577')}>⚠ No conf.</button>
                                 {sig && <button onClick={() => avanzarEtapa(lote, sig)} style={btn('#fb923c')}>→ {sig === 'terminado' ? 'Terminar' : 'Avanzar'}</button>}
@@ -414,6 +417,9 @@ export default function Produccion() {
 
       {/* MODAL AVANCE DENTRO DE UNA ETAPA (hecho/total) */}
       {avanceCell && <AvanceEtapaModal lote={avanceCell.lote} etapa={avanceCell.etapa} siguiente={siguienteEtapa(avanceCell.etapa)} onClose={() => setAvanceCell(null)} onDone={cargar} />}
+
+      {/* OT DE CORTE */}
+      {otLote && <CorteOT lote={otLote} onClose={() => setOtLote(null)} onDone={cargar} />}
     </div>
   )
 }
