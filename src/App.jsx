@@ -45,6 +45,7 @@ import AdminAprobaciones from '@/pages/AdminAprobaciones'
 import MapaLocales from '@/pages/MapaLocales'
 import Proveedores from '@/pages/Proveedores'
 import Produccion from '@/pages/Produccion'
+import Empleados from '@/pages/Empleados'
 
 
 
@@ -113,6 +114,7 @@ function AppRoutes() {
               <Route path="/ingreso-transito/pagina"       element={<IngresoTransito key="pagina" />} />
               <Route path="/ingreso-transito/vo"           element={<IngresoTransito key="vo" />} />
               <Route path="/produccion/tablero"             element={<Produccion />} />
+              <Route path="/produccion/empleados"           element={<Empleados />} />
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
               <Route path="/reportes"                   element={<AdminReportes />} />

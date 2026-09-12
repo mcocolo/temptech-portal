@@ -71,6 +71,7 @@ const ADMIN_NAV = [
   { section: 'Producción' },
   { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
     { label: 'Tablero de Producción', icon: Factory, path: '/produccion/tablero' },
+    { label: 'Empleados',          icon: Users,  path: '/produccion/empleados' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
     { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
   ]},
@@ -96,6 +97,7 @@ const ADMIN2_NAV = [
   { section: 'Producción' },
   { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
     { label: 'Tablero de Producción', icon: Factory, path: '/produccion/tablero' },
+    { label: 'Empleados',          icon: Users,  path: '/produccion/empleados' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
     { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
   ]},
