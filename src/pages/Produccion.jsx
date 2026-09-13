@@ -64,7 +64,7 @@ const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid v
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
 
 export default function Produccion() {
-  const { isAdmin, isAdmin2, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, isProceso, user, profile } = useAuth()
   const [lotes, setLotes] = useState([])
   const [partes, setPartes] = useState([])
   const [ncf, setNcf] = useState([])
@@ -84,8 +84,10 @@ export default function Produccion() {
   const [fModelo, setFModelo] = useState('')
   const [fTemporada, setFTemporada] = useState('')
   const [fFamilia, setFFamilia] = useState('')   // '' | '1400' | 'otros'
+  const [accesosOpen, setAccesosOpen] = useState(false)
 
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
+  const sello = () => ({ modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString() })
 
   useEffect(() => { cargar() }, [])
 
@@ -134,6 +136,7 @@ export default function Produccion() {
         hojas: (form.hojas === '' || form.hojas == null) ? (cfg?.hojas ?? editandoLote.hojas) : (parseInt(form.hojas) || null),
         terminacion: form.terminacion.trim() || null, temporada: parseInt(form.temporada) || null,
         etapa: form.etapa, estado: estadoDe(form.etapa), notas: form.notas.trim() || null,
+        ...sello(),
         // Las etapas anteriores a la elegida se dan por hechas con la cantidad completa
         avance: backfillAvance(editandoLote.avance, form.etapa, nuevoActual),
       }
@@ -170,7 +173,7 @@ export default function Produccion() {
   }
 
   async function avanzarEtapa(lote, nuevaEtapa, descontar = false) {
-    const patch = { etapa: nuevaEtapa }
+    const patch = { etapa: nuevaEtapa, ...sello() }
     if (nuevaEtapa !== 'por_iniciar' && lote.estado === 'planificado') patch.estado = 'en_proceso'
     if (nuevaEtapa === 'terminado') patch.estado = 'terminado'
     // La etapa que se deja se da por completa con la cantidad actual
@@ -192,8 +195,10 @@ export default function Produccion() {
     cargar()
   }
 
-  if (!isAdmin && !isAdmin2) return null
-  const readOnly = isAdmin2
+  if (!isAdmin && !isAdmin2 && !isProceso) return null
+  const puedeGestionar = isAdmin                          // crear / editar / borrar lotes y bases
+  const puedeCargar = isAdmin || isAdmin2 || isProceso     // cargar partes, OT, avances y no conformidades
+  const readOnly = !puedeCargar                            // sin permisos de carga = solo lectura
 
   const enFamilia = l => fFamilia === '' || (fFamilia === '1400' ? l.modelo === '1400w' : l.modelo !== '1400w')
   const coincideBusqueda = l => {
@@ -222,7 +227,10 @@ export default function Produccion() {
               </button>
             ))}
           </div>
-          {!readOnly && (
+          {puedeGestionar && (
+            <button onClick={() => setAccesosOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>👤 Accesos</button>
+          )}
+          {puedeGestionar && (
             <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo lote</button>
           )}
         </div>
@@ -304,7 +312,13 @@ export default function Produccion() {
                             {ncfLote(lote.id).map(n => (
                               <div key={n.id} style={{ fontSize: 11, color: '#ff5577', marginBottom: 2 }}>⚠ {etapaLabel(n.etapa)}: -{n.cantidad}{n.recuperable ? ` (recup. ${n.cantidad_recuperada})` : ''} {n.motivo ? `· ${n.motivo}` : ''}</div>
                             ))}
-                            {!readOnly && (
+                            {(lote.created_by || lote.modificado_por) && (
+                              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6, borderTop: '1px dashed var(--border)', paddingTop: 4 }}>
+                                {lote.created_by && <div>Creó: {lote.created_by}</div>}
+                                {lote.modificado_por && <div>Última modif.: {lote.modificado_por}{lote.modificado_por_at ? ` · ${new Date(lote.modificado_por_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</div>}
+                              </div>
+                            )}
+                            {puedeGestionar && (
                               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                                 <button onClick={() => abrirEditarLote(lote)} style={btn('#7b9fff')}>✏️ Editar</button>
                                 <button onClick={() => eliminarLote(lote)} style={btn('#ff5577')}>🗑 Eliminar</button>
@@ -354,7 +368,7 @@ export default function Produccion() {
                     <th style={th}>Cant.</th>
                     {ETAPAS_PROC.map(e => <th key={e.key} style={{ ...th, color: e.color }}>{e.label}</th>)}
                     <th style={th}>Estado</th>
-                    {!readOnly && <th style={th}></th>}
+                    {puedeGestionar && <th style={th}></th>}
                   </tr></thead>
                   <tbody>
                     {filtrados.map(l => {
@@ -382,11 +396,11 @@ export default function Produccion() {
                               onClick={puedeClick ? () => setAvanceCell({ lote: l, etapa: e.key }) : undefined}>{inner}</td>
                           })}
                           <td style={td}><span style={{ fontSize: 11, fontWeight: 700, color: est.color, background: `${est.color}18`, border: `1px solid ${est.color}44`, borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>{est.txt}</span></td>
-                          {!readOnly && <td style={td}><button onClick={() => abrirEditarLote(l)} style={btn('#7b9fff')}>✏️</button></td>}
+                          {puedeGestionar && <td style={td}><button onClick={() => abrirEditarLote(l)} style={btn('#7b9fff')}>✏️</button></td>}
                         </tr>
                       )
                     })}
-                    {filtrados.length === 0 && <tr><td colSpan={4 + ETAPAS_PROC.length + (readOnly ? 0 : 1)} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin lotes.</td></tr>}
+                    {filtrados.length === 0 && <tr><td colSpan={4 + ETAPAS_PROC.length + (puedeGestionar ? 1 : 0)} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin lotes.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -448,15 +462,91 @@ export default function Produccion() {
       {modalAvance && <AvanceParcialModal lote={modalAvance} siguiente={siguienteEtapa(modalAvance.etapa)} usuario={nombreUsuario} onClose={() => setModalAvance(null)} onDone={cargar} />}
 
       {/* MODAL AVANCE DENTRO DE UNA ETAPA (hecho/total) */}
-      {avanceCell && <AvanceEtapaModal lote={avanceCell.lote} etapa={avanceCell.etapa} siguiente={siguienteEtapa(avanceCell.etapa)} onClose={() => setAvanceCell(null)} onDone={cargar} />}
+      {avanceCell && <AvanceEtapaModal lote={avanceCell.lote} etapa={avanceCell.etapa} siguiente={siguienteEtapa(avanceCell.etapa)} usuario={nombreUsuario} onClose={() => setAvanceCell(null)} onDone={cargar} />}
 
       {/* OT DE CORTE */}
       {otLote && <CorteOT lote={otLote} onClose={() => setOtLote(null)} onDone={cargar} />}
+
+      {/* ACCESOS DE PROCESO (admin) */}
+      {accesosOpen && puedeGestionar && <ProcesoAccesosModal onClose={() => setAccesosOpen(false)} />}
     </div>
   )
 }
 
-function AvanceEtapaModal({ lote, etapa, siguiente, onClose, onDone }) {
+// ── Accesos de proceso: da login (rol 'proceso') a empleados para cargar avances ──
+function ProcesoAccesosModal({ onClose }) {
+  const [empleados, setEmpleados] = useState([])
+  const [emailEdit, setEmailEdit] = useState({})   // { [empId]: email }
+  const [creando, setCreando] = useState(null)
+  const [busq, setBusq] = useState('')
+
+  useEffect(() => { cargar() }, [])
+  async function cargar() {
+    const { data } = await supabase.from('empleados').select('id,apodo,nombre,apellido,email,user_id,activo').eq('activo', true).order('apodo')
+    setEmpleados(data || [])
+    const em = {}; (data || []).forEach(e => { em[e.id] = e.email || '' }); setEmailEdit(em)
+  }
+
+  async function crearAcceso(emp) {
+    const email = (emailEdit[emp.id] || '').trim()
+    if (!email) return toast.error('Cargá el email primero')
+    const nombreCompleto = [emp.nombre, emp.apellido].filter(Boolean).join(' ') || emp.apodo
+    const label = `${nombreCompleto}${emp.apodo ? ` (${emp.apodo})` : ''}`
+    const password = window.prompt(`Contraseña para el acceso de ${label}\n(email: ${email}) — mínimo 6 caracteres:`, '')
+    if (password === null) return
+    if (password.trim().length < 6) return toast.error('La contraseña debe tener al menos 6 caracteres')
+    setCreando(emp.id)
+    const { data, error } = await supabase.functions.invoke('crear-acceso-proceso', {
+      body: { email, password: password.trim(), nombre: label, apodo: emp.apodo, empleado_id: emp.id },
+    })
+    setCreando(null)
+    if (error || data?.error) { toast.error('Error: ' + (data?.error || error?.message)); return }
+    toast.success(`Acceso creado ✅  ${email}`)
+    cargar()
+  }
+
+  async function guardarEmail(emp) {
+    const email = (emailEdit[emp.id] || '').trim() || null
+    const { error } = await supabase.from('empleados').update({ email }).eq('id', emp.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Email guardado ✅'); cargar()
+  }
+
+  const q = busq.trim().toLowerCase()
+  const lista = empleados.filter(e => !q || [e.apodo, e.nombre, e.apellido, e.email].some(v => (v || '').toLowerCase().includes(q)))
+
+  return (
+    <Modal titulo="👤 Accesos de Proceso" onClose={onClose}>
+      <div style={{ fontSize: 12, color: 'var(--text3)' }}>Los empleados con acceso pueden entrar con su email y cargar avances/partes/OT (no crean ni borran lotes). El apodo, nombre y apellido salen del listado de Empleados.</div>
+      <input value={busq} onChange={e => setBusq(e.target.value)} placeholder="🔍 Buscar empleado..." style={iSt} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '52vh', overflowY: 'auto' }}>
+        {lista.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sin empleados. Cargalos en Producción → Empleados.</div>}
+        {lista.map(emp => {
+          const tieneAcceso = !!emp.user_id
+          return (
+            <div key={emp.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{emp.apodo} <span style={{ fontWeight: 400, color: 'var(--text3)' }}>· {[emp.nombre, emp.apellido].filter(Boolean).join(' ') || '—'}</span></div>
+                {tieneAcceso
+                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>Acceso ✓</span>
+                  : <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>Sin acceso</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <input value={emailEdit[emp.id] || ''} onChange={e => setEmailEdit(m => ({ ...m, [emp.id]: e.target.value }))} placeholder="email@..." style={{ ...iSt, flex: 1, minWidth: 160, padding: '7px 10px' }} />
+                {!tieneAcceso && <button onClick={() => guardarEmail(emp)} style={btn('var(--text3)')}>💾</button>}
+                {tieneAcceso
+                  ? <button disabled style={{ ...btn('#3dd68c'), opacity: 0.7, cursor: 'default' }}>Creado</button>
+                  : <button onClick={() => crearAcceso(emp)} disabled={creando === emp.id} style={btn('#7b9fff')}>{creando === emp.id ? '...' : '🔑 Crear acceso'}</button>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Modal>
+  )
+}
+
+function AvanceEtapaModal({ lote, etapa, siguiente, usuario, onClose, onDone }) {
   const target = lote.cantidad_actual
   const raw = (lote.avance && lote.avance[etapa] != null) ? lote.avance[etapa] : null
   const completaPos = lote.etapa === 'terminado' || FLUJO.indexOf(etapa) < FLUJO.indexOf(lote.etapa)
@@ -467,7 +557,7 @@ function AvanceEtapaModal({ lote, etapa, siguiente, onClose, onDone }) {
   async function guardar() {
     setG(true)
     const nuevoAvance = { ...(lote.avance || {}), [etapa]: hecho }
-    const patch = { avance: nuevoAvance }
+    const patch = { avance: nuevoAvance, modificado_por: usuario, modificado_por_at: new Date().toISOString() }
     // Si es la etapa actual y se completó, el lote avanza a la siguiente
     if (etapa === lote.etapa && hecho >= target && siguiente) {
       patch.etapa = siguiente
@@ -521,7 +611,7 @@ function ParteModal({ lote, etapa, usuario, onClose, onDone }) {
     const { error } = await supabase.from('produccion_partes').insert({ lote_id: lote.id, etapa, fecha, cantidad: c, usuario, notas: notas.trim() || null })
     if (!error) {
       const prev = (lote.avance && lote.avance[etapa]) || 0
-      await supabase.from('produccion_lotes').update({ avance: { ...(lote.avance || {}), [etapa]: Math.min(lote.cantidad_actual, prev + c) } }).eq('id', lote.id)
+      await supabase.from('produccion_lotes').update({ avance: { ...(lote.avance || {}), [etapa]: Math.min(lote.cantidad_actual, prev + c) }, modificado_por: usuario, modificado_por_at: new Date().toISOString() }).eq('id', lote.id)
     }
     setG(false)
     if (error) { toast.error('Error: ' + error.message); return }
@@ -556,7 +646,7 @@ function NcfModal({ lote, etapa, usuario, onClose, onDone }) {
     const { error } = await supabase.from('produccion_no_conformidades').insert({ lote_id: lote.id, etapa, cantidad: c, motivo: motivo.trim() || null, recuperable, cantidad_recuperada: rec, usuario })
     if (!error) {
       const nuevo = Math.max(0, (lote.cantidad_actual || 0) - baja)
-      await supabase.from('produccion_lotes').update({ cantidad_actual: nuevo }).eq('id', lote.id)
+      await supabase.from('produccion_lotes').update({ cantidad_actual: nuevo, modificado_por: usuario, modificado_por_at: new Date().toISOString() }).eq('id', lote.id)
     }
     setG(false)
     if (error) { toast.error('Error: ' + error.message); return }
@@ -592,7 +682,7 @@ function AvanceParcialModal({ lote, siguiente, usuario, onClose, onDone }) {
       hojas: null, temporada: lote.temporada, etapa: siguiente, estado: 'en_proceso',
       notas: `Parcial de lote ${fmtLote(lote)}`, created_by: usuario,
     })
-    if (!error) await supabase.from('produccion_lotes').update({ cantidad_actual: lote.cantidad_actual - c }).eq('id', lote.id)
+    if (!error) await supabase.from('produccion_lotes').update({ cantidad_actual: lote.cantidad_actual - c, modificado_por: usuario, modificado_por_at: new Date().toISOString() }).eq('id', lote.id)
     setG(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success(`Avanzaron ${c} u. a ${etapaLabel(siguiente)}`)

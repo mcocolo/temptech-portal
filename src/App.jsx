@@ -67,9 +67,9 @@ function PrivateRoute({ children }) {
 }
 
 function HomeRedirect() {
-  const { isChofer, loading } = useAuth()
+  const { isChofer, isProceso, loading } = useAuth()
   if (loading) return null
-  return <Navigate to={isChofer ? '/logistica' : '/dashboard'} replace />
+  return <Navigate to={isChofer ? '/logistica' : isProceso ? '/produccion/tablero' : '/dashboard'} replace />
 }
 
 function AppRoutes() {

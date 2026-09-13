@@ -97,6 +97,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
       mediciones: f.mediciones.map(m => (m === '' || m == null) ? null : String(m).trim()),
       medida_objetivo: f.medida_objetivo.trim() || null,
       hojas_usadas: hojas, piezas, duracion_min: duracion, notas: f.notas.trim() || null,
+      ...(prevOt ? {} : { creado_por: nombreUsuario }),
+      modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString(),
     }
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
