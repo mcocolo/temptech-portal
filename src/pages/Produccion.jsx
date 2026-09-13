@@ -83,6 +83,7 @@ export default function Produccion() {
   const [busqueda, setBusqueda] = useState('')
   const [fModelo, setFModelo] = useState('')
   const [fTemporada, setFTemporada] = useState('')
+  const [fFamilia, setFFamilia] = useState('')   // '' | '1400' | 'otros'
 
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
 
@@ -194,7 +195,13 @@ export default function Produccion() {
   if (!isAdmin && !isAdmin2) return null
   const readOnly = isAdmin2
 
-  const lotesPorEtapa = k => lotes.filter(l => l.etapa === k)
+  const enFamilia = l => fFamilia === '' || (fFamilia === '1400' ? l.modelo === '1400w' : l.modelo !== '1400w')
+  const coincideBusqueda = l => {
+    const q = busqueda.trim().toLowerCase()
+    if (!q) return true
+    return String(l.numero ?? '').includes(q) || fmtLote(l).toLowerCase().includes(q) || (l.modelo || '').toLowerCase().includes(q) || (l.terminacion || '').toLowerCase().includes(q)
+  }
+  const lotesPorEtapa = k => lotes.filter(l => l.etapa === k && enFamilia(l) && coincideBusqueda(l))
   const partesLote = id => partes.filter(p => p.lote_id === id)
   const ncfLote = id => ncf.filter(n => n.lote_id === id)
   const avanceEtapa = (loteId, etapa) => partesLote(loteId).filter(p => p.etapa === etapa).reduce((s, p) => s + (p.cantidad || 0), 0)
@@ -220,6 +227,22 @@ export default function Produccion() {
           )}
         </div>
       </div>
+
+      {vista === 'tablero' && !loading && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
+            {[['', 'Todos'], ['1400', '1400w (Firenze)'], ['otros', '250w / 500w']].map(([v, l]) => (
+              <button key={v || 'todos'} onClick={() => setFFamilia(v)}
+                style={{ padding: '6px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: fFamilia === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: fFamilia === v ? '#7b9fff' : 'var(--text3)' }}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar lote (F111, 511, color…)"
+            style={{ ...iSt, maxWidth: 280 }} />
+          {busqueda && <button onClick={() => setBusqueda('')} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>Limpiar</button>}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
