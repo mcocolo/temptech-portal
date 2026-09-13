@@ -501,7 +501,7 @@ function PulmonModal({ onClose }) {
             {data.map(r => (
               <tr key={r.id}>
                 <td style={td}><b>{r.tipo}</b></td>
-                <td style={td}>{r.modelo}</td>
+                <td style={td}>{r.modelo === '1400w' ? <><b style={{ color: '#fb923c' }}>F</b> · 1400w</> : r.modelo}</td>
                 <td style={td}>{r.terminacion || '—'}</td>
                 <td style={{ ...td, textAlign: 'right', fontWeight: 800, color }}>{r.cantidad}</td>
               </tr>
