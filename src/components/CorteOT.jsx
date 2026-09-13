@@ -4,6 +4,10 @@ import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
 
 const HOJA_CODIGO = 'MPSTD6'
+// Medida objetivo del panel según modelo
+const MEDIDAS = { '250w': '290x590mm', '250w TD': '290x590mm', '500w': '590x590mm', '500w TD': '590x590mm', '500w MB': '590x590mm' }
+const medidaDe = modelo => MEDIDAS[modelo] || (modelo?.includes('250') ? '290x590mm' : modelo?.includes('500') ? '590x590mm' : '')
+const normMed = s => String(s ?? '').trim().toLowerCase().replace(/\s/g, '').replace(/mm$/,'')
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }
 const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4, letterSpacing: '0.3px' }
 
@@ -46,7 +50,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     disco_txt: '', cinta_txt: '', pie_txt: '', herramental_cambio: '',
     fecha_inicio: new Date().toISOString().split('T')[0], hora_inicio: '',
     fecha_fin: '', hora_fin: '',
-    personal: [], mediciones: ['', '', '', '', ''], medida_objetivo: '',
+    personal: [], mediciones: ['', '', '', '', ''], medida_objetivo: medidaDe(lote.modelo),
     hojas_usadas: '', notas: '',
   })
 
@@ -68,7 +72,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
         fecha_inicio: ot.data.fecha_inicio || '', hora_inicio: ot.data.hora_inicio || '',
         fecha_fin: ot.data.fecha_fin || '', hora_fin: ot.data.hora_fin || '',
         personal: ot.data.personal || [], mediciones: (ot.data.mediciones || ['', '', '', '', '']).concat(['', '', '', '', '']).slice(0, 5),
-        medida_objetivo: ot.data.medida_objetivo ?? '', hojas_usadas: ot.data.hojas_usadas ?? '', notas: ot.data.notas || '',
+        medida_objetivo: ot.data.medida_objetivo ?? medidaDe(lote.modelo), hojas_usadas: ot.data.hojas_usadas ?? '', notas: ot.data.notas || '',
       })
     }
   }
@@ -90,8 +94,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
       disco_id: f.disco_id || null, cinta_id: f.cinta_id || null, pie_id: f.pie_id || null,
       disco_txt: f.disco_txt || null, cinta_txt: f.cinta_txt || null, pie_txt: f.pie_txt || null,
       herramental_cambio: f.herramental_cambio.trim() || null,
-      mediciones: f.mediciones.map(m => m === '' ? null : Number(m)),
-      medida_objetivo: f.medida_objetivo === '' ? null : Number(f.medida_objetivo),
+      mediciones: f.mediciones.map(m => (m === '' || m == null) ? null : String(m).trim()),
+      medida_objetivo: f.medida_objetivo.trim() || null,
       hojas_usadas: hojas, piezas, duracion_min: duracion, notas: f.notas.trim() || null,
     }
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
@@ -194,16 +198,16 @@ export default function CorteOT({ lote, onClose, onDone }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>📏 Controles de medición (5)</div>
-              <label style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>Medida objetivo <input type="number" value={f.medida_objetivo} onChange={e => setF(s => ({ ...s, medida_objetivo: e.target.value }))} placeholder="—" style={{ ...iSt, width: 90, padding: '5px 8px' }} /></label>
+              <label style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>Medida objetivo <input type="text" value={f.medida_objetivo} onChange={e => setF(s => ({ ...s, medida_objetivo: e.target.value }))} placeholder="Ej: 290x590mm" style={{ ...iSt, width: 130, padding: '5px 8px' }} /></label>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
               {f.mediciones.map((m, i) => {
-                const obj = f.medida_objetivo === '' ? null : Number(f.medida_objetivo)
-                const val = m === '' ? null : Number(m)
-                const desvio = obj != null && val != null && val !== obj
+                const obj = f.medida_objetivo.trim() === '' ? null : f.medida_objetivo
+                const val = m === '' ? null : m
+                const desvio = obj != null && val != null && normMed(val) !== normMed(obj)
                 return <div key={i}>
                   <label style={{ ...lbl, textAlign: 'center' }}>#{i + 1}</label>
-                  <input type="number" value={m} onChange={e => setF(s => ({ ...s, mediciones: s.mediciones.map((x, j) => j === i ? e.target.value : x) }))}
+                  <input type="text" value={m} placeholder={f.medida_objetivo || '—'} onChange={e => setF(s => ({ ...s, mediciones: s.mediciones.map((x, j) => j === i ? e.target.value : x) }))}
                     style={{ ...iSt, textAlign: 'center', borderColor: desvio ? 'rgba(255,85,119,0.5)' : 'var(--border)', color: desvio ? '#ff5577' : 'var(--text)' }} />
                 </div>
               })}
