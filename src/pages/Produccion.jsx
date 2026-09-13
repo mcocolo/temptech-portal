@@ -374,7 +374,7 @@ export default function Produccion() {
                             const enProceso = i === c && !completa
                             const puedeClick = !readOnly && i <= c
                             let inner
-                            if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800 }}>{hecho}</span>
+                            if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 15 }} title={`${hecho} u.`}>✓</span>
                             else if (enProceso && hecho > 0) inner = <span style={{ color: '#fb923c', fontWeight: 800 }}>{hecho}/{target}</span>
                             else if (enProceso) inner = <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }}>•</span>
                             else inner = <span style={{ color: 'var(--border2)' }}>·</span>
