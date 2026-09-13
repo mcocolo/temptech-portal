@@ -13,8 +13,16 @@ const normMed = s => String(s ?? '').trim().toLowerCase().replace(/\s/g, '').rep
 const ceilHojas = u => Math.ceil((parseInt(u) || 0) / 8)
 // Colores cuya tapa (T) también sale de MPSTD6 (el resto usa una hoja propia del color)
 const TAPA_FULL_MPSTD6 = ['Blanco', 'Smart Wifi']
-// Código de hoja de la tapa por color (la contratapa siempre es MPSTD6)
-const TAPA_SHEET = { 'Marmol Traviatta Gris': 'SIMMTG6' }
+// Código de hoja de la tapa por color (la contratapa siempre es MPSTD6). Patrón: SIM + código + 6
+const TAPA_SHEET = {
+  'Madera Veteada': 'SIMMV6',
+  'Piedra Azteca': 'SIMPA6',
+  'Madera Blanca': 'SIMMB6',
+  'Piedra Romana': 'SIMPR6',
+  'Marmol Traviatta Gris': 'SIMMTG6',
+  'Piedra Cantera Luna': 'SIMPCL6',
+  'Marmol Calacatta Ocre': 'SIMMCO6',
+}
 const insumoTapaDe = term => TAPA_FULL_MPSTD6.includes(term) ? 'MPSTD6' : (TAPA_SHEET[term] || '')
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }
 const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4, letterSpacing: '0.3px' }
