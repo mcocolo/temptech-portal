@@ -69,7 +69,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     fecha_fin: '', hora_fin: '',
     personal: [], mediciones: ['', '', '', '', ''], medida_objetivo: medidaDe(lote.modelo),
     hojas_usadas: '', notas: '',
-    tapas: '', contratapas: '', insumo_tapa: insumoTapaDe(lote.terminacion),
+    ct_ok: '', t_ok: '', hojas_ct: '', hojas_t: '', insumo_tapa: insumoTapaDe(lote.terminacion),
   })
 
   useEffect(() => { cargar() }, [])
@@ -91,21 +91,23 @@ export default function CorteOT({ lote, onClose, onDone }) {
         fecha_fin: ot.data.fecha_fin || '', hora_fin: ot.data.hora_fin || '',
         personal: ot.data.personal || [], mediciones: (ot.data.mediciones || ['', '', '', '', '']).concat(['', '', '', '', '']).slice(0, 5),
         medida_objetivo: ot.data.medida_objetivo ?? medidaDe(lote.modelo), hojas_usadas: ot.data.hojas_usadas ?? '', notas: ot.data.notas || '',
-        tapas: ot.data.tapas ?? '', contratapas: ot.data.contratapas ?? '', insumo_tapa: ot.data.insumo_tapa ?? insumoTapaDe(lote.terminacion),
+        ct_ok: ot.data.contratapas ?? '', t_ok: ot.data.tapas ?? '', hojas_ct: ot.data.hojas_ct ?? '', hojas_t: ot.data.hojas_t ?? '', insumo_tapa: ot.data.insumo_tapa ?? insumoTapaDe(lote.terminacion),
       })
     }
   }
 
   const herrTxt = h => `${h.nombre}${h.codigo ? ` · ${h.codigo}` : ''}${h.lote ? ` · L:${h.lote}` : ''}`
   const hojas = parseInt(f.hojas_usadas) || 0
-  // 1400w: dos cortes (T y CT)
-  const tapas = parseInt(f.tapas) || 0
-  const contratapas = parseInt(f.contratapas) || 0
+  // 1400w: dos cortes (T y CT), con hojas reales usadas y piezas buenas (OK)
+  const ctOk = parseInt(f.ct_ok) || 0
+  const tOk = parseInt(f.t_ok) || 0
+  const hojasCtUsadas = parseInt(f.hojas_ct) || 0
+  const hojasTUsadas = parseInt(f.hojas_t) || 0
   const insumoTapa = (f.insumo_tapa || '').trim().toUpperCase()
-  const hojasTapa = ceilHojas(tapas)
-  const hojasCt = ceilHojas(contratapas)
-  const hojasMpstd = hojasCt + (insumoTapa === HOJA_CODIGO ? hojasTapa : 0)   // MPSTD6 total (CT + T si es Blanco/Smart)
-  const piezas = es1400 ? Math.min(tapas, contratapas) : Math.round(hojas * ratio)   // paneles completos = min(T, CT)
+  const mermaCt = Math.max(0, hojasCtUsadas * 8 - ctOk)   // hojas×8 − OK
+  const mermaT = Math.max(0, hojasTUsadas * 8 - tOk)
+  const hojasMpstd = hojasCtUsadas + (insumoTapa === HOJA_CODIGO ? hojasTUsadas : 0)   // MPSTD6 total (CT + T si es Blanco/Smart)
+  const piezas = es1400 ? Math.min(ctOk, tOk) : Math.round(hojas * ratio)   // paneles completos = min(T OK, CT OK)
   const duracion = calcularDuracion(f.fecha_inicio, f.hora_inicio, f.fecha_fin, f.hora_fin)
   const togglePersona = ap => setF(s => ({ ...s, personal: s.personal.includes(ap) ? s.personal.filter(x => x !== ap) : [...s.personal, ap] }))
 
@@ -123,8 +125,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     if (es1400) {
-      if (tapas <= 0 && contratapas <= 0) return toast.error('Ingresá tapas (T) y/o contratapas (CT) cortadas')
-      if (tapas > 0 && !insumoTapa) return toast.error('Indicá el código de la hoja de la tapa (T)')
+      if (hojasCtUsadas <= 0 && hojasTUsadas <= 0) return toast.error('Ingresá las hojas usadas de T y/o CT')
+      if (hojasTUsadas > 0 && !insumoTapa) return toast.error('Indicá el código de la hoja de la tapa (T)')
     } else if (hojas <= 0) return toast.error('Ingresá las hojas usadas')
     setG(true)
     const payload = {
@@ -138,7 +140,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
       mediciones: f.mediciones.map(m => (m === '' || m == null) ? null : String(m).trim()),
       medida_objetivo: f.medida_objetivo.trim() || null,
       hojas_usadas: es1400 ? hojasMpstd : hojas,
-      tapas: es1400 ? tapas : null, contratapas: es1400 ? contratapas : null, insumo_tapa: es1400 ? (insumoTapa || null) : null,
+      tapas: es1400 ? tOk : null, contratapas: es1400 ? ctOk : null,
+      hojas_t: es1400 ? hojasTUsadas : null, hojas_ct: es1400 ? hojasCtUsadas : null,
+      insumo_tapa: es1400 ? (insumoTapa || null) : null,
       piezas, duracion_min: duracion, notas: f.notas.trim() || null,
       ...(prevOt ? {} : { creado_por: nombreUsuario }),
       modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString(),
@@ -149,7 +153,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     // Descontar hojas del stock (solo el delta respecto de lo ya descontado en esta OT)
     if (es1400) {
       await descontarInsumo(HOJA_CODIGO, hojasMpstd - (prevOt?.hojas_usadas || 0), 'CT')
-      if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTapa - ceilHojas(prevOt?.tapas || 0), 'T')
+      if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTUsadas - (prevOt?.hojas_t || 0), 'T')
     } else {
       await descontarInsumo(HOJA_CODIGO, hojas - (prevOt?.hojas_usadas || 0), null)
     }
@@ -166,7 +170,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
 
     // Sumar usos al herramental usado (por el delta de este guardado)
     if (es1400) {
-      const dT = tapas - (prevOt?.tapas || 0), dC = contratapas - (prevOt?.contratapas || 0)
+      const dT = tOk - (prevOt?.tapas || 0), dC = ctOk - (prevOt?.contratapas || 0)
       if (dT || dC) for (const id of [f.disco_id, f.cinta_id, f.pie_id].filter(Boolean)) {
         try {
           const { data: hr } = await supabase.from('herramental').select('usos_1400w_t,usos_1400w_ct').eq('id', id).single()
@@ -268,27 +272,33 @@ export default function CorteOT({ lote, onClose, onDone }) {
           {/* Producción (insumos → entregó) */}
           {es1400 ? (
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>📦 Corte de tapas (T) y contratapas (CT)</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>📦 Corte de tapas (T) y contratapas (CT) · 8 piezas por hoja</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {/* CONTRATAPAS */}
                 <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#3dd68c', marginBottom: 6 }}>Contratapas (CT)</div>
-                  <label style={lbl}>CT cortadas</label>
-                  <input type="number" value={f.contratapas} onChange={e => setF(s => ({ ...s, contratapas: e.target.value }))} placeholder={String(lote.cantidad_objetivo)} style={iSt} />
-                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>Hoja: <b style={{ color: 'var(--text2)' }}>MPSTD6</b> · {hojasCt} hojas</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#3dd68c', marginBottom: 6 }}>Contratapas (CT) · MPSTD6</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div><label style={lbl}>Hojas usadas</label><input type="number" value={f.hojas_ct} onChange={e => setF(s => ({ ...s, hojas_ct: e.target.value }))} placeholder="0" style={iSt} /></div>
+                    <div><label style={lbl}>CT OK</label><input type="number" value={f.ct_ok} onChange={e => setF(s => ({ ...s, ct_ok: e.target.value }))} placeholder="0" style={iSt} /></div>
+                  </div>
+                  <div style={{ fontSize: 11, color: mermaCt > 0 ? '#ff5577' : 'var(--text3)', marginTop: 6 }}>Rinde {hojasCtUsadas * 8} · OK {ctOk} · <b>Merma {mermaCt}</b></div>
                 </div>
+                {/* TAPAS */}
                 <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 6 }}>Tapas (T)</div>
-                  <label style={lbl}>T cortadas</label>
-                  <input type="number" value={f.tapas} onChange={e => setF(s => ({ ...s, tapas: e.target.value }))} placeholder={String(lote.cantidad_objetivo)} style={iSt} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#7b9fff', marginBottom: 6 }}>Tapas (T) · {insumoTapa || '—'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div><label style={lbl}>Hojas usadas</label><input type="number" value={f.hojas_t} onChange={e => setF(s => ({ ...s, hojas_t: e.target.value }))} placeholder="0" style={iSt} /></div>
+                    <div><label style={lbl}>T OK</label><input type="number" value={f.t_ok} onChange={e => setF(s => ({ ...s, t_ok: e.target.value }))} placeholder="0" style={iSt} /></div>
+                  </div>
                   <label style={{ ...lbl, marginTop: 8 }}>Hoja de la tapa</label>
                   <input value={f.insumo_tapa} onChange={e => setF(s => ({ ...s, insumo_tapa: e.target.value }))} placeholder="Ej: SIMMTG6" style={iSt} />
-                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{hojasTapa} hojas de <b style={{ color: 'var(--text2)' }}>{insumoTapa || '—'}</b></div>
+                  <div style={{ fontSize: 11, color: mermaT > 0 ? '#ff5577' : 'var(--text3)', marginTop: 6 }}>Rinde {hojasTUsadas * 8} · OK {tOk} · <b>Merma {mermaT}</b></div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                <div><div style={lbl}>Paneles completos (mín T,CT)</div><div style={{ fontSize: 22, fontWeight: 800, color: piezas >= lote.cantidad_objetivo ? '#3dd68c' : '#fb923c' }}>{piezas}<span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 400 }}> / {lote.cantidad_objetivo}</span></div></div>
+                <div><div style={lbl}>Paneles completos (mín T,CT OK)</div><div style={{ fontSize: 22, fontWeight: 800, color: piezas >= lote.cantidad_objetivo ? '#3dd68c' : '#fb923c' }}>{piezas}<span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 400 }}> / {lote.cantidad_objetivo}</span></div></div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>Se descuentan del stock: {hojasCt} de MPSTD6 (CT){insumoTapa && insumoTapa !== HOJA_CODIGO ? ` y ${hojasTapa} de ${insumoTapa} (T)` : insumoTapa === HOJA_CODIGO ? ` + ${hojasTapa} de MPSTD6 (T)` : ''}. Al completar, el lote pasa a <b>Aguj1+Alambre+Pegado</b>.</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>Se descuentan del stock las <b>hojas usadas</b> reales: {hojasCtUsadas} de MPSTD6 (CT){insumoTapa && insumoTapa !== HOJA_CODIGO ? ` y ${hojasTUsadas} de ${insumoTapa} (T)` : insumoTapa === HOJA_CODIGO ? ` + ${hojasTUsadas} de MPSTD6 (T)` : ''}. Podés reabrir la OT para ir cargando el avance; el lote pasa a <b>Aguj1+Alambre+Pegado</b> cuando T OK y CT OK llegan a {lote.cantidad_objetivo}.</div>
             </div>
           ) : (
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
