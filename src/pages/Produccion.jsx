@@ -473,22 +473,40 @@ export default function Produccion() {
       {accesosOpen && puedeGestionar && <ProcesoAccesosModal onClose={() => setAccesosOpen(false)} />}
 
       {/* PULMÓN / NC (semielaborados) */}
-      {pulmonOpen && <PulmonModal onClose={() => setPulmonOpen(false)} />}
+      {pulmonOpen && <PulmonModal editable={puedeGestionar} onClose={() => setPulmonOpen(false)} />}
     </div>
   )
 }
 
 // ── Stock de semielaborados: pulmón (OK sobrantes) y NC (fallados) ──
-function PulmonModal({ onClose }) {
+function PulmonModal({ onClose, editable }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
-  useEffect(() => { (async () => {
+  const [form, setForm] = useState({ tipo: 'CT', estado: 'OK', modelo: '1400w', terminacion: '', cantidad: '' })
+  const [guardando, setGuardando] = useState(false)
+
+  async function cargar() {
     const { data } = await supabase.from('produccion_pulmon').select('*').order('modelo').order('tipo')
-    setRows((data || []).filter(r => (r.cantidad || 0) !== 0))
+    setRows(data || [])
     setLoading(false)
-  })() }, [])
-  const okRows = rows.filter(r => r.estado === 'OK')
-  const ncRows = rows.filter(r => r.estado === 'NC')
+  }
+  useEffect(() => { cargar() }, [])
+
+  async function guardar() {
+    const cant = parseInt(form.cantidad)
+    if (isNaN(cant) || cant < 0) return toast.error('Ingresá una cantidad válida')
+    setGuardando(true)
+    const payload = { tipo: form.tipo, estado: form.estado, modelo: form.modelo, terminacion: form.terminacion.trim(), cantidad: cant, updated_at: new Date().toISOString() }
+    const { error } = await supabase.from('produccion_pulmon').upsert(payload, { onConflict: 'tipo,estado,modelo,terminacion' })
+    setGuardando(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Pulmón actualizado ✅'); setForm(f => ({ ...f, cantidad: '' })); cargar()
+  }
+  async function eliminar(r) { await supabase.from('produccion_pulmon').delete().eq('id', r.id); cargar() }
+
+  const visibles = rows.filter(r => (r.cantidad || 0) !== 0 || editable)
+  const okRows = visibles.filter(r => r.estado === 'OK')
+  const ncRows = visibles.filter(r => r.estado === 'NC')
   const th = { padding: '6px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)' }
   const td = { padding: '6px 8px', fontSize: 12, borderBottom: '1px solid var(--border)' }
   const Tabla = ({ titulo, data, color }) => (
@@ -496,7 +514,7 @@ function PulmonModal({ onClose }) {
       <div style={{ fontSize: 13, fontWeight: 800, color, marginBottom: 6 }}>{titulo}</div>
       {data.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text3)', paddingBottom: 8 }}>Sin stock.</div> : (
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
-          <thead><tr><th style={th}>Tipo</th><th style={th}>Modelo</th><th style={th}>Color</th><th style={{ ...th, textAlign: 'right' }}>Cant.</th></tr></thead>
+          <thead><tr><th style={th}>Tipo</th><th style={th}>Modelo</th><th style={th}>Color</th><th style={{ ...th, textAlign: 'right' }}>Cant.</th>{editable && <th style={th}></th>}</tr></thead>
           <tbody>
             {data.map(r => (
               <tr key={r.id}>
@@ -504,6 +522,7 @@ function PulmonModal({ onClose }) {
                 <td style={td}>{r.modelo === '1400w' ? <><b style={{ color: '#fb923c' }}>F</b> · 1400w</> : r.modelo}</td>
                 <td style={td}>{r.terminacion || '—'}</td>
                 <td style={{ ...td, textAlign: 'right', fontWeight: 800, color }}>{r.cantidad}</td>
+                {editable && <td style={{ ...td, textAlign: 'right' }}><button onClick={() => eliminar(r)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '2px 7px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button></td>}
               </tr>
             ))}
           </tbody>
@@ -511,6 +530,7 @@ function PulmonModal({ onClose }) {
       )}
     </div>
   )
+  const sel = { ...iSt, cursor: 'pointer' }
   return (
     <Modal titulo="📦 Pulmón y NC (semielaborados)" onClose={onClose}>
       <div style={{ fontSize: 12, color: 'var(--text3)' }}>Tapas (T) y contratapas (CT) que sobran conformes van al <b>Pulmón</b> (se reutilizan en otros lotes); las falladas quedan como <b>NC</b>.</div>
@@ -519,6 +539,21 @@ function PulmonModal({ onClose }) {
           <Tabla titulo="🟢 Pulmón (OK, disponible)" data={okRows} color="#3dd68c" />
           <Tabla titulo="🔴 Stock NC (fallados)" data={ncRows} color="#ff5577" />
         </>
+      )}
+      {editable && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>Agregar / ajustar (fija la cantidad)</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <div><label style={lbl}>Tipo</label><select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))} style={sel}><option value="CT">CT (contratapa)</option><option value="T">T (tapa)</option></select></div>
+            <div><label style={lbl}>Estado</label><select value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))} style={sel}><option value="OK">OK (pulmón)</option><option value="NC">NC (fallado)</option></select></div>
+            <div><label style={lbl}>Modelo</label><select value={form.modelo} onChange={e => setForm(f => ({ ...f, modelo: e.target.value }))} style={sel}>{MODELOS_PROD.map(m => <option key={m.modelo} value={m.modelo}>{m.modelo}</option>)}</select></div>
+            <div><label style={lbl}>Color (T de 1400w)</label><input value={form.terminacion} onChange={e => setForm(f => ({ ...f, terminacion: e.target.value }))} placeholder="Opcional" style={iSt} /></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}><label style={lbl}>Cantidad</label><input type="number" min="0" value={form.cantidad} onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} placeholder="0" style={iSt} /></div>
+            <button onClick={guardar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)' }}>{guardando ? '...' : '✓ Guardar'}</button>
+          </div>
+        </div>
       )}
     </Modal>
   )
