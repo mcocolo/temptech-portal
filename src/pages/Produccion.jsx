@@ -85,6 +85,7 @@ export default function Produccion() {
   const [fTemporada, setFTemporada] = useState('')
   const [fFamilia, setFFamilia] = useState('')   // '' | '1400' | 'otros'
   const [accesosOpen, setAccesosOpen] = useState(false)
+  const [pulmonOpen, setPulmonOpen] = useState(false)
 
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
   const sello = () => ({ modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString() })
@@ -227,6 +228,7 @@ export default function Produccion() {
               </button>
             ))}
           </div>
+          <button onClick={() => setPulmonOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📦 Pulmón / NC</button>
           {puedeGestionar && (
             <button onClick={() => setAccesosOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>👤 Accesos</button>
           )}
@@ -469,7 +471,56 @@ export default function Produccion() {
 
       {/* ACCESOS DE PROCESO (admin) */}
       {accesosOpen && puedeGestionar && <ProcesoAccesosModal onClose={() => setAccesosOpen(false)} />}
+
+      {/* PULMÓN / NC (semielaborados) */}
+      {pulmonOpen && <PulmonModal onClose={() => setPulmonOpen(false)} />}
     </div>
+  )
+}
+
+// ── Stock de semielaborados: pulmón (OK sobrantes) y NC (fallados) ──
+function PulmonModal({ onClose }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { (async () => {
+    const { data } = await supabase.from('produccion_pulmon').select('*').order('modelo').order('tipo')
+    setRows((data || []).filter(r => (r.cantidad || 0) !== 0))
+    setLoading(false)
+  })() }, [])
+  const okRows = rows.filter(r => r.estado === 'OK')
+  const ncRows = rows.filter(r => r.estado === 'NC')
+  const th = { padding: '6px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)' }
+  const td = { padding: '6px 8px', fontSize: 12, borderBottom: '1px solid var(--border)' }
+  const Tabla = ({ titulo, data, color }) => (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 800, color, marginBottom: 6 }}>{titulo}</div>
+      {data.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text3)', paddingBottom: 8 }}>Sin stock.</div> : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
+          <thead><tr><th style={th}>Tipo</th><th style={th}>Modelo</th><th style={th}>Color</th><th style={{ ...th, textAlign: 'right' }}>Cant.</th></tr></thead>
+          <tbody>
+            {data.map(r => (
+              <tr key={r.id}>
+                <td style={td}><b>{r.tipo}</b></td>
+                <td style={td}>{r.modelo}</td>
+                <td style={td}>{r.terminacion || '—'}</td>
+                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color }}>{r.cantidad}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+  return (
+    <Modal titulo="📦 Pulmón y NC (semielaborados)" onClose={onClose}>
+      <div style={{ fontSize: 12, color: 'var(--text3)' }}>Tapas (T) y contratapas (CT) que sobran conformes van al <b>Pulmón</b> (se reutilizan en otros lotes); las falladas quedan como <b>NC</b>.</div>
+      {loading ? <div style={{ color: 'var(--text3)', fontSize: 13 }}>Cargando...</div> : (
+        <>
+          <Tabla titulo="🟢 Pulmón (OK, disponible)" data={okRows} color="#3dd68c" />
+          <Tabla titulo="🔴 Stock NC (fallados)" data={ncRows} color="#ff5577" />
+        </>
+      )}
+    </Modal>
   )
 }
 
