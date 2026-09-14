@@ -80,7 +80,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
     disco_txt: '', cinta_txt: '', pie_txt: '', herramental_cambio: '',
     fecha_inicio: new Date().toISOString().split('T')[0], hora_inicio: '',
     fecha_fin: '', hora_fin: '',
-    personal: [], mediciones: ['', '', '', '', ''], medida_objetivo: medidaDe(lote.modelo),
+    fecha_inicio2: '', hora_inicio2: '', fecha_fin2: '', hora_fin2: '',
+    personal: [], mediciones: ['', '', '', '', ''],
     notas: '',
     ct_ok: '', t_ok: '', ct_nc: '', t_nc: '', hojas_ct: '', hojas_t: '',
     tomar_pulmon_ct: '', tomar_pulmon_t: '',
@@ -107,8 +108,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
         herramental_cambio: ot.data.herramental_cambio || '',
         fecha_inicio: ot.data.fecha_inicio || '', hora_inicio: ot.data.hora_inicio || '',
         fecha_fin: ot.data.fecha_fin || '', hora_fin: ot.data.hora_fin || '',
+        fecha_inicio2: ot.data.fecha_inicio2 || '', hora_inicio2: ot.data.hora_inicio2 || '', fecha_fin2: ot.data.fecha_fin2 || '', hora_fin2: ot.data.hora_fin2 || '',
         personal: ot.data.personal || [], mediciones: (ot.data.mediciones || ['', '', '', '', '']).concat(['', '', '', '', '']).slice(0, 5),
-        medida_objetivo: ot.data.medida_objetivo ?? medidaDe(lote.modelo), notas: ot.data.notas || '',
+        notas: ot.data.notas || '',
         ct_ok: ot.data.contratapas ?? '', t_ok: ot.data.tapas ?? '', ct_nc: ot.data.ct_nc ?? '', t_nc: ot.data.t_nc ?? '',
         hojas_ct: ot.data.hojas_ct ?? '', hojas_t: ot.data.hojas_t ?? '',
         tomar_pulmon_ct: ot.data.tomar_pulmon_ct ?? '', tomar_pulmon_t: ot.data.tomar_pulmon_t ?? '',
@@ -127,7 +129,10 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const hojasMpstd = hojasCtUsadas + (insumoTapa === HOJA_CODIGO ? hojasTUsadas : 0)
   const cur = efectosDe(f)
   const piezas = cur.paneles
-  const duracion = calcularDuracion(f.fecha_inicio, f.hora_inicio, f.fecha_fin, f.hora_fin)
+  const dur1 = calcularDuracion(f.fecha_inicio, f.hora_inicio, f.fecha_fin, f.hora_fin)
+  const dur2 = calcularDuracion(f.fecha_inicio2, f.hora_inicio2, f.fecha_fin2, f.hora_fin2)
+  const duracion = (dur1 == null && dur2 == null) ? null : (dur1 || 0) + (dur2 || 0)
+  const controlesOk = f.mediciones.every(m => (m || '').toUpperCase() === 'OK')   // los 5 controles en OK
   const togglePersona = ap => setF(s => ({ ...s, personal: s.personal.includes(ap) ? s.personal.filter(x => x !== ap) : [...s.personal, ap] }))
 
   // Pulmón OK disponible por tipo (para tomar). Suma el que ya tomó esta OT (ya descontado antes).
@@ -168,12 +173,13 @@ export default function CorteOT({ lote, onClose, onDone }) {
       lote_id: lote.id, etapa: 'corte',
       fecha_inicio: f.fecha_inicio || null, hora_inicio: f.hora_inicio || null,
       fecha_fin: f.fecha_fin || null, hora_fin: f.hora_fin || null,
+      fecha_inicio2: f.fecha_inicio2 || null, hora_inicio2: f.hora_inicio2 || null,
+      fecha_fin2: f.fecha_fin2 || null, hora_fin2: f.hora_fin2 || null,
       personal: f.personal,
       disco_id: f.disco_id || null, cinta_id: f.cinta_id || null, pie_id: f.pie_id || null,
       disco_txt: f.disco_txt || null, cinta_txt: f.cinta_txt || null, pie_txt: f.pie_txt || null,
       herramental_cambio: f.herramental_cambio.trim() || null,
       mediciones: f.mediciones.map(m => (m === '' || m == null) ? null : String(m).trim()),
-      medida_objetivo: f.medida_objetivo.trim() || null,
       hojas_usadas: hojasMpstd,
       contratapas: ctOk, tapas: tOk, ct_nc: int(f.ct_nc), t_nc: int(f.t_nc),
       hojas_ct: hojasCtUsadas, hojas_t: hojasTUsadas,
@@ -198,8 +204,10 @@ export default function CorteOT({ lote, onClose, onDone }) {
     await ajustarPulmon('CT', 'NC', '', cur.ncCt - prev.ncCt)
     await ajustarPulmon('T', 'NC', termT, cur.ncT - prev.ncT)
 
-    // Actualizar el lote: avance de corte = paneles completos; si completó, avanza a Armado
-    const completo = piezas >= (lote.cantidad_actual || lote.cantidad_objetivo)
+    // Actualizar el lote: avance de corte = paneles completos.
+    // Solo avanza a Armado si están las piezas Y los 5 controles en OK.
+    const alcanzo = piezas >= (lote.cantidad_actual || lote.cantidad_objetivo)
+    const completo = alcanzo && controlesOk
     await supabase.from('produccion_lotes').update({
       avance: { ...(lote.avance || {}), corte: piezas },
       etapa: completo ? 'armado' : 'corte', estado: 'en_proceso',
@@ -228,7 +236,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
     }
 
     setG(false)
-    toast.success('OT de Corte guardada ✅')
+    if (alcanzo && !controlesOk) toast('OT guardada. Marcá los 5 controles en OK para que el lote avance a Aguj1+Alambre+Pegado.', { icon: '⚠️', duration: 5000 })
+    else toast.success('OT de Corte guardada ✅')
     onClose(); onDone()
   }
 
@@ -284,13 +293,27 @@ export default function CorteOT({ lote, onClose, onDone }) {
             </div>
           </div>
 
-          {/* Inicio */}
+          {/* Tiempos (hasta 2 sesiones: arranca un día y termina otro) */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>▶ Inicio</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>⏱ Tiempos</div>
+              <div><span style={{ ...lbl, display: 'inline', marginRight: 6 }}>Duración total</span><b style={{ fontSize: 15, color: '#7b9fff' }}>{fmtDur(duracion)}</b></div>
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', marginBottom: 4 }}>Sesión 1</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
               <div><label style={lbl}>Fecha inicio</label><input type="date" value={f.fecha_inicio} onChange={e => setF(s => ({ ...s, fecha_inicio: e.target.value }))} style={iSt} /></div>
               <div><label style={lbl}>Hora inicio</label><input type="time" value={f.hora_inicio} onChange={e => setF(s => ({ ...s, hora_inicio: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Fecha fin</label><input type="date" value={f.fecha_fin} onChange={e => setF(s => ({ ...s, fecha_fin: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Hora fin</label><input type="time" value={f.hora_fin} onChange={e => setF(s => ({ ...s, hora_fin: e.target.value }))} style={iSt} /></div>
             </div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', margin: '8px 0 4px' }}>Sesión 2 (si retomó otro día)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+              <div><label style={lbl}>Fecha inicio</label><input type="date" value={f.fecha_inicio2} onChange={e => setF(s => ({ ...s, fecha_inicio2: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Hora inicio</label><input type="time" value={f.hora_inicio2} onChange={e => setF(s => ({ ...s, hora_inicio2: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Fecha fin</label><input type="date" value={f.fecha_fin2} onChange={e => setF(s => ({ ...s, fecha_fin2: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Hora fin</label><input type="time" value={f.hora_fin2} onChange={e => setF(s => ({ ...s, hora_fin2: e.target.value }))} style={iSt} /></div>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Descuenta desayuno (9-9:15), descanso (11-11:05), almuerzo (13-13:30) y descanso (15-15:05). Jornada hasta 16:30 (L-J) / 14:00 (V), inicio 08:00. La duración suma ambas sesiones.</div>
           </div>
 
           {/* Personal */}
@@ -306,24 +329,24 @@ export default function CorteOT({ lote, onClose, onDone }) {
             </div>
           </div>
 
-          {/* Mediciones */}
+          {/* Controles de calidad: 5 chequeos que se marcan OK (obligatorios para avanzar) */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>📏 Controles de medición (5)</div>
-              <label style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>Medida objetivo <input type="text" value={f.medida_objetivo} onChange={e => setF(s => ({ ...s, medida_objetivo: e.target.value }))} placeholder="Ej: 290x590mm" style={{ ...iSt, width: 130, padding: '5px 8px' }} /></label>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>✅ Controles de calidad (5) · marcá OK</div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: controlesOk ? '#3dd68c' : '#fb923c' }}>{f.mediciones.filter(m => (m || '').toUpperCase() === 'OK').length}/5</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
               {f.mediciones.map((m, i) => {
-                const obj = f.medida_objetivo.trim() === '' ? null : f.medida_objetivo
-                const val = m === '' ? null : m
-                const desvio = obj != null && val != null && normMed(val) !== normMed(obj)
-                return <div key={i}>
-                  <label style={{ ...lbl, textAlign: 'center' }}>#{i + 1}</label>
-                  <input type="text" value={m} placeholder={f.medida_objetivo || '—'} onChange={e => setF(s => ({ ...s, mediciones: s.mediciones.map((x, j) => j === i ? e.target.value : x) }))}
-                    style={{ ...iSt, textAlign: 'center', borderColor: desvio ? 'rgba(255,85,119,0.5)' : 'var(--border)', color: desvio ? '#ff5577' : 'var(--text)' }} />
-                </div>
+                const ok = (m || '').toUpperCase() === 'OK'
+                return <button key={i} type="button"
+                  onClick={() => setF(s => ({ ...s, mediciones: s.mediciones.map((x, j) => j === i ? (ok ? '' : 'OK') : x) }))}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 4px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font)', background: ok ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', border: `1px solid ${ok ? 'rgba(61,214,140,0.5)' : 'var(--border)'}` }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)' }}>Ctrl {i + 1}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: ok ? '#3dd68c' : 'var(--text3)' }}>{ok ? 'OK ✓' : '—'}</span>
+                </button>
               })}
             </div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>El lote no avanza a la siguiente etapa hasta que los 5 controles estén en OK.</div>
           </div>
 
           {/* Corte: T y CT con hojas reales, OK, NC y pulmón */}
@@ -349,17 +372,6 @@ export default function CorteOT({ lote, onClose, onDone }) {
 
           {/* Cambio de herramental */}
           <div><label style={lbl}>Cambio de herramental (si hubo)</label><input value={f.herramental_cambio} onChange={e => setF(s => ({ ...s, herramental_cambio: e.target.value }))} placeholder="Ej: se cambió el disco a las 12hs (cód/lote)" style={iSt} /></div>
-
-          {/* Fin + duración */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>⏹ Finalización</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-              <div><label style={lbl}>Fecha fin</label><input type="date" value={f.fecha_fin} onChange={e => setF(s => ({ ...s, fecha_fin: e.target.value }))} style={iSt} /></div>
-              <div><label style={lbl}>Hora fin</label><input type="time" value={f.hora_fin} onChange={e => setF(s => ({ ...s, hora_fin: e.target.value }))} style={iSt} /></div>
-              <div style={{ paddingBottom: 8 }}><div style={lbl}>Duración</div><div style={{ fontSize: 16, fontWeight: 800, color: '#7b9fff' }}>{fmtDur(duracion)}</div></div>
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Descuenta desayuno (9-9:15), descanso (11-11:05), almuerzo (13-13:30) y descanso (15-15:05). Jornada hasta 16:30 (L-J) / 14:00 (V), inicio 08:00.</div>
-          </div>
 
           <div><label style={lbl}>Notas</label><textarea value={f.notas} onChange={e => setF(s => ({ ...s, notas: e.target.value }))} rows={2} style={{ ...iSt, resize: 'vertical' }} /></div>
 
