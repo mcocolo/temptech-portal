@@ -66,6 +66,7 @@ export default function Insumos() {
   const [stockCantidad, setStockCantidad] = useState('')
   const [stockSector, setStockSector] = useState('')
   const [stockMotivo, setStockMotivo] = useState('')
+  const [stockLote, setStockLote] = useState('')
   const [guardandoStock, setGuardandoStock] = useState(false)
 
   // Historial
@@ -214,6 +215,7 @@ export default function Insumos() {
       cantidad,
       sector: stockSector || null,
       motivo: stockMotivo || null,
+      lote: stockLote.trim() || null,
       usuario_id: user?.id,
       usuario_nombre: profile?.full_name || user?.email,
     })
@@ -221,7 +223,7 @@ export default function Insumos() {
     toast.success(stockTipo === 'ingreso' ? '📦 Ingreso registrado' : stockTipo === 'egreso' ? '📤 Egreso registrado' : '🔧 Stock ajustado')
     setGuardandoStock(false)
     setModalStock(null)
-    setStockCantidad(''); setStockSector(''); setStockMotivo('')
+    setStockCantidad(''); setStockSector(''); setStockMotivo(''); setStockLote('')
     cargar()
   }
 
@@ -471,6 +473,7 @@ export default function Insumos() {
                                     {m.tipo === 'ingreso' ? '+' : m.tipo === 'egreso' ? '-' : '='}{m.cantidad} {ins.unidad}
                                   </span>
                                   {m.sector && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.sector}</span>}
+                                  {m.lote && <span style={{ color: '#7b9fff', marginLeft: 6, fontWeight: 700 }}>· Lote {m.lote}</span>}
                                   {m.motivo && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.motivo}</span>}
                                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
                                     {m.usuario_nombre} · {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale: es })}
@@ -795,6 +798,13 @@ export default function Insumos() {
                 </div>
               )}
 
+              {stockTipo !== 'ajuste' && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° de lote del insumo</label>
+                  <input value={stockLote} onChange={e => setStockLote(e.target.value)} placeholder="Ej: L-2026-045" style={inputSt} />
+                </div>
+              )}
+
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Motivo / Observación</label>
                 <input value={stockMotivo} onChange={e => setStockMotivo(e.target.value)} placeholder="Opcional" style={inputSt} />
@@ -805,7 +815,7 @@ export default function Insumos() {
                   style={{ flex: 1, background: stockTipo === 'ingreso' ? 'rgba(61,214,140,0.2)' : stockTipo === 'egreso' ? 'rgba(251,146,60,0.2)' : 'rgba(255,209,102,0.2)', color: stockTipo === 'ingreso' ? '#3dd68c' : stockTipo === 'egreso' ? '#fb923c' : '#ffd166', border: `1px solid ${stockTipo === 'ingreso' ? 'rgba(61,214,140,0.4)' : stockTipo === 'egreso' ? 'rgba(251,146,60,0.4)' : 'rgba(255,209,102,0.4)'}`, borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardandoStock ? 'not-allowed' : 'pointer', opacity: guardandoStock ? 0.7 : 1, fontFamily: 'var(--font)' }}>
                   {guardandoStock ? '⏳ Registrando...' : 'Confirmar'}
                 </button>
-                <button onClick={() => { setModalStock(null); setStockCantidad(''); setStockSector(''); setStockMotivo('') }}
+                <button onClick={() => { setModalStock(null); setStockCantidad(''); setStockSector(''); setStockMotivo(''); setStockLote('') }}
                   style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                   Cancelar
                 </button>

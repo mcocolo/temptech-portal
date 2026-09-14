@@ -133,14 +133,14 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const maxTakeCt = pulmonDe('CT', '') + int(prevOt?.tomar_pulmon_ct)
   const maxTakeT = pulmonDe('T', termT) + int(prevOt?.tomar_pulmon_t)
 
-  async function descontarInsumo(codigo, delta, label) {
+  async function descontarInsumo(codigo, delta, label, loteInsumo) {
     if (!codigo || !delta) return
     try {
       const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', codigo).limit(1)
       const row = ins?.[0]
       if (row) {
         await supabase.from('insumos').update({ stock_actual: Math.max(0, (row.stock_actual || 0) - delta), updated_at: new Date().toISOString() }).eq('id', row.id)
-        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Corte', motivo: `OT Corte · Lote ${es1400 ? 'F' : ''}${lote.numero}${label ? ` · ${label}` : ''}`, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Corte', motivo: `OT Corte · Lote ${es1400 ? 'F' : ''}${lote.numero}${label ? ` · ${label}` : ''}`, lote: loteInsumo || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
       }
     } catch (_) { /* no bloquea */ }
   }
@@ -187,8 +187,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
 
     // Descontar hojas del stock (solo el delta respecto de lo ya descontado en esta OT)
-    await descontarInsumo(HOJA_CODIGO, hojasMpstd - int(prevOt?.hojas_usadas), `CT${f.lote_ct.trim() ? ' · lote ' + f.lote_ct.trim() : ''}`)
-    if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTUsadas - int(prevOt?.hojas_t), `T${f.lote_t.trim() ? ' · lote ' + f.lote_t.trim() : ''}`)
+    await descontarInsumo(HOJA_CODIGO, hojasMpstd - int(prevOt?.hojas_usadas), 'CT', f.lote_ct.trim())
+    if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTUsadas - int(prevOt?.hojas_t), 'T', f.lote_t.trim())
 
     // Ajustar stocks de pulmón / NC (por el delta de efectos de esta OT)
     const prev = efectosDe(prevOt || {})
