@@ -157,8 +157,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
   }
 
   async function guardar() {
-    if (hojasCtUsadas <= 0 && hojasTUsadas <= 0 && int(f.tomar_pulmon_ct) <= 0 && int(f.tomar_pulmon_t) <= 0)
-      return toast.error('Cargá hojas usadas o piezas tomadas del pulmón')
+    // Guardado progresivo: se puede guardar solo con herramental + inicio y completar después.
     if (hojasTUsadas > 0 && !insumoTapa) return toast.error('Indicá el código de la hoja de la tapa (T)')
     if (int(f.tomar_pulmon_ct) > maxTakeCt) return toast.error(`Pulmón CT disponible: ${maxTakeCt}`)
     if (int(f.tomar_pulmon_t) > maxTakeT) return toast.error(`Pulmón T disponible: ${maxTakeT}`)
