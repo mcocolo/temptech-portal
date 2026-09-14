@@ -551,7 +551,8 @@ export default function LogisticaDiaria() {
   // Permisos: admin edita todo; chofer confirma/carga cierre; admin2 solo ve e imprime
   const editaPlanilla = isAdmin                 // alta, asignar, editar, borrar, reordenar, camionetas/choferes, traer
   const editaCierre = isAdmin || isChofer       // km, combustible, fotos, cerrar día
-  const soloLectura = isAdmin2                  // admin2: ver + imprimir
+  const soloLectura = isAdmin2                  // admin2: ver + imprimir (no edita la planilla)
+  const puedeConfirmar = isAdmin || isAdmin2 || isChofer   // confirmar/deshacer entrega de una parada
 
   const conProductos = TIPOS_CON_PRODUCTOS.includes(form.tipo)
   const usaProveedor = ['retiro_insumos', 'llevar_insumo'].includes(form.tipo)
@@ -847,7 +848,7 @@ export default function LogisticaDiaria() {
                 {/* Paradas */}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {grupo.map((item, idx) => (
-                    <ParadaRow key={item.id} item={item} idx={idx} grupo={grupo} isChofer={isChofer}
+                    <ParadaRow key={item.id} item={item} idx={idx} grupo={grupo} isChofer={isChofer} puedeConfirmar={puedeConfirmar}
                       onMover={mover} onSetOrden={setOrdenManual} onEditar={abrirEditar} onConfirmar={confirmarEntrega} onDesasignar={desasignar} readOnly={soloLectura}
                       confirmDel={confirmDel} setConfirmDel={setConfirmDel} onEliminar={eliminar} />
                   ))}
@@ -930,8 +931,8 @@ export default function LogisticaDiaria() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {huerfanas.map((item, idx) => (
-                  <ParadaRow key={item.id} item={item} idx={idx} grupo={huerfanas} isChofer={isChofer}
-                    onMover={mover} onEditar={abrirEditar} onConfirmar={confirmarEntrega} onDesasignar={desasignar}
+                  <ParadaRow key={item.id} item={item} idx={idx} grupo={huerfanas} isChofer={isChofer} puedeConfirmar={puedeConfirmar}
+                    onMover={mover} onEditar={abrirEditar} onConfirmar={confirmarEntrega} onDesasignar={desasignar} readOnly={soloLectura}
                     confirmDel={confirmDel} setConfirmDel={setConfirmDel} onEliminar={eliminar} />
                 ))}
               </div>
@@ -1204,7 +1205,7 @@ function ReporteKmModal({ onClose }) {
 }
 
 // ── Fila de parada (dentro de una ruta) ──
-function ParadaRow({ item, idx, grupo, isChofer, onMover, onSetOrden, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar, readOnly }) {
+function ParadaRow({ item, idx, grupo, isChofer, puedeConfirmar, onMover, onSetOrden, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar, readOnly }) {
   const t = TIPOS[item.tipo]
   const prodsCon = paradaProductos(item)
   const isDel = confirmDel === item.id
@@ -1235,11 +1236,12 @@ function ParadaRow({ item, idx, grupo, isChofer, onMover, onSetOrden, onEditar, 
             {item.estado_entrega && <span style={{ fontSize: 10, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', padding: '2px 10px', borderRadius: 20 }}>{item.estado_entrega === 'entregado' ? '✅ Entregado' : '📥 Recibido'}{item.chofer_nombre ? ` · ${item.chofer_nombre}` : ''}</span>}
           </div>
           <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-            {isChofer ? (
+            {puedeConfirmar && (
               <button onClick={() => onConfirmar(item)} style={{ background: item.estado_entrega ? 'rgba(255,85,119,0.08)' : 'rgba(61,214,140,0.12)', color: item.estado_entrega ? '#ff5577' : '#3dd68c', border: `1px solid ${item.estado_entrega ? 'rgba(255,85,119,0.35)' : 'rgba(61,214,140,0.4)'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                 {item.estado_entrega ? '↩ Deshacer' : (TIPOS_CON_PRODUCTOS.includes(item.tipo) ? '✅ Entregado' : '📥 Recibido')}
               </button>
-            ) : readOnly ? null : (
+            )}
+            {(!isChofer && !readOnly) && (
               <>
                 <button onClick={() => onEditar(item)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
                 <button onClick={() => onDesasignar(item)} title="Volver a Por asignar" style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Quitar</button>
