@@ -289,17 +289,16 @@ export default function Produccion() {
 
                         {!readOnly && (
                           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
-                            {lote.etapa === 'por_iniciar' ? (
-                              <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 OT Corte</button>
-                            ) : lote.etapa !== 'terminado' ? (
+                            {/* OT de Corte: disponible para ver/editar el corte en cualquier etapa (menos terminado) */}
+                            {lote.etapa !== 'terminado' && <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 {lote.etapa === 'por_iniciar' ? 'OT Corte' : 'Corte'}</button>}
+                            {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
                               <>
-                                {lote.etapa === 'corte' && <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 OT</button>}
                                 <button onClick={() => setModalParte(lote)} style={btn('#3dd68c')}>＋ Parte</button>
                                 <button onClick={() => setModalNcf(lote)} style={btn('#ff5577')}>⚠ No conf.</button>
                                 {sig && <button onClick={() => avanzarEtapa(lote, sig)} style={btn('#fb923c')}>→ {sig === 'terminado' ? 'Terminar' : 'Avanzar'}</button>}
                                 {sig && sig !== 'terminado' && <button onClick={() => setModalAvance(lote)} style={btn('var(--text3)')} title="Avanzar solo una parte (trabajo en paralelo)">⋯</button>}
                               </>
-                            ) : null}
+                            )}
                             <button onClick={() => setExpandido(isExp ? null : lote.id)} style={btn('var(--text3)')}>{isExp ? '▲' : '📜'}</button>
                           </div>
                         )}
