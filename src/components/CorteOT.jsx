@@ -82,6 +82,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     notas: '',
     ct_ok: '', t_ok: '', ct_nc: '', t_nc: '', hojas_ct: '', hojas_t: '',
     tomar_pulmon_ct: '', tomar_pulmon_t: '',
+    lote_ct: '', lote_t: '',
     insumo_tapa: es1400 ? insumoTapaDe(lote.terminacion) : HOJA_CODIGO,
   })
 
@@ -109,6 +110,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
         ct_ok: ot.data.contratapas ?? '', t_ok: ot.data.tapas ?? '', ct_nc: ot.data.ct_nc ?? '', t_nc: ot.data.t_nc ?? '',
         hojas_ct: ot.data.hojas_ct ?? '', hojas_t: ot.data.hojas_t ?? '',
         tomar_pulmon_ct: ot.data.tomar_pulmon_ct ?? '', tomar_pulmon_t: ot.data.tomar_pulmon_t ?? '',
+        lote_ct: ot.data.lote_ct ?? '', lote_t: ot.data.lote_t ?? '',
         insumo_tapa: ot.data.insumo_tapa ?? (es1400 ? insumoTapaDe(lote.terminacion) : HOJA_CODIGO),
       })
     }
@@ -175,6 +177,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
       contratapas: ctOk, tapas: tOk, ct_nc: int(f.ct_nc), t_nc: int(f.t_nc),
       hojas_ct: hojasCtUsadas, hojas_t: hojasTUsadas,
       tomar_pulmon_ct: int(f.tomar_pulmon_ct), tomar_pulmon_t: int(f.tomar_pulmon_t),
+      lote_ct: f.lote_ct.trim() || null, lote_t: f.lote_t.trim() || null,
       insumo_tapa: insumoTapa || null,
       piezas, duracion_min: duracion, notas: f.notas.trim() || null,
       ...(prevOt ? {} : { creado_por: nombreUsuario }),
@@ -184,8 +187,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
 
     // Descontar hojas del stock (solo el delta respecto de lo ya descontado en esta OT)
-    await descontarInsumo(HOJA_CODIGO, hojasMpstd - int(prevOt?.hojas_usadas), 'CT')
-    if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTUsadas - int(prevOt?.hojas_t), 'T')
+    await descontarInsumo(HOJA_CODIGO, hojasMpstd - int(prevOt?.hojas_usadas), `CT${f.lote_ct.trim() ? ' · lote ' + f.lote_ct.trim() : ''}`)
+    if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTUsadas - int(prevOt?.hojas_t), `T${f.lote_t.trim() ? ' · lote ' + f.lote_t.trim() : ''}`)
 
     // Ajustar stocks de pulmón / NC (por el delta de efectos de esta OT)
     const prev = efectosDe(prevOt || {})
@@ -238,8 +241,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
     </div>
   )
 
-  // Card de un lado (CT o T)
-  const LadoCard = ({ tit, color, hojasKey, okKey, ncKey, tomarKey, rinde, merma, disp, extra }) => (
+  // Card de un lado (CT o T). Se invoca como función (no como <Componente/>) para no perder el foco al tipear.
+  const ladoCard = ({ tit, color, hojasKey, okKey, ncKey, tomarKey, loteKey, loteLabel, rinde, merma, disp, extra }) => (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 6 }}>{tit}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -251,6 +254,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
         <div><label style={lbl}>Tomar pulmón</label><input type="number" value={f[tomarKey]} onChange={e => setF(s => ({ ...s, [tomarKey]: e.target.value }))} placeholder="0" style={iSt} /><div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>disp: {disp}</div></div>
       </div>
       {extra}
+      <label style={{ ...lbl, marginTop: 8 }}>{loteLabel}</label>
+      <input value={f[loteKey]} onChange={e => setF(s => ({ ...s, [loteKey]: e.target.value }))} placeholder="N° de lote de la hoja" style={iSt} />
       <div style={{ fontSize: 11, color: merma > 0 ? '#ff5577' : 'var(--text3)', marginTop: 6 }}>Rinde {rinde} · OK {int(f[okKey])} · NC {int(f[ncKey])} · <b>Merma {merma}</b></div>
     </div>
   )
@@ -323,9 +328,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
           <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>📦 Corte de tapas (T) y contratapas (CT) · 8 piezas por hoja</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <LadoCard tit="Contratapas (CT) · MPSTD6" color="#3dd68c" hojasKey="hojas_ct" okKey="ct_ok" ncKey="ct_nc" tomarKey="tomar_pulmon_ct" rinde={hojasCtUsadas * 8} merma={mermaCt} disp={maxTakeCt} />
-              <LadoCard tit={`Tapas (T) · ${insumoTapa || '—'}`} color="#7b9fff" hojasKey="hojas_t" okKey="t_ok" ncKey="t_nc" tomarKey="tomar_pulmon_t" rinde={hojasTUsadas * 8} merma={mermaT} disp={maxTakeT}
-                extra={<><label style={{ ...lbl, marginTop: 8 }}>Hoja de la tapa</label><input value={f.insumo_tapa} onChange={e => setF(s => ({ ...s, insumo_tapa: e.target.value }))} placeholder="Ej: SIMMTG6" style={iSt} /></>} />
+              {ladoCard({ tit: 'Contratapas (CT) · MPSTD6', color: '#3dd68c', hojasKey: 'hojas_ct', okKey: 'ct_ok', ncKey: 'ct_nc', tomarKey: 'tomar_pulmon_ct', loteKey: 'lote_ct', loteLabel: 'Lote MPSTD6', rinde: hojasCtUsadas * 8, merma: mermaCt, disp: maxTakeCt })}
+              {ladoCard({ tit: `Tapas (T) · ${insumoTapa || '—'}`, color: '#7b9fff', hojasKey: 'hojas_t', okKey: 't_ok', ncKey: 't_nc', tomarKey: 'tomar_pulmon_t', loteKey: 'lote_t', loteLabel: `Lote ${insumoTapa || 'hoja'}`, rinde: hojasTUsadas * 8, merma: mermaT, disp: maxTakeT,
+                extra: <><label style={{ ...lbl, marginTop: 8 }}>Hoja de la tapa</label><input value={f.insumo_tapa} onChange={e => setF(s => ({ ...s, insumo_tapa: e.target.value }))} placeholder="Ej: SIMMTG6" style={iSt} /></> })}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
               <div><div style={lbl}>Paneles completos</div><div style={{ fontSize: 22, fontWeight: 800, color: piezas >= lote.cantidad_objetivo ? '#3dd68c' : '#fb923c' }}>{piezas}<span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 400 }}> / {lote.cantidad_objetivo}</span></div></div>

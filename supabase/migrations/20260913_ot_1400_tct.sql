@@ -9,6 +9,8 @@ alter table public.produccion_ot add column if not exists ct_nc            integ
 alter table public.produccion_ot add column if not exists t_nc             integer;   -- T falladas
 alter table public.produccion_ot add column if not exists tomar_pulmon_ct  integer;   -- CT tomadas del pulmón para completar
 alter table public.produccion_ot add column if not exists tomar_pulmon_t   integer;   -- T tomadas del pulmón
+alter table public.produccion_ot add column if not exists lote_ct          text;      -- N° de lote de la hoja MPSTD6 (CT)
+alter table public.produccion_ot add column if not exists lote_t           text;      -- N° de lote de la hoja de la tapa (T)
 
 -- Stock de semielaborados: pulmón (OK sobrantes) y NC (fallados), por tipo/modelo/color
 create table if not exists public.produccion_pulmon (
