@@ -26,24 +26,39 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    const mail = String(email).trim()
+
+    // ¿Ya existe un usuario vinculado a este empleado? → resetear su contraseña
+    let uid: string | null = null
+    if (empleado_id) {
+      const { data: emp } = await admin.from('empleados').select('user_id').eq('id', empleado_id).maybeSingle()
+      uid = emp?.user_id ?? null
+    }
+
+    if (uid) {
+      const { error: upErr } = await admin.auth.admin.updateUserById(uid, { password: String(password), email: mail, email_confirm: true })
+      if (upErr) return json({ error: upErr.message }, 400)
+      await admin.from('profiles').upsert({ id: uid, full_name: nombre || '', role: 'proceso' }, { onConflict: 'id' })
+      if (empleado_id) await admin.from('empleados').update({ email: mail }).eq('id', empleado_id)
+      return json({ success: true, user_id: uid, reset: true })
+    }
+
     // Crear el usuario ya confirmado (no se envía ningún email)
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email: String(email).trim(),
+      email: mail,
       password: String(password),
       email_confirm: true,
       user_metadata: { full_name: nombre || '', apodo: apodo || '' },
     })
     if (createErr) return json({ error: createErr.message }, 400)
 
-    const uid = created?.user?.id
-    if (uid) {
-      // Perfil con rol proceso
-      await admin.from('profiles').upsert({ id: uid, full_name: nombre || '', role: 'proceso' }, { onConflict: 'id' })
-      // Vincular con el empleado
-      if (empleado_id) await admin.from('empleados').update({ user_id: uid, email: String(email).trim() }).eq('id', empleado_id)
+    const newUid = created?.user?.id
+    if (newUid) {
+      await admin.from('profiles').upsert({ id: newUid, full_name: nombre || '', role: 'proceso' }, { onConflict: 'id' })
+      if (empleado_id) await admin.from('empleados').update({ user_id: newUid, email: mail }).eq('id', empleado_id)
     }
 
-    return json({ success: true, user_id: uid })
+    return json({ success: true, user_id: newUid })
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500)
   }

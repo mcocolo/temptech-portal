@@ -587,7 +587,7 @@ function ProcesoAccesosModal({ onClose }) {
     })
     setCreando(null)
     if (error || data?.error) { toast.error('Error: ' + (data?.error || error?.message)); return }
-    toast.success(`Acceso creado ✅  ${email}`)
+    toast.success(`${data?.reset ? 'Contraseña actualizada' : 'Acceso creado'} ✅  ${email}`)
     cargar()
   }
 
@@ -621,7 +621,7 @@ function ProcesoAccesosModal({ onClose }) {
                 <input value={emailEdit[emp.id] || ''} onChange={e => setEmailEdit(m => ({ ...m, [emp.id]: e.target.value }))} placeholder="email@..." style={{ ...iSt, flex: 1, minWidth: 160, padding: '7px 10px' }} />
                 {!tieneAcceso && <button onClick={() => guardarEmail(emp)} style={btn('var(--text3)')}>💾</button>}
                 {tieneAcceso
-                  ? <button disabled style={{ ...btn('#3dd68c'), opacity: 0.7, cursor: 'default' }}>Creado</button>
+                  ? <button onClick={() => crearAcceso(emp)} disabled={creando === emp.id} style={btn('#fb923c')}>{creando === emp.id ? '...' : '🔑 Resetear'}</button>
                   : <button onClick={() => crearAcceso(emp)} disabled={creando === emp.id} style={btn('#7b9fff')}>{creando === emp.id ? '...' : '🔑 Crear acceso'}</button>}
               </div>
             </div>
