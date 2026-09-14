@@ -86,15 +86,20 @@ export default function Insumos() {
   const [histLoading, setHistLoading] = useState(false)
   const [histBusq, setHistBusq] = useState('')
 
-  useEffect(() => { if (histOpen) cargarHistGeneral() }, [histOpen, tipo])
+  useEffect(() => { if (histOpen && insumos.length) cargarHistGeneral() }, [histOpen, tipo, insumos.length])
   async function cargarHistGeneral() {
     setHistLoading(true)
-    const { data } = await supabase
+    const ids = insumos.map(i => i.id)
+    if (ids.length === 0) { setHistRows([]); setHistLoading(false); return }
+    const byId = Object.fromEntries(insumos.map(i => [i.id, i]))
+    const { data, error } = await supabase
       .from('movimientos_insumos')
-      .select('*, insumos(codigo,descripcion,unidad,tipo)')
+      .select('*')
+      .in('insumo_id', ids)
       .order('created_at', { ascending: false })
-      .limit(1000)
-    setHistRows((data || []).filter(m => m.insumos?.tipo === tipo))
+      .limit(2000)
+    if (error) toast.error('Error al cargar historial: ' + error.message)
+    setHistRows((data || []).map(m => ({ ...m, insumos: byId[m.insumo_id] })))
     setHistLoading(false)
   }
 
