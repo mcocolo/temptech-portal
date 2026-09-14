@@ -80,6 +80,24 @@ export default function Insumos() {
   const [guardandoEdit, setGuardandoEdit] = useState(false)
   const nombreUsuario = profile?.full_name || user?.email || 'Usuario'
 
+  // Historial general (todos los movimientos del tipo, por día)
+  const [histOpen, setHistOpen] = useState(false)
+  const [histRows, setHistRows] = useState([])
+  const [histLoading, setHistLoading] = useState(false)
+  const [histBusq, setHistBusq] = useState('')
+
+  useEffect(() => { if (histOpen) cargarHistGeneral() }, [histOpen, tipo])
+  async function cargarHistGeneral() {
+    setHistLoading(true)
+    const { data } = await supabase
+      .from('movimientos_insumos')
+      .select('*, insumos(codigo,descripcion,unidad,tipo)')
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    setHistRows((data || []).filter(m => m.insumos?.tipo === tipo))
+    setHistLoading(false)
+  }
+
   useEffect(() => { cargar() }, [tipo])
 
   async function cargar() {
@@ -307,10 +325,16 @@ export default function Insumos() {
             {tipo === 'directo' ? 'Insumos propios del producto (pintura, materiales, componentes)' : 'Insumos de apoyo a la producción (EPP, herramientas, consumibles)'}
           </p>
         </div>
-        <button onClick={abrirNuevo}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: color === '#7b9fff' ? 'rgba(123,159,255,0.15)' : 'rgba(167,139,250,0.15)', border: `1px solid ${color}40`, borderRadius: 'var(--radius)', padding: '9px 18px', fontSize: 13, fontWeight: 700, color, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-          <Plus size={15} /> Nuevo insumo
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => setHistOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            <History size={15} /> Historial
+          </button>
+          <button onClick={abrirNuevo}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: color === '#7b9fff' ? 'rgba(123,159,255,0.15)' : 'rgba(167,139,250,0.15)', border: `1px solid ${color}40`, borderRadius: 'var(--radius)', padding: '9px 18px', fontSize: 13, fontWeight: 700, color, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            <Plus size={15} /> Nuevo insumo
+          </button>
+        </div>
       </div>
 
       {/* Cards resumen */}
@@ -914,6 +938,65 @@ export default function Insumos() {
           </div>
         </div>
       )}
+
+      {/* MODAL HISTORIAL GENERAL (por día) */}
+      {histOpen && (() => {
+        const q = histBusq.trim().toLowerCase()
+        const filtered = histRows.filter(m => !q || [m.insumos?.codigo, m.insumos?.descripcion, m.lote, m.motivo, m.sector, m.usuario_nombre].some(v => (v || '').toLowerCase().includes(q)))
+        const grupos = []
+        let curG = null
+        for (const m of filtered) {
+          const dia = new Date(m.created_at).toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+          if (!curG || curG.dia !== dia) { curG = { dia, items: [] }; grupos.push(curG) }
+          curG.items.push(m)
+        }
+        const ico = t => t === 'ingreso' ? '📦' : t === 'egreso' ? '📤' : '🔧'
+        const col = t => t === 'ingreso' ? '#3dd68c' : t === 'egreso' ? '#fb923c' : '#ffd166'
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 640, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color }}>📜 Historial de {titulo} — por día</div>
+                <button onClick={() => setHistOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+              </div>
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
+                <input value={histBusq} onChange={e => setHistBusq(e.target.value)} placeholder="🔍 Buscar código, lote, sector, usuario..." style={inputSt} />
+              </div>
+              <div style={{ padding: '10px 20px 18px', overflowY: 'auto' }}>
+                {histLoading ? (
+                  <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Cargando...</div>
+                ) : grupos.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Sin movimientos.</div>
+                ) : grupos.map(g => (
+                  <div key={g.dia} style={{ marginBottom: 16 }}>
+                    <div style={{ position: 'sticky', top: 0, background: 'var(--surface)', fontSize: 12, fontWeight: 800, color: 'var(--text2)', textTransform: 'capitalize', padding: '4px 0 8px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+                      {g.dia} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· {g.items.length} mov.</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {g.items.map(m => (
+                        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 6, fontSize: 12 }}>
+                          <span style={{ fontSize: 15 }}>{ico(m.tipo)}</span>
+                          <span style={{ fontFamily: 'monospace', fontSize: 11, color, minWidth: 78, fontWeight: 700 }}>{m.insumos?.codigo || '—'}</span>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontWeight: 700, color: col(m.tipo) }}>{m.tipo === 'ingreso' ? '+' : m.tipo === 'egreso' ? '-' : '='}{m.cantidad} {m.insumos?.unidad}</span>
+                            {m.sector && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.sector}</span>}
+                            {m.lote && <span style={{ color: '#7b9fff', marginLeft: 6, fontWeight: 700 }}>· Lote {m.lote}</span>}
+                            {m.motivo && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.motivo}</span>}
+                            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                              {new Date(m.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} · {m.usuario_nombre}
+                              {m.editado_por && <span style={{ color: '#fb923c', marginLeft: 6 }}>· ✏️ {m.editado_por}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
