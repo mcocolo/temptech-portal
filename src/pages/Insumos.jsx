@@ -238,16 +238,20 @@ export default function Insumos() {
     else nuevo = cantidad // ajuste directo
 
     // Primero se registra el movimiento (con el usuario). Si falla, NO se toca el stock.
-    const { error: movErr } = await supabase.from('movimientos_insumos').insert({
+    const base = {
       insumo_id: modalStock.id,
       tipo: stockTipo,
       cantidad,
       sector: stockSector || null,
       motivo: stockMotivo || null,
-      lote: stockLote.trim() || null,
       usuario_id: user?.id,
       usuario_nombre: nombreUsuario,
-    })
+    }
+    let { error: movErr } = await supabase.from('movimientos_insumos').insert({ ...base, lote: stockLote.trim() || null })
+    // Si la columna lote todavía no existe, reintenta sin ella (el movimiento igual queda registrado)
+    if (movErr && /lote|column|schema/i.test(movErr.message || '')) {
+      ;({ error: movErr } = await supabase.from('movimientos_insumos').insert(base))
+    }
     if (movErr) { setGuardandoStock(false); toast.error('No se registró el movimiento: ' + movErr.message); return }
 
     await supabase.from('insumos').update({ stock_actual: nuevo, updated_at: new Date().toISOString() }).eq('id', modalStock.id)
