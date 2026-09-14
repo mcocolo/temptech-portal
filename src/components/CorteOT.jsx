@@ -7,6 +7,8 @@ const HOJA_CODIGO = 'MPSTD6'
 // Medida objetivo del panel según modelo
 const MEDIDAS = { '250w': '290x590mm', '250w TD': '290x590mm', '500w': '590x590mm', '500w TD': '590x590mm', '500w MB': '590x590mm' }
 const medidaDe = modelo => MEDIDAS[modelo] || (modelo?.includes('250') ? '290x590mm' : modelo?.includes('500') ? '590x590mm' : '')
+// Medidas objetivo de tapa (T) y contratapa (CT) — 1400w las tiene distintas
+const MEDIDAS_TCT = { '1400w': { t: '560x560mm', ct: '558x558mm' } }
 const normMed = s => String(s ?? '').trim().toLowerCase().replace(/\s/g, '').replace(/mm$/,'')
 
 // 1400w: de una hoja salen 8 tapas u 8 contratapas
@@ -241,9 +243,10 @@ export default function CorteOT({ lote, onClose, onDone }) {
   )
 
   // Card de un lado (CT o T). Se invoca como función (no como <Componente/>) para no perder el foco al tipear.
-  const ladoCard = ({ tit, color, hojasKey, okKey, ncKey, tomarKey, loteKey, loteLabel, rinde, merma, disp, extra }) => (
+  const ladoCard = ({ tit, color, hojasKey, okKey, ncKey, tomarKey, loteKey, loteLabel, objetivo, rinde, merma, disp, extra }) => (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 6 }}>{tit}</div>
+      {objetivo && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>🎯 Medida objetivo: <b style={{ color: 'var(--text2)' }}>{objetivo}</b></div>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div><label style={lbl}>Hojas usadas</label><input type="number" value={f[hojasKey]} onChange={e => setF(s => ({ ...s, [hojasKey]: e.target.value }))} placeholder="0" style={iSt} /></div>
         <div><label style={lbl}>OK</label><input type="number" value={f[okKey]} onChange={e => setF(s => ({ ...s, [okKey]: e.target.value }))} placeholder="0" style={iSt} /></div>
@@ -327,8 +330,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
           <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>📦 Corte de tapas (T) y contratapas (CT) · 8 piezas por hoja</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {ladoCard({ tit: 'Contratapas (CT) · MPSTD6', color: '#3dd68c', hojasKey: 'hojas_ct', okKey: 'ct_ok', ncKey: 'ct_nc', tomarKey: 'tomar_pulmon_ct', loteKey: 'lote_ct', loteLabel: 'Lote MPSTD6', rinde: hojasCtUsadas * 8, merma: mermaCt, disp: maxTakeCt })}
-              {ladoCard({ tit: `Tapas (T) · ${insumoTapa || '—'}`, color: '#7b9fff', hojasKey: 'hojas_t', okKey: 't_ok', ncKey: 't_nc', tomarKey: 'tomar_pulmon_t', loteKey: 'lote_t', loteLabel: `Lote ${insumoTapa || 'hoja'}`, rinde: hojasTUsadas * 8, merma: mermaT, disp: maxTakeT,
+              {ladoCard({ tit: 'Contratapas (CT) · MPSTD6', color: '#3dd68c', hojasKey: 'hojas_ct', okKey: 'ct_ok', ncKey: 'ct_nc', tomarKey: 'tomar_pulmon_ct', loteKey: 'lote_ct', loteLabel: 'Lote MPSTD6', objetivo: MEDIDAS_TCT[lote.modelo]?.ct, rinde: hojasCtUsadas * 8, merma: mermaCt, disp: maxTakeCt })}
+              {ladoCard({ tit: `Tapas (T) · ${insumoTapa || '—'}`, color: '#7b9fff', hojasKey: 'hojas_t', okKey: 't_ok', ncKey: 't_nc', tomarKey: 'tomar_pulmon_t', loteKey: 'lote_t', loteLabel: `Lote ${insumoTapa || 'hoja'}`, objetivo: MEDIDAS_TCT[lote.modelo]?.t, rinde: hojasTUsadas * 8, merma: mermaT, disp: maxTakeT,
                 extra: <><label style={{ ...lbl, marginTop: 8 }}>Hoja de la tapa</label><input value={f.insumo_tapa} onChange={e => setF(s => ({ ...s, insumo_tapa: e.target.value }))} placeholder="Ej: SIMMTG6" style={iSt} /></> })}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
