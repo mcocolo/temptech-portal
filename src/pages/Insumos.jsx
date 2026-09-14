@@ -232,8 +232,8 @@ export default function Insumos() {
     else if (stockTipo === 'egreso') nuevo = Math.max(0, actual - cantidad)
     else nuevo = cantidad // ajuste directo
 
-    await supabase.from('insumos').update({ stock_actual: nuevo, updated_at: new Date().toISOString() }).eq('id', modalStock.id)
-    await supabase.from('movimientos_insumos').insert({
+    // Primero se registra el movimiento (con el usuario). Si falla, NO se toca el stock.
+    const { error: movErr } = await supabase.from('movimientos_insumos').insert({
       insumo_id: modalStock.id,
       tipo: stockTipo,
       cantidad,
@@ -241,8 +241,11 @@ export default function Insumos() {
       motivo: stockMotivo || null,
       lote: stockLote.trim() || null,
       usuario_id: user?.id,
-      usuario_nombre: profile?.full_name || user?.email,
+      usuario_nombre: nombreUsuario,
     })
+    if (movErr) { setGuardandoStock(false); toast.error('No se registró el movimiento: ' + movErr.message); return }
+
+    await supabase.from('insumos').update({ stock_actual: nuevo, updated_at: new Date().toISOString() }).eq('id', modalStock.id)
 
     toast.success(stockTipo === 'ingreso' ? '📦 Ingreso registrado' : stockTipo === 'egreso' ? '📤 Egreso registrado' : '🔧 Stock ajustado')
     setGuardandoStock(false)
