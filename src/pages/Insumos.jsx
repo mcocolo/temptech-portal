@@ -74,6 +74,12 @@ export default function Insumos() {
   const [loadingHist, setLoadingHist] = useState(false)
   const [tabDetalle, setTabDetalle] = useState('info') // info | historial
 
+  // Edición de un movimiento
+  const [editMov, setEditMov] = useState(null) // { ...movimiento, unidad }
+  const [editForm, setEditForm] = useState({ cantidad: '', lote: '', sector: '', motivo: '' })
+  const [guardandoEdit, setGuardandoEdit] = useState(false)
+  const nombreUsuario = profile?.full_name || user?.email || 'Usuario'
+
   useEffect(() => { cargar() }, [tipo])
 
   async function cargar() {
@@ -224,6 +230,44 @@ export default function Insumos() {
     setGuardandoStock(false)
     setModalStock(null)
     setStockCantidad(''); setStockSector(''); setStockMotivo(''); setStockLote('')
+    cargar()
+  }
+
+  function abrirEditarMov(m, unidad) {
+    setEditMov({ ...m, unidad })
+    setEditForm({ cantidad: String(m.cantidad ?? ''), lote: m.lote || '', sector: m.sector || '', motivo: m.motivo || '' })
+  }
+
+  async function guardarEdicion() {
+    const m = editMov
+    const nueva = parseFloat(editForm.cantidad) || 0
+    if (m.tipo !== 'ajuste' && nueva <= 0) return toast.error('Cantidad inválida')
+    if (m.tipo === 'egreso' && !editForm.sector) return toast.error('Seleccioná el sector')
+    setGuardandoEdit(true)
+    const oldCant = Number(m.cantidad) || 0
+    // Ajuste al stock actual por el cambio de cantidad (ingreso/egreso). El ajuste no cambia cantidad.
+    let stockDelta = 0
+    if (m.tipo === 'ingreso') stockDelta = nueva - oldCant
+    else if (m.tipo === 'egreso') stockDelta = -(nueva - oldCant)
+
+    const { error } = await supabase.from('movimientos_insumos').update({
+      cantidad: m.tipo === 'ajuste' ? oldCant : nueva,
+      lote: editForm.lote.trim() || null,
+      sector: editForm.sector || null,
+      motivo: editForm.motivo.trim() || null,
+      editado_por: nombreUsuario,
+      editado_por_at: new Date().toISOString(),
+    }).eq('id', m.id)
+    if (error) { setGuardandoEdit(false); toast.error('Error: ' + error.message); return }
+
+    if (stockDelta !== 0) {
+      const { data: ins } = await supabase.from('insumos').select('stock_actual').eq('id', m.insumo_id).single()
+      if (ins) await supabase.from('insumos').update({ stock_actual: Math.max(0, (Number(ins.stock_actual) || 0) + stockDelta), updated_at: new Date().toISOString() }).eq('id', m.insumo_id)
+    }
+    setGuardandoEdit(false)
+    toast.success('Movimiento editado ✅')
+    setEditMov(null)
+    cargarHistorial(m.insumo_id)
     cargar()
   }
 
@@ -477,8 +521,11 @@ export default function Insumos() {
                                   {m.motivo && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.motivo}</span>}
                                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
                                     {m.usuario_nombre} · {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale: es })}
+                                    {m.editado_por && <span style={{ color: '#fb923c', marginLeft: 6 }}>· ✏️ editado por {m.editado_por}{m.editado_por_at ? ` (${formatDistanceToNow(new Date(m.editado_por_at), { addSuffix: true, locale: es })})` : ''}</span>}
                                   </div>
                                 </div>
+                                <button onClick={() => abrirEditarMov(m, ins.unidad)} title="Editar movimiento"
+                                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✏️</button>
                               </div>
                             ))}
                           </div>
@@ -819,6 +866,49 @@ export default function Insumos() {
                   style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
                   Cancelar
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR MOVIMIENTO */}
+      {editMov && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 440 }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>✏️ Editar {editMov.tipo === 'ingreso' ? 'ingreso' : editMov.tipo === 'egreso' ? 'egreso' : 'ajuste'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Creó: {editMov.usuario_nombre || '—'}</div>
+              </div>
+              <button onClick={() => setEditMov(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Cantidad {editMov.unidad}</label>
+                <input type="number" min="0" value={editForm.cantidad} onChange={e => setEditForm(p => ({ ...p, cantidad: e.target.value }))} disabled={editMov.tipo === 'ajuste'} style={{ ...inputSt, opacity: editMov.tipo === 'ajuste' ? 0.6 : 1 }} />
+                {editMov.tipo === 'ajuste' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>En un ajuste no se edita la cantidad (crearía inconsistencia). Editá lote/motivo o hacé un nuevo movimiento.</div>}
+              </div>
+              {editMov.tipo === 'egreso' && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Sector</label>
+                  <select value={editForm.sector} onChange={e => setEditForm(p => ({ ...p, sector: e.target.value }))} style={inputSt}>
+                    <option value="">— Seleccioná sector —</option>
+                    {SECTORES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° de lote</label>
+                <input value={editForm.lote} onChange={e => setEditForm(p => ({ ...p, lote: e.target.value }))} placeholder="Ej: L-2026-045" style={inputSt} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Motivo / Observación</label>
+                <input value={editForm.motivo} onChange={e => setEditForm(p => ({ ...p, motivo: e.target.value }))} placeholder="Opcional" style={inputSt} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={guardarEdicion} disabled={guardandoEdit} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardandoEdit ? 'not-allowed' : 'pointer', opacity: guardandoEdit ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardandoEdit ? 'Guardando...' : '✓ Guardar cambios'}</button>
+                <button onClick={() => setEditMov(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
