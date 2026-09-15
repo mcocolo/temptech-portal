@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { AlertTriangle, Plus, Package, TrendingUp, TrendingDown, History, Edit2, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle, Plus, Package, TrendingUp, TrendingDown, History, Edit2, Trash2, ChevronDown, ChevronUp, Copy } from 'lucide-react'
 
 const SECTORES = ['Corte', 'Alambre', 'Pegado', 'Encuadre', 'Aguj2', 'Lija', 'Pintura', 'Cables + Kits', 'Electrica', 'Embalaje', '1400w']
 const UNIDADES = ['unidades', 'kg', 'litros', 'metros', 'rollos', 'cajas', 'pares', 'pliegos']
@@ -147,6 +147,22 @@ export default function Insumos() {
       imagen_url: ins.imagen_url || '',
       es_kit: ins.es_kit || false, componentes: ins.componentes || [],
     })
+    setModal(true)
+  }
+
+  function duplicar(ins) {
+    setEditando(null)
+    setForm({
+      codigo: (ins.codigo || '') + '-COPIA', descripcion: ins.descripcion || '', unidad: ins.unidad || 'unidades',
+      proveedor_nombre: ins.proveedor_nombre || '', proveedor_direccion: ins.proveedor_direccion || '',
+      proveedor_telefono: ins.proveedor_telefono || '', proveedor_horario: ins.proveedor_horario || '',
+      proveedor_contacto: ins.proveedor_contacto || '',
+      sectores: ins.sectores || [], stock_actual: 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '',
+      es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
+      imagen_url: ins.imagen_url || '',
+      es_kit: ins.es_kit || false, componentes: ins.componentes || [],
+    })
+    setExpandido(null)
     setModal(true)
   }
 
@@ -586,6 +602,10 @@ export default function Insumos() {
                       <button onClick={() => abrirEditar(ins)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         <Edit2 size={13} /> Editar
+                      </button>
+                      <button onClick={() => duplicar(ins)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        <Copy size={13} /> Duplicar
                       </button>
                       <button onClick={() => setConfirmDel(ins.id)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)', marginLeft: 'auto' }}>
