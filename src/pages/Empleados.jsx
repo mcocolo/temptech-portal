@@ -18,7 +18,7 @@ const GRUPOS = [
   ]},
   { titulo: '👕 Talles', campos: [['zapato', 'Zapato'], ['remera', 'Remera']] },
   { titulo: '🏦 Beneficios / social', campos: [['plan', 'Plan'], ['plan2', 'Plan 2'], ['auh', 'AUH'], ['tarjeta', 'Tarjeta'], ['monto', 'Monto', 'number'], ['preocupacional', 'Preocupacional']] },
-  { titulo: '🏭 Laboral', campos: [['sector', 'Sector ppal'], ['fecha_ingreso', 'Fecha ingreso', 'date'], ['fecha_egreso1', 'Fecha egreso 1', 'date'], ['renuncia', 'Renuncia'], ['antiguedad', 'Antigüedad', 'number'], ['fecha_ingreso2', 'Fecha ingreso 2', 'date'], ['fecha_egreso2', 'Fecha egreso 2', 'date']] },
+  { titulo: '🏭 Laboral', campos: [['sector', 'Sector ppal'], ['fecha_ingreso', 'Fecha ingreso', 'date'], ['fecha_egreso1', 'Fecha egreso 1', 'date'], ['renuncia', 'Renuncia'], ['fecha_ingreso2', 'Fecha ingreso 2', 'date'], ['fecha_egreso2', 'Fecha egreso 2', 'date']] },
   { titulo: '💳 Bancario', campos: [['cbu', 'CBU'], ['alias', 'Alias']] },
   { titulo: '📝 Otros', campos: [['referencia', 'Referencia'], ['comentarios', 'Comentarios', 'textarea']] },
 ]
@@ -97,6 +97,23 @@ export default function Empleados() {
     return String(v)
   }
 
+  // Antigüedad calculada desde la fecha de ingreso (suma períodos si hubo egreso + reingreso)
+  const antiguedad = (e) => {
+    const parse = s => s ? new Date(s + 'T12:00:00') : null
+    const i1 = parse(e.fecha_ingreso), eg1 = parse(e.fecha_egreso1), i2 = parse(e.fecha_ingreso2), eg2 = parse(e.fecha_egreso2)
+    const hoy = new Date()
+    if (!i1 && !i2) return null
+    let ms = 0
+    if (i1) { const fin = (i2 ? eg1 : (eg1 || eg2)) || hoy; if (fin > i1) ms += fin - i1 }
+    if (i2) { const fin = eg2 || hoy; if (fin > i2) ms += fin - i2 }
+    const dias = ms / 86400000
+    if (dias <= 0) return null
+    const anios = Math.floor(dias / 365.25)
+    const meses = Math.floor((dias - anios * 365.25) / 30.44)
+    const activo = !((i2 ? eg2 : (eg1 || eg2)))
+    return { anios, meses, activo, txt: `${anios} año${anios !== 1 ? 's' : ''}${meses ? ` ${meses} mes${meses !== 1 ? 'es' : ''}` : ''}` }
+  }
+
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
@@ -154,6 +171,12 @@ export default function Empleados() {
                         <div style={{ fontSize: 13, color: 'var(--text2)' }}>{fmt(k, e[k])}</div>
                       </div>
                     ))}
+                    {(() => { const a = antiguedad(e); return a ? (
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Antigüedad {a.activo ? '' : '(al egreso)'}</div>
+                        <div style={{ fontSize: 13, color: '#3dd68c', fontWeight: 700 }}>{a.txt}</div>
+                      </div>
+                    ) : null })()}
                   </div>
                 )}
               </div>
