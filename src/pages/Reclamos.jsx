@@ -189,6 +189,7 @@ export default function Reclamos() {
     if (!form.producto) return toast.error('Seleccioná el producto')
     if (!form.motivo)   return toast.error('Seleccioná el motivo')
     if (!form.descripcion_falla.trim()) return toast.error('Describí la falla')
+    if (!form.localidad.trim()) return toast.error('Ingresá la localidad')
     if (form.imagenes.length === 0) return toast.error('Adjuntá al menos una foto del producto')
     if (form.comprobantes.length === 0) return toast.error('Adjuntá el comprobante de compra')
 
@@ -319,6 +320,7 @@ export default function Reclamos() {
     if (!editForm.producto) return toast.error('Seleccioná el producto')
     if (!editForm.motivo) return toast.error('Seleccioná el motivo')
     if (!editForm.descripcion_falla.trim()) return toast.error('Describí la falla')
+    if (!(editForm.localidad || '').trim()) return toast.error('Ingresá la localidad')
     setEditSubmitting(true)
     const { error } = await supabase.from('devoluciones').update({
       producto: editForm.producto,
@@ -817,7 +819,7 @@ export default function Reclamos() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Field label="Localidad">
+            <Field label="Localidad" required>
               <input value={editForm.localidad} onChange={e => setEditForm(p => ({ ...p, localidad: e.target.value }))} style={inputStyle} />
             </Field>
             <Field label="Código Postal">
@@ -969,7 +971,7 @@ export default function Reclamos() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Localidad</label>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Localidad *</label>
                 <input value={form.localidad} onChange={e => setF('localidad', e.target.value)} placeholder="Buenos Aires" style={inputStyle} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -990,7 +992,7 @@ export default function Reclamos() {
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
               <Button variant="ghost" onClick={() => setStep(2)}>← Atrás</Button>
-              <Button onClick={() => { if (!form.telefono.trim()) return toast.error('Ingresá tu teléfono'); setStep(4) }}>Continuar →</Button>
+              <Button onClick={() => { if (!form.localidad.trim()) return toast.error('Ingresá la localidad'); if (!form.telefono.trim()) return toast.error('Ingresá tu teléfono'); setStep(4) }}>Continuar →</Button>
             </div>
           </div>
         )}
