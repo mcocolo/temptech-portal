@@ -830,17 +830,33 @@ export default function AdminReclamos({ openTracking } = {}) {
     const direccion = [item.direccion, item.piso ? `Piso ${item.piso}` : '', item.departamento ? `Depto ${item.departamento}` : '']
       .filter(Boolean).join(', ')
 
-    // Mapear el producto del caso a la columna de la planilla (por código de precios)
+    // Producto a entregar/cambiar: lo que definió el ADMIN en "Enviar Panel"
+    // (egresos_garantia), NO lo que cargó el cliente en el reclamo.
     let productos = []
-    if (['cambio_garantia', 'cambio_producto'].includes(tipoLog) && item.producto) {
+    let panelEnviado = null
+    if (['cambio_garantia', 'cambio_producto'].includes(tipoLog)) {
+      const ref = item.tracking_id || String(item.id).slice(0, 8).toUpperCase()
       try {
-        let q = supabase.from('precios').select('codigo').eq('nombre', item.producto)
-        if (item.modelo) q = q.eq('modelo', item.modelo)
-        const { data: pr } = await q.limit(1)
-        const col = pr?.[0]?.codigo ? codigoALogColumna(pr[0].codigo) : null
-        const logItem = col ? itemLogPorCodigo(col) : null
-        if (logItem) productos = [{ codigo: logItem.codigo, label: logItem.label, cantidad: 1 }]
-      } catch (_) { /* si no matchea, queda vacío */ }
+        const { data: egr } = await supabase.from('egresos_garantia').select('codigo,nombre,cantidad,created_at').eq('observacion', `Reclamo ${ref}`).order('created_at', { ascending: false }).limit(1)
+        const e = egr?.[0]
+        if (e?.codigo) {
+          panelEnviado = e
+          const col = codigoALogColumna(e.codigo)
+          const logItem = col ? itemLogPorCodigo(col) : null
+          if (logItem) productos = [{ codigo: logItem.codigo, label: logItem.label, cantidad: e.cantidad || 1 }]
+        }
+      } catch (_) { /* seguimos con el fallback */ }
+      // Fallback: si el admin todavía no cargó "Enviar Panel", usamos el producto del reclamo
+      if (productos.length === 0 && item.producto) {
+        try {
+          let q = supabase.from('precios').select('codigo').eq('nombre', item.producto)
+          if (item.modelo) q = q.eq('modelo', item.modelo)
+          const { data: pr } = await q.limit(1)
+          const col = pr?.[0]?.codigo ? codigoALogColumna(pr[0].codigo) : null
+          const logItem = col ? itemLogPorCodigo(col) : null
+          if (logItem) productos = [{ codigo: logItem.codigo, label: logItem.label, cantidad: 1 }]
+        } catch (_) { /* si no matchea, queda vacío */ }
+      }
     }
 
     const payload = {
@@ -851,7 +867,9 @@ export default function AdminReclamos({ openTracking } = {}) {
       localidad: item.localidad || null,
       telefono: item.telefono || null,
       email: item.email || null,
-      descripcion: [item.producto, item.modelo, item.motivo].filter(Boolean).join(' — ') || null,
+      descripcion: panelEnviado
+        ? `Entregar: ${panelEnviado.nombre}${panelEnviado.cantidad ? ` ×${panelEnviado.cantidad}` : ''}${item.motivo ? ` · ${item.motivo}` : ''}`
+        : ([item.producto, item.modelo, item.motivo].filter(Boolean).join(' — ') || null),
       notas: item.descripcion_falla ? `Falla: ${String(item.descripcion_falla).slice(0, 280)}` : null,
       productos,
       devolucion_id: item.id,
