@@ -45,6 +45,7 @@ import AdminAprobaciones from '@/pages/AdminAprobaciones'
 import MapaLocales from '@/pages/MapaLocales'
 import Proveedores from '@/pages/Proveedores'
 import Produccion from '@/pages/Produccion'
+import ReporteDevoluciones from '@/pages/ReporteDevoluciones'
 import Empleados from '@/pages/Empleados'
 import Herramental from '@/pages/Herramental'
 
@@ -120,6 +121,7 @@ function AppRoutes() {
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
               <Route path="/produccion/insumos-indirectos" element={<Insumos />} />
               <Route path="/reportes"                   element={<AdminReportes />} />
+              <Route path="/reporte-devoluciones"       element={<ReporteDevoluciones />} />
               <Route path="/repuestos"                  element={<Repuestos />} />
               <Route path="/videos-tecnicos"            element={<VideosTecnicos />} />
               <Route path="/pedidos-repuestos"          element={<PedidosRepuestos />} />
