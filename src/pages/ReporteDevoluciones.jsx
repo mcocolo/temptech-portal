@@ -14,6 +14,7 @@ const modeloDe = d => (d.modelo || d.producto || '').trim() || '(sin dato)'
 const val = v => (v == null || String(v).trim() === '') ? '(sin dato)' : String(v).trim()
 const aprobLabel = d => d.aprobado === 'SI' ? 'Aprobado' : d.aprobado === 'NO' ? 'Rechazado' : '(sin decidir)'
 const diasEntre = (a, b) => (!a || !b) ? null : Math.round((new Date(b) - new Date(a)) / 86400000)
+const fotosDe = c => [...(Array.isArray(c.imagenes_producto_urls) ? c.imagenes_producto_urls : []), ...(c.imagen_producto_url ? [c.imagen_producto_url] : [])].filter(Boolean)
 
 const DIMS = ['estado', 'modelo', 'motivo', 'provincia', 'localidad', 'canal', 'envio', 'aprob']
 const DIM_LABEL = { estado: 'Estado', modelo: 'Modelo', motivo: 'Falla', provincia: 'Provincia', localidad: 'Localidad', canal: 'Canal', envio: 'Resolución', aprob: 'Aprobación' }
@@ -79,9 +80,21 @@ export default function ReporteDevoluciones() {
   const [filtros, setFiltros] = useState({})   // { estado, modelo, motivo, provincia, localidad, canal, envio, aprob }
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
+  const [galeria, setGaleria] = useState(null)   // { titulo, fotos:[{url,...}], idx }
   const setFiltro = (dim, label) => setFiltros(p => ({ ...p, [dim]: p[dim] === label ? undefined : label }))
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
+
+  useEffect(() => {
+    if (!galeria) return
+    const h = e => {
+      if (e.key === 'Escape') setGaleria(null)
+      else if (e.key === 'ArrowRight') setGaleria(g => g && g.fotos.length ? { ...g, idx: (g.idx + 1) % g.fotos.length } : g)
+      else if (e.key === 'ArrowLeft') setGaleria(g => g && g.fotos.length ? { ...g, idx: (g.idx - 1 + g.fotos.length) % g.fotos.length } : g)
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [galeria])
   async function cargar() {
     setLoading(true)
     const data = await fetchAllRows(() => supabase.from('devoluciones').select('*').not('tracking_id', 'is', null).order('fecha_creacion', { ascending: false }))
@@ -142,6 +155,13 @@ export default function ReporteDevoluciones() {
   })
 
   const chips = DIMS.filter(dim => filtros[dim] != null).map(dim => ({ dim, label: dim === 'estado' ? (ESTADO_LABEL[filtros[dim]] || filtros[dim]) : filtros[dim] }))
+
+  const abrirGaleria = (mod, mot) => {
+    const casos = f.filter(d => modeloDe(d) === mod && val(d.motivo) === mot)
+    const fotos = []
+    for (const c of casos) for (const url of fotosDe(c)) fotos.push({ url, tracking: c.tracking_id, cliente: c.nombre_apellido || c.nombre || '—', fecha: c.fecha_creacion, desc: c.descripcion_falla || '', ubic: [c.localidad, c.provincia].filter(Boolean).join(', ') })
+    setGaleria({ titulo: `${mod} · ${mot}`, casos: casos.length, fotos, idx: 0 })
+  }
 
   const th = { padding: '7px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
   const td = { padding: '6px 8px', fontSize: 12, borderBottom: '1px solid var(--border)', textAlign: 'center' }
@@ -241,7 +261,8 @@ export default function ReporteDevoluciones() {
                         <td style={{ ...td, textAlign: 'left', fontWeight: 700, position: 'sticky', left: 0, background: 'var(--surface)' }}>{row.modelo}</td>
                         {motivosCol.map(mot => {
                           const v = row.celdas[mot] || 0
-                          return <td key={mot} style={{ ...td, color: v ? 'var(--text)' : 'var(--border2)', background: v ? `rgba(251,146,60,${Math.min(0.35, 0.08 + v / Math.max(1, row.total) * 0.4)})` : 'transparent', fontWeight: v ? 700 : 400 }}>{v || '·'}</td>
+                          return <td key={mot} onClick={v ? () => abrirGaleria(row.modelo, mot) : undefined} title={v ? `Ver fotos · ${row.modelo} · ${mot}` : undefined}
+                            style={{ ...td, color: v ? 'var(--text)' : 'var(--border2)', background: v ? `rgba(251,146,60,${Math.min(0.35, 0.08 + v / Math.max(1, row.total) * 0.4)})` : 'transparent', fontWeight: v ? 700 : 400, cursor: v ? 'pointer' : 'default' }}>{v || '·'}</td>
                         })}
                         <td style={{ ...td, fontWeight: 800, color: '#7b9fff' }}>{row.total}</td>
                       </tr>
@@ -254,6 +275,49 @@ export default function ReporteDevoluciones() {
           </div>
         </>
       )}
+
+      {/* Lightbox de fotos del cruce Modelo × Falla */}
+      {galeria && (() => {
+        const g = galeria, fo = g.fotos[g.idx], n = g.fotos.length
+        const nav = dir => setGaleria(x => ({ ...x, idx: (x.idx + dir + x.fotos.length) % x.fotos.length }))
+        return (
+          <div onClick={() => setGaleria(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 760, maxHeight: '94vh', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800 }}>📷 {g.titulo}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>{g.casos} caso{g.casos !== 1 ? 's' : ''} · {n} foto{n !== 1 ? 's' : ''}</div>
+                </div>
+                <button onClick={() => setGaleria(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 24 }}>×</button>
+              </div>
+              {n === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Estos casos no tienen fotos adjuntas.</div>
+              ) : (
+                <>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', padding: 12 }}>
+                    <button onClick={() => nav(-1)} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border)', color: '#fff', borderRadius: '50%', width: 38, height: 38, fontSize: 20, cursor: 'pointer' }}>‹</button>
+                    <img src={fo.url} alt="" onClick={() => window.open(fo.url, '_blank')} style={{ maxWidth: '100%', maxHeight: '58vh', objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in' }} onError={e => { e.currentTarget.style.opacity = 0.3 }} />
+                    <button onClick={() => nav(1)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border)', color: '#fff', borderRadius: '50%', width: 38, height: 38, fontSize: 20, cursor: 'pointer' }}>›</button>
+                    <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '3px 12px', borderRadius: 20 }}>{g.idx + 1} / {n}</div>
+                  </div>
+                  <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 12 }}>
+                    <div style={{ color: 'var(--text2)' }}>
+                      <b style={{ color: '#7b9fff', fontFamily: 'monospace' }}>{fo.tracking || '—'}</b> · {fo.cliente}{fo.ubic ? ` · ${fo.ubic}` : ''}{fo.fecha ? ` · ${new Date(fo.fecha).toLocaleDateString('es-AR')}` : ''}
+                    </div>
+                    {fo.desc && <div style={{ color: 'var(--text3)', marginTop: 4 }}>📝 {fo.desc}</div>}
+                  </div>
+                  {/* Tira de miniaturas */}
+                  <div style={{ display: 'flex', gap: 6, padding: '8px 12px', overflowX: 'auto', borderTop: '1px solid var(--border)' }}>
+                    {g.fotos.map((ph, i) => (
+                      <img key={i} src={ph.url} alt="" onClick={() => setGaleria(x => ({ ...x, idx: i }))} style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0, border: `2px solid ${i === g.idx ? '#7b9fff' : 'transparent'}`, opacity: i === g.idx ? 1 : 0.6 }} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
