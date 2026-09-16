@@ -1292,6 +1292,9 @@ function FlotaModal({ camionetas, choferes, onClose, onChange }) {
   const [chTel, setChTel] = useState('')
   const [chEmail, setChEmail] = useState('')
   const [guardandoCh, setGuardandoCh] = useState(false)
+  const [usuarios, setUsuarios] = useState([])
+  const [selUser, setSelUser] = useState('')
+  useEffect(() => { (async () => { const { data } = await supabase.from('profiles').select('id,full_name,email,role').in('role', ['admin', 'admin2', 'vendedor']).order('full_name'); setUsuarios(data || []) })() }, [])
 
   async function agregar() {
     if (!nombre.trim()) return toast.error('Ingresá un nombre')
@@ -1310,10 +1313,10 @@ function FlotaModal({ camionetas, choferes, onClose, onChange }) {
   async function agregarChofer() {
     if (!chNombre.trim()) return toast.error('Ingresá el nombre del chofer')
     setGuardandoCh(true)
-    const { error } = await supabase.from('choferes').insert({ nombre: chNombre.trim(), telefono: chTel.trim() || null, email: chEmail.trim() || null })
+    const { error } = await supabase.from('choferes').insert({ nombre: chNombre.trim(), telefono: chTel.trim() || null, email: chEmail.trim() || null, user_id: selUser || null })
     setGuardandoCh(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    setChNombre(''); setChTel(''); setChEmail(''); onChange()
+    setChNombre(''); setChTel(''); setChEmail(''); setSelUser(''); onChange()
   }
   async function eliminarChofer(c) { await supabase.from('choferes').delete().eq('id', c.id); onChange() }
 
@@ -1381,6 +1384,11 @@ function FlotaModal({ camionetas, choferes, onClose, onChange }) {
             ))}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Agregar chofer</div>
+              <select value={selUser} onChange={e => { const u = usuarios.find(x => x.id === e.target.value); setSelUser(e.target.value); if (u) { setChNombre(u.full_name || ''); setChEmail(u.email || '') } }} style={{ ...iSt, cursor: 'pointer' }}>
+                <option value="">— Elegir usuario del sistema (opcional) —</option>
+                {usuarios.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email} · {u.role}</option>)}
+              </select>
+              <div style={{ fontSize: 10, color: 'var(--text3)' }}>Si es un usuario ya registrado (ej. admin2), elegilo acá: queda vinculado y no hace falta crear acceso.</div>
               <input value={chNombre} onChange={e => setChNombre(e.target.value)} placeholder="Nombre y apellido" style={iSt} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <input value={chTel} onChange={e => setChTel(e.target.value)} placeholder="Teléfono" style={iSt} />
