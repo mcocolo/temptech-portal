@@ -62,6 +62,7 @@ export default function Insumos() {
   const [busqueda, setBusqueda] = useState('')
   const [filtroSector, setFiltroSector] = useState('')
   const [filtroModelo, setFiltroModelo] = useState('')
+  const [filtroDisc, setFiltroDisc] = useState('activos')   // activos | discontinuados | todos
   const [expandido, setExpandido] = useState(null)
 
   // Modal insumo
@@ -387,6 +388,8 @@ export default function Insumos() {
   }
 
   const filtrados = insumos.filter(ins => {
+    if (filtroDisc === 'activos' && ins.discontinuado) return false
+    if (filtroDisc === 'discontinuados' && !ins.discontinuado) return false
     if (filtroSector && !ins.sectores?.includes(filtroSector)) return false
     if (filtroModelo && ins.modelo !== filtroModelo) return false
     if (busqueda) {
@@ -479,8 +482,13 @@ export default function Insumos() {
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 11, color: 'var(--text3)', alignSelf: 'center', marginRight: 2 }}>Modelo:</span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px solid var(--border)', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 2 }}>Estado:</span>
+          {[['activos', 'Activos'], ['discontinuados', 'Discontinuados'], ['todos', 'Todos']].map(([v, l]) => (
+            <button key={v} onClick={() => setFiltroDisc(v)} style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroDisc === v ? (v === 'discontinuados' ? 'rgba(139,152,169,0.2)' : `${color}20`) : 'var(--surface2)', color: filtroDisc === v ? (v === 'discontinuados' ? '#8b98a9' : color) : 'var(--text3)', border: `1px solid ${filtroDisc === v ? (v === 'discontinuados' ? 'rgba(139,152,169,0.5)' : color + '50') : 'var(--border)'}` }}>{l}</button>
+          ))}
+          <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+          <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 2 }}>Modelo:</span>
           <button onClick={() => setFiltroModelo('')}
             style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !filtroModelo ? 'rgba(255,255,255,0.1)' : 'var(--surface2)', color: !filtroModelo ? 'var(--text)' : 'var(--text3)', border: !filtroModelo ? '1px solid var(--border)' : '1px solid var(--border)' }}>
             Todos
