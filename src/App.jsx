@@ -46,6 +46,7 @@ import MapaLocales from '@/pages/MapaLocales'
 import Proveedores from '@/pages/Proveedores'
 import Produccion from '@/pages/Produccion'
 import ReporteDevoluciones from '@/pages/ReporteDevoluciones'
+import ReporteProduccion from '@/pages/ReporteProduccion'
 import Empleados from '@/pages/Empleados'
 import Herramental from '@/pages/Herramental'
 
@@ -116,6 +117,7 @@ function AppRoutes() {
               <Route path="/ingreso-transito/pagina"       element={<IngresoTransito key="pagina" />} />
               <Route path="/ingreso-transito/vo"           element={<IngresoTransito key="vo" />} />
               <Route path="/produccion/tablero"             element={<Produccion />} />
+              <Route path="/produccion/reportes"            element={<ReporteProduccion />} />
               <Route path="/produccion/empleados"           element={<Empleados />} />
               <Route path="/produccion/herramental"         element={<Herramental />} />
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />

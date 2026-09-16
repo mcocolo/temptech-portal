@@ -72,6 +72,7 @@ const ADMIN_NAV = [
   { section: 'Producción' },
   { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
     { label: 'Tablero de Producción', icon: Factory, path: '/produccion/tablero' },
+    { label: 'Reporte de Producción', icon: BarChart2, path: '/produccion/reportes' },
     { label: 'Empleados',          icon: Users,  path: '/produccion/empleados' },
     { label: 'Herramental',        icon: Wrench, path: '/produccion/herramental' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
@@ -100,6 +101,7 @@ const ADMIN2_NAV = [
   { section: 'Producción' },
   { label: 'Producción', icon: Factory, isAdmin: true, submenu: 'produccion', children: [
     { label: 'Tablero de Producción', icon: Factory, path: '/produccion/tablero' },
+    { label: 'Reporte de Producción', icon: BarChart2, path: '/produccion/reportes' },
     { label: 'Empleados',          icon: Users,  path: '/produccion/empleados' },
     { label: 'Herramental',        icon: Wrench, path: '/produccion/herramental' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
