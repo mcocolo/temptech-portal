@@ -5,7 +5,22 @@ import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { AlertTriangle, Plus, Package, TrendingUp, TrendingDown, History, Edit2, Trash2, ChevronDown, ChevronUp, Copy } from 'lucide-react'
+import { AlertTriangle, Plus, Package, TrendingUp, TrendingDown, History, Edit2, Trash2, ChevronDown, ChevronUp, Copy, Upload } from 'lucide-react'
+import ImportarCSV from '@/components/ImportarCSV'
+
+const COLS_CSV_INS = [
+  { key: 'codigo', label: 'codigo', required: true },
+  { key: 'descripcion', label: 'descripcion', required: true },
+  { key: 'unidad', label: 'unidad', def: 'unidades' },
+  { key: 'stock_actual', label: 'stock_actual', type: 'number', def: 0 },
+  { key: 'stock_minimo', label: 'stock_minimo', type: 'number', def: 0 },
+  { key: 'modelo', label: 'modelo' },
+  { key: 'sectores', label: 'sectores', type: 'list' },
+  { key: 'proveedor_nombre', label: 'proveedor_nombre' },
+  { key: 'proveedor_telefono', label: 'proveedor_telefono' },
+  { key: 'es_repuesto', label: 'es_repuesto', type: 'bool' },
+  { key: 'precio_tecnico', label: 'precio_tecnico', type: 'number' },
+]
 
 const SECTORES = ['Corte', 'Alambre', 'Pegado', 'Encuadre', 'Aguj2', 'Lija', 'Pintura', 'Cables + Kits', 'Electrica', 'Embalaje', '1400w']
 const UNIDADES = ['unidades', 'kg', 'litros', 'metros', 'rollos', 'cajas', 'pares', 'pliegos']
@@ -85,6 +100,7 @@ export default function Insumos() {
   const [histRows, setHistRows] = useState([])
   const [histLoading, setHistLoading] = useState(false)
   const [histBusq, setHistBusq] = useState('')
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => { if (histOpen && insumos.length) cargarHistGeneral() }, [histOpen, tipo, insumos.length])
   async function cargarHistGeneral() {
@@ -357,6 +373,10 @@ export default function Insumos() {
           <button onClick={() => setHistOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
             <History size={15} /> Historial
+          </button>
+          <button onClick={() => setImportOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            <Upload size={15} /> Importar CSV
           </button>
           <button onClick={abrirNuevo}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: color === '#7b9fff' ? 'rgba(123,159,255,0.15)' : 'rgba(167,139,250,0.15)', border: `1px solid ${color}40`, borderRadius: 'var(--radius)', padding: '9px 18px', fontSize: 13, fontWeight: 700, color, cursor: 'pointer', fontFamily: 'var(--font)' }}>
@@ -1029,6 +1049,8 @@ export default function Insumos() {
           </div>
         )
       })()}
+
+      {importOpen && <ImportarCSV titulo={titulo} tabla="insumos" columnas={COLS_CSV_INS} fijos={{ tipo, es_kit: false, componentes: [] }} onClose={() => setImportOpen(false)} onDone={cargar} />}
     </div>
   )
 }

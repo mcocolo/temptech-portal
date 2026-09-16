@@ -2,7 +2,16 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
+import ImportarCSV from '@/components/ImportarCSV'
 import toast from 'react-hot-toast'
+
+const COLS_CSV = [
+  { key: 'nombre', label: 'nombre', required: true },
+  { key: 'codigo', label: 'codigo' }, { key: 'tipo', label: 'tipo' }, { key: 'sector', label: 'sector' },
+  { key: 'marca', label: 'marca' }, { key: 'modelo', label: 'modelo' }, { key: 'nro_serie', label: 'nro_serie' },
+  { key: 'fecha_ingreso', label: 'fecha_ingreso', type: 'date' },
+  { key: 'estado', label: 'estado', def: 'Operativa' }, { key: 'ubicacion', label: 'ubicacion' }, { key: 'notas', label: 'notas' },
+]
 
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
@@ -27,6 +36,7 @@ export default function Maquinas() {
   const [guardando, setGuardando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
   async function cargar() {
@@ -83,8 +93,12 @@ export default function Maquinas() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Máquinas</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Base de máquinas para mantenimiento</p>
         </div>
-        {!readOnly && <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva máquina</button>}
+        {!readOnly && <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>
+          <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva máquina</button>
+        </div>}
       </div>
+      {importOpen && <ImportarCSV titulo="Máquinas" tabla="maquinas" columnas={COLS_CSV} onClose={() => setImportOpen(false)} onDone={cargar} />}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input type="text" placeholder="🔍 Buscar por nombre, código, marca, serie, sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 380 }} />

@@ -2,7 +2,19 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
+import ImportarCSV from '@/components/ImportarCSV'
 import toast from 'react-hot-toast'
+
+const COLS_CSV = [
+  { key: 'nombre', label: 'nombre', required: true },
+  { key: 'codigo', label: 'codigo' }, { key: 'lote', label: 'lote' },
+  { key: 'sectores', label: 'sectores', type: 'list' },
+  { key: 'fecha_ingreso', label: 'fecha_ingreso', type: 'date' },
+  { key: 'usos_250w', label: 'usos_250w', type: 'int', def: 0 },
+  { key: 'usos_500w', label: 'usos_500w', type: 'int', def: 0 },
+  { key: 'usos_1400w_t', label: 'usos_1400w_t', type: 'int', def: 0 },
+  { key: 'usos_1400w_ct', label: 'usos_1400w_ct', type: 'int', def: 0 },
+]
 
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
@@ -21,6 +33,7 @@ export default function Herramental() {
   const [guardando, setGuardando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -82,9 +95,13 @@ export default function Herramental() {
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Discos, cintas, pies y demás herramientas (con código y lote)</p>
         </div>
         {!readOnly && (
-          <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva herramienta</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>
+            <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva herramienta</button>
+          </div>
         )}
       </div>
+      {importOpen && <ImportarCSV titulo="Herramental" tabla="herramental" columnas={COLS_CSV} onClose={() => setImportOpen(false)} onDone={cargar} />}
 
       <input type="text" placeholder="🔍 Buscar por nombre, código, lote o sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420, marginBottom: 18, marginTop: 4 }} />
 

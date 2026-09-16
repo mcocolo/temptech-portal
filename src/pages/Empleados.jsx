@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
+import ImportarCSV from '@/components/ImportarCSV'
 import toast from 'react-hot-toast'
 
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
@@ -28,6 +29,11 @@ const NUM_F = new Set(['id_externo', 'hijos', 'monto', 'antiguedad'])
 // Sectores de producción en los que puede participar el empleado
 export const SECTORES_EMP = ['Corte', 'Armado', 'Alambre', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
 const EMPTY = { ...Object.fromEntries(CAMPOS.map(([k]) => [k, ''])), sectores: [] }
+const COLS_CSV_EMP = [
+  { key: 'apodo', label: 'apodo', required: true },
+  ...CAMPOS.filter(([k]) => k !== 'apodo').map(([k]) => ({ key: k, label: k, type: DATE_F.has(k) ? 'date' : (k === 'monto' ? 'number' : NUM_F.has(k) ? 'int' : undefined) })),
+  { key: 'sectores', label: 'sectores', type: 'list' },
+]
 
 export default function Empleados() {
   const { isAdmin, isAdmin2 } = useAuth()
@@ -40,6 +46,7 @@ export default function Empleados() {
   const [guardando, setGuardando] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
   const [expandido, setExpandido] = useState(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
 
@@ -126,9 +133,13 @@ export default function Empleados() {
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Ficha completa del personal de producción</p>
         </div>
         {!readOnly && (
-          <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo empleado</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>
+            <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo empleado</button>
+          </div>
         )}
       </div>
+      {importOpen && <ImportarCSV titulo="Empleados" tabla="empleados" columnas={COLS_CSV_EMP} onClose={() => setImportOpen(false)} onDone={cargar} />}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <input type="text" placeholder="🔍 Buscar por apodo, nombre, apellido o CUIL..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420 }} />
