@@ -805,8 +805,12 @@ export default function LogisticaDiaria() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {editaPlanilla ? (
                       <>
-                        <input list="choferes-list" value={chofer} onChange={e => setChoferInput(prev => ({ ...prev, [camioneta.id]: e.target.value }))} placeholder="Chofer..."
-                          style={{ ...iSt, width: 150, padding: '6px 10px' }} />
+                        <select value={chofer} onChange={e => setChoferInput(prev => ({ ...prev, [camioneta.id]: e.target.value }))}
+                          style={{ ...iSt, width: 180, padding: '6px 10px', cursor: 'pointer' }}>
+                          <option value="">— Elegí chofer —</option>
+                          {choferes.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                          {chofer && !choferes.some(c => c.nombre === chofer) && <option value={chofer}>{chofer}</option>}
+                        </select>
                         <button onClick={() => guardarChofer(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Asignar chofer</button>
                         <button onClick={() => imprimirRutaCamioneta(camioneta.nombre, chofer, grupo)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>🖨️ Hoja</button>
                       </>
