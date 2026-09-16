@@ -105,6 +105,23 @@ export default function Insumos() {
   const [histLoading, setHistLoading] = useState(false)
   const [histBusq, setHistBusq] = useState('')
   const [importOpen, setImportOpen] = useState(false)
+  const [lotesMap, setLotesMap] = useState({})   // { insumoId: [{lote, saldo, ingresos, egresos}] }
+
+  useEffect(() => {
+    if (!expandido) return
+    ;(async () => {
+      const { data } = await supabase.from('movimientos_insumos').select('tipo,cantidad,lote').eq('insumo_id', expandido)
+      const m = new Map()
+      for (const r of (data || [])) {
+        const l = (r.lote || '').trim(); if (!l) continue
+        if (!m.has(l)) m.set(l, { lote: l, saldo: 0, ingresos: 0, egresos: 0 })
+        const g = m.get(l), c = Number(r.cantidad) || 0
+        if (r.tipo === 'ingreso') { g.saldo += c; g.ingresos += c }
+        else if (r.tipo === 'egreso') { g.saldo -= c; g.egresos += c }
+      }
+      setLotesMap(p => ({ ...p, [expandido]: [...m.values()].sort((a, b) => b.saldo - a.saldo) }))
+    })()
+  }, [expandido])
 
   useEffect(() => { if (histOpen && insumos.length) cargarHistGeneral() }, [histOpen, tipo, insumos.length])
   async function cargarHistGeneral() {
@@ -594,6 +611,22 @@ export default function Insumos() {
                             <span style={{ color: 'var(--text3)' }}>Unidad: </span>
                             <strong style={{ color: 'var(--text2)' }}>{ins.unidad}</strong>
                           </div>
+                        </div>
+                        {/* Lotes */}
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>🏷️ Lotes en stock</div>
+                          {(lotesMap[ins.id] || []).length === 0 ? (
+                            <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Sin lotes cargados (los lotes se cargan en cada Ingreso).</div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {(lotesMap[ins.id] || []).map(l => (
+                                <span key={l.lote} title={`Ingresos ${l.ingresos} · Egresos ${l.egresos}`} style={{ fontSize: 12, background: 'var(--surface2)', border: `1px solid ${l.saldo > 0 ? 'rgba(61,214,140,0.4)' : 'var(--border)'}`, borderRadius: 6, padding: '4px 10px' }}>
+                                  <span style={{ fontFamily: 'monospace', color: '#7b9fff', fontWeight: 700 }}>{l.lote}</span>
+                                  <span style={{ color: l.saldo > 0 ? '#3dd68c' : 'var(--text3)', fontWeight: 700, marginLeft: 6 }}>{l.saldo} {ins.unidad}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
