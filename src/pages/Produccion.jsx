@@ -50,13 +50,16 @@ function estadoLoteLabel(lote) {
   if (lote.etapa === 'por_iniciar') return { txt: 'Por iniciar', color: '#94a3b8' }
   return { txt: 'En proceso', color: '#fb923c' }
 }
-// Rellena el avance de las etapas ANTERIORES a `etapa` con la cantidad completa
+// Reconstruye el avance al fijar `etapa`: anteriores = completas, actual = parcial si había,
+// posteriores = se limpian (para poder retroceder y recargarlas).
 function backfillAvance(existing, etapa, cantidad) {
   const c = FLUJO.indexOf(etapa)
-  const av = { ...(existing || {}) }
+  const av = {}
   for (const e of ETAPAS_PROC) {
     const i = FLUJO.indexOf(e.key)
-    if (etapa === 'terminado' || i < c) { if (av[e.key] == null) av[e.key] = cantidad }
+    if (etapa === 'terminado' || i < c) av[e.key] = (existing?.[e.key] != null ? existing[e.key] : cantidad)
+    else if (i === c) { if (existing?.[e.key] != null) av[e.key] = existing[e.key] }
+    // i > c: no se copia → queda sin avance
   }
   return av
 }
@@ -187,6 +190,23 @@ export default function Produccion() {
     cargar()
   }
 
+  async function retrocederEtapa(lote) {
+    const i = FLUJO.indexOf(lote.etapa)
+    if (i <= 0) return
+    const prev = FLUJO[i - 1]
+    if (!window.confirm(`¿Volver el lote ${fmtLote(lote)} de "${etapaLabel(lote.etapa)}" a "${etapaLabel(prev)}"?\nSe limpia el avance de las etapas posteriores.`)) return
+    const patch = {
+      etapa: prev,
+      estado: prev === 'por_iniciar' ? 'planificado' : 'en_proceso',
+      avance: backfillAvance(lote.avance, prev, lote.cantidad_actual),
+      ...sello(),
+    }
+    const { error } = await supabase.from('produccion_lotes').update(patch).eq('id', lote.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(`Lote ${fmtLote(lote)} → ${etapaLabel(prev)}`)
+    cargar()
+  }
+
   function siguienteEtapa(etapa) {
     const i = FLUJO.indexOf(etapa)
     return i >= 0 && i < FLUJO.length - 1 ? FLUJO[i + 1] : null
@@ -294,6 +314,7 @@ export default function Produccion() {
                             {/* OT de Corte: disponible para ver/editar el corte en cualquier etapa (menos terminado) */}
                             {lote.etapa !== 'terminado' && <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 {lote.etapa === 'por_iniciar' ? 'OT Corte' : 'Corte'}</button>}
                             {lote.etapa === 'armado' && !lote.modelo.includes('1400') && <button onClick={() => setArmadoLote(lote)} style={btn('#a78bfa')}>🧵 OT Armado</button>}
+                            {puedeGestionar && lote.etapa !== 'por_iniciar' && <button onClick={() => retrocederEtapa(lote)} style={btn('var(--text3)')} title="Volver a la etapa anterior">← Volver</button>}
                             {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
                               <>
                                 <button onClick={() => setModalParte(lote)} style={btn('#3dd68c')}>＋ Parte</button>
