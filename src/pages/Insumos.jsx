@@ -263,6 +263,13 @@ export default function Insumos() {
     cargar()
   }
 
+  async function toggleDiscontinuado(ins) {
+    const { error } = await supabase.from('insumos').update({ discontinuado: !ins.discontinuado, updated_at: new Date().toISOString() }).eq('id', ins.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(!ins.discontinuado ? '🚫 Marcado como discontinuado' : '✅ Reactivado')
+    cargar()
+  }
+
   async function eliminar(id) {
     const { error } = await supabase.from('insumos').delete().eq('id', id)
     if (error) { toast.error('Error al eliminar'); return }
@@ -372,7 +379,7 @@ export default function Insumos() {
     return true
   })
 
-  const bajosStock = insumos.filter(i => (i.stock_actual || 0) <= (i.stock_minimo || 0))
+  const bajosStock = insumos.filter(i => !i.discontinuado && (i.stock_actual || 0) <= (i.stock_minimo || 0))
 
   if (!isAdmin && !isAdmin2) return null
 
@@ -500,6 +507,7 @@ export default function Insumos() {
                       ))}
                       {ins.es_repuesto && <span style={{ fontSize: 10, background: 'rgba(45,212,191,0.15)', border: '1px solid rgba(45,212,191,0.4)', color: '#2dd4bf', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🔩 Repuesto</span>}
                       {ins.es_kit && <span style={{ fontSize: 10, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🔧 Kit ({(ins.componentes||[]).length})</span>}
+                      {ins.discontinuado && <span style={{ fontSize: 10, background: 'rgba(139,152,169,0.15)', border: '1px solid rgba(139,152,169,0.4)', color: '#8b98a9', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🚫 Discontinuado</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -645,6 +653,10 @@ export default function Insumos() {
                       <button onClick={() => duplicar(ins)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         <Copy size={13} /> Duplicar
+                      </button>
+                      <button onClick={() => toggleDiscontinuado(ins)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, background: ins.discontinuado ? 'rgba(61,214,140,0.1)' : 'var(--surface2)', border: `1px solid ${ins.discontinuado ? 'rgba(61,214,140,0.35)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: ins.discontinuado ? '#3dd68c' : 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        {ins.discontinuado ? '✅ Reactivar' : '🚫 Discontinuar'}
                       </button>
                       <button onClick={() => setConfirmDel(ins.id)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)', marginLeft: 'auto' }}>
