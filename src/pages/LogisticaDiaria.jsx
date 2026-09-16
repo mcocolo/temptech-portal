@@ -834,9 +834,14 @@ export default function LogisticaDiaria() {
                   return (
                     <div style={{ padding: '9px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12 }}>
                       <span style={{ color: 'var(--text3)', fontWeight: 700 }}>🛣️ Km</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
-                        Inicial <b style={{ color: 'var(--text2)', fontSize: 13 }}>{ki != null ? ki : '—'}</b>
-                      </span>
+                      {puedeCargar ? (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
+                          Inicial <input type="number" value={km.km_inicial ?? ''} onChange={e => setKm(camioneta.id, 'km_inicial', e.target.value)} placeholder="al salir" style={kmSt} />
+                        </label>
+                      ) : (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>Inicial <b style={{ color: 'var(--text2)', fontSize: 13 }}>{ki != null ? ki : '—'}</b></span>
+                      )}
+                      {(() => { const u = ultimoKm[camioneta.id]; if (u == null) return null; const diff = ki != null ? ki - u : null; return <span style={{ fontSize: 11, color: diff > 0 ? '#fb923c' : 'var(--text3)' }} title="Km del último cierre de esta camioneta">últ. cierre: {u}{diff > 0 ? ` · usada +${diff} km` : ''}</span> })()}
                       {puedeCargar ? (
                         <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text3)' }}>
                           Final <input type="number" value={km.km_final ?? ''} onChange={e => setKm(camioneta.id, 'km_final', e.target.value)} placeholder="—" style={kmSt} />
