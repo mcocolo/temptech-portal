@@ -71,7 +71,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       supabase.from('insumos').select('codigo,descripcion,sectores').eq('tipo', 'directo').order('codigo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'armado').maybeSingle(),
     ])
-    setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || x.sectores.includes('Armado')))
+    setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || ['Armado', 'Alambre'].some(s => x.sectores.includes(s))))
     const arm = (ins.data || []).filter(i => Array.isArray(i.sectores) && i.sectores.some(s => SECTORES_ARMADO_INS.includes(s)))
     setInsumosCat(arm.length ? arm.map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo })) : FALLBACK_INS)
     if (ot.data) {

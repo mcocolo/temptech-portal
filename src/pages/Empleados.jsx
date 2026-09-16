@@ -26,7 +26,7 @@ const CAMPOS = GRUPOS.flatMap(g => g.campos)
 const DATE_F = new Set(['nacimiento', 'fecha_ingreso', 'fecha_egreso1', 'fecha_ingreso2', 'fecha_egreso2'])
 const NUM_F = new Set(['id_externo', 'hijos', 'monto', 'antiguedad'])
 // Sectores de producción en los que puede participar el empleado
-export const SECTORES_EMP = ['Corte', 'Armado', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
+export const SECTORES_EMP = ['Corte', 'Armado', 'Alambre', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
 const EMPTY = { ...Object.fromEntries(CAMPOS.map(([k]) => [k, ''])), sectores: [] }
 
 export default function Empleados() {
