@@ -559,7 +559,7 @@ export default function LogisticaDiaria() {
 
   // Permisos: admin edita todo; chofer confirma/carga cierre; admin2 solo ve e imprime
   const editaPlanilla = isAdmin                 // alta, asignar, editar, borrar, reordenar, camionetas/choferes, traer
-  const editaCierre = isAdmin || isChofer       // km, combustible, fotos, cerrar día
+  const editaCierre = isAdmin || isAdmin2 || isChofer   // km, combustible, fotos, cerrar día (reabrir queda solo admin)
   const soloLectura = isAdmin2                  // admin2: ver + imprimir (no edita la planilla)
   const puedeConfirmar = isAdmin || isAdmin2 || isChofer   // confirmar/deshacer entrega de una parada
 
