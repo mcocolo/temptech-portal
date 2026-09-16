@@ -82,6 +82,10 @@ export default function Insumos() {
   const [stockSector, setStockSector] = useState('')
   const [stockMotivo, setStockMotivo] = useState('')
   const [stockLote, setStockLote] = useState('')
+  const [stockFecha, setStockFecha] = useState('')
+  const [stockRemito, setStockRemito] = useState('')
+  const [stockRemitoUrl, setStockRemitoUrl] = useState('')
+  const [subiendoRemito, setSubiendoRemito] = useState(false)
   const [guardandoStock, setGuardandoStock] = useState(false)
 
   // Historial
@@ -221,6 +225,17 @@ export default function Insumos() {
     toast.success('Imagen subida ✅')
   }
 
+  async function subirRemito(file) {
+    if (!file) return
+    setSubiendoRemito(true)
+    const ext = file.name.split('.').pop()
+    const path = `remitos/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
+    if (error) { toast.error('Error al subir: ' + error.message); setSubiendoRemito(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
+    setStockRemitoUrl(publicUrl); setSubiendoRemito(false); toast.success('Remito subido ✅')
+  }
+
   async function guardar() {
     if (!form.codigo.trim()) return toast.error('Ingresá el código')
     if (!form.descripcion.trim()) return toast.error('Ingresá la descripción')
@@ -279,9 +294,11 @@ export default function Insumos() {
       usuario_id: user?.id,
       usuario_nombre: nombreUsuario,
     }
-    let { error: movErr } = await supabase.from('movimientos_insumos').insert({ ...base, lote: stockLote.trim() || null })
-    // Si la columna lote todavía no existe, reintenta sin ella (el movimiento igual queda registrado)
-    if (movErr && /lote|column|schema/i.test(movErr.message || '')) {
+    const extras = { lote: stockLote.trim() || null }
+    if (stockTipo === 'ingreso') { extras.fecha = stockFecha || null; extras.nro_remito = stockRemito.trim() || null; extras.remito_url = stockRemitoUrl || null }
+    let { error: movErr } = await supabase.from('movimientos_insumos').insert({ ...base, ...extras })
+    // Si alguna columna nueva todavía no existe, reintenta sin extras (el movimiento igual queda registrado)
+    if (movErr && /lote|remito|fecha|column|schema/i.test(movErr.message || '')) {
       ;({ error: movErr } = await supabase.from('movimientos_insumos').insert(base))
     }
     if (movErr) { setGuardandoStock(false); toast.error('No se registró el movimiento: ' + movErr.message); return }
@@ -291,7 +308,7 @@ export default function Insumos() {
     toast.success(stockTipo === 'ingreso' ? '📦 Ingreso registrado' : stockTipo === 'egreso' ? '📤 Egreso registrado' : '🔧 Stock ajustado')
     setGuardandoStock(false)
     setModalStock(null)
-    setStockCantidad(''); setStockSector(''); setStockMotivo(''); setStockLote('')
+    setStockCantidad(''); setStockSector(''); setStockMotivo(''); setStockLote(''); setStockFecha(''); setStockRemito(''); setStockRemitoUrl('')
     cargar()
   }
 
@@ -590,6 +607,8 @@ export default function Insumos() {
                                   </span>
                                   {m.sector && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.sector}</span>}
                                   {m.lote && <span style={{ color: '#7b9fff', marginLeft: 6, fontWeight: 700 }}>· Lote {m.lote}</span>}
+                                  {m.nro_remito && <span style={{ color: '#3dd68c', marginLeft: 6, fontWeight: 700 }}>· Remito {m.nro_remito}</span>}
+                                  {m.remito_url && <a href={m.remito_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#7b9fff', marginLeft: 6 }}>🧾 ver</a>}
                                   {m.motivo && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.motivo}</span>}
                                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
                                     {m.usuario_nombre} · {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale: es })}
@@ -607,7 +626,7 @@ export default function Insumos() {
 
                     {/* Acciones */}
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                      <button onClick={() => { setModalStock(ins); setStockTipo('ingreso') }}
+                      <button onClick={() => { setModalStock(ins); setStockTipo('ingreso'); setStockFecha(new Date().toISOString().slice(0, 10)) }}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         <TrendingUp size={13} /> Ingreso
                       </button>
@@ -928,6 +947,36 @@ export default function Insumos() {
                 </div>
               )}
 
+              {stockTipo === 'ingreso' && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Fecha de ingreso</label>
+                      <input type="date" value={stockFecha} onChange={e => setStockFecha(e.target.value)} style={{ ...inputSt, colorScheme: 'dark' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° de remito</label>
+                      <input value={stockRemito} onChange={e => setStockRemito(e.target.value)} placeholder="Ej: 0001-00012345" style={inputSt} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Foto del remito</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {stockRemitoUrl ? (
+                        <div style={{ position: 'relative' }}>
+                          <img src={stockRemitoUrl} alt="" onClick={() => window.open(stockRemitoUrl, '_blank')} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', cursor: 'zoom-in' }} />
+                          <button onClick={() => setStockRemitoUrl('')} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ff5577', border: 'none', color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1 }}>×</button>
+                        </div>
+                      ) : <div style={{ width: 72, height: 72, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 22 }}>🧾</div>}
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendoRemito ? 'not-allowed' : 'pointer', opacity: subiendoRemito ? 0.6 : 1 }}>
+                        {subiendoRemito ? '⏳ Subiendo...' : '📁 Subir foto del remito'}
+                        <input type="file" accept="image/*" style={{ display: 'none' }} disabled={subiendoRemito} onChange={e => subirRemito(e.target.files?.[0])} />
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Motivo / Observación</label>
                 <input value={stockMotivo} onChange={e => setStockMotivo(e.target.value)} placeholder="Opcional" style={inputSt} />
@@ -1033,6 +1082,8 @@ export default function Insumos() {
                             <span style={{ fontWeight: 700, color: col(m.tipo) }}>{m.tipo === 'ingreso' ? '+' : m.tipo === 'egreso' ? '-' : '='}{m.cantidad} {m.insumos?.unidad}</span>
                             {m.sector && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.sector}</span>}
                             {m.lote && <span style={{ color: '#7b9fff', marginLeft: 6, fontWeight: 700 }}>· Lote {m.lote}</span>}
+                            {m.nro_remito && <span style={{ color: '#3dd68c', marginLeft: 6, fontWeight: 700 }}>· Remito {m.nro_remito}</span>}
+                            {m.remito_url && <a href={m.remito_url} target="_blank" rel="noreferrer" style={{ color: '#7b9fff', marginLeft: 6 }}>🧾</a>}
                             {m.motivo && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.motivo}</span>}
                             <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
                               {new Date(m.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} · {m.usuario_nombre}
