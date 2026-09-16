@@ -163,26 +163,28 @@ export default function LogisticaDiaria() {
 
     // Pedidos / ventas por asignar (solo admin)
     if (!isChofer) {
-      const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }] = await Promise.all([
+      const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }, { data: descData }] = await Promise.all([
         supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id'),
         supabase.from('pedidos').select('*').in('tipo_envio', ['correo', 'logistica']).in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
+        supabase.from('logistica_descartes').select('fuente,ref_id'),
       ])
+      const descartado = (fuente, id) => (descData || []).some(d => d.fuente === fuente && d.ref_id === String(id))
       const asignadosPedidos = new Set((logAsign || []).map(l => l.pedido_id).filter(Boolean))
       const asignadosVentas = new Set((logAsign || []).map(l => l.venta_id).filter(Boolean))
       const asignadosRepuestos = new Set((logAsign || []).map(l => l.repuesto_id).filter(Boolean))
-      const pedidosFiltrados = (pedidosData || []).filter(p => !asignadosPedidos.has(p.id))
+      const pedidosFiltrados = (pedidosData || []).filter(p => !asignadosPedidos.has(p.id) && !descartado('pedido', p.id))
       if (pedidosFiltrados.length > 0) {
         const ids = [...new Set(pedidosFiltrados.map(p => p.distribuidor_id).filter(Boolean))]
         const { data: profsData } = await supabase.from('profiles').select('id,full_name,razon_social').in('id', ids)
         const profsMap = Object.fromEntries((profsData || []).map(p => [p.id, p]))
         setPedidosPendientes(pedidosFiltrados.map(p => ({ ...p, _profile: profsMap[p.distribuidor_id] || null })))
       } else setPedidosPendientes([])
-      setVentasPendientes((ventasData || []).filter(v => !asignadosVentas.has(v.id)))
+      setVentasPendientes((ventasData || []).filter(v => !asignadosVentas.has(v.id) && !descartado('venta', v.id)))
 
       // Repuestos: pedidos pendientes que no estén ya en logística (traer los que se entregan por logística propia)
-      const repFiltrados = (repuestosData || []).filter(r => !asignadosRepuestos.has(r.id))
+      const repFiltrados = (repuestosData || []).filter(r => !asignadosRepuestos.has(r.id) && !descartado('repuesto', r.id))
       if (repFiltrados.length > 0) {
         const ids = [...new Set(repFiltrados.map(r => r.tecnico_id).filter(Boolean))]
         const { data: profsRep } = await supabase.from('profiles').select('id,domicilio,localidad,telefono').in('id', ids)
@@ -224,6 +226,13 @@ export default function LogisticaDiaria() {
     for (const item of (pedido.items || [])) { const col = codigoALogColumna(item.codigo); if (col && item.cantidad > 0) productos[col] = (productos[col] || 0) + item.cantidad }
     setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, productos, pedido_id: pedido.id })
     setEditId(null); setModalOpen(true)
+  }
+
+  async function descartarTraer(fuente, id) {
+    if (!window.confirm('¿Descartar esta sugerencia de "Traer a logística"? No se vuelve a mostrar.')) return
+    const { error } = await supabase.from('logistica_descartes').insert({ fuente, ref_id: String(id) })
+    if (error) { toast.error('Error: ' + error.message); return }
+    cargar()
   }
 
   function abrirDesdeRepuesto(r) {
@@ -635,6 +644,7 @@ export default function LogisticaDiaria() {
                     </div>
                   </div>
                   <button onClick={() => abrirDesdePedido(pedido)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
+                  <button onClick={() => descartarTraer('pedido', pedido.id)} title="Descartar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
                 </div>
               )
             })}
@@ -657,6 +667,7 @@ export default function LogisticaDiaria() {
                     </div>
                   </div>
                   <button onClick={() => abrirDesdeVenta(venta)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
+                  <button onClick={() => descartarTraer('venta', venta.id)} title="Descartar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
                 </div>
               )
             })}
@@ -677,6 +688,7 @@ export default function LogisticaDiaria() {
                     </div>
                   </div>
                   <button onClick={() => abrirDesdeRepuesto(r)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
+                  <button onClick={() => descartarTraer('repuesto', r.id)} title="Descartar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
                 </div>
               )
             })}
