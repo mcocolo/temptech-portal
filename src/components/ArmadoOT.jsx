@@ -33,25 +33,22 @@ const fmtDur = m => m == null ? '—' : `${Math.floor(m / 60)}h ${m % 60}m`
 
 const ESTACIONES = ['E1', 'E2', 'E3', 'E4', 'E5']
 const ESTACION_LABEL = { E1: 'E1 · Molde + Alimentación', E2: 'E2 · Cinta + Prensa', E3: 'E3 · Terminación', E4: 'E4 · Terminación + Alim.', E5: 'E5 · Silicona + Prensa (Pegado)' }
-const INS_EST = [
-  { cod: 'CP12STI', label: 'Cinta papel 12' },
-  { cod: 'CP24STI', label: 'Cinta papel 24' },
-  { cod: 'CP48STI', label: 'Cinta papel 48' },
-  { cod: 'CROMALNB025', label: 'Aluminio 0,25' },
-  { cod: 'CROMALNB04', label: 'Aluminio 0,4' },
-  { cod: 'SILNPT280', label: 'Silicona' },
+const COLS = ['E1', 'E2', 'E3', 'E4', 'E5']
+const SECTORES_ARMADO_INS = ['Alambre', 'Pegado']   // sectores (de Insumos) que usa el armado
+const FALLBACK_INS = [
+  { cod: 'CP12STI', label: 'Cinta papel 12' }, { cod: 'CP24STI', label: 'Cinta papel 24' }, { cod: 'CP48STI', label: 'Cinta papel 48' },
+  { cod: 'CROMALNB025', label: 'Aluminio 0,25' }, { cod: 'CROMALNB04', label: 'Aluminio 0,4' }, { cod: 'SILNPT280', label: 'Silicona' }, { cod: 'RECFIB20', label: 'Fibrado' },
 ]
 const FASES = [['aguj1', 'Aguj N°1'], ['alambre', 'Alambre'], ['pegado', 'Pegado']]
 const TUBOS = Array.from({ length: 12 }, (_, i) => i + 1)
 
-const emptyEst = () => ({ E1: '', E2: '', E3: '', E4: '', lote: '' })
+const emptyEst = () => ({ E1: '', E2: '', E3: '', E4: '', E5: '', lote: '' })
 const FDEF = {
   tiempos: { aguj1: { fi: '', hi: '', ff: '', hf: '' }, alambre: { fi: '', hi: '', ff: '', hf: '' }, pegado: { fi: '', hi: '', ff: '', hf: '' } },
   personalEst: { E1: [], E2: [], E3: [], E4: [], E5: [] },
   mechas: [{ cod: 'MM2', lote: '' }, { cod: 'MM2', lote: '' }, { cod: 'MM3', lote: '' }, { cod: 'MM3', lote: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '',
-  insumosEst: Object.fromEntries(INS_EST.map(i => [i.cod, emptyEst()])),
-  pegado: { masilla: { cod: '', cant: '', lote: '' }, fibrado: { cod: 'RECFIB20', cant: '', lote: '' }, silicona: { cod: 'SILNPT280', cant: '', lote: '' } },
+  insumosEst: {},
   prensas: { P1: { cant: '', pres: '' }, P2: { cant: '', pres: '' }, P3: { cant: '', pres: '' }, P4: { cant: '', pres: '' } },
   conforme: '', no_conforme: '', notas: '',
 }
@@ -62,17 +59,21 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
   const target = lote.cantidad_actual || lote.cantidad_objetivo
   const [empleados, setEmpleados] = useState([])
+  const [insumosCat, setInsumosCat] = useState(FALLBACK_INS)
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
   const [f, setF] = useState(clone(FDEF))
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [e, ot] = await Promise.all([
-      supabase.from('empleados').select('apodo,nombre').eq('activo', true).order('apodo'),
+    const [e, ins, ot] = await Promise.all([
+      supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
+      supabase.from('insumos').select('codigo,descripcion,sectores').eq('tipo', 'directo').order('codigo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'armado').maybeSingle(),
     ])
-    setEmpleados(e.data || [])
+    setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || x.sectores.includes('Armado')))
+    const arm = (ins.data || []).filter(i => Array.isArray(i.sectores) && i.sectores.some(s => SECTORES_ARMADO_INS.includes(s)))
+    setInsumosCat(arm.length ? arm.map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo })) : FALLBACK_INS)
     if (ot.data) {
       setPrevOt(ot.data)
       const d = ot.data.datos || {}
@@ -81,8 +82,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         tiempos: { ...FDEF.tiempos, ...(d.tiempos || {}) },
         personalEst: { ...FDEF.personalEst, ...(d.personalEst || {}) },
         mechas: d.mechas || clone(FDEF.mechas),
-        insumosEst: { ...clone(FDEF.insumosEst), ...(d.insumosEst || {}) },
-        pegado: { ...FDEF.pegado, ...(d.pegado || {}) },
+        insumosEst: { ...(d.insumosEst || {}) },
         prensas: { ...FDEF.prensas, ...(d.prensas || {}) },
         conforme: ot.data.piezas ?? d.conforme ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
       })
@@ -92,17 +92,12 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const setD = (path, val) => setF(s => { const n = clone(s); let o = n; const ks = path.split('.'); for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; return n })
   const togglePers = (est, ap) => setF(s => { const n = clone(s); const arr = n.personalEst[est]; n.personalEst[est] = arr.includes(ap) ? arr.filter(x => x !== ap) : [...arr, ap]; return n })
   const toggleTubo = t => setF(s => { const n = clone(s); n.tubos = n.tubos.includes(t) ? n.tubos.filter(x => x !== t) : [...n.tubos, t]; return n })
+  const setInsEst = (cod, col, val) => setF(s => { const n = clone(s); if (!n.insumosEst[cod]) n.insumosEst[cod] = emptyEst(); n.insumosEst[cod][col] = val; return n })
 
   const conforme = int(f.conforme)
   const duracion = FASES.reduce((sum, [k]) => sum + (calcularDuracion(f.tiempos[k].fi, f.tiempos[k].hi, f.tiempos[k].ff, f.tiempos[k].hf) || 0), 0) || null
 
-  // Totales de insumo (suma E1-E4 + pegado donde corresponde)
-  const totalEst = cod => INS_EST.some(i => i.cod === cod) ? ['E1', 'E2', 'E3', 'E4'].reduce((s, e) => s + int(f.insumosEst[cod]?.[e]), 0) : 0
-  const totalInsumo = cod => {
-    let t = totalEst(cod)
-    if (cod === 'SILNPT280') t += int(f.pegado.silicona.cant)
-    return t
-  }
+  const totalInsumo = cod => COLS.reduce((s, c) => s + int(f.insumosEst[cod]?.[c]), 0)
 
   async function descontar(codigo, delta, lote_ins) {
     if (!codigo || !delta) return
@@ -118,7 +113,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, pegado: f.pegado, prensas: f.prensas, no_conforme: int(f.no_conforme) }
+    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme) }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const payload = {
       lote_id: lote.id, etapa: 'armado',
@@ -134,15 +129,8 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
     // Descontar insumos por el delta respecto de lo ya descontado
     const prev = prevOt?.datos || {}
-    const prevTot = cod => {
-      const e = prev.insumosEst?.[cod] || {}
-      let t = ['E1', 'E2', 'E3', 'E4'].reduce((s, k) => s + int(e[k]), 0)
-      if (cod === 'SILNPT280') t += int(prev.pegado?.silicona?.cant)
-      return t
-    }
-    for (const { cod } of INS_EST) await descontar(cod, totalInsumo(cod) - prevTot(cod), f.insumosEst[cod]?.lote)
-    await descontar('RECFIB20', int(f.pegado.fibrado.cant) - int(prev.pegado?.fibrado?.cant), f.pegado.fibrado.lote)
-    if (f.pegado.masilla.cod) await descontar(f.pegado.masilla.cod, int(f.pegado.masilla.cant) - int(prev.pegado?.masilla?.cant), f.pegado.masilla.lote)
+    const prevTot = cod => COLS.reduce((s, c) => s + int(prev.insumosEst?.[cod]?.[c]), 0)
+    for (const { cod } of insumosCat) await descontar(cod, totalInsumo(cod) - prevTot(cod), f.insumosEst[cod]?.lote)
 
     // Actualizar el lote: avance de armado = conforme; si completó, pasa a Encuadre
     const completo = conforme >= target && conforme > 0
@@ -223,56 +211,31 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
             </div>
           </Sec>
 
-          {/* Insumos por estación */}
-          <Sec t="📦 Insumos por estación (E1–E4) — descuentan stock">
+          {/* Insumos por estación (dinámico: insumos con sector Alambre/Pegado) */}
+          <Sec t="📦 Insumos por estación (E1–E5) — descuentan stock">
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 560 }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 620 }}>
                 <thead><tr>
                   <th style={{ fontSize: 10, color: 'var(--text3)', textAlign: 'left', padding: '4px 6px' }}>Insumo</th>
-                  {['E1', 'E2', 'E3', 'E4'].map(e => <th key={e} style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>{e}</th>)}
+                  {COLS.map(e => <th key={e} style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>{e}</th>)}
                   <th style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>Lote</th>
                   <th style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>Total</th>
                 </tr></thead>
                 <tbody>
-                  {INS_EST.map(({ cod, label }) => (
+                  {insumosCat.map(({ cod, label }) => (
                     <tr key={cod}>
                       <td style={{ fontSize: 12, padding: '3px 6px' }}>{label} <span style={{ color: 'var(--text3)', fontFamily: 'monospace', fontSize: 10 }}>{cod}</span></td>
-                      {['E1', 'E2', 'E3', 'E4'].map(e => (
-                        <td key={e} style={{ padding: '3px 4px' }}><input type="number" value={f.insumosEst[cod][e]} onChange={ev => setD(`insumosEst.${cod}.${e}`, ev.target.value)} style={{ ...iSt, width: 62, padding: '5px 6px', textAlign: 'center' }} /></td>
+                      {COLS.map(e => (
+                        <td key={e} style={{ padding: '3px 4px' }}><input type="number" value={f.insumosEst[cod]?.[e] ?? ''} onChange={ev => setInsEst(cod, e, ev.target.value)} style={{ ...iSt, width: 54, padding: '5px 6px', textAlign: 'center' }} /></td>
                       ))}
-                      <td style={{ padding: '3px 4px' }}><input value={f.insumosEst[cod].lote} onChange={ev => setD(`insumosEst.${cod}.lote`, ev.target.value)} placeholder="lote" style={{ ...iSt, width: 70, padding: '5px 6px' }} /></td>
-                      <td style={{ padding: '3px 6px', fontWeight: 800, color: '#7b9fff', textAlign: 'center' }}>{totalEst(cod)}</td>
+                      <td style={{ padding: '3px 4px' }}><input value={f.insumosEst[cod]?.lote ?? ''} onChange={ev => setInsEst(cod, 'lote', ev.target.value)} placeholder="lote" style={{ ...iSt, width: 70, padding: '5px 6px' }} /></td>
+                      <td style={{ padding: '3px 6px', fontWeight: 800, color: '#7b9fff', textAlign: 'center' }}>{totalInsumo(cod)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </Sec>
-
-          {/* Pegado (insumos totales) */}
-          <Sec t="🧴 Pegado — insumos">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <div><label style={lbl}>Masilla (cód / cant / lote)</label>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <input value={f.pegado.masilla.cod} onChange={e => setD('pegado.masilla.cod', e.target.value)} placeholder="cód" style={{ ...iSt, width: 70 }} />
-                  <input type="number" value={f.pegado.masilla.cant} onChange={e => setD('pegado.masilla.cant', e.target.value)} placeholder="0" style={{ ...iSt, width: 56 }} />
-                  <input value={f.pegado.masilla.lote} onChange={e => setD('pegado.masilla.lote', e.target.value)} placeholder="lote" style={{ ...iSt, width: 64 }} />
-                </div>
-              </div>
-              <div><label style={lbl}>Fibrado RECFIB20 (cant / lote)</label>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <input type="number" value={f.pegado.fibrado.cant} onChange={e => setD('pegado.fibrado.cant', e.target.value)} placeholder="0" style={{ ...iSt, width: 70 }} />
-                  <input value={f.pegado.fibrado.lote} onChange={e => setD('pegado.fibrado.lote', e.target.value)} placeholder="lote" style={{ ...iSt, width: 80 }} />
-                </div>
-              </div>
-              <div><label style={lbl}>Silicona SILNPT280 (cant / lote)</label>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <input type="number" value={f.pegado.silicona.cant} onChange={e => setD('pegado.silicona.cant', e.target.value)} placeholder="0" style={{ ...iSt, width: 70 }} />
-                  <input value={f.pegado.silicona.lote} onChange={e => setD('pegado.silicona.lote', e.target.value)} placeholder="lote" style={{ ...iSt, width: 80 }} />
-                </div>
-              </div>
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>La silicona total descontada = suma E1–E4 + esta cantidad de pegado.</div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Los insumos salen de los que tienen sector <b>Alambre</b> o <b>Pegado</b> en Insumos Directos. E5 = Pegado.</div>
           </Sec>
 
           {/* Prensas */}

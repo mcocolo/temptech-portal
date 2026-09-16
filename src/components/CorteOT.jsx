@@ -93,12 +93,12 @@ export default function CorteOT({ lote, onClose, onDone }) {
   async function cargar() {
     const [h, e, ot, pl] = await Promise.all([
       supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
-      supabase.from('empleados').select('apodo,nombre').eq('activo', true).order('apodo'),
+      supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'corte').maybeSingle(),
       supabase.from('produccion_pulmon').select('*').eq('modelo', lote.modelo).eq('estado', 'OK'),
     ])
     setHerr(h.data || [])
-    setEmpleados(e.data || [])
+    setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || x.sectores.includes('Corte')))
     setPulmon(pl.data || [])
     if (ot.data) {
       setPrevOt(ot.data)

@@ -25,7 +25,9 @@ const GRUPOS = [
 const CAMPOS = GRUPOS.flatMap(g => g.campos)
 const DATE_F = new Set(['nacimiento', 'fecha_ingreso', 'fecha_egreso1', 'fecha_ingreso2', 'fecha_egreso2'])
 const NUM_F = new Set(['id_externo', 'hijos', 'monto', 'antiguedad'])
-const EMPTY = Object.fromEntries(CAMPOS.map(([k]) => [k, '']))
+// Sectores de producción en los que puede participar el empleado
+export const SECTORES_EMP = ['Corte', 'Armado', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
+const EMPTY = { ...Object.fromEntries(CAMPOS.map(([k]) => [k, ''])), sectores: [] }
 
 export default function Empleados() {
   const { isAdmin, isAdmin2 } = useAuth()
@@ -52,6 +54,7 @@ export default function Empleados() {
   function abrirEditar(e) {
     const f = {}
     for (const [k] of CAMPOS) f[k] = e[k] ?? ''
+    f.sectores = Array.isArray(e.sectores) ? e.sectores : []
     setForm(f); setEditId(e.id); setModalOpen(true)
   }
 
@@ -62,6 +65,7 @@ export default function Empleados() {
       if (NUM_F.has(k)) p[k] = v === '' || v == null ? null : Number(v)
       else p[k] = String(v).trim() === '' ? null : (DATE_F.has(k) ? v : String(v).trim())
     }
+    p.sectores = form.sectores || []
     return p
   }
 
@@ -171,6 +175,14 @@ export default function Empleados() {
                         <div style={{ fontSize: 13, color: 'var(--text2)' }}>{fmt(k, e[k])}</div>
                       </div>
                     ))}
+                    {Array.isArray(e.sectores) && e.sectores.length > 0 && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>Sectores</div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                          {e.sectores.map(s => <span key={s} style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 20, padding: '2px 9px' }}>{s}</span>)}
+                        </div>
+                      </div>
+                    )}
                     {(() => { const a = antiguedad(e); return a ? (
                       <div>
                         <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Antigüedad {a.activo ? '' : '(al egreso)'}</div>
@@ -208,6 +220,17 @@ export default function Empleados() {
                   </div>
                 </div>
               ))}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>🏭 Sectores en los que participa</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {SECTORES_EMP.map(s => {
+                    const sel = (form.sectores || []).includes(s)
+                    return <button key={s} type="button" onClick={() => setForm(f => ({ ...f, sectores: sel ? f.sectores.filter(x => x !== s) : [...(f.sectores || []), s] }))}
+                      style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: sel ? '#3dd68c' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(61,214,140,0.45)' : 'var(--border)'}` }}>{s}</button>
+                  })}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Si no elegís ninguno, el empleado aparece en todas las OT.</div>
+              </div>
               <div style={{ display: 'flex', gap: 8, position: 'sticky', bottom: 0, background: 'var(--surface)', paddingTop: 6 }}>
                 <button onClick={guardar} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando...' : editId ? '✓ Guardar' : '✓ Agregar'}</button>
                 <button onClick={() => setModalOpen(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
