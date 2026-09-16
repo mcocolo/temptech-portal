@@ -74,13 +74,13 @@ const ADMIN_NAV = [
     { label: 'Tablero de Producción', icon: Factory, path: '/produccion/tablero' },
     { label: 'Reporte de Producción', icon: BarChart2, path: '/produccion/reportes' },
     { label: 'Empleados',          icon: Users,  path: '/produccion/empleados' },
-    { label: 'Herramental',        icon: Wrench, path: '/produccion/herramental' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
     { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
   ]},
   { section: 'Mantenimiento' },
   { label: 'Mantenimiento', icon: Wrench, isAdmin: true, submenu: 'mantenimiento', children: [
     { label: 'Máquinas', icon: Cog, path: '/mantenimiento/maquinas' },
+    { label: 'Herramental', icon: Wrench, path: '/produccion/herramental' },
   ]},
 ]
 
@@ -107,13 +107,13 @@ const ADMIN2_NAV = [
     { label: 'Tablero de Producción', icon: Factory, path: '/produccion/tablero' },
     { label: 'Reporte de Producción', icon: BarChart2, path: '/produccion/reportes' },
     { label: 'Empleados',          icon: Users,  path: '/produccion/empleados' },
-    { label: 'Herramental',        icon: Wrench, path: '/produccion/herramental' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
     { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
   ]},
   { section: 'Mantenimiento' },
   { label: 'Mantenimiento', icon: Wrench, isAdmin: true, submenu: 'mantenimiento', children: [
     { label: 'Máquinas', icon: Cog, path: '/mantenimiento/maquinas' },
+    { label: 'Herramental', icon: Wrench, path: '/produccion/herramental' },
   ]},
 ]
 
