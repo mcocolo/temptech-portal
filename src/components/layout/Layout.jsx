@@ -9,7 +9,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin, Cog
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -78,6 +78,10 @@ const ADMIN_NAV = [
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
     { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
   ]},
+  { section: 'Mantenimiento' },
+  { label: 'Mantenimiento', icon: Wrench, isAdmin: true, submenu: 'mantenimiento', children: [
+    { label: 'Máquinas', icon: Cog, path: '/mantenimiento/maquinas' },
+  ]},
 ]
 
 const ADMIN2_NAV = [
@@ -106,6 +110,10 @@ const ADMIN2_NAV = [
     { label: 'Herramental',        icon: Wrench, path: '/produccion/herramental' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
     { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
+  ]},
+  { section: 'Mantenimiento' },
+  { label: 'Mantenimiento', icon: Wrench, isAdmin: true, submenu: 'mantenimiento', children: [
+    { label: 'Máquinas', icon: Cog, path: '/mantenimiento/maquinas' },
   ]},
 ]
 
