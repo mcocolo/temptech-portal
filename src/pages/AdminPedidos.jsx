@@ -104,6 +104,7 @@ export default function AdminPedidos() {
   const [itemsEdit, setItemsEdit] = useState([])
   const [notaAdmin, setNotaAdmin] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState('')
+  const [entregaLogistica, setEntregaLogistica] = useState(false)   // se entrega con Logística propia → aparece en Logística Diaria
   const [guardando, setGuardando] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
@@ -399,6 +400,7 @@ export default function AdminPedidos() {
     })))
     setNotaAdmin(pedido.notas_admin || '')
     setFechaEntrega(pedido.fecha_entrega || '')
+    setEntregaLogistica(pedido.entrega_logistica || false)
     setIncluirIVAEdit(pedido.incluir_iva || false)
     setEditando(pedido.id)
   }
@@ -698,6 +700,7 @@ export default function AdminPedidos() {
       incluir_iva: incluirIVAEdit,
       notas_admin: notaAdmin.trim() || null,
       fecha_entrega: fechaEntrega || null,
+      entrega_logistica: entregaLogistica,
       nro_remito: pedido.nro_remito || null,
       notas_internas: pedido.notas_internas || null,
       updated_at: new Date().toISOString(),
@@ -1685,6 +1688,11 @@ export default function AdminPedidos() {
                           onChange={e => setFechaEntrega(e.target.value)}
                           style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)' }}
                         />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>
+                          <input type="checkbox" checked={entregaLogistica} onChange={e => setEntregaLogistica(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7b9fff' }} />
+                          🚚 Se entrega con Logística propia
+                        </label>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3, lineHeight: 1.4 }}>Si lo marcás, el pedido aparece en <b>Logística Diaria</b> para traer a la ruta.</div>
                       </div>
                       <div>
                         <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Nota para el distribuidor</label>

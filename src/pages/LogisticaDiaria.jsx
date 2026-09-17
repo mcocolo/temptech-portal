@@ -165,7 +165,7 @@ export default function LogisticaDiaria() {
     if (!isChofer) {
       const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }, { data: descData }] = await Promise.all([
         supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id'),
-        supabase.from('pedidos').select('*').in('tipo_envio', ['correo', 'logistica']).in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
+        supabase.from('pedidos').select('*').or('tipo_envio.in.(correo,logistica),entrega_logistica.eq.true').in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('logistica_descartes').select('fuente,ref_id'),
