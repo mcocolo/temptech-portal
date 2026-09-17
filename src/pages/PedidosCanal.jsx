@@ -387,6 +387,11 @@ export default function PedidosCanal() {
   const [fEnvioEtiquetas, setFEnvioEtiquetas]     = useState([]) // correo: { file?, url?, productos:[{codigo,nombre}] }[]
   const [fEnvioItems, setFEnvioItems]             = useState([{ codigo: '', nombre: '', cantidad: 1 }]) // logistica/retiro
   const [fEnvioRetiroPersona, setFEnvioRetiroPersona] = useState('')
+  // Datos de entrega para Logística (salen en la planilla de Logística Diaria)
+  const [fEnvioDir, setFEnvioDir]         = useState('')
+  const [fEnvioLoc, setFEnvioLoc]         = useState('')
+  const [fEnvioZona, setFEnvioZona]       = useState('')
+  const [fEnvioDni, setFEnvioDni]         = useState('')
 
   useEffect(() => { cargarCatalogo() }, [])
   useEffect(() => { setBusqueda(''); setFiltro('pendiente'); cargar() }, [canal])
@@ -403,7 +408,7 @@ export default function PedidosCanal() {
     setLoading(false)
   }
 
-  function resetEnvio() { setFTipoEnvio(''); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona('') }
+  function resetEnvio() { setFTipoEnvio(''); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona(''); setFEnvioDir(''); setFEnvioLoc(''); setFEnvioZona(''); setFEnvioDni('') }
   function abrirNueva() { setEditando(null); setFNroOrden(''); setFNombre(''); setFEmail(''); setFTel(''); setFItems([emptyItem()]); setFObs(''); setFEstado('pendiente'); setFFechaEnvio(''); resetEnvio(); setModal(true) }
   function abrirEditar(v) {
     if (!canModificar) return toast.error('No tenés permiso para editar ventas')
@@ -414,6 +419,8 @@ export default function PedidosCanal() {
     setFEnvioEtiquetas((v.envio_etiquetas||[]).map(e => typeof e === 'object' && e.url ? { url: e.url, productos: e.productos||[] } : { url: e, productos: [] }))
     setFEnvioItems(v.tipo_envio && v.tipo_envio !== 'correo' && v.envio_etiquetas?.length ? v.envio_etiquetas : [{ codigo: '', nombre: '', cantidad: 1 }])
     setFEnvioRetiroPersona(v.envio_retiro_persona||'')
+    const ed = v.envio_datos || {}
+    setFEnvioDir(ed.direccion||''); setFEnvioLoc(ed.localidad||''); setFEnvioZona(ed.zona||''); setFEnvioDni(ed.dni||'')
     setModal(true)
   }
 
@@ -464,6 +471,9 @@ export default function PedidosCanal() {
       tipo_envio: fTipoEnvio || null,
       envio_etiquetas: envioEtiquetasFinal,
       envio_retiro_persona: fTipoEnvio === 'retiro' ? (fEnvioRetiroPersona.trim() || null) : null,
+      envio_datos: fTipoEnvio === 'logistica'
+        ? { direccion: fEnvioDir.trim() || null, localidad: fEnvioLoc.trim() || null, zona: fEnvioZona.trim() || null, dni: fEnvioDni.trim() || null }
+        : null,
       fecha_envio: fFechaEnvio || null,
       usuario_id: user.id,
       usuario_nombre: profile?.full_name || profile?.razon_social || user?.email || null,
@@ -997,6 +1007,34 @@ export default function PedidosCanal() {
                     <div style={{ marginBottom: 12 }}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nombre y apellido del que retira *</label>
                       <input value={fEnvioRetiroPersona} onChange={e => setFEnvioRetiroPersona(e.target.value)} placeholder="Ej: Juan Pérez" style={inputSt} />
+                    </div>
+                  )}
+                  {fTipoEnvio === 'logistica' && (
+                    <div style={{ marginBottom: 14, padding: '12px', background: 'var(--surface2)', border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: cc.color, textTransform: 'uppercase', marginBottom: 10 }}>📍 Datos de entrega (salen en la planilla de Logística)</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Dirección</label>
+                          <input value={fEnvioDir} onChange={e => setFEnvioDir(e.target.value)} placeholder="Calle, número, piso/depto" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Localidad</label>
+                          <input value={fEnvioLoc} onChange={e => setFEnvioLoc(e.target.value)} placeholder="Localidad" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Zona</label>
+                          <input value={fEnvioZona} onChange={e => setFEnvioZona(e.target.value)} placeholder="Zona / partido" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Teléfono</label>
+                          <input value={fTel} onChange={e => setFTel(e.target.value)} placeholder="Teléfono de contacto" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DNI / CUIT</label>
+                          <input value={fEnvioDni} onChange={e => setFEnvioDni(e.target.value)} placeholder="Opcional" style={inputSt} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 8, lineHeight: 1.4 }}>El destinatario es <b>{fNombre.trim() || '(nombre del cliente, arriba)'}</b>. Estos datos aparecen en <b>Logística Diaria</b> al traer la venta a la ruta.</div>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

@@ -216,7 +216,12 @@ export default function LogisticaDiaria() {
     const productos = {}
     const fuente = (venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0) ? venta.envio_etiquetas : venta.items || []
     for (const item of fuente) { const col = codigoALogColumna(item.codigo); if (col && item.cantidad > 0) productos[col] = (productos[col] || 0) + item.cantidad }
-    setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, telefono: venta.cliente_telefono || '', email: venta.cliente_email || '', productos, venta_id: venta.id })
+    const ed = venta.envio_datos || {}
+    setForm({
+      ...EMPTY_FORM, tipo: 'entrega_pt', nombre,
+      direccion: ed.direccion || '', localidad: ed.localidad || '', zona: ed.zona || '', dni: ed.dni || '',
+      telefono: venta.cliente_telefono || '', email: venta.cliente_email || '', productos, venta_id: venta.id,
+    })
     setEditId(null); setModalOpen(true)
   }
 
