@@ -365,10 +365,13 @@ export default function AdminPedidos() {
 
   async function crearPedido() {
     if (!npDistId) { toast.error('Seleccioná un distribuidor'); return }
+    const esDevolucion = npConcepto === 'devoluciones_pendientes'
+    // Devoluciones pendientes: se entrega contra mercadería que ya ingresó → precio 0 (sin cobro)
     const itemsValidos = npItems.filter(i => i.cantidad > 0)
+      .map(i => esDevolucion ? { ...i, precio_unitario: 0, descuento_pct: 0, subtotal: 0 } : i)
     if (itemsValidos.length === 0) { toast.error('Agregá al menos un producto'); return }
     const totalNeto = itemsValidos.reduce((s, i) => s + i.subtotal, 0)
-    const ivaMonto = npIVA ? totalNeto * IVA_PCT : 0
+    const ivaMonto = (npIVA && !esDevolucion) ? totalNeto * IVA_PCT : 0
     const totalFinal = totalNeto + ivaMonto
     setCreando(true)
     const { error } = await supabase.from('pedidos').insert({
@@ -378,10 +381,11 @@ export default function AdminPedidos() {
       items: itemsValidos,
       total: totalFinal,
       iva_monto: ivaMonto,
-      incluir_iva: npIVA,
+      incluir_iva: npIVA && !esDevolucion,
       notas_admin: npNotas.trim() || null,
       fecha_entrega: npFecha || null,
-      concepto: npConcepto === 'devoluciones_pendientes' ? 'devoluciones_pendientes' : null,
+      concepto: esDevolucion ? 'devoluciones_pendientes' : null,
+      ...(esDevolucion && { dev_revisado: false }),
       ...(isVendedor && { vendedor_id: user.id }),
     })
     if (error) { toast.error('Error al crear el pedido: ' + error.message); setCreando(false); return }
@@ -855,8 +859,9 @@ export default function AdminPedidos() {
 
   // ── Vista: Nuevo pedido ──────────────────────────────────────────────────────
   if (vista === 'nuevo') {
-    const npTotalNeto = npItems.filter(i => i.cantidad > 0).reduce((s, i) => s + i.subtotal, 0)
-    const npIVAMonto  = npIVA ? npTotalNeto * IVA_PCT : 0
+    const npEsDevolucion = npConcepto === 'devoluciones_pendientes'
+    const npTotalNeto = npEsDevolucion ? 0 : npItems.filter(i => i.cantidad > 0).reduce((s, i) => s + i.subtotal, 0)
+    const npIVAMonto  = (npIVA && !npEsDevolucion) ? npTotalNeto * IVA_PCT : 0
     const npTotal     = npTotalNeto + npIVAMonto
 
     return (

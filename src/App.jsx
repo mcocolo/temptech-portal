@@ -30,6 +30,7 @@ import PedidosCanal from '@/pages/PedidosCanal'
 import LogisticaDiaria from '@/pages/LogisticaDiaria'
 import Insumos from '@/pages/Insumos'
 import AdminDevoluciones from '@/pages/AdminDevoluciones'
+import DevolucionesDistribuidores from '@/pages/DevolucionesDistribuidores'
 import AdminEgresoDevoluciones from '@/pages/AdminEgresoDevoluciones'
 import Devoluciones from '@/pages/Devoluciones'
 import PerfilDistribuidor from '@/pages/PerfilDistribuidor'
@@ -110,6 +111,7 @@ function AppRoutes() {
               <Route path="/ingreso-egreso-pt"          element={<IngresoEgresoPT />} />
               <Route path="/logistica"                  element={<LogisticaDiaria />} />
               <Route path="/admin-devoluciones"             element={<AdminDevoluciones />} />
+              <Route path="/devoluciones-distribuidores"    element={<DevolucionesDistribuidores />} />
               <Route path="/egreso-devoluciones"            element={<AdminEgresoDevoluciones />} />
               <Route path="/devoluciones"                  element={<Devoluciones />} />
               <Route path="/mi-perfil"                     element={<PerfilDistribuidor />} />
