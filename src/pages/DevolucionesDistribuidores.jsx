@@ -109,13 +109,14 @@ export default function DevolucionesDistribuidores() {
 
   if (!isAdmin && !isAdmin2) return null
 
-  const esEntregado = r => !!entregadoMap[r.id] || r.estado === 'resuelto'
+  // Dos dimensiones independientes: Revisión (revisada/no) y Entrega de la reposición (entregada/no)
+  const esEntregado = r => !!entregadoMap[r.id]
+  const esRevisada = r => r.estado === 'revisado'
   const q = busqueda.trim().toLowerCase()
   const filtradas = rows.filter(r => {
-    const entregado = esEntregado(r)
-    if (filtro === 'entregado' && !entregado) return false
-    if (filtro === 'pendiente' && (entregado || r.estado !== 'pendiente')) return false
-    if (filtro === 'revisado' && (entregado || r.estado !== 'revisado')) return false
+    if (filtro === 'pendiente' && esRevisada(r)) return false      // Por revisar = todavía sin revisar
+    if (filtro === 'revisado' && !esRevisada(r)) return false
+    if (filtro === 'entregado' && !esEntregado(r)) return false
     if (q) {
       const prof = perfiles[r.distribuidor_id] || {}
       const nom = (prof.razon_social || prof.full_name || '').toLowerCase()
@@ -123,7 +124,7 @@ export default function DevolucionesDistribuidores() {
     }
     return true
   })
-  const porRevisar = rows.filter(r => !esEntregado(r) && r.estado === 'pendiente').length
+  const porRevisar = rows.filter(r => !esRevisada(r)).length
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -161,7 +162,7 @@ export default function DevolucionesDistribuidores() {
             const items = (r.items || []).filter(i => i.cantidad > 0)
             const totalUnid = items.reduce((s, i) => s + (parseInt(i.cantidad) || 0), 0)
             const entregado = esEntregado(r)
-            const revisado = r.estado === 'revisado' && !entregado
+            const revisado = esRevisada(r)
             return (
               <div key={r.id} style={{ background: 'var(--surface)', border: `1px solid ${entregado ? 'rgba(56,189,248,0.3)' : revisado ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px', opacity: entregado ? 0.9 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -179,11 +180,9 @@ export default function DevolucionesDistribuidores() {
                       {revisado && r.revisado_por ? <span style={{ color: '#3dd68c' }}> · revisada por {r.revisado_por}</span> : ''}
                     </div>
                   </div>
-                  {entregado
-                    ? null
-                    : revisado
-                      ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
-                      : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
+                  {revisado
+                    ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
+                    : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
                 </div>
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {items.map((i, idx) => (

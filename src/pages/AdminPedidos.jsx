@@ -534,10 +534,11 @@ export default function AdminPedidos() {
     }
     const { error } = await supabase.from('pedidos').update({ estado: 'entregado', stock_descontado: true, updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
-    // Si repone una devolución pendiente, se cierra (caso resuelto)
+    // La devolución vinculada se marca "Entregada" en su pantalla mirando este pedido
+    // (no tocamos su estado de revisión, que es independiente). Solo dejamos la marca de fecha.
     if (pedido.concepto === 'devoluciones_pendientes' && pedido.devdist_id) {
       await supabase.from('devoluciones_distribuidor').update({
-        estado: 'resuelto', resuelto_por: profile?.full_name || user?.email || 'Admin', resuelto_at: new Date().toISOString(),
+        resuelto_por: profile?.full_name || user?.email || 'Admin', resuelto_at: new Date().toISOString(),
       }).eq('id', pedido.devdist_id)
     }
     toast.success('Pedido entregado — egreso de stock registrado ✅')
