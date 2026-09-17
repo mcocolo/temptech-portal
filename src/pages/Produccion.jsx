@@ -98,7 +98,7 @@ export default function Produccion() {
   const [busqueda, setBusqueda] = useState('')
   const [fModelo, setFModelo] = useState('')
   const [fTemporada, setFTemporada] = useState('')
-  const [fFamilia, setFFamilia] = useState('')   // '' | '1400' | 'otros'
+  const [fFamilia, setFFamilia] = useState('1400')   // '1400' | 'otros' (procesos distintos)
   const [accesosOpen, setAccesosOpen] = useState(false)
   const [pulmonOpen, setPulmonOpen] = useState(false)
 
@@ -307,19 +307,24 @@ export default function Produccion() {
         </div>
       </div>
 
-      {vista === 'tablero' && !loading && (
+      {!loading && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+          {/* Familias: procesos distintos (Firenze vs Slim) — sin "Todos" para no mezclarlos */}
           <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
-            {[['', 'Todos'], ['1400', '1400w (Firenze)'], ['otros', '250w / 500w']].map(([v, l]) => (
-              <button key={v || 'todos'} onClick={() => setFFamilia(v)}
+            {[['1400', '1400w (Firenze)'], ['otros', '250w / 500w']].map(([v, l]) => (
+              <button key={v} onClick={() => setFFamilia(v)}
                 style={{ padding: '6px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: fFamilia === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: fFamilia === v ? '#7b9fff' : 'var(--text3)' }}>
                 {l}
               </button>
             ))}
           </div>
-          <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar lote (F111, 511, color…)"
-            style={{ ...iSt, maxWidth: 280 }} />
-          {busqueda && <button onClick={() => setBusqueda('')} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>Limpiar</button>}
+          {vista === 'tablero' && (
+            <>
+              <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar lote (F111, 511, color…)"
+                style={{ ...iSt, maxWidth: 280 }} />
+              {busqueda && <button onClick={() => setBusqueda('')} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>Limpiar</button>}
+            </>
+          )}
         </div>
       )}
 
@@ -410,9 +415,10 @@ export default function Produccion() {
       ) : (
         (() => {
           const q = busqueda.trim()
-          const modelos = [...new Set(lotes.map(l => l.modelo))].sort()
+          const modelos = [...new Set(lotes.filter(enFamilia).map(l => l.modelo))].sort()
           const temporadas = [...new Set(lotes.map(l => l.temporada).filter(Boolean))].sort()
           const filtrados = lotes.filter(l =>
+            enFamilia(l) &&
             (!fModelo || l.modelo === fModelo) &&
             (!fTemporada || String(l.temporada) === String(fTemporada)) &&
             (!q || String(l.numero).includes(q) || fmtLote(l).toLowerCase().includes(q) || (l.terminacion || '').toLowerCase().includes(q))
