@@ -22,7 +22,7 @@ const COLS_CSV_INS = [
   { key: 'precio_tecnico', label: 'precio_tecnico', type: 'number' },
 ]
 
-const SECTORES = ['Corte', 'Alambre', 'Pegado', 'Encuadre', 'Aguj2', 'Lija', 'Pintura', 'Cables + Kits', 'Electrica', 'Embalaje', '1400w']
+const SECTORES = ['Corte', 'Alambre', 'Pegado', 'Encuadre', 'Aguj2', 'Lija', 'Pintura', 'Cables + Kits', 'Electrica', 'Embalaje', '1400w', 'Taller']
 const UNIDADES = ['unidades', 'kg', 'litros', 'metros', 'rollos', 'cajas', 'pares', 'pliegos']
 
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }

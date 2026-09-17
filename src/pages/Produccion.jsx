@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import CorteOT from '@/components/CorteOT'
 import ArmadoOT from '@/components/ArmadoOT'
+import TallerOT from '@/components/TallerOT'
 import toast from 'react-hot-toast'
 
 // Modelos y rendimiento (cantidad de lote por defecto y hojas MPSTD6 que consume)
@@ -91,6 +92,7 @@ export default function Produccion() {
   const [avanceCell, setAvanceCell] = useState(null)   // { lote, etapa } (avance dentro de una etapa)
   const [otLote, setOtLote] = useState(null)           // lote cuya OT de Corte se está cargando
   const [armadoLote, setArmadoLote] = useState(null)   // lote cuya OT de Armado se está cargando
+  const [tallerLote, setTallerLote] = useState(null)   // lote 1400w cuya OT de Taller se está cargando
   const [expandido, setExpandido] = useState(null)
   const [vista, setVista] = useState('tablero')        // tablero | listado
   const [busqueda, setBusqueda] = useState('')
@@ -333,6 +335,7 @@ export default function Produccion() {
                             {/* OT de Corte: disponible para ver/editar el corte en cualquier etapa (menos terminado) */}
                             {lote.etapa !== 'terminado' && <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 {lote.etapa === 'por_iniciar' ? 'OT Corte' : 'Corte'}</button>}
                             {lote.etapa === 'armado' && !lote.modelo.includes('1400') && <button onClick={() => setArmadoLote(lote)} style={btn('#a78bfa')}>🧵 OT Armado</button>}
+                            {lote.etapa === 'taller' && esFirenze(lote.modelo) && <button onClick={() => setTallerLote(lote)} style={btn('#22d3ee')}>🛠 OT Taller</button>}
                             {puedeGestionar && lote.etapa !== 'por_iniciar' && <button onClick={() => retrocederEtapa(lote)} style={btn('var(--text3)')} title="Volver a la etapa anterior">← Volver</button>}
                             {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
                               <>
@@ -514,6 +517,9 @@ export default function Produccion() {
       {otLote && <CorteOT lote={otLote} onClose={() => setOtLote(null)} onDone={cargar} />}
 
       {armadoLote && <ArmadoOT lote={armadoLote} onClose={() => setArmadoLote(null)} onDone={cargar} />}
+
+      {/* OT DE TALLER (1400w / Firenze) */}
+      {tallerLote && <TallerOT lote={tallerLote} onClose={() => setTallerLote(null)} onDone={cargar} />}
 
       {/* ACCESOS DE PROCESO (admin) */}
       {accesosOpen && puedeGestionar && <ProcesoAccesosModal onClose={() => setAccesosOpen(false)} />}
