@@ -9,7 +9,7 @@ function formatFecha(d) {
   return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
-const FILTROS = [['pendiente', 'Por revisar'], ['revisado', 'Revisadas'], ['todos', 'Todas']]
+const FILTROS = [['pendiente', 'Por revisar'], ['revisado', 'Revisadas'], ['resuelto', 'Cerradas'], ['todos', 'Todas']]
 const emptyItem = () => ({ codigo: '', nombre: '', modelo: '', cantidad: 1 })
 
 export default function DevolucionesDistribuidores() {
@@ -30,6 +30,8 @@ export default function DevolucionesDistribuidores() {
   const [fDistId, setFDistId] = useState('')
   const [fItems, setFItems] = useState([emptyItem()])
   const [fNotas, setFNotas] = useState('')
+  const [fFecha, setFFecha] = useState('')
+  const [fModo, setFModo] = useState('fabrica')
   const [creando, setCreando] = useState(false)
 
   useEffect(() => { cargar() }, [])
@@ -49,7 +51,7 @@ export default function DevolucionesDistribuidores() {
   }
 
   async function abrirNueva() {
-    setFDistId(''); setFItems([emptyItem()]); setFNotas(''); setModal(true)
+    setFDistId(''); setFItems([emptyItem()]); setFNotas(''); setFFecha(''); setFModo('fabrica'); setModal(true)
     if (!distribuidores.length) {
       const { data } = await supabase.from('profiles').select('id,full_name,razon_social,email').eq('user_type', 'distributor').order('razon_social')
       setDistribuidores(data || [])
@@ -72,6 +74,7 @@ export default function DevolucionesDistribuidores() {
     setCreando(true)
     const { error } = await supabase.from('devoluciones_distribuidor').insert({
       distribuidor_id: fDistId, origen: 'admin', items, notas: fNotas.trim() || null,
+      fecha_devolucion: fFecha || null, modo_entrega: fModo,
       estado: 'pendiente', creado_por: nombreUsuario,
     })
     setCreando(false)
@@ -143,23 +146,30 @@ export default function DevolucionesDistribuidores() {
             const items = (r.items || []).filter(i => i.cantidad > 0)
             const totalUnid = items.reduce((s, i) => s + (parseInt(i.cantidad) || 0), 0)
             const revisado = r.estado === 'revisado'
+            const resuelto = r.estado === 'resuelto'
             return (
-              <div key={r.id} style={{ background: 'var(--surface)', border: `1px solid ${revisado ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
+              <div key={r.id} style={{ background: 'var(--surface)', border: `1px solid ${resuelto ? 'rgba(56,189,248,0.3)' : revisado ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px', opacity: resuelto ? 0.85 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {r.codigo && <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'monospace', color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 6, padding: '2px 8px' }}>{r.codigo}</span>}
                       <span style={{ fontSize: 15, fontWeight: 800 }}>🏪 {nombre}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: r.origen === 'admin' ? '#7b9fff' : '#a78bfa', background: r.origen === 'admin' ? 'rgba(74,108,247,0.12)' : 'rgba(167,139,250,0.12)', border: `1px solid ${r.origen === 'admin' ? 'rgba(74,108,247,0.35)' : 'rgba(167,139,250,0.35)'}`, borderRadius: 20, padding: '2px 9px' }}>{r.origen === 'admin' ? 'Cargada por admin' : 'Cargada por distribuidor'}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: r.origen === 'admin' ? '#7b9fff' : '#a78bfa', background: r.origen === 'admin' ? 'rgba(74,108,247,0.12)' : 'rgba(167,139,250,0.12)', border: `1px solid ${r.origen === 'admin' ? 'rgba(74,108,247,0.35)' : 'rgba(167,139,250,0.35)'}`, borderRadius: 20, padding: '2px 9px' }}>Cargada por {r.creado_por || (r.origen === 'admin' ? 'admin' : 'distribuidor')}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: r.modo_entrega === 'logistica' ? '#22d3ee' : 'var(--text3)', background: r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.12)' : 'var(--surface2)', border: `1px solid ${r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.35)' : 'var(--border)'}`, borderRadius: 20, padding: '2px 9px' }}>{r.modo_entrega === 'logistica' ? '🚛 Logística' : '🏭 En fábrica'}</span>
                       {revisado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Revisada</span>}
+                      {resuelto && <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 20, padding: '2px 10px' }}>🔒 Cerrada (repuesta)</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-                      {formatFecha(r.created_at)} · {totalUnid} u.
+                      {r.fecha_devolucion ? <>Devolución {formatFecha(r.fecha_devolucion)} · </> : ''}Cargada {formatFecha(r.created_at)} · {totalUnid} u.
                       {revisado && r.revisado_por ? <span style={{ color: '#3dd68c' }}> · revisada por {r.revisado_por}</span> : ''}
+                      {resuelto && r.resuelto_por ? <span style={{ color: '#38bdf8' }}> · cerrada por {r.resuelto_por}</span> : ''}
                     </div>
                   </div>
-                  {revisado
-                    ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
-                    : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
+                  {resuelto
+                    ? null
+                    : revisado
+                      ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
+                      : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
                 </div>
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {items.map((i, idx) => (
@@ -212,6 +222,22 @@ export default function DevolucionesDistribuidores() {
                   ))}
                 </div>
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>📅 Fecha de devolución</label>
+                  <input type="date" value={fFecha} onChange={e => setFFecha(e.target.value)} style={{ ...inputSt, colorScheme: 'dark' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Modo de entrega</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ k: 'logistica', label: '🚛 Logística' }, { k: 'fabrica', label: '🏭 En fábrica' }].map(op => (
+                      <button key={op.k} type="button" onClick={() => setFModo(op.k)}
+                        style={{ flex: 1, padding: '9px 6px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: fModo === op.k ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: fModo === op.k ? '#7b9fff' : 'var(--text3)', border: `1px solid ${fModo === op.k ? 'rgba(74,108,247,0.5)' : 'var(--border)'}` }}>{op.label}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {fModo === 'logistica' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: -6, lineHeight: 1.4 }}>La retiramos nosotros → aparece en <b>Logística Diaria</b> para traer.</div>}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Notas (opcional)</label>
                 <textarea value={fNotas} onChange={e => setFNotas(e.target.value)} rows={2} placeholder="Motivo, aclaraciones…" style={{ ...inputSt, resize: 'vertical' }} />

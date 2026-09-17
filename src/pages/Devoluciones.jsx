@@ -42,6 +42,8 @@ export default function Devoluciones() {
   const [modalPend, setModalPend] = useState(false)
   const [pendItems, setPendItems] = useState([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
   const [pendNotas, setPendNotas] = useState('')
+  const [pendFecha, setPendFecha] = useState('')
+  const [pendModo, setPendModo] = useState('fabrica')
   const [creandoPend, setCreandoPend] = useState(false)
 
   function selProductoPend(idx, codigo) {
@@ -56,12 +58,13 @@ export default function Devoluciones() {
     setCreandoPend(true)
     const { error } = await supabase.from('devoluciones_distribuidor').insert({
       distribuidor_id: user.id, origen: 'distribuidor', items, notas: pendNotas.trim() || null,
+      fecha_devolucion: pendFecha || null, modo_entrega: pendModo,
       estado: 'pendiente', creado_por: profile?.razon_social || profile?.full_name || user?.email || null,
     })
     setCreandoPend(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('Devolución pendiente enviada — queda para revisión ✅')
-    setModalPend(false); setPendItems([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }]); setPendNotas('')
+    setModalPend(false); setPendItems([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }]); setPendNotas(''); setPendFecha(''); setPendModo('fabrica')
   }
 
   useEffect(() => { cargar(); cargarCatalogo(); if (isAdmin || isAdmin2) cargarDistribuidores() }, [user])
@@ -184,6 +187,22 @@ export default function Devoluciones() {
                   ))}
                 </div>
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>📅 Fecha de devolución</label>
+                  <input type="date" value={pendFecha} onChange={e => setPendFecha(e.target.value)} style={{ ...inputSt, colorScheme: 'dark' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>¿Cómo la entregás?</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ k: 'logistica', label: '🚛 Que la retiren' }, { k: 'fabrica', label: '🏭 La llevo/entregué' }].map(op => (
+                      <button key={op.k} type="button" onClick={() => setPendModo(op.k)}
+                        style={{ flex: 1, padding: '9px 6px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: pendModo === op.k ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: pendModo === op.k ? '#7b9fff' : 'var(--text3)', border: `1px solid ${pendModo === op.k ? 'rgba(74,108,247,0.5)' : 'var(--border)'}` }}>{op.label}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {pendModo === 'logistica' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: -6, lineHeight: 1.4 }}>La vamos a retirar nosotros con nuestra logística.</div>}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Notas (opcional)</label>
                 <textarea value={pendNotas} onChange={e => setPendNotas(e.target.value)} rows={2} placeholder="Motivo, aclaraciones…" style={{ ...inputSt, resize: 'vertical' }} />

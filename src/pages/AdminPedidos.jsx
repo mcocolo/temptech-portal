@@ -135,6 +135,8 @@ export default function AdminPedidos() {
   const [npEstado, setNpEstado] = useState('pendiente') // 'pendiente' | 'aprobado'
   const [npAplicarDesc, setNpAplicarDesc] = useState(true)
   const [npConcepto, setNpConcepto] = useState('normal') // 'normal' | 'devoluciones_pendientes'
+  const [npDevdistId, setNpDevdistId] = useState('')      // devolución pendiente que repone (por código)
+  const [npDevdistOpts, setNpDevdistOpts] = useState([])   // devoluciones pendientes del distribuidor elegido
   const [creando, setCreando] = useState(false)
 
   const scrollTargetRef = useRef(null)
@@ -361,6 +363,34 @@ export default function AdminPedidos() {
     setNpDistId(''); setNpDistSeleccionado(null); setNpDistBusqueda('')
     setNpItems([]); setNpNotas(''); setNpFecha('')
     setNpIVA(false); setNpEstado('pendiente'); setNpAplicarDesc(true); setNpConcepto('normal')
+    setNpDevdistId(''); setNpDevdistOpts([])
+  }
+
+  // Cargar devoluciones pendientes del distribuidor cuando el concepto es "devoluciones"
+  useEffect(() => {
+    let cancel = false
+    async function fetchDevdist() {
+      if (npConcepto !== 'devoluciones_pendientes' || !npDistId) { setNpDevdistOpts([]); return }
+      const { data } = await supabase.from('devoluciones_distribuidor')
+        .select('id,codigo,items,fecha_devolucion,estado,created_at')
+        .eq('distribuidor_id', npDistId).in('estado', ['pendiente', 'revisado'])
+        .order('created_at', { ascending: false })
+      if (!cancel) setNpDevdistOpts(data || [])
+    }
+    fetchDevdist()
+    return () => { cancel = true }
+  }, [npConcepto, npDistId])
+
+  // Al elegir una devolución a reponer, precargar sus productos en el pedido
+  function onSelectDevdist(id) {
+    setNpDevdistId(id)
+    const dev = npDevdistOpts.find(d => d.id === id)
+    if (!dev) return
+    const items = (dev.items || []).filter(i => (parseInt(i.cantidad) || 0) > 0).map(i => ({
+      codigo: i.codigo, nombre: i.nombre || '', modelo: i.modelo || '', categoria: i.categoria || '',
+      precio_base: 0, precio_unitario: 0, descuento_pct: 0, cantidad: parseInt(i.cantidad) || 0, subtotal: 0,
+    }))
+    if (items.length) setNpItems(items)
   }
 
   async function crearPedido() {
@@ -385,7 +415,7 @@ export default function AdminPedidos() {
       notas_admin: npNotas.trim() || null,
       fecha_entrega: npFecha || null,
       concepto: esDevolucion ? 'devoluciones_pendientes' : null,
-      ...(esDevolucion && { dev_revisado: false }),
+      ...(esDevolucion && npDevdistId && { devdist_id: npDevdistId }),
       ...(isVendedor && { vendedor_id: user.id }),
     })
     if (error) { toast.error('Error al crear el pedido: ' + error.message); setCreando(false); return }
@@ -498,6 +528,12 @@ export default function AdminPedidos() {
     }
     const { error } = await supabase.from('pedidos').update({ estado: 'entregado', stock_descontado: true, updated_at: new Date().toISOString() }).eq('id', pedido.id)
     if (error) { toast.error('Error: ' + error.message); return }
+    // Si repone una devolución pendiente, se cierra (caso resuelto)
+    if (pedido.concepto === 'devoluciones_pendientes' && pedido.devdist_id) {
+      await supabase.from('devoluciones_distribuidor').update({
+        estado: 'resuelto', resuelto_por: profile?.full_name || user?.email || 'Admin', resuelto_at: new Date().toISOString(),
+      }).eq('id', pedido.devdist_id)
+    }
     toast.success('Pedido entregado — egreso de stock registrado ✅')
     cargar()
   }
@@ -1099,7 +1135,26 @@ export default function AdminPedidos() {
                       ))}
                     </div>
                     {npConcepto === 'devoluciones_pendientes' && (
-                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5, lineHeight: 1.4 }}>Lo que se entrega bajo este concepto es contra mercadería que <b>ingresó</b> por devoluciones (no es una venta nueva).</div>
+                      <>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5, lineHeight: 1.4 }}>Lo que se entrega bajo este concepto es contra mercadería que <b>ingresó</b> por devoluciones (no es una venta nueva).</div>
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>Devolución a reponer</div>
+                          {!npDistId ? (
+                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>Elegí primero el distribuidor.</div>
+                          ) : npDevdistOpts.length === 0 ? (
+                            <div style={{ fontSize: 11, color: 'var(--text3)' }}>Este distribuidor no tiene devoluciones pendientes cargadas.</div>
+                          ) : (
+                            <select value={npDevdistId} onChange={e => onSelectDevdist(e.target.value)} style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', cursor: 'pointer' }}>
+                              <option value="">— Sin vincular —</option>
+                              {npDevdistOpts.map(d => {
+                                const u = (d.items || []).reduce((s, i) => s + (parseInt(i.cantidad) || 0), 0)
+                                return <option key={d.id} value={d.id}>{d.codigo || 'DV'} · {u} u.{d.fecha_devolucion ? ` · ${formatFecha(d.fecha_devolucion)}` : ''}</option>
+                              })}
+                            </select>
+                          )}
+                          {npDevdistId && <div style={{ fontSize: 10, color: '#3dd68c', marginTop: 4 }}>Se precargaron los productos de la devolución. Al entregar el pedido, la devolución queda <b>cerrada</b>.</div>}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
