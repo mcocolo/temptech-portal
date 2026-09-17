@@ -114,7 +114,26 @@ export default function Produccion() {
       fetchAllRows(() => supabase.from('produccion_partes').select('*').order('fecha', { ascending: false })),
       fetchAllRows(() => supabase.from('produccion_no_conformidades').select('*').order('created_at', { ascending: false })),
     ])
-    setLotes(l || []); setPartes(p || []); setNcf(n || [])
+    const lotesRaw = l || []
+    // Auto-normalización: lotes 1400w (Firenze) que quedaron en etapas del flujo viejo
+    // (armado/encuadre/aguj2/enduido_lija/pintura) ya no tienen columna → los reubicamos.
+    // por_iniciar/corte/terminado se respetan; cualquier etapa intermedia → 'taller'.
+    const offFlow = lotesRaw.filter(x => esFirenze(x.modelo) && !FLUJO_FIRENZE.includes(x.etapa))
+    if (offFlow.length && isAdmin) {
+      const mapEtapa = e => (e === 'terminado' || e === 'por_iniciar' || e === 'corte') ? e : 'taller'
+      for (const x of offFlow) {
+        const nueva = mapEtapa(x.etapa)
+        try {
+          await supabase.from('produccion_lotes').update({
+            etapa: nueva, estado: nueva === 'terminado' ? 'terminado' : 'en_proceso',
+            modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString(),
+          }).eq('id', x.id)
+          x.etapa = nueva
+        } catch (_) { /* no bloquea la carga */ }
+      }
+      toast(`Se reubicaron ${offFlow.length} lote(s) 1400w al flujo Corte → Taller → Terminado`, { icon: '🔧' })
+    }
+    setLotes(lotesRaw); setPartes(p || []); setNcf(n || [])
     setLoading(false)
   }
 
@@ -245,7 +264,14 @@ export default function Produccion() {
     if (!q) return true
     return String(l.numero ?? '').includes(q) || fmtLote(l).toLowerCase().includes(q) || (l.modelo || '').toLowerCase().includes(q) || (l.terminacion || '').toLowerCase().includes(q)
   }
-  const lotesPorEtapa = k => lotes.filter(l => l.etapa === k && enFamilia(l) && coincideBusqueda(l))
+  // Columna donde mostrar el lote: si su etapa no pertenece al flujo de su familia
+  // (p.ej. un 1400w que quedó en una etapa Slim), lo ubicamos en la etapa equivalente.
+  const columnaLote = l => {
+    if (flujoDe(l.modelo).includes(l.etapa)) return l.etapa
+    if (esFirenze(l.modelo)) return (l.etapa === 'terminado' || l.etapa === 'por_iniciar' || l.etapa === 'corte') ? l.etapa : 'taller'
+    return l.etapa
+  }
+  const lotesPorEtapa = k => lotes.filter(l => columnaLote(l) === k && enFamilia(l) && coincideBusqueda(l))
   // Columnas del tablero según la familia elegida (cada familia tiene su propio flujo)
   const keysColumnas = fFamilia === '1400' ? FLUJO_FIRENZE : fFamilia === 'otros' ? FLUJO_SLIM : FLUJO
   const columnasEtapa = ETAPAS.filter(e => keysColumnas.includes(e.key))
