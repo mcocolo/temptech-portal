@@ -134,6 +134,7 @@ export default function AdminPedidos() {
   const [npIVA, setNpIVA] = useState(false)
   const [npEstado, setNpEstado] = useState('pendiente') // 'pendiente' | 'aprobado'
   const [npAplicarDesc, setNpAplicarDesc] = useState(true)
+  const [npConcepto, setNpConcepto] = useState('normal') // 'normal' | 'devoluciones_pendientes'
   const [creando, setCreando] = useState(false)
 
   const scrollTargetRef = useRef(null)
@@ -359,7 +360,7 @@ export default function AdminPedidos() {
   function npReset() {
     setNpDistId(''); setNpDistSeleccionado(null); setNpDistBusqueda('')
     setNpItems([]); setNpNotas(''); setNpFecha('')
-    setNpIVA(false); setNpEstado('pendiente'); setNpAplicarDesc(true)
+    setNpIVA(false); setNpEstado('pendiente'); setNpAplicarDesc(true); setNpConcepto('normal')
   }
 
   async function crearPedido() {
@@ -380,6 +381,7 @@ export default function AdminPedidos() {
       incluir_iva: npIVA,
       notas_admin: npNotas.trim() || null,
       fecha_entrega: npFecha || null,
+      concepto: npConcepto === 'devoluciones_pendientes' ? 'devoluciones_pendientes' : null,
       ...(isVendedor && { vendedor_id: user.id }),
     })
     if (error) { toast.error('Error al crear el pedido: ' + error.message); setCreando(false); return }
@@ -1079,6 +1081,24 @@ export default function AdminPedidos() {
                   </>
                 )}
 
+                {/* Concepto del pedido — solo admins */}
+                {isAdmin && (
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>Concepto</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[{ k: 'normal', label: 'Venta normal', color: '#7b9fff', bg: 'rgba(74,108,247,0.12)' }, { k: 'devoluciones_pendientes', label: '↩ Devoluciones pendientes', color: '#fb923c', bg: 'rgba(251,146,60,0.12)' }].map(op => (
+                        <button key={op.k} onClick={() => setNpConcepto(op.k)}
+                          style={{ flex: 1, padding: '7px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: npConcepto === op.k ? op.bg : 'var(--surface2)', color: npConcepto === op.k ? op.color : 'var(--text3)', border: npConcepto === op.k ? `1px solid ${op.color}50` : '1px solid var(--border)' }}>
+                          {op.label}
+                        </button>
+                      ))}
+                    </div>
+                    {npConcepto === 'devoluciones_pendientes' && (
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5, lineHeight: 1.4 }}>Lo que se entrega bajo este concepto es contra mercadería que <b>ingresó</b> por devoluciones (no es una venta nueva).</div>
+                    )}
+                  </div>
+                )}
+
                 {/* Estado inicial — solo admins */}
                 {isAdmin && (
                   <div>
@@ -1490,6 +1510,13 @@ export default function AdminPedidos() {
                   {pedido.notas && !isEdit && (
                     <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--text3)' }}>
                       <span style={{ fontWeight: 600 }}>Nota del distribuidor: </span>{pedido.notas}
+                    </div>
+                  )}
+
+                  {/* Concepto: devoluciones pendientes (vista) */}
+                  {pedido.concepto === 'devoluciones_pendientes' && (
+                    <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                      <span style={{ fontWeight: 700, color: '#fb923c' }}>↩ Devoluciones pendientes: </span>lo entregado es contra mercadería que ingresó por devoluciones (no es venta nueva).
                     </div>
                   )}
 
