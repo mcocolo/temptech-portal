@@ -378,6 +378,13 @@ export default function IngresoEgresoPT() {
     // Guardar saldo pendiente (requiere columna items_pendientes)
     await supabase.from('pedidos').update({ items_pendientes: newPending }).eq('id', pedidoSel.id)
 
+    // Si el pedido repone una devolución pendiente y ya salió completo de fábrica, se cierra el caso
+    if (isComplete && pedidoSel.concepto === 'devoluciones_pendientes' && pedidoSel.devdist_id) {
+      await supabase.from('devoluciones_distribuidor').update({
+        estado: 'resuelto', resuelto_por: profile?.full_name || user?.email || 'Admin', resuelto_at: new Date().toISOString(),
+      }).eq('id', pedidoSel.devdist_id)
+    }
+
     // Descontar stock por las cantidades efectivamente entregadas
     for (const item of itemsAEntregar) {
       const actual = stock[item.codigo]?.stock_actual ?? 0

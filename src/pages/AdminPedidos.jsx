@@ -371,11 +371,17 @@ export default function AdminPedidos() {
     let cancel = false
     async function fetchDevdist() {
       if (npConcepto !== 'devoluciones_pendientes' || !npDistId) { setNpDevdistOpts([]); return }
-      const { data } = await supabase.from('devoluciones_distribuidor')
-        .select('id,codigo,items,fecha_devolucion,estado,created_at')
-        .eq('distribuidor_id', npDistId).in('estado', ['pendiente', 'revisado'])
-        .order('created_at', { ascending: false })
-      if (!cancel) setNpDevdistOpts(data || [])
+      const [{ data }, { data: peds }] = await Promise.all([
+        supabase.from('devoluciones_distribuidor')
+          .select('id,codigo,items,fecha_devolucion,estado,created_at')
+          .eq('distribuidor_id', npDistId).in('estado', ['pendiente', 'revisado'])
+          .order('created_at', { ascending: false }),
+        // pedidos que ya reponen una devolución (para no ofrecerla de nuevo)
+        supabase.from('pedidos').select('devdist_id,estado')
+          .eq('distribuidor_id', npDistId).not('devdist_id', 'is', null),
+      ])
+      const yaVinculadas = new Set((peds || []).filter(p => !['cancelado', 'rechazado'].includes(p.estado)).map(p => p.devdist_id))
+      if (!cancel) setNpDevdistOpts((data || []).filter(d => !yaVinculadas.has(d.id)))
     }
     fetchDevdist()
     return () => { cancel = true }
