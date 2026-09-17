@@ -8,41 +8,39 @@ function formatFecha(d) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
-
-const ESTADO_CFG = {
-  pendiente:  { label: 'Pendiente',  color: '#ffd166' },
-  aprobado:   { label: 'Aprobado',   color: '#3dd68c' },
-  preparando: { label: 'Preparando', color: '#a78bfa' },
-  modificado: { label: 'Modificado', color: '#fb923c' },
-  enviado:    { label: 'Enviado',    color: '#38bdf8' },
-  entregado:  { label: 'Entregado',  color: '#38bdf8' },
-  finalizado: { label: 'Finalizado', color: '#3dd68c' },
-  rechazado:  { label: 'Rechazado',  color: '#ff5577' },
-}
-
-const FILTROS = [['por_revisar', 'Por revisar'], ['revisados', 'Revisados'], ['todos', 'Todos']]
+const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
+const FILTROS = [['pendiente', 'Por revisar'], ['revisado', 'Revisadas'], ['todos', 'Todas']]
+const emptyItem = () => ({ codigo: '', nombre: '', modelo: '', cantidad: 1 })
 
 export default function DevolucionesDistribuidores() {
   const { isAdmin, isAdmin2, user, profile } = useAuth()
   const nombreUsuario = profile?.full_name || user?.email || 'Admin'
-  const puedeRevisar = isAdmin || isAdmin2
 
-  const [pedidos, setPedidos] = useState([])
+  const [rows, setRows] = useState([])
   const [perfiles, setPerfiles] = useState({})
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState('por_revisar')
+  const [filtro, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
   const [guardando, setGuardando] = useState(null)
+
+  // Modal "Nueva devolución" (admin en nombre de un distribuidor)
+  const [modal, setModal] = useState(false)
+  const [distribuidores, setDistribuidores] = useState([])
+  const [catalogo, setCatalogo] = useState([])
+  const [fDistId, setFDistId] = useState('')
+  const [fItems, setFItems] = useState([emptyItem()])
+  const [fNotas, setFNotas] = useState('')
+  const [creando, setCreando] = useState(false)
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
     setLoading(true)
     const data = await fetchAllRows(() =>
-      supabase.from('pedidos').select('*').eq('concepto', 'devoluciones_pendientes').order('created_at', { ascending: false })
+      supabase.from('devoluciones_distribuidor').select('*').order('created_at', { ascending: false })
     )
-    const rows = data || []
-    setPedidos(rows)
-    const ids = [...new Set(rows.map(p => p.distribuidor_id).filter(Boolean))]
+    const list = data || []
+    setRows(list)
+    const ids = [...new Set(list.map(r => r.distribuidor_id).filter(Boolean))]
     if (ids.length) {
       const { data: profs } = await supabase.from('profiles').select('id,full_name,razon_social,email').in('id', ids)
       setPerfiles(Object.fromEntries((profs || []).map(p => [p.id, p])))
@@ -50,39 +48,73 @@ export default function DevolucionesDistribuidores() {
     setLoading(false)
   }
 
-  async function marcarRevisado(pedido, revisado) {
-    setGuardando(pedido.id)
-    const { error } = await supabase.from('pedidos').update({
-      dev_revisado: revisado,
-      dev_revisado_por: revisado ? nombreUsuario : null,
-      dev_revisado_at: revisado ? new Date().toISOString() : null,
-    }).eq('id', pedido.id)
+  async function abrirNueva() {
+    setFDistId(''); setFItems([emptyItem()]); setFNotas(''); setModal(true)
+    if (!distribuidores.length) {
+      const { data } = await supabase.from('profiles').select('id,full_name,razon_social,email').eq('user_type', 'distributor').order('razon_social')
+      setDistribuidores(data || [])
+    }
+    if (!catalogo.length) {
+      const { data } = await supabase.from('precios').select('codigo,nombre,modelo,categoria').order('nombre')
+      setCatalogo(data || [])
+    }
+  }
+
+  function selProducto(idx, codigo) {
+    const p = catalogo.find(x => x.codigo === codigo)
+    setFItems(prev => prev.map((it, i) => i === idx ? { ...it, codigo, nombre: p?.nombre || '', modelo: p?.modelo || '' } : it))
+  }
+
+  async function crearDevolucion() {
+    if (!fDistId) return toast.error('Elegí un distribuidor')
+    const items = fItems.filter(i => i.codigo && (parseInt(i.cantidad) || 0) > 0).map(i => ({ codigo: i.codigo, nombre: i.nombre, modelo: i.modelo, cantidad: parseInt(i.cantidad) }))
+    if (!items.length) return toast.error('Agregá al menos un producto con cantidad')
+    setCreando(true)
+    const { error } = await supabase.from('devoluciones_distribuidor').insert({
+      distribuidor_id: fDistId, origen: 'admin', items, notas: fNotas.trim() || null,
+      estado: 'pendiente', creado_por: nombreUsuario,
+    })
+    setCreando(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Devolución cargada ✅')
+    setModal(false); cargar()
+  }
+
+  async function marcarRevisado(row, revisado) {
+    setGuardando(row.id)
+    const { error } = await supabase.from('devoluciones_distribuidor').update({
+      estado: revisado ? 'revisado' : 'pendiente',
+      revisado_por: revisado ? nombreUsuario : null,
+      revisado_at: revisado ? new Date().toISOString() : null,
+    }).eq('id', row.id)
     setGuardando(null)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success(revisado ? 'Marcado como revisado ✅' : 'Reabierto')
-    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, dev_revisado: revisado, dev_revisado_por: revisado ? nombreUsuario : null, dev_revisado_at: revisado ? new Date().toISOString() : null } : p))
+    toast.success(revisado ? 'Marcada como revisada ✅' : 'Reabierta')
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, estado: revisado ? 'revisado' : 'pendiente', revisado_por: revisado ? nombreUsuario : null, revisado_at: revisado ? new Date().toISOString() : null } : r))
   }
 
   if (!isAdmin && !isAdmin2) return null
 
   const q = busqueda.trim().toLowerCase()
-  const filtrados = pedidos.filter(p => {
-    if (filtro === 'por_revisar' && p.dev_revisado) return false
-    if (filtro === 'revisados' && !p.dev_revisado) return false
+  const filtradas = rows.filter(r => {
+    if (filtro !== 'todos' && r.estado !== filtro) return false
     if (q) {
-      const prof = perfiles[p.distribuidor_id] || {}
+      const prof = perfiles[r.distribuidor_id] || {}
       const nom = (prof.razon_social || prof.full_name || '').toLowerCase()
-      return nom.includes(q) || (prof.email || '').toLowerCase().includes(q) || String(p.id).slice(0, 8).includes(q)
+      return nom.includes(q) || (prof.email || '').toLowerCase().includes(q)
     }
     return true
   })
-  const porRevisar = pedidos.filter(p => !p.dev_revisado).length
+  const porRevisar = rows.filter(r => r.estado === 'pendiente').length
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Devoluciones Distribuidores</h1>
-        <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Pedidos entregados contra mercadería que ingresó por devoluciones — para revisar</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Devoluciones Distribuidores</h1>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Mercadería que el distribuidor devuelve (ingresa) — para revisar. La carga el distribuidor o vos en su nombre.</p>
+        </div>
+        <button onClick={abrirNueva} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva devolución</button>
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
@@ -90,49 +122,45 @@ export default function DevolucionesDistribuidores() {
           {FILTROS.map(([v, l]) => (
             <button key={v} onClick={() => setFiltro(v)}
               style={{ padding: '7px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: filtro === v ? 'rgba(251,146,60,0.2)' : 'transparent', color: filtro === v ? '#fb923c' : 'var(--text3)' }}>
-              {l}{v === 'por_revisar' && porRevisar > 0 ? ` (${porRevisar})` : ''}
+              {l}{v === 'pendiente' && porRevisar > 0 ? ` (${porRevisar})` : ''}
             </button>
           ))}
         </div>
         <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar distribuidor…"
-          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', maxWidth: 260 }} />
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>{filtrados.length} pedido(s)</span>
+          style={{ ...inputSt, maxWidth: 260, padding: '8px 12px' }} />
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>{filtradas.length} devolución(es)</span>
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando…</div>
-      ) : filtrados.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay pedidos {filtro === 'por_revisar' ? 'por revisar' : filtro === 'revisados' ? 'revisados' : ''}.</div>
+      ) : filtradas.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay devoluciones {filtro === 'pendiente' ? 'por revisar' : filtro === 'revisado' ? 'revisadas' : ''}.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtrados.map(p => {
-            const prof = perfiles[p.distribuidor_id] || {}
+          {filtradas.map(r => {
+            const prof = perfiles[r.distribuidor_id] || {}
             const nombre = prof.razon_social || prof.full_name || 'Distribuidor'
-            const est = ESTADO_CFG[p.estado] || { label: p.estado, color: 'var(--text3)' }
-            const items = (p.items || []).filter(i => i.cantidad > 0)
+            const items = (r.items || []).filter(i => i.cantidad > 0)
             const totalUnid = items.reduce((s, i) => s + (parseInt(i.cantidad) || 0), 0)
+            const revisado = r.estado === 'revisado'
             return (
-              <div key={p.id} style={{ background: 'var(--surface)', border: `1px solid ${p.dev_revisado ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
+              <div key={r.id} style={{ background: 'var(--surface)', border: `1px solid ${revisado ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 15, fontWeight: 800 }}>🏪 {nombre}</span>
-                      <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text3)' }}>#{String(p.id).slice(0, 8).toUpperCase()}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: est.color, background: `${est.color}18`, border: `1px solid ${est.color}44`, borderRadius: 20, padding: '2px 10px' }}>{est.label}</span>
-                      {p.dev_revisado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Revisado</span>}
+                      <span style={{ fontSize: 10, fontWeight: 700, color: r.origen === 'admin' ? '#7b9fff' : '#a78bfa', background: r.origen === 'admin' ? 'rgba(74,108,247,0.12)' : 'rgba(167,139,250,0.12)', border: `1px solid ${r.origen === 'admin' ? 'rgba(74,108,247,0.35)' : 'rgba(167,139,250,0.35)'}`, borderRadius: 20, padding: '2px 9px' }}>{r.origen === 'admin' ? 'Cargada por admin' : 'Cargada por distribuidor'}</span>
+                      {revisado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Revisada</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-                      Creado {formatFecha(p.created_at)}{p.fecha_entrega ? ` · Entrega ${formatFecha(p.fecha_entrega)}` : ''} · {totalUnid} u.
-                      {p.dev_revisado && p.dev_revisado_por ? <span style={{ color: '#3dd68c' }}> · revisado por {p.dev_revisado_por}</span> : ''}
+                      {formatFecha(r.created_at)} · {totalUnid} u.
+                      {revisado && r.revisado_por ? <span style={{ color: '#3dd68c' }}> · revisada por {r.revisado_por}</span> : ''}
                     </div>
                   </div>
-                  {puedeRevisar && (
-                    p.dev_revisado
-                      ? <button onClick={() => marcarRevisado(p, false)} disabled={guardando === p.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
-                      : <button onClick={() => marcarRevisado(p, true)} disabled={guardando === p.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === p.id ? '…' : '✓ Marcar revisado'}</button>
-                  )}
+                  {revisado
+                    ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
+                    : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
                 </div>
-
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {items.map((i, idx) => (
                     <span key={idx} style={{ fontSize: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 10px' }}>
@@ -141,10 +169,59 @@ export default function DevolucionesDistribuidores() {
                   ))}
                   {items.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Sin ítems.</span>}
                 </div>
-                {p.notas_admin && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text2)' }}>📝 {p.notas_admin}</div>}
+                {r.notas && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text2)' }}>📝 {r.notas}</div>}
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal Nueva devolución */}
+      {modal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>➕ Nueva devolución pendiente</div>
+              <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Distribuidor *</label>
+                <select value={fDistId} onChange={e => setFDistId(e.target.value)} style={{ ...inputSt, cursor: 'pointer' }}>
+                  <option value="">Elegí un distribuidor…</option>
+                  {distribuidores.map(d => <option key={d.id} value={d.id}>{d.razon_social || d.full_name || d.email}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Productos que devuelve</label>
+                  <button onClick={() => setFItems(prev => [...prev, emptyItem()])} style={{ fontSize: 11, padding: '3px 12px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', fontWeight: 700 }}>+ Agregar</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {fItems.map((it, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px auto', gap: 6, alignItems: 'center' }}>
+                      <select value={it.codigo} onChange={e => selProducto(i, e.target.value)} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, cursor: 'pointer' }}>
+                        <option value="">Buscar producto…</option>
+                        {catalogo.map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre} {p.modelo || ''}</option>)}
+                      </select>
+                      <input type="number" min="1" value={it.cantidad} onChange={e => setFItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
+                      {fItems.length > 1
+                        ? <button onClick={() => setFItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px' }}>×</button>
+                        : <span />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Notas (opcional)</label>
+                <textarea value={fNotas} onChange={e => setFNotas(e.target.value)} rows={2} placeholder="Motivo, aclaraciones…" style={{ ...inputSt, resize: 'vertical' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={crearDevolucion} disabled={creando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: creando ? 'not-allowed' : 'pointer', opacity: creando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{creando ? 'Guardando…' : '✓ Cargar devolución'}</button>
+                <button onClick={() => setModal(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

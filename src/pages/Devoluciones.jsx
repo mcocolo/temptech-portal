@@ -38,6 +38,32 @@ export default function Devoluciones() {
   const [creando, setCreando] = useState(false)
   const [distId, setDistId] = useState('')
 
+  // Devolución pendiente (mercadería que el distribuidor devuelve, para revisión del admin)
+  const [modalPend, setModalPend] = useState(false)
+  const [pendItems, setPendItems] = useState([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }])
+  const [pendNotas, setPendNotas] = useState('')
+  const [creandoPend, setCreandoPend] = useState(false)
+
+  function selProductoPend(idx, codigo) {
+    let prod = null
+    for (const g of catalogo) { const f = (g.prods || []).find(p => p.codigo === codigo); if (f) { prod = f; break } }
+    setPendItems(prev => prev.map((it, i) => i === idx ? { ...it, codigo, nombre: prod?.nombre || '', modelo: prod?.modelo || '' } : it))
+  }
+
+  async function crearPendiente() {
+    const items = pendItems.filter(i => i.codigo && (parseInt(i.cantidad) || 0) > 0).map(i => ({ codigo: i.codigo, nombre: i.nombre, modelo: i.modelo, cantidad: parseInt(i.cantidad) }))
+    if (!items.length) return toast.error('Agregá al menos un producto con cantidad')
+    setCreandoPend(true)
+    const { error } = await supabase.from('devoluciones_distribuidor').insert({
+      distribuidor_id: user.id, origen: 'distribuidor', items, notas: pendNotas.trim() || null,
+      estado: 'pendiente', creado_por: profile?.razon_social || profile?.full_name || user?.email || null,
+    })
+    setCreandoPend(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Devolución pendiente enviada — queda para revisión ✅')
+    setModalPend(false); setPendItems([{ codigo: '', nombre: '', modelo: '', cantidad: 1 }]); setPendNotas('')
+  }
+
   useEffect(() => { cargar(); cargarCatalogo(); if (isAdmin || isAdmin2) cargarDistribuidores() }, [user])
 
   async function cargar() {
@@ -114,11 +140,62 @@ export default function Devoluciones() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>↩️ Mis Devoluciones</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Generá y seguí tus órdenes de devolución</p>
         </div>
-        <button onClick={() => setModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, color: '#fb923c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-          + Nueva devolución
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {isDistributor && (
+            <button onClick={() => setModalPend(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.4)', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, color: '#a78bfa', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              ↩ Devolución pendiente
+            </button>
+          )}
+          <button onClick={() => setModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, color: '#fb923c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            + Nueva devolución
+          </button>
+        </div>
       </div>
+
+      {/* Modal: Devolución pendiente (mercadería a devolver, para revisión del admin) */}
+      {modalPend && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>↩ Devolución pendiente</div>
+              <button onClick={() => setModalPend(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 }}>Indicá los productos y cantidades que vas a devolver. Queda pendiente para que TEMPTECH lo revise.</div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Productos que devolvés</label>
+                  <button onClick={() => setPendItems(prev => [...prev, { codigo: '', nombre: '', modelo: '', cantidad: 1 }])} style={{ fontSize: 11, padding: '3px 12px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font)', background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)', fontWeight: 700 }}>+ Agregar</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {pendItems.map((it, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px auto', gap: 6, alignItems: 'center' }}>
+                      <select value={it.codigo} onChange={e => selProductoPend(i, e.target.value)} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, cursor: 'pointer' }}>
+                        <option value="">Elegí un producto…</option>
+                        {catalogo.flatMap(g => g.prods || []).map(p => <option key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre} {p.modelo || ''}</option>)}
+                      </select>
+                      <input type="number" min="1" value={it.cantidad} onChange={e => setPendItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
+                      {pendItems.length > 1
+                        ? <button onClick={() => setPendItems(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px' }}>×</button>
+                        : <span />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Notas (opcional)</label>
+                <textarea value={pendNotas} onChange={e => setPendNotas(e.target.value)} rows={2} placeholder="Motivo, aclaraciones…" style={{ ...inputSt, resize: 'vertical' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={crearPendiente} disabled={creandoPend} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: creandoPend ? 'not-allowed' : 'pointer', opacity: creandoPend ? 0.7 : 1, fontFamily: 'var(--font)' }}>{creandoPend ? 'Enviando…' : '✓ Enviar devolución pendiente'}</button>
+                <button onClick={() => setModalPend(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lista */}
       {loading ? (
