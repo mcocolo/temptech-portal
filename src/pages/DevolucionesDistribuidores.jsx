@@ -9,7 +9,7 @@ function formatFecha(d) {
   return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
-const FILTROS = [['pendiente', 'Por revisar'], ['revisado', 'Revisadas'], ['resuelto', 'Cerradas'], ['todos', 'Todas']]
+const FILTROS = [['pendiente', 'Por revisar'], ['revisado', 'Revisadas'], ['entregado', 'Entregadas'], ['todos', 'Todas']]
 const emptyItem = () => ({ codigo: '', nombre: '', modelo: '', cantidad: 1 })
 
 export default function DevolucionesDistribuidores() {
@@ -22,6 +22,7 @@ export default function DevolucionesDistribuidores() {
   const [filtro, setFiltro] = useState('pendiente')
   const [busqueda, setBusqueda] = useState('')
   const [guardando, setGuardando] = useState(null)
+  const [entregadoMap, setEntregadoMap] = useState({})   // devdist_id -> true si su pedido de reposición ya salió
 
   // Modal "Nueva devolución" (admin en nombre de un distribuidor)
   const [modal, setModal] = useState(false)
@@ -47,6 +48,16 @@ export default function DevolucionesDistribuidores() {
       const { data: profs } = await supabase.from('profiles').select('id,full_name,razon_social,email').in('id', ids)
       setPerfiles(Object.fromEntries((profs || []).map(p => [p.id, p])))
     }
+    // Estado real de la reposición: si el pedido vinculado ya salió (entregado / egreso), la devolución está entregada
+    const devIds = list.map(r => r.id)
+    if (devIds.length) {
+      const { data: peds } = await supabase.from('pedidos').select('devdist_id,estado,stock_descontado').in('devdist_id', devIds)
+      const map = {}
+      for (const p of (peds || [])) {
+        if (p.devdist_id && (p.estado === 'entregado' || p.estado === 'finalizado' || p.stock_descontado)) map[p.devdist_id] = true
+      }
+      setEntregadoMap(map)
+    } else setEntregadoMap({})
     setLoading(false)
   }
 
@@ -98,9 +109,13 @@ export default function DevolucionesDistribuidores() {
 
   if (!isAdmin && !isAdmin2) return null
 
+  const esEntregado = r => !!entregadoMap[r.id] || r.estado === 'resuelto'
   const q = busqueda.trim().toLowerCase()
   const filtradas = rows.filter(r => {
-    if (filtro !== 'todos' && r.estado !== filtro) return false
+    const entregado = esEntregado(r)
+    if (filtro === 'entregado' && !entregado) return false
+    if (filtro === 'pendiente' && (entregado || r.estado !== 'pendiente')) return false
+    if (filtro === 'revisado' && (entregado || r.estado !== 'revisado')) return false
     if (q) {
       const prof = perfiles[r.distribuidor_id] || {}
       const nom = (prof.razon_social || prof.full_name || '').toLowerCase()
@@ -108,7 +123,7 @@ export default function DevolucionesDistribuidores() {
     }
     return true
   })
-  const porRevisar = rows.filter(r => r.estado === 'pendiente').length
+  const porRevisar = rows.filter(r => !esEntregado(r) && r.estado === 'pendiente').length
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -145,10 +160,10 @@ export default function DevolucionesDistribuidores() {
             const nombre = prof.razon_social || prof.full_name || 'Distribuidor'
             const items = (r.items || []).filter(i => i.cantidad > 0)
             const totalUnid = items.reduce((s, i) => s + (parseInt(i.cantidad) || 0), 0)
-            const revisado = r.estado === 'revisado'
-            const resuelto = r.estado === 'resuelto'
+            const entregado = esEntregado(r)
+            const revisado = r.estado === 'revisado' && !entregado
             return (
-              <div key={r.id} style={{ background: 'var(--surface)', border: `1px solid ${resuelto ? 'rgba(56,189,248,0.3)' : revisado ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px', opacity: resuelto ? 0.85 : 1 }}>
+              <div key={r.id} style={{ background: 'var(--surface)', border: `1px solid ${entregado ? 'rgba(56,189,248,0.3)' : revisado ? 'rgba(61,214,140,0.3)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px', opacity: entregado ? 0.9 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -157,15 +172,14 @@ export default function DevolucionesDistribuidores() {
                       <span style={{ fontSize: 10, fontWeight: 700, color: r.origen === 'admin' ? '#7b9fff' : '#a78bfa', background: r.origen === 'admin' ? 'rgba(74,108,247,0.12)' : 'rgba(167,139,250,0.12)', border: `1px solid ${r.origen === 'admin' ? 'rgba(74,108,247,0.35)' : 'rgba(167,139,250,0.35)'}`, borderRadius: 20, padding: '2px 9px' }}>Cargada por {r.creado_por || (r.origen === 'admin' ? 'admin' : 'distribuidor')}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: r.modo_entrega === 'logistica' ? '#22d3ee' : 'var(--text3)', background: r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.12)' : 'var(--surface2)', border: `1px solid ${r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.35)' : 'var(--border)'}`, borderRadius: 20, padding: '2px 9px' }}>{r.modo_entrega === 'logistica' ? '🚛 Logística' : '🏭 En fábrica'}</span>
                       {revisado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Revisada</span>}
-                      {resuelto && <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 20, padding: '2px 10px' }}>🔒 Cerrada (repuesta)</span>}
+                      {entregado && <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 20, padding: '2px 10px' }}>✅ Entregado (repuesta)</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
                       {r.fecha_devolucion ? <>Devolución {formatFecha(r.fecha_devolucion)} · </> : ''}Cargada {formatFecha(r.created_at)} · {totalUnid} u.
                       {revisado && r.revisado_por ? <span style={{ color: '#3dd68c' }}> · revisada por {r.revisado_por}</span> : ''}
-                      {resuelto && r.resuelto_por ? <span style={{ color: '#38bdf8' }}> · cerrada por {r.resuelto_por}</span> : ''}
                     </div>
                   </div>
-                  {resuelto
+                  {entregado
                     ? null
                     : revisado
                       ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
