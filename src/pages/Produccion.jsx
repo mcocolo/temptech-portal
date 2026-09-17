@@ -24,23 +24,30 @@ const ETAPAS = [
   { key: 'por_iniciar',  label: 'Por iniciar',            color: '#94a3b8' },
   { key: 'corte',        label: 'Corte',                  color: '#7b9fff' },
   { key: 'armado',       label: 'Aguj1 + Alambre + Pegado', color: '#38bdf8' },
+  { key: 'taller',       label: 'Taller',                 color: '#22d3ee' },
   { key: 'encuadre',     label: 'Encuadre',               color: '#3dd68c' },
   { key: 'aguj2',        label: 'Aguj N°2',               color: '#a78bfa' },
   { key: 'enduido_lija', label: 'Enduido + Lija',         color: '#fbbf24' },
   { key: 'pintura',      label: 'Pintura',                color: '#fb923c' },
   { key: 'terminado',    label: 'Terminado (fase 1)',     color: '#2dd4bf' },
 ]
-const FLUJO = ETAPAS.map(e => e.key)
+const FLUJO = ETAPAS.map(e => e.key)   // orden maestro (vista "Todos")
+// Flujos por familia
+const FLUJO_SLIM = ['por_iniciar', 'corte', 'armado', 'encuadre', 'aguj2', 'enduido_lija', 'pintura', 'terminado']
+const FLUJO_FIRENZE = ['por_iniciar', 'corte', 'taller', 'terminado']
+const esFirenze = m => (m || '').includes('1400')
+const flujoDe = m => esFirenze(m) ? FLUJO_FIRENZE : FLUJO_SLIM
 const etapaLabel = k => (ETAPAS.find(e => e.key === k)?.label || k)
 const etapaColor = k => (ETAPAS.find(e => e.key === k)?.color || '#888')
 
 // Etapas "de proceso" (sin Por iniciar ni Terminado) para la matriz de estado
 const ETAPAS_PROC = ETAPAS.filter(e => e.key !== 'por_iniciar' && e.key !== 'terminado')
-// Estado de una etapa para un lote: 'done' (✓ completó), 'proc' (• en proceso), 'none'
+// Estado de una etapa para un lote: 'done' | 'proc' | 'none' | 'na' (no aplica a su flujo)
 function estadoEtapaLote(lote, etapaKey) {
+  const fl = flujoDe(lote.modelo)
+  if (!fl.includes(etapaKey)) return 'na'
   if (lote.etapa === 'terminado') return 'done'
-  const c = FLUJO.indexOf(lote.etapa)
-  const i = FLUJO.indexOf(etapaKey)
+  const c = fl.indexOf(lote.etapa), i = fl.indexOf(etapaKey)
   if (i < c) return 'done'
   if (i === c) return 'proc'
   return 'none'
@@ -50,15 +57,16 @@ function estadoLoteLabel(lote) {
   if (lote.etapa === 'por_iniciar') return { txt: 'Por iniciar', color: '#94a3b8' }
   return { txt: 'En proceso', color: '#fb923c' }
 }
-// Reconstruye el avance al fijar `etapa`: anteriores = completas, actual = parcial si había,
-// posteriores = se limpian (para poder retroceder y recargarlas).
-function backfillAvance(existing, etapa, cantidad) {
-  const c = FLUJO.indexOf(etapa)
+// Reconstruye el avance al fijar `etapa` según el flujo del modelo.
+function backfillAvance(existing, etapa, cantidad, modelo) {
+  const fl = flujoDe(modelo)
+  const c = fl.indexOf(etapa)
   const av = {}
-  for (const e of ETAPAS_PROC) {
-    const i = FLUJO.indexOf(e.key)
-    if (etapa === 'terminado' || i < c) av[e.key] = (existing?.[e.key] != null ? existing[e.key] : cantidad)
-    else if (i === c) { if (existing?.[e.key] != null) av[e.key] = existing[e.key] }
+  for (const key of fl) {
+    if (key === 'por_iniciar' || key === 'terminado') continue
+    const i = fl.indexOf(key)
+    if (etapa === 'terminado' || i < c) av[key] = (existing?.[key] != null ? existing[key] : cantidad)
+    else if (i === c) { if (existing?.[key] != null) av[key] = existing[key] }
     // i > c: no se copia → queda sin avance
   }
   return av
@@ -122,7 +130,11 @@ export default function Produccion() {
   function cerrarModal() { setNuevoOpen(false); setEditandoLote(null) }
   function onModelo(modelo) {
     const cfg = MODELOS_PROD.find(m => m.modelo === modelo)
-    setForm(f => ({ ...f, modelo, cantidad: (!editandoLote && cfg) ? cfg.cantidad : f.cantidad, hojas: (!editandoLote && cfg) ? cfg.hojas : f.hojas }))
+    setForm(f => {
+      // Si al cambiar de familia la etapa actual no existe en el nuevo flujo, la reseteamos
+      const etapa = flujoDe(modelo).includes(f.etapa) ? f.etapa : 'por_iniciar'
+      return { ...f, modelo, etapa, cantidad: (!editandoLote && cfg) ? cfg.cantidad : f.cantidad, hojas: (!editandoLote && cfg) ? cfg.hojas : f.hojas }
+    })
   }
 
   async function guardarLote() {
@@ -144,7 +156,7 @@ export default function Produccion() {
         etapa: form.etapa, estado: estadoDe(form.etapa), notas: form.notas.trim() || null,
         ...sello(),
         // Las etapas anteriores a la elegida se dan por hechas con la cantidad completa
-        avance: backfillAvance(editandoLote.avance, form.etapa, nuevoActual),
+        avance: backfillAvance(editandoLote.avance, form.etapa, nuevoActual, form.modelo),
       }
       if (editandoLote.cantidad_actual === editandoLote.cantidad_objetivo) patch.cantidad_actual = cantidad
       ;({ error } = await supabase.from('produccion_lotes').update(patch).eq('id', editandoLote.id))
@@ -191,14 +203,15 @@ export default function Produccion() {
   }
 
   async function retrocederEtapa(lote) {
-    const i = FLUJO.indexOf(lote.etapa)
+    const fl = flujoDe(lote.modelo)
+    const i = fl.indexOf(lote.etapa)
     if (i <= 0) return
-    const prev = FLUJO[i - 1]
+    const prev = fl[i - 1]
     if (!window.confirm(`¿Volver el lote ${fmtLote(lote)} de "${etapaLabel(lote.etapa)}" a "${etapaLabel(prev)}"?\nSe limpia el avance de las etapas posteriores.`)) return
     const patch = {
       etapa: prev,
       estado: prev === 'por_iniciar' ? 'planificado' : 'en_proceso',
-      avance: backfillAvance(lote.avance, prev, lote.cantidad_actual),
+      avance: backfillAvance(lote.avance, prev, lote.cantidad_actual, lote.modelo),
       ...sello(),
     }
     const { error } = await supabase.from('produccion_lotes').update(patch).eq('id', lote.id)
@@ -207,9 +220,10 @@ export default function Produccion() {
     cargar()
   }
 
-  function siguienteEtapa(etapa) {
-    const i = FLUJO.indexOf(etapa)
-    return i >= 0 && i < FLUJO.length - 1 ? FLUJO[i + 1] : null
+  function siguienteEtapa(etapa, modelo) {
+    const fl = flujoDe(modelo)
+    const i = fl.indexOf(etapa)
+    return i >= 0 && i < fl.length - 1 ? fl[i + 1] : null
   }
 
   async function eliminarLote(lote) {
@@ -230,6 +244,11 @@ export default function Produccion() {
     return String(l.numero ?? '').includes(q) || fmtLote(l).toLowerCase().includes(q) || (l.modelo || '').toLowerCase().includes(q) || (l.terminacion || '').toLowerCase().includes(q)
   }
   const lotesPorEtapa = k => lotes.filter(l => l.etapa === k && enFamilia(l) && coincideBusqueda(l))
+  // Columnas del tablero según la familia elegida (cada familia tiene su propio flujo)
+  const keysColumnas = fFamilia === '1400' ? FLUJO_FIRENZE : fFamilia === 'otros' ? FLUJO_SLIM : FLUJO
+  const columnasEtapa = ETAPAS.filter(e => keysColumnas.includes(e.key))
+  // Etapas de proceso a mostrar en la matriz según familia
+  const columnasProc = ETAPAS_PROC.filter(e => keysColumnas.includes(e.key))
   const partesLote = id => partes.filter(p => p.lote_id === id)
   const ncfLote = id => ncf.filter(n => n.lote_id === id)
   const avanceEtapa = (loteId, etapa) => partesLote(loteId).filter(p => p.etapa === etapa).reduce((s, p) => s + (p.cantidad || 0), 0)
@@ -280,7 +299,7 @@ export default function Produccion() {
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
       ) : vista === 'tablero' ? (
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12 }}>
-          {ETAPAS.map(et => {
+          {columnasEtapa.map(et => {
             const items = lotesPorEtapa(et.key)
             return (
               <div key={et.key} style={{ flex: '0 0 300px', width: 300, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', alignSelf: 'flex-start' }}>
@@ -291,7 +310,7 @@ export default function Produccion() {
                 <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8, minHeight: 60 }}>
                   {items.length === 0 && <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '14px 0' }}>—</div>}
                   {items.map(lote => {
-                    const sig = siguienteEtapa(lote.etapa)
+                    const sig = siguienteEtapa(lote.etapa, lote.modelo)
                     const isExp = expandido === lote.id
                     const hechoEtapa = (lote.avance && lote.avance[lote.etapa]) || 0
                     return (
@@ -391,7 +410,7 @@ export default function Produccion() {
                     <th style={{ ...th, textAlign: 'left', paddingLeft: 14 }}>Lote</th>
                     <th style={{ ...th, textAlign: 'left' }}>Modelo</th>
                     <th style={th}>Cant.</th>
-                    {ETAPAS_PROC.map(e => <th key={e.key} style={{ ...th, color: e.color }}>{e.label}</th>)}
+                    {columnasProc.map(e => <th key={e.key} style={{ ...th, color: e.color }}>{e.label}</th>)}
                     <th style={th}>Estado</th>
                     {puedeGestionar && <th style={th}></th>}
                   </tr></thead>
@@ -403,8 +422,10 @@ export default function Produccion() {
                           <td style={{ ...td, textAlign: 'left', paddingLeft: 14, fontWeight: 800 }}>{fmtLote(l)}</td>
                           <td style={{ ...td, textAlign: 'left' }}><span style={{ color: etapaColor(l.etapa), fontWeight: 700 }}>{l.modelo}</span>{l.terminacion ? <span style={{ color: '#fb923c' }}> · {l.terminacion}</span> : ''}{l.temporada ? <span style={{ color: 'var(--text3)' }}> · T{l.temporada}</span> : ''}</td>
                           <td style={td}>{l.cantidad_actual}{l.cantidad_actual !== l.cantidad_objetivo ? <span style={{ color: 'var(--text3)' }}>/{l.cantidad_objetivo}</span> : ''}</td>
-                          {ETAPAS_PROC.map(e => {
-                            const c = FLUJO.indexOf(l.etapa), i = FLUJO.indexOf(e.key)
+                          {columnasProc.map(e => {
+                            const fl = flujoDe(l.modelo)
+                            if (!fl.includes(e.key)) return <td key={e.key} style={{ ...td, color: 'var(--border)' }} title="No aplica a este modelo">—</td>
+                            const c = fl.indexOf(l.etapa), i = fl.indexOf(e.key)
                             const target = l.cantidad_actual
                             const raw = (l.avance && l.avance[e.key] != null) ? l.avance[e.key] : null
                             const completaPos = l.etapa === 'terminado' || i < c
@@ -425,7 +446,7 @@ export default function Produccion() {
                         </tr>
                       )
                     })}
-                    {filtrados.length === 0 && <tr><td colSpan={4 + ETAPAS_PROC.length + (puedeGestionar ? 1 : 0)} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin lotes.</td></tr>}
+                    {filtrados.length === 0 && <tr><td colSpan={4 + columnasProc.length + (puedeGestionar ? 1 : 0)} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin lotes.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -463,9 +484,9 @@ export default function Produccion() {
             <div>
               <label style={lbl}>Etapa</label>
               <select value={form.etapa} onChange={e => setForm(f => ({ ...f, etapa: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
-                {ETAPAS.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
+                {ETAPAS.filter(e => flujoDe(form.modelo).includes(e.key)).map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
               </select>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Podés mover el lote a cualquier etapa (ej. "Terminado" si ya se hizo hasta Pintura).</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{esFirenze(form.modelo) ? 'Firenze: Corte → Taller → Terminado.' : 'Podés mover el lote a cualquier etapa (ej. "Terminado" si ya se hizo hasta Pintura).'}</div>
             </div>
           )}
           <div><label style={lbl}>Notas</label><input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" style={iSt} /></div>
@@ -484,10 +505,10 @@ export default function Produccion() {
       {modalNcf && <NcfModal lote={modalNcf} etapa={modalNcf.etapa} usuario={nombreUsuario} onClose={() => setModalNcf(null)} onDone={cargar} />}
 
       {/* MODAL AVANCE PARCIAL (dividir lote) */}
-      {modalAvance && <AvanceParcialModal lote={modalAvance} siguiente={siguienteEtapa(modalAvance.etapa)} usuario={nombreUsuario} onClose={() => setModalAvance(null)} onDone={cargar} />}
+      {modalAvance && <AvanceParcialModal lote={modalAvance} siguiente={siguienteEtapa(modalAvance.etapa, modalAvance.modelo)} usuario={nombreUsuario} onClose={() => setModalAvance(null)} onDone={cargar} />}
 
       {/* MODAL AVANCE DENTRO DE UNA ETAPA (hecho/total) */}
-      {avanceCell && <AvanceEtapaModal lote={avanceCell.lote} etapa={avanceCell.etapa} siguiente={siguienteEtapa(avanceCell.etapa)} usuario={nombreUsuario} onClose={() => setAvanceCell(null)} onDone={cargar} />}
+      {avanceCell && <AvanceEtapaModal lote={avanceCell.lote} etapa={avanceCell.etapa} siguiente={siguienteEtapa(avanceCell.etapa, avanceCell.lote.modelo)} usuario={nombreUsuario} onClose={() => setAvanceCell(null)} onDone={cargar} />}
 
       {/* OT DE CORTE */}
       {otLote && <CorteOT lote={otLote} onClose={() => setOtLote(null)} onDone={cargar} />}
@@ -660,7 +681,8 @@ function ProcesoAccesosModal({ onClose }) {
 function AvanceEtapaModal({ lote, etapa, siguiente, usuario, onClose, onDone }) {
   const target = lote.cantidad_actual
   const raw = (lote.avance && lote.avance[etapa] != null) ? lote.avance[etapa] : null
-  const completaPos = lote.etapa === 'terminado' || FLUJO.indexOf(etapa) < FLUJO.indexOf(lote.etapa)
+  const flAv = flujoDe(lote.modelo)
+  const completaPos = lote.etapa === 'terminado' || flAv.indexOf(etapa) < flAv.indexOf(lote.etapa)
   const [cantidad, setCantidad] = useState(String(raw != null ? raw : (completaPos ? target : '')))
   const [g, setG] = useState(false)
   const hecho = Math.min(target, Math.max(0, parseInt(cantidad) || 0))

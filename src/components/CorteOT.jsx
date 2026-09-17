@@ -205,12 +205,14 @@ export default function CorteOT({ lote, onClose, onDone }) {
     await ajustarPulmon('T', 'NC', termT, cur.ncT - prev.ncT)
 
     // Actualizar el lote: avance de corte = paneles completos.
-    // Solo avanza a Armado si están las piezas Y los 5 controles en OK.
+    // Solo avanza a la siguiente etapa si están las piezas Y los 5 controles en OK.
+    // Firenze (1400w): Corte → Taller · Slim (250/500): Corte → Armado.
+    const siguienteCorte = es1400 ? 'taller' : 'armado'
     const alcanzo = piezas >= (lote.cantidad_actual || lote.cantidad_objetivo)
     const completo = alcanzo && controlesOk
     await supabase.from('produccion_lotes').update({
       avance: { ...(lote.avance || {}), corte: piezas },
-      etapa: completo ? 'armado' : 'corte', estado: 'en_proceso',
+      etapa: completo ? siguienteCorte : 'corte', estado: 'en_proceso',
       modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString(),
     }).eq('id', lote.id)
 
