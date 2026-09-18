@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
@@ -82,6 +82,7 @@ export default function LogisticaDiaria() {
   const [asignar, setAsignar] = useState({})             // { itemId: { fecha, camioneta_id } }
   const [flotaOpen, setFlotaOpen] = useState(false)
   const [reporteOpen, setReporteOpen] = useState(false)
+  const [historialOpen, setHistorialOpen] = useState(false)
   const [kmInput, setKmInput] = useState({})             // { camionetaId: { km_inicial, km_final } }
   const [ultimoKm, setUltimoKm] = useState({})           // { camionetaId: ultimo km_final conocido }
 
@@ -599,6 +600,12 @@ export default function LogisticaDiaria() {
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
           )}
           {!isChofer && (
+            <button onClick={() => setHistorialOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              📚 Historial de repartos
+            </button>
+          )}
+          {!isChofer && (
             <button onClick={() => setReporteOpen(true)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
               📊 Reporte Km
@@ -1094,6 +1101,134 @@ export default function LogisticaDiaria() {
 
       {/* ── MODAL reporte de km / combustible ── */}
       {!isChofer && reporteOpen && <ReporteKmModal onClose={() => setReporteOpen(false)} />}
+
+      {/* ── MODAL historial de repartos ── */}
+      {!isChofer && historialOpen && <HistorialRepartosModal onClose={() => setHistorialOpen(false)} />}
+    </div>
+  )
+}
+
+function HistorialRepartosModal({ onClose }) {
+  const hoy = new Date().toISOString().split('T')[0]
+  const desde30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+  const [desde, setDesde] = useState(desde30)
+  const [hasta, setHasta] = useState(hoy)
+  const [kms, setKms] = useState([])
+  const [paradas, setParadas] = useState([])
+  const [camMap, setCamMap] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [exp, setExp] = useState(null)
+
+  useEffect(() => { cargar() }, [desde, hasta])
+  async function cargar() {
+    setLoading(true)
+    const [{ data: km }, par, { data: cam }] = await Promise.all([
+      supabase.from('logistica_km').select('*').gte('fecha', desde).lte('fecha', hasta),
+      fetchAllRows(() => supabase.from('logistica_diaria').select('*').not('camioneta_id', 'is', null).gte('fecha', desde).lte('fecha', hasta).order('orden')),
+      supabase.from('camionetas').select('id,nombre,patente'),
+    ])
+    setKms(km || [])
+    setParadas(par || [])
+    setCamMap(Object.fromEntries((cam || []).map(c => [c.id, c])))
+    setLoading(false)
+  }
+
+  const recorrido = r => (r?.km_inicial != null && r?.km_final != null && r.km_final >= r.km_inicial) ? (r.km_final - r.km_inicial) : null
+  const entregada = p => !!p.estado_entrega
+
+  // Un reparto = un día + una camioneta. Unimos las claves de km y de paradas.
+  const mapa = {}
+  const keyOf = (f, c) => `${f}__${c}`
+  for (const r of kms) { mapa[keyOf(r.fecha, r.camioneta_id)] = { fecha: r.fecha, camioneta_id: r.camioneta_id, km: r, paradas: [] } }
+  for (const p of paradas) {
+    const k = keyOf(p.fecha, p.camioneta_id)
+    if (!mapa[k]) mapa[k] = { fecha: p.fecha, camioneta_id: p.camioneta_id, km: null, paradas: [] }
+    mapa[k].paradas.push(p)
+  }
+  const repartos = Object.values(mapa).sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0))
+
+  const th = { padding: '8px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
+  const td = { padding: '8px 10px', fontSize: 13, borderBottom: '1px solid var(--border)' }
+  const inSt = { background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }
+  const fdate = f => new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' })
+  const choferDe = rp => rp.km?.chofer_asignado || (rp.paradas.find(p => p.chofer_asignado)?.chofer_asignado) || '—'
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 1000, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>📚 Historial de repartos</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+            <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>Desde <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={{ ...inSt, marginLeft: 6 }} /></label>
+            <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>Hasta <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={{ ...inSt, marginLeft: 6 }} /></label>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>{repartos.length} reparto(s)</span>
+          </div>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>Cargando…</div>
+          ) : repartos.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>No hay repartos en ese período.</div>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
+                <thead><tr>
+                  <th style={th}>Fecha</th><th style={th}>Camioneta</th><th style={th}>Chofer</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Km inicial</th><th style={{ ...th, textAlign: 'right' }}>Km final</th><th style={{ ...th, textAlign: 'right' }}>Recorrido</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Combustible</th><th style={{ ...th, textAlign: 'center' }}>Paradas</th><th style={{ ...th, textAlign: 'center' }}>Estado</th><th style={th}></th>
+                </tr></thead>
+                <tbody>
+                  {repartos.map(rp => {
+                    const cam = camMap[rp.camioneta_id] || {}
+                    const rec = recorrido(rp.km)
+                    const total = rp.paradas.length
+                    const hechas = rp.paradas.filter(entregada).length
+                    const k = keyOf(rp.fecha, rp.camioneta_id)
+                    const isExp = exp === k
+                    return (
+                      <Fragment key={k}>
+                        <tr style={{ background: isExp ? 'var(--surface2)' : 'transparent' }}>
+                          <td style={{ ...td, whiteSpace: 'nowrap' }}>{fdate(rp.fecha)}</td>
+                          <td style={{ ...td, whiteSpace: 'nowrap' }}>{cam.nombre || 'Camioneta'}{cam.patente ? <span style={{ color: 'var(--text3)' }}> · {cam.patente}</span> : ''}</td>
+                          <td style={{ ...td, whiteSpace: 'nowrap' }}>{choferDe(rp)}</td>
+                          <td style={{ ...td, textAlign: 'right' }}>{rp.km?.km_inicial ?? '—'}</td>
+                          <td style={{ ...td, textAlign: 'right' }}>{rp.km?.km_final ?? '—'}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: rec != null ? '#7b9fff' : 'var(--text3)' }}>{rec != null ? `${rec} km` : '—'}</td>
+                          <td style={{ ...td, textAlign: 'right' }}>{rp.km?.combustible_monto != null ? fmtMoney(rp.km.combustible_monto) : '—'}{rp.km?.combustible_litros != null ? <span style={{ color: 'var(--text3)', fontSize: 11 }}> · {rp.km.combustible_litros}L</span> : ''}</td>
+                          <td style={{ ...td, textAlign: 'center' }}><b style={{ color: hechas >= total && total > 0 ? '#3dd68c' : 'var(--text)' }}>{hechas}</b><span style={{ color: 'var(--text3)' }}>/{total}</span></td>
+                          <td style={{ ...td, textAlign: 'center' }}>{rp.km?.cerrado ? <span style={{ fontSize: 10, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 8px' }}>Cerrado</span> : <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 20, padding: '2px 8px' }}>Abierto</span>}</td>
+                          <td style={{ ...td, textAlign: 'center' }}>{total > 0 && <button onClick={() => setExp(isExp ? null : k)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text3)', cursor: 'pointer', padding: '3px 9px', fontSize: 12, fontFamily: 'var(--font)' }}>{isExp ? '▲' : `Ver ${total}`}</button>}</td>
+                        </tr>
+                        {isExp && (
+                          <tr>
+                            <td colSpan={10} style={{ padding: '4px 16px 12px', background: 'var(--surface2)' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                {rp.paradas.map((p, i) => (
+                                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                                    <span style={{ color: 'var(--text3)', minWidth: 18 }}>{i + 1}.</span>
+                                    <span style={{ fontWeight: 700 }}>{p.nombre || p.descripcion || '—'}</span>
+                                    {(TIPOS[p.tipo]) && <span style={{ fontSize: 10, fontWeight: 700, color: TIPOS[p.tipo].color, background: TIPOS[p.tipo].bg, border: `1px solid ${TIPOS[p.tipo].border}`, borderRadius: 20, padding: '1px 8px' }}>{TIPOS[p.tipo].emoji} {TIPOS[p.tipo].label}</span>}
+                                    {p.localidad && <span style={{ color: 'var(--text3)' }}>· {p.localidad}</span>}
+                                    {p.zona && <span style={{ color: 'var(--text3)' }}>· {p.zona}</span>}
+                                    {p.estado_entrega
+                                      ? <span style={{ color: '#3dd68c', fontWeight: 700 }}>✓ {p.estado_entrega === 'entregado' ? 'Entregado' : 'Recibido'}{p.chofer_nombre ? ` · ${p.chofer_nombre}` : ''}</span>
+                                      : <span style={{ color: 'var(--text3)' }}>pendiente</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
