@@ -124,24 +124,20 @@ export default function Insumos() {
     })()
   }, [expandido])
 
-  // Próximo N° de lote = el último de ese insumo + 1 (conservando prefijo y ceros)
-  function nextLote(prev) {
-    if (!prev) return 'L-0001'
-    const s = String(prev).trim()
-    const m = s.match(/^(.*?)(\d+)(\D*)$/)   // toma el último grupo de dígitos
-    if (!m) return s + '-1'
-    const next = String(parseInt(m[2], 10) + 1).padStart(m[2].length, '0')
-    return m[1] + next + m[3]
+  // Número de lote dentro de un texto de lote (ej: "Lote N°5" -> 5, "L-0007" -> 7)
+  function numLote(s) {
+    const m = String(s || '').match(/(\d+)(?!.*\d)/)   // último grupo de dígitos
+    return m ? parseInt(m[1], 10) : 0
   }
 
   async function abrirIngreso(ins) {
     setModalStock(ins); setStockTipo('ingreso'); setStockFecha(new Date().toISOString().slice(0, 10))
     setStockLote('')
-    // Buscar el último lote cargado de este insumo para proponer el siguiente
+    // Próximo lote de ESTE insumo = (máximo N° de lote cargado) + 1. Formato simple "Lote N°X".
     const { data } = await supabase.from('movimientos_insumos')
-      .select('lote,created_at').eq('insumo_id', ins.id).not('lote', 'is', null)
-      .order('created_at', { ascending: false }).limit(1)
-    setStockLote(nextLote(data?.[0]?.lote))
+      .select('lote').eq('insumo_id', ins.id).not('lote', 'is', null)
+    const maxN = (data || []).reduce((mx, r) => Math.max(mx, numLote(r.lote)), 0)
+    setStockLote(`Lote N°${maxN + 1}`)
   }
 
   useEffect(() => { if (histOpen && insumos.length) cargarHistGeneral() }, [histOpen, tipo, insumos.length])
@@ -1016,8 +1012,8 @@ export default function Insumos() {
               {stockTipo !== 'ajuste' && (
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° de lote del insumo {stockTipo === 'ingreso' && <span style={{ color: '#3dd68c' }}>· automático</span>}</label>
-                  <input value={stockLote} onChange={e => setStockLote(e.target.value)} placeholder="Ej: L-2026-045" style={inputSt} />
-                  {stockTipo === 'ingreso' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Se propone el siguiente al último lote de este insumo. Podés editarlo si hace falta.</div>}
+                  <input value={stockLote} onChange={e => setStockLote(e.target.value)} readOnly={stockTipo === 'ingreso' && !isAdmin} placeholder="Ej: Lote N°1" style={{ ...inputSt, ...(stockTipo === 'ingreso' && !isAdmin ? { opacity: 0.75, cursor: 'not-allowed' } : {}) }} />
+                  {stockTipo === 'ingreso' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>{isAdmin ? 'Se numera solo por insumo (Lote N°1, N°2…). Como admin podés editarlo si hace falta.' : 'Se asigna automáticamente. Solo un admin puede modificarlo.'}</div>}
                 </div>
               )}
 
