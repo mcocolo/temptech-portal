@@ -124,6 +124,26 @@ export default function Insumos() {
     })()
   }, [expandido])
 
+  // Próximo N° de lote = el último de ese insumo + 1 (conservando prefijo y ceros)
+  function nextLote(prev) {
+    if (!prev) return 'L-0001'
+    const s = String(prev).trim()
+    const m = s.match(/^(.*?)(\d+)(\D*)$/)   // toma el último grupo de dígitos
+    if (!m) return s + '-1'
+    const next = String(parseInt(m[2], 10) + 1).padStart(m[2].length, '0')
+    return m[1] + next + m[3]
+  }
+
+  async function abrirIngreso(ins) {
+    setModalStock(ins); setStockTipo('ingreso'); setStockFecha(new Date().toISOString().slice(0, 10))
+    setStockLote('')
+    // Buscar el último lote cargado de este insumo para proponer el siguiente
+    const { data } = await supabase.from('movimientos_insumos')
+      .select('lote,created_at').eq('insumo_id', ins.id).not('lote', 'is', null)
+      .order('created_at', { ascending: false }).limit(1)
+    setStockLote(nextLote(data?.[0]?.lote))
+  }
+
   useEffect(() => { if (histOpen && insumos.length) cargarHistGeneral() }, [histOpen, tipo, insumos.length])
   async function cargarHistGeneral() {
     setHistLoading(true)
@@ -675,7 +695,7 @@ export default function Insumos() {
 
                     {/* Acciones */}
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                      <button onClick={() => { setModalStock(ins); setStockTipo('ingreso'); setStockFecha(new Date().toISOString().slice(0, 10)) }}
+                      <button onClick={() => abrirIngreso(ins)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         <TrendingUp size={13} /> Ingreso
                       </button>
@@ -995,8 +1015,9 @@ export default function Insumos() {
 
               {stockTipo !== 'ajuste' && (
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° de lote del insumo</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° de lote del insumo {stockTipo === 'ingreso' && <span style={{ color: '#3dd68c' }}>· automático</span>}</label>
                   <input value={stockLote} onChange={e => setStockLote(e.target.value)} placeholder="Ej: L-2026-045" style={inputSt} />
+                  {stockTipo === 'ingreso' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Se propone el siguiente al último lote de este insumo. Podés editarlo si hace falta.</div>}
                 </div>
               )}
 
