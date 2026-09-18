@@ -83,6 +83,7 @@ export default function LogisticaDiaria() {
   const [flotaOpen, setFlotaOpen] = useState(false)
   const [reporteOpen, setReporteOpen] = useState(false)
   const [historialOpen, setHistorialOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const [kmInput, setKmInput] = useState({})             // { camionetaId: { km_inicial, km_final } }
   const [ultimoKm, setUltimoKm] = useState({})           // { camionetaId: ultimo km_final conocido }
 
@@ -600,6 +601,12 @@ export default function LogisticaDiaria() {
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none' }} />
           )}
           {!isChofer && (
+            <button onClick={() => setInfoOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              📋 Información Importante
+            </button>
+          )}
+          {!isChofer && (
             <button onClick={() => setHistorialOpen(true)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
               📚 Historial de repartos
@@ -1104,6 +1111,106 @@ export default function LogisticaDiaria() {
 
       {/* ── MODAL historial de repartos ── */}
       {!isChofer && historialOpen && <HistorialRepartosModal onClose={() => setHistorialOpen(false)} />}
+
+      {/* ── MODAL información importante de vehículos ── */}
+      {!isChofer && infoOpen && <InfoVehiculosModal camionetas={camionetas} puedeEditar={isAdmin} onClose={() => setInfoOpen(false)} onChange={cargar} />}
+    </div>
+  )
+}
+
+function InfoVehiculosModal({ camionetas, puedeEditar, onClose, onChange }) {
+  const [subiendo, setSubiendo] = useState(null)   // `${camId}_${campo}`
+
+  const DOCS = [
+    { campo: 'foto_url', label: 'Foto del vehículo', emoji: '🚐' },
+    { campo: 'seguro_url', label: 'Seguro', emoji: '🛡️' },
+    { campo: 'poliza_url', label: 'Póliza', emoji: '📑' },
+    { campo: 'cedula_verde_url', label: 'Cédula verde', emoji: '🪪' },
+  ]
+
+  async function subir(cam, campo, file) {
+    if (!file) return
+    setSubiendo(`${cam.id}_${campo}`)
+    try {
+      const safe = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `camionetas/${cam.id}/${campo}_${Date.now()}_${safe}`
+      const { error: upErr } = await supabase.storage.from('devoluciones').upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const url = supabase.storage.from('devoluciones').getPublicUrl(path).data.publicUrl
+      const { error } = await supabase.from('camionetas').update({ [campo]: url }).eq('id', cam.id)
+      if (error) throw error
+      toast.success('Archivo subido ✅')
+      onChange && onChange()
+    } catch (e) { toast.error('Error al subir: ' + (e?.message || e)) }
+    setSubiendo(null)
+  }
+
+  async function quitar(cam, campo) {
+    if (!window.confirm('¿Quitar este archivo?')) return
+    const { error } = await supabase.from('camionetas').update({ [campo]: null }).eq('id', cam.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Quitado')
+    onChange && onChange()
+  }
+
+  const esImg = url => /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url || '')
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>📋 Información Importante — Vehículos</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Foto del vehículo, seguro, póliza y cédula verde de cada camioneta</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {(camionetas || []).length === 0 && <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>No hay camionetas activas. Cargalas en "Camionetas y choferes".</div>}
+          {(camionetas || []).map(cam => (
+            <div key={cam.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 14px' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>🚐 {cam.nombre}{cam.patente ? <span style={{ color: 'var(--text3)', fontFamily: 'monospace', fontWeight: 600 }}> · {cam.patente}</span> : ''}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                {DOCS.map(d => {
+                  const url = cam[d.campo]
+                  const key = `${cam.id}_${d.campo}`
+                  return (
+                    <div key={d.campo} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>{d.emoji} {d.label}</div>
+                      {url ? (
+                        <>
+                          <a href={url} target="_blank" rel="noreferrer" style={{ display: 'block', textDecoration: 'none' }}>
+                            {esImg(url)
+                              ? <img src={url} alt={d.label} style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                              : <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: '#7b9fff', fontSize: 13, fontWeight: 700 }}>📄 Ver archivo</div>}
+                          </a>
+                          {puedeEditar && (
+                            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                              <label style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer' }}>
+                                {subiendo === key ? '…' : 'Reemplazar'}
+                                <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => subir(cam, d.campo, e.target.files[0])} />
+                              </label>
+                              <button onClick={() => quitar(cam, d.campo)} style={{ fontSize: 11, fontWeight: 700, color: '#ff5577', background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', fontFamily: 'var(--font)' }}>Quitar</button>
+                            </div>
+                          )}
+                        </>
+                      ) : puedeEditar ? (
+                        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 110, borderRadius: 6, border: '1px dashed var(--border)', background: 'var(--surface2)', color: 'var(--text3)', fontSize: 12, fontWeight: 700, cursor: 'pointer', textAlign: 'center', padding: 6 }}>
+                          {subiendo === key ? 'Subiendo…' : '📎 Subir archivo'}
+                          <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => subir(cam, d.campo, e.target.files[0])} />
+                        </label>
+                      ) : (
+                        <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px dashed var(--border)', color: 'var(--text3)', fontSize: 12 }}>Sin cargar</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          {!puedeEditar && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Solo un admin puede subir o cambiar estos archivos.</div>}
+        </div>
+      </div>
     </div>
   )
 }
