@@ -237,6 +237,18 @@ export default function CorteOT({ lote, onClose, onDone }) {
       }
     }
 
+    // Sumar CORTES al DISCO por el delta de paneles cortados (uno por panel), separado por familia
+    if (f.disco_id) {
+      const colCorte = es1400 ? 'cortes_1400w' : (lote.modelo.includes('250') ? 'cortes_250w' : 'cortes_500w')
+      const dPan = piezas - efectosDe(prevOt || {}).paneles
+      if (dPan) {
+        try {
+          const { data: hr } = await supabase.from('herramental').select(colCorte).eq('id', f.disco_id).single()
+          if (hr) await supabase.from('herramental').update({ [colCorte]: Math.max(0, (hr[colCorte] || 0) + dPan) }).eq('id', f.disco_id)
+        } catch (_) { /* no bloquea */ }
+      }
+    }
+
     setG(false)
     if (alcanzo && !controlesOk) toast('OT guardada. Marcá los 5 controles en OK para que el lote avance a Aguj1+Alambre+Pegado.', { icon: '⚠️', duration: 5000 })
     else toast.success('OT de Corte guardada ✅')

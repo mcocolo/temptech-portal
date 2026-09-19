@@ -18,7 +18,7 @@ const COLS_CSV = [
 
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
-const EMPTY = { nombre: '', codigo: '', lote: '', sectores: [], fecha_ingreso: '', foto_url: '', usos_250w: '', usos_500w: '', usos_1400w_t: '', usos_1400w_ct: '', agujeros: '' }
+const EMPTY = { nombre: '', codigo: '', lote: '', sectores: [], fecha_ingreso: '', foto_url: '', usos_250w: '', usos_500w: '', usos_1400w_t: '', usos_1400w_ct: '', agujeros: '', cortes_250w: '', cortes_500w: '', cortes_1400w: '' }
 const SECTORES_HERR = ['Corte', 'Aguj1+Alambre+Pegado', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
 const secsDe = h => (Array.isArray(h.sectores) && h.sectores.length) ? h.sectores : (h.sector ? [h.sector] : [])
 
@@ -45,7 +45,7 @@ export default function Herramental() {
   }
 
   function abrirNuevo() { setForm({ ...EMPTY }); setEditId(null); setModalOpen(true) }
-  function abrirEditar(h) { setForm({ nombre: h.nombre || '', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '', usos_250w: h.usos_250w ?? '', usos_500w: h.usos_500w ?? '', usos_1400w_t: h.usos_1400w_t ?? '', usos_1400w_ct: h.usos_1400w_ct ?? '', agujeros: h.agujeros ?? '' }); setEditId(h.id); setModalOpen(true) }
+  function abrirEditar(h) { setForm({ nombre: h.nombre || '', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '', usos_250w: h.usos_250w ?? '', usos_500w: h.usos_500w ?? '', usos_1400w_t: h.usos_1400w_t ?? '', usos_1400w_ct: h.usos_1400w_ct ?? '', agujeros: h.agujeros ?? '', cortes_250w: h.cortes_250w ?? '', cortes_500w: h.cortes_500w ?? '', cortes_1400w: h.cortes_1400w ?? '' }); setEditId(h.id); setModalOpen(true) }
 
   async function subirFoto(file) {
     if (!file) return
@@ -61,7 +61,7 @@ export default function Herramental() {
 
   async function guardar() {
     if (!form.nombre.trim()) return toast.error('Ingresá el nombre')
-    const payload = { nombre: form.nombre.trim(), codigo: form.codigo.trim() || null, lote: form.lote.trim() || null, sectores: form.sectores, sector: form.sectores[0] || null, fecha_ingreso: form.fecha_ingreso || null, foto_url: form.foto_url || null, usos_250w: parseInt(form.usos_250w) || 0, usos_500w: parseInt(form.usos_500w) || 0, usos_1400w_t: parseInt(form.usos_1400w_t) || 0, usos_1400w_ct: parseInt(form.usos_1400w_ct) || 0, agujeros: parseInt(form.agujeros) || 0 }
+    const payload = { nombre: form.nombre.trim(), codigo: form.codigo.trim() || null, lote: form.lote.trim() || null, sectores: form.sectores, sector: form.sectores[0] || null, fecha_ingreso: form.fecha_ingreso || null, foto_url: form.foto_url || null, usos_250w: parseInt(form.usos_250w) || 0, usos_500w: parseInt(form.usos_500w) || 0, usos_1400w_t: parseInt(form.usos_1400w_t) || 0, usos_1400w_ct: parseInt(form.usos_1400w_ct) || 0, agujeros: parseInt(form.agujeros) || 0, cortes_250w: parseInt(form.cortes_250w) || 0, cortes_500w: parseInt(form.cortes_500w) || 0, cortes_1400w: parseInt(form.cortes_1400w) || 0 }
     setGuardando(true)
     const { error } = editId
       ? await supabase.from('herramental').update(payload).eq('id', editId)
@@ -130,6 +130,9 @@ export default function Herramental() {
                     <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w T: {h.usos_1400w_t || 0}</span>
                     <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w CT: {h.usos_1400w_ct || 0}</span>
                     {(/^MM/i.test(h.codigo || '') || h.agujeros > 0) && <span style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.35)', color: '#a78bfa', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Agujeros: {h.agujeros || 0}</span>}
+                    {(/^DISC/i.test(h.codigo || '') || h.cortes_250w > 0 || h.cortes_500w > 0 || h.cortes_1400w > 0) && (
+                      <span style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.35)', color: '#2dd4bf', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Cortes · 250w: {h.cortes_250w || 0} · 500w: {h.cortes_500w || 0} · 1400w: {h.cortes_1400w || 0}</span>
+                    )}
                   </div>
                 </div>
                 {!readOnly && (
@@ -183,7 +186,15 @@ export default function Herramental() {
                   <div><div style={{ fontSize: 10, color: '#fb923c', marginBottom: 3 }}>1400w T</div><input type="number" min="0" value={form.usos_1400w_t} onChange={e => setForm(f => ({ ...f, usos_1400w_t: e.target.value }))} placeholder="0" style={iSt} /></div>
                   <div><div style={{ fontSize: 10, color: '#fb923c', marginBottom: 3 }}>1400w CT</div><input type="number" min="0" value={form.usos_1400w_ct} onChange={e => setForm(f => ({ ...f, usos_1400w_ct: e.target.value }))} placeholder="0" style={iSt} /></div>
                 </div>
-                <div style={{ marginTop: 8 }}><div style={{ fontSize: 10, color: '#a78bfa', marginBottom: 3 }}>Agujeros (mechas) / Cortes (discos)</div><input type="number" min="0" value={form.agujeros} onChange={e => setForm(f => ({ ...f, agujeros: e.target.value }))} placeholder="0" style={iSt} /></div>
+                <div style={{ marginTop: 8 }}><div style={{ fontSize: 10, color: '#a78bfa', marginBottom: 3 }}>Agujeros (mechas)</div><input type="number" min="0" value={form.agujeros} onChange={e => setForm(f => ({ ...f, agujeros: e.target.value }))} placeholder="0" style={iSt} /></div>
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 10, color: '#2dd4bf', marginBottom: 3 }}>Cortes del disco (250w · 500w · 1400w)</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                    <input type="number" min="0" value={form.cortes_250w} onChange={e => setForm(f => ({ ...f, cortes_250w: e.target.value }))} placeholder="250w" style={iSt} />
+                    <input type="number" min="0" value={form.cortes_500w} onChange={e => setForm(f => ({ ...f, cortes_500w: e.target.value }))} placeholder="500w" style={iSt} />
+                    <input type="number" min="0" value={form.cortes_1400w} onChange={e => setForm(f => ({ ...f, cortes_1400w: e.target.value }))} placeholder="1400w" style={iSt} />
+                  </div>
+                </div>
               </div>
               <div>
                 <label style={lbl}>Foto</label>
