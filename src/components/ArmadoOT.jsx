@@ -54,6 +54,9 @@ const FDEF = {
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
+// Nivel de módulo (NO dentro del componente) para no re-montar y perder el foco al tipear
+const Sec = ({ t, children }) => <div><div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>{t}</div>{children}</div>
+
 export default function ArmadoOT({ lote, onClose, onDone }) {
   const { user, profile } = useAuth()
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
@@ -146,7 +149,6 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     onClose(); onDone()
   }
 
-  const Sec = ({ t, children }) => <div><div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>{t}</div>{children}</div>
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>

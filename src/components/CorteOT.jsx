@@ -289,9 +289,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>🔧 Herramental</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-              <HerrSelect base="disco" label="Disco Diamantado" />
-              <HerrSelect base="cinta" label="Cinta Métrica" />
-              <HerrSelect base="pie" label="Pie Metálico" />
+              {HerrSelect({ base: 'disco', label: 'Disco Diamantado' })}
+              {HerrSelect({ base: 'cinta', label: 'Cinta Métrica' })}
+              {HerrSelect({ base: 'pie', label: 'Pie Metálico' })}
             </div>
           </div>
 

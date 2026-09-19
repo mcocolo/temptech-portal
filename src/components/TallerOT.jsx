@@ -53,6 +53,9 @@ const FDEF = {
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
+// Nivel de módulo (NO dentro del componente) para no re-montar y perder el foco al tipear
+const Sec = ({ t, children }) => <div><div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>{t}</div>{children}</div>
+
 export default function TallerOT({ lote, onClose, onDone }) {
   const { user, profile } = useAuth()
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
@@ -143,7 +146,6 @@ export default function TallerOT({ lote, onClose, onDone }) {
     onClose(); onDone()
   }
 
-  const Sec = ({ t, children }) => <div><div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>{t}</div>{children}</div>
 
   const filaFase = (k, label) => (
     <div key={k} style={{ marginBottom: 10, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
