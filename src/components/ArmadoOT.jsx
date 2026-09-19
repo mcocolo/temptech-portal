@@ -63,6 +63,9 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const target = lote.cantidad_actual || lote.cantidad_objetivo
   const [empleados, setEmpleados] = useState([])
   const [insumosCat, setInsumosCat] = useState(FALLBACK_INS)
+  const [allInsumos, setAllInsumos] = useState([])   // todos los insumos directos (para buscar/agregar)
+  const [extraCods, setExtraCods] = useState([])     // insumos agregados a mano
+  const [buscarIns, setBuscarIns] = useState('')
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
   const [f, setF] = useState(clone(FDEF))
@@ -77,6 +80,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || ['Armado', 'Alambre'].some(s => x.sectores.includes(s))))
     const arm = (ins.data || []).filter(i => !i.discontinuado && Array.isArray(i.sectores) && i.sectores.some(s => SECTORES_ARMADO_INS.includes(s)))
     setInsumosCat(arm.length ? arm.map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo })) : FALLBACK_INS)
+    setAllInsumos((ins.data || []).filter(i => !i.discontinuado).map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo, unidad: i.unidad || '' })))
     if (ot.data) {
       setPrevOt(ot.data)
       const d = ot.data.datos || {}
@@ -102,14 +106,14 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   const totalInsumo = cod => COLS.reduce((s, c) => s + int(f.insumosEst[cod]?.[c]), 0)
 
-  async function descontar(codigo, delta, lote_ins) {
+  async function descontar(codigo, delta, lote_ins, motivo) {
     if (!codigo || !delta) return
     try {
       const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', codigo).limit(1)
       const row = ins?.[0]
       if (row) {
         await supabase.from('insumos').update({ stock_actual: Math.max(0, (row.stock_actual || 0) - delta), updated_at: new Date().toISOString() }).eq('id', row.id)
-        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Armado', motivo: `OT Armado · Lote #${lote.numero}`, lote: lote_ins || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Alambre', motivo: motivo || `OT Alambre · Lote #${lote.numero}`, lote: lote_ins || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
       }
     } catch (_) { /* no bloquea */ }
   }
@@ -130,10 +134,19 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
 
-    // Descontar insumos por el delta respecto de lo ya descontado
+    // Descontar insumos por el delta respecto de lo ya descontado (incluye los agregados a mano)
+    // y dejar un registro de consumo: "Consumo: xxx <unidad> · Lote <lote> · <paneles> paneles · <fecha>"
     const prev = prevOt?.datos || {}
     const prevTot = cod => COLS.reduce((s, c) => s + int(prev.insumosEst?.[cod]?.[c]), 0)
-    for (const { cod } of insumosCat) await descontar(cod, totalInsumo(cod) - prevTot(cod), f.insumosEst[cod]?.lote)
+    const codsUsados = [...new Set([...insumosCat.map(x => x.cod), ...Object.keys(f.insumosEst || {})])]
+    const uniDe = Object.fromEntries(allInsumos.map(x => [x.cod, x.unidad || '']))
+    const fechaHoy = new Date().toLocaleDateString('es-AR')
+    for (const cod of codsUsados) {
+      const total = totalInsumo(cod)
+      const loteIns = f.insumosEst[cod]?.lote || '—'
+      const motivo = `OT Alambre · Lote #${lote.numero} · Consumo: ${total} ${uniDe[cod] || ''}`.trim() + ` · Lote ${loteIns} · ${conforme} paneles · ${fechaHoy}`
+      await descontar(cod, total - prevTot(cod), f.insumosEst[cod]?.lote, motivo)
+    }
 
     // Actualizar el lote: avance de armado = conforme; si completó, pasa a Encuadre
     const completo = conforme >= target && conforme > 0
@@ -213,31 +226,61 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
             </div>
           </Sec>
 
-          {/* Insumos por estación (dinámico: insumos con sector Alambre/Pegado) */}
+          {/* Insumos por estación — arranca con los del sector, pero podés agregar cualquiera */}
           <Sec t="📦 Insumos por estación (E1–E5) — descuentan stock">
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 620 }}>
-                <thead><tr>
-                  <th style={{ fontSize: 10, color: 'var(--text3)', textAlign: 'left', padding: '4px 6px' }}>Insumo</th>
-                  {COLS.map(e => <th key={e} style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>{e}</th>)}
-                  <th style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>Lote</th>
-                  <th style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>Total</th>
-                </tr></thead>
-                <tbody>
-                  {insumosCat.map(({ cod, label }) => (
-                    <tr key={cod}>
-                      <td style={{ fontSize: 12, padding: '3px 6px' }}>{label} <span style={{ color: 'var(--text3)', fontFamily: 'monospace', fontSize: 10 }}>{cod}</span></td>
-                      {COLS.map(e => (
-                        <td key={e} style={{ padding: '3px 4px' }}><input type="number" value={f.insumosEst[cod]?.[e] ?? ''} onChange={ev => setInsEst(cod, e, ev.target.value)} style={{ ...iSt, width: 54, padding: '5px 6px', textAlign: 'center' }} /></td>
-                      ))}
-                      <td style={{ padding: '3px 4px' }}><input value={f.insumosEst[cod]?.lote ?? ''} onChange={ev => setInsEst(cod, 'lote', ev.target.value)} placeholder="lote" style={{ ...iSt, width: 70, padding: '5px 6px' }} /></td>
-                      <td style={{ padding: '3px 6px', fontWeight: 800, color: '#7b9fff', textAlign: 'center' }}>{totalInsumo(cod)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Los insumos salen de los que tienen sector <b>Alambre</b> o <b>Pegado</b> en Insumos Directos. E5 = Pegado.</div>
+            {(() => {
+              const labelMap = Object.fromEntries([...allInsumos, ...insumosCat].map(x => [x.cod, x.label]))
+              const filaCods = [...new Set([...insumosCat.map(x => x.cod), ...Object.keys(f.insumosEst || {}), ...extraCods])]
+              const q = buscarIns.trim().toLowerCase()
+              const opciones = q ? allInsumos.filter(x => !filaCods.includes(x.cod) && ((x.label || '').toLowerCase().includes(q) || (x.cod || '').toLowerCase().includes(q))).slice(0, 8) : []
+              return (
+                <>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 620 }}>
+                      <thead><tr>
+                        <th style={{ fontSize: 10, color: 'var(--text3)', textAlign: 'left', padding: '4px 6px' }}>Insumo</th>
+                        {COLS.map(e => <th key={e} style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>{e}</th>)}
+                        <th style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>Lote</th>
+                        <th style={{ fontSize: 10, color: 'var(--text3)', padding: '4px 6px' }}>Total</th>
+                        <th style={{ width: 20 }}></th>
+                      </tr></thead>
+                      <tbody>
+                        {filaCods.map(cod => (
+                          <tr key={cod}>
+                            <td style={{ fontSize: 12, padding: '3px 6px' }}>{labelMap[cod] || cod} <span style={{ color: 'var(--text3)', fontFamily: 'monospace', fontSize: 10 }}>{cod}</span></td>
+                            {COLS.map(e => (
+                              <td key={e} style={{ padding: '3px 4px' }}><input type="number" value={f.insumosEst[cod]?.[e] ?? ''} onChange={ev => setInsEst(cod, e, ev.target.value)} style={{ ...iSt, width: 54, padding: '5px 6px', textAlign: 'center' }} /></td>
+                            ))}
+                            <td style={{ padding: '3px 4px' }}><input value={f.insumosEst[cod]?.lote ?? ''} onChange={ev => setInsEst(cod, 'lote', ev.target.value)} placeholder="lote" style={{ ...iSt, width: 70, padding: '5px 6px' }} /></td>
+                            <td style={{ padding: '3px 6px', fontWeight: 800, color: '#7b9fff', textAlign: 'center' }}>{totalInsumo(cod)}</td>
+                            <td style={{ padding: '3px 4px', textAlign: 'center' }}>
+                              {!insumosCat.some(x => x.cod === cod) && <button onClick={() => { setExtraCods(prev => prev.filter(c => c !== cod)); setF(s => { const n = clone(s); delete n.insumosEst[cod]; return n }) }} title="Quitar insumo" style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>×</button>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Buscador para agregar cualquier insumo */}
+                  <div style={{ position: 'relative', marginTop: 8, maxWidth: 360 }}>
+                    <input value={buscarIns} onChange={e => setBuscarIns(e.target.value)} placeholder="➕ Agregar insumo (buscá por nombre o código)…" style={{ ...iSt }} />
+                    {opciones.length > 0 && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 20, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', marginTop: 2 }}>
+                        {opciones.map(o => (
+                          <div key={o.cod} onMouseDown={() => { setExtraCods(prev => [...new Set([...prev, o.cod])]); setInsEst(o.cod, 'lote', f.insumosEst[o.cod]?.lote ?? ''); setBuscarIns('') }}
+                            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                            onMouseEnter={ev => ev.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#7b9fff', minWidth: 70 }}>{o.cod}</span>
+                            <span style={{ fontSize: 12 }}>{o.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>Arranca con los insumos de sector <b>Alambre</b> o <b>Pegado</b>. Podés agregar cualquier otro con el buscador. E5 = Pegado.</div>
+                </>
+              )
+            })()}
           </Sec>
 
           {/* Prensas */}
