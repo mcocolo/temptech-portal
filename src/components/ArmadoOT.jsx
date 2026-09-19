@@ -65,6 +65,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const [insumosCat, setInsumosCat] = useState(FALLBACK_INS)
   const [allInsumos, setAllInsumos] = useState([])   // todos los insumos directos (para buscar/agregar)
   const [extraCods, setExtraCods] = useState([])     // insumos agregados a mano
+  const [removedCods, setRemovedCods] = useState([]) // insumos quitados de la tabla
   const [buscarIns, setBuscarIns] = useState('')
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
@@ -230,7 +231,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
           <Sec t="📦 Insumos por estación (E1–E5) — descuentan stock">
             {(() => {
               const labelMap = Object.fromEntries([...allInsumos, ...insumosCat].map(x => [x.cod, x.label]))
-              const filaCods = [...new Set([...insumosCat.map(x => x.cod), ...Object.keys(f.insumosEst || {}), ...extraCods])]
+              const filaCods = [...new Set([...insumosCat.map(x => x.cod), ...Object.keys(f.insumosEst || {}), ...extraCods])].filter(c => !removedCods.includes(c))
               const q = buscarIns.trim().toLowerCase()
               const opciones = q ? allInsumos.filter(x => !filaCods.includes(x.cod) && ((x.label || '').toLowerCase().includes(q) || (x.cod || '').toLowerCase().includes(q))).slice(0, 8) : []
               return (
@@ -254,7 +255,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                             <td style={{ padding: '3px 4px' }}><input value={f.insumosEst[cod]?.lote ?? ''} onChange={ev => setInsEst(cod, 'lote', ev.target.value)} placeholder="lote" style={{ ...iSt, width: 70, padding: '5px 6px' }} /></td>
                             <td style={{ padding: '3px 6px', fontWeight: 800, color: '#7b9fff', textAlign: 'center' }}>{totalInsumo(cod)}</td>
                             <td style={{ padding: '3px 4px', textAlign: 'center' }}>
-                              {!insumosCat.some(x => x.cod === cod) && <button onClick={() => { setExtraCods(prev => prev.filter(c => c !== cod)); setF(s => { const n = clone(s); delete n.insumosEst[cod]; return n }) }} title="Quitar insumo" style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>×</button>}
+                              <button onClick={() => { setExtraCods(prev => prev.filter(c => c !== cod)); setRemovedCods(prev => [...new Set([...prev, cod])]); setF(s => { const n = clone(s); delete n.insumosEst[cod]; return n }) }} title="Quitar insumo" style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>×</button>
                             </td>
                           </tr>
                         ))}
@@ -267,7 +268,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                     {opciones.length > 0 && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 20, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', marginTop: 2 }}>
                         {opciones.map(o => (
-                          <div key={o.cod} onMouseDown={() => { setExtraCods(prev => [...new Set([...prev, o.cod])]); setInsEst(o.cod, 'lote', f.insumosEst[o.cod]?.lote ?? ''); setBuscarIns('') }}
+                          <div key={o.cod} onMouseDown={() => { setExtraCods(prev => [...new Set([...prev, o.cod])]); setRemovedCods(prev => prev.filter(c => c !== o.cod)); setInsEst(o.cod, 'lote', f.insumosEst[o.cod]?.lote ?? ''); setBuscarIns('') }}
                             style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}
                             onMouseEnter={ev => ev.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}>
                             <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#7b9fff', minWidth: 70 }}>{o.cod}</span>
