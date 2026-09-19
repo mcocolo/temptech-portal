@@ -46,7 +46,7 @@ const emptyEst = () => ({ E1: '', E2: '', E3: '', E4: '', E5: '', lote: '' })
 const FDEF = {
   tiempos: { aguj1: { fi: '', hi: '', ff: '', hf: '' }, alambre: { fi: '', hi: '', ff: '', hf: '' }, pegado: { fi: '', hi: '', ff: '', hf: '' } },
   personalEst: { E1: [], E2: [], E3: [], E4: [], E5: [] },
-  mechas: [{ cod: 'MM2', lote: '' }, { cod: 'MM2', lote: '' }, { cod: 'MM3', lote: '' }, { cod: 'MM3', lote: '' }],
+  mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '',
   insumosEst: {},
   prensas: { P1: { cant: '', pres: '' }, P2: { cant: '', pres: '' }, P3: { cant: '', pres: '' }, P4: { cant: '', pres: '' } },
@@ -149,6 +149,19 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       await descontar(cod, total - prevTot(cod), f.insumosEst[cod]?.lote, motivo)
     }
 
+    // Acumular AGUJEROS a cada mecha (por código + lote) en Herramental, por el delta vs lo guardado
+    const prevMech = prev.mechas || []
+    for (let i = 0; i < f.mechas.length; i++) {
+      const m = f.mechas[i]
+      if (!m.cod || !String(m.lote).trim()) continue
+      const delta = int(m.agujeros) - int(prevMech[i]?.agujeros)
+      if (!delta) continue
+      try {
+        const { data: hr } = await supabase.from('herramental').select('id,agujeros').eq('codigo', m.cod).eq('lote', String(m.lote).trim()).limit(1)
+        if (hr?.[0]) await supabase.from('herramental').update({ agujeros: Math.max(0, (hr[0].agujeros || 0) + delta) }).eq('id', hr[0].id)
+      } catch (_) { /* no bloquea */ }
+    }
+
     // Actualizar el lote: avance de armado = conforme; si completó, pasa a Encuadre
     const completo = conforme >= target && conforme > 0
     await supabase.from('produccion_lotes').update({
@@ -211,9 +224,16 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
           <Sec t="🔧 Herramental">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
               {f.mechas.map((m, i) => (
-                <div key={i}><label style={lbl}>Micromecha {m.cod}</label><input value={m.lote} onChange={e => setD(`mechas.${i}.lote`, e.target.value)} placeholder="N° de lote" style={iSt} /></div>
+                <div key={i} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                  <label style={lbl}>Micromecha {m.cod}</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <input value={m.lote} onChange={e => setD(`mechas.${i}.lote`, e.target.value)} placeholder="N° de lote" style={iSt} />
+                    <input type="number" value={m.agujeros} onChange={e => setD(`mechas.${i}.agujeros`, e.target.value)} placeholder="agujeros" title="Agujeros hechos con esta mecha en esta OT" style={iSt} />
+                  </div>
+                </div>
               ))}
             </div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: -2, marginBottom: 8 }}>Los <b>agujeros</b> se suman al total de esa mecha (por código + lote) en Herramental al guardar.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
               <div><label style={lbl}>Maq-Sil1</label><input value={f.maqSil1} onChange={e => setD('maqSil1', e.target.value)} placeholder="ID / lote" style={iSt} /></div>
               <div><label style={lbl}>Maq-Sil2</label><input value={f.maqSil2} onChange={e => setD('maqSil2', e.target.value)} placeholder="ID / lote" style={iSt} /></div>
