@@ -155,7 +155,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 820, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>🧵 OT Aguj N°1 + Alambre + Pegado · Lote #{lote.numero}</div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>🧵 OT Alambre · Lote #{lote.numero}</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{lote.modelo} · {target} u. a trabajar (viene de Corte)</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>

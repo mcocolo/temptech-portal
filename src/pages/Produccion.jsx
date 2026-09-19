@@ -365,7 +365,7 @@ export default function Produccion() {
                           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
                             {/* OT de Corte: disponible para ver/editar el corte en cualquier etapa (menos terminado) */}
                             {lote.etapa !== 'terminado' && <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 {lote.etapa === 'por_iniciar' ? 'OT Corte' : 'Corte'}</button>}
-                            {lote.etapa === 'armado' && !lote.modelo.includes('1400') && <button onClick={() => setArmadoLote(lote)} style={btn('#a78bfa')}>🧵 OT Armado</button>}
+                            {!esFirenze(lote.modelo) && !['por_iniciar', 'corte', 'terminado'].includes(lote.etapa) && <button onClick={() => setArmadoLote(lote)} style={btn('#a78bfa')}>🧵 {lote.etapa === 'armado' ? 'OT Alambre' : 'Alambre'}</button>}
                             {lote.etapa === 'taller' && esFirenze(lote.modelo) && <button onClick={() => setTallerLote(lote)} style={btn('#22d3ee')}>🛠 OT Taller</button>}
                             {puedeGestionar && lote.etapa !== 'por_iniciar' && <button onClick={() => retrocederEtapa(lote)} style={btn('var(--text3)')} title="Volver a la etapa anterior">← Volver</button>}
                             {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
