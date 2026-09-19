@@ -85,6 +85,8 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     if (ot.data) {
       setPrevOt(ot.data)
       const d = ot.data.datos || {}
+      setExtraCods(Array.isArray(d.extraCods) ? d.extraCods : [])
+      setRemovedCods(Array.isArray(d.removedCods) ? d.removedCods : [])
       setF({
         ...clone(FDEF), ...d,
         tiempos: { ...FDEF.tiempos, ...(d.tiempos || {}) },
@@ -121,7 +123,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme) }
+    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const payload = {
       lote_id: lote.id, etapa: 'armado',
