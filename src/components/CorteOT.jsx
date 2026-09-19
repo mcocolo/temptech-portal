@@ -303,17 +303,17 @@ export default function CorteOT({ lote, onClose, onDone }) {
             </div>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', marginBottom: 4 }}>Sesión 1</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-              <div><label style={lbl}>Fecha inicio</label><input type="date" value={f.fecha_inicio} onChange={e => setF(s => ({ ...s, fecha_inicio: e.target.value }))} style={iSt} /></div>
-              <div><label style={lbl}>Hora inicio</label><input type="time" value={f.hora_inicio} onChange={e => setF(s => ({ ...s, hora_inicio: e.target.value }))} style={iSt} /></div>
-              <div><label style={lbl}>Fecha fin</label><input type="date" value={f.fecha_fin} onChange={e => setF(s => ({ ...s, fecha_fin: e.target.value }))} style={iSt} /></div>
-              <div><label style={lbl}>Hora fin</label><input type="time" value={f.hora_fin} onChange={e => setF(s => ({ ...s, hora_fin: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Fecha inicio</label><input key={'fi' + f.fecha_inicio} type="date" defaultValue={f.fecha_inicio} onBlur={e => setF(s => ({ ...s, fecha_inicio: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Hora inicio</label><input key={'hi' + f.hora_inicio} type="time" defaultValue={f.hora_inicio} onBlur={e => setF(s => ({ ...s, hora_inicio: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Fecha fin</label><input key={'ff' + f.fecha_fin} type="date" defaultValue={f.fecha_fin} onBlur={e => setF(s => ({ ...s, fecha_fin: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Hora fin</label><input key={'hf' + f.hora_fin} type="time" defaultValue={f.hora_fin} onBlur={e => setF(s => ({ ...s, hora_fin: e.target.value }))} style={iSt} /></div>
             </div>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', margin: '8px 0 4px' }}>Sesión 2 (si retomó otro día)</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-              <div><label style={lbl}>Fecha inicio</label><input type="date" value={f.fecha_inicio2} onChange={e => setF(s => ({ ...s, fecha_inicio2: e.target.value }))} style={iSt} /></div>
-              <div><label style={lbl}>Hora inicio</label><input type="time" value={f.hora_inicio2} onChange={e => setF(s => ({ ...s, hora_inicio2: e.target.value }))} style={iSt} /></div>
-              <div><label style={lbl}>Fecha fin</label><input type="date" value={f.fecha_fin2} onChange={e => setF(s => ({ ...s, fecha_fin2: e.target.value }))} style={iSt} /></div>
-              <div><label style={lbl}>Hora fin</label><input type="time" value={f.hora_fin2} onChange={e => setF(s => ({ ...s, hora_fin2: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Fecha inicio</label><input key={'fi2' + f.fecha_inicio2} type="date" defaultValue={f.fecha_inicio2} onBlur={e => setF(s => ({ ...s, fecha_inicio2: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Hora inicio</label><input key={'hi2' + f.hora_inicio2} type="time" defaultValue={f.hora_inicio2} onBlur={e => setF(s => ({ ...s, hora_inicio2: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Fecha fin</label><input key={'ff2' + f.fecha_fin2} type="date" defaultValue={f.fecha_fin2} onBlur={e => setF(s => ({ ...s, fecha_fin2: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Hora fin</label><input key={'hf2' + f.hora_fin2} type="time" defaultValue={f.hora_fin2} onBlur={e => setF(s => ({ ...s, hora_fin2: e.target.value }))} style={iSt} /></div>
             </div>
             <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Descuenta desayuno (9-9:15), descanso (11-11:05), almuerzo (13-13:30) y descanso (15-15:05). Jornada hasta 16:30 (L-J) / 14:00 (V), inicio 08:00. La duración suma ambas sesiones.</div>
           </div>

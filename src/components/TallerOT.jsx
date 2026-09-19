@@ -149,10 +149,10 @@ export default function TallerOT({ lote, onClose, onDone }) {
     <div key={k} style={{ marginBottom: 10, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)', marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-        <input type="date" value={f.tiempos[k].fi} onChange={e => setD(`tiempos.${k}.fi`, e.target.value)} style={iSt} title="Fecha inicio" />
-        <input type="time" value={f.tiempos[k].hi} onChange={e => setD(`tiempos.${k}.hi`, e.target.value)} style={iSt} title="Hora inicio" />
-        <input type="date" value={f.tiempos[k].ff} onChange={e => setD(`tiempos.${k}.ff`, e.target.value)} style={iSt} title="Fecha fin" />
-        <input type="time" value={f.tiempos[k].hf} onChange={e => setD(`tiempos.${k}.hf`, e.target.value)} style={iSt} title="Hora fin" />
+        <input key={'fi' + f.tiempos[k].fi} type="date" defaultValue={f.tiempos[k].fi} onBlur={e => setD(`tiempos.${k}.fi`, e.target.value)} style={iSt} title="Fecha inicio" />
+        <input key={'hi' + f.tiempos[k].hi} type="time" defaultValue={f.tiempos[k].hi} onBlur={e => setD(`tiempos.${k}.hi`, e.target.value)} style={iSt} title="Hora inicio" />
+        <input key={'ff' + f.tiempos[k].ff} type="date" defaultValue={f.tiempos[k].ff} onBlur={e => setD(`tiempos.${k}.ff`, e.target.value)} style={iSt} title="Fecha fin" />
+        <input key={'hf' + f.tiempos[k].hf} type="time" defaultValue={f.tiempos[k].hf} onBlur={e => setD(`tiempos.${k}.hf`, e.target.value)} style={iSt} title="Hora fin" />
       </div>
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
         {empleados.map(e => { const sel = f.personalFase[k].includes(e.apodo); return (
