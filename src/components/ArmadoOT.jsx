@@ -125,7 +125,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCredit: conforme }
+    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const payload = {
       lote_id: lote.id, etapa: 'armado',
@@ -153,10 +153,11 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       await descontar(cod, total - prevTot(cod), f.insumosEst[cod]?.lote, motivo)
     }
 
-    // Acumular AGUJEROS = paneles del lote a cada mecha con lote cargado (por código + lote).
-    // Usa un contador propio (agujCredit) de lo ya acreditado, así funciona aunque la OT
-    // se haya guardado antes de existir esta función (acredita lo que falte al re-guardar).
-    const dPan = conforme - int(prev.agujCredit)
+    // Acumular AGUJEROS = paneles del lote a cada mecha con lote cargado (por código + lote),
+    // separados por familia (250w/500w/1400w). Usa un contador propio (agujCreditF) de lo ya
+    // acreditado, así funciona aunque la OT se haya guardado antes de existir esta función.
+    const colAguj = (lote.modelo || '').includes('1400') ? 'agujeros_1400w' : (lote.modelo || '').includes('250') ? 'agujeros_250w' : 'agujeros_500w'
+    const dPan = conforme - int(prev.agujCreditF)
     if (dPan) {
       const yaHecho = new Set()
       for (const m of f.mechas) {
@@ -166,8 +167,8 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         if (yaHecho.has(key)) continue
         yaHecho.add(key)
         try {
-          const { data: hr } = await supabase.from('herramental').select('id,agujeros').eq('codigo', m.cod).eq('lote', loteM).limit(1)
-          if (hr?.[0]) await supabase.from('herramental').update({ agujeros: Math.max(0, (hr[0].agujeros || 0) + dPan) }).eq('id', hr[0].id)
+          const { data: hr } = await supabase.from('herramental').select(`id,${colAguj}`).eq('codigo', m.cod).eq('lote', loteM).limit(1)
+          if (hr?.[0]) await supabase.from('herramental').update({ [colAguj]: Math.max(0, (hr[0][colAguj] || 0) + dPan) }).eq('id', hr[0].id)
         } catch (_) { /* no bloquea */ }
       }
     }
