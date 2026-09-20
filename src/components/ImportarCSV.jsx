@@ -63,11 +63,27 @@ export default function ImportarCSV({ titulo, tabla, columnas, fijos = {}, onClo
     setRows({ validas, invalidas, headers })
   }
 
+  // Decodifica detectando la codificación: prueba UTF-8 (estricto) y si el archivo no es
+  // UTF-8 válido (típico de Excel/CSV en Windows) cae a Windows-1252 / Latin-1.
+  function decodeBuffer(buf) {
+    const bytes = new Uint8Array(buf)
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    } catch {
+      try { return new TextDecoder('windows-1252').decode(bytes) }
+      catch { return new TextDecoder('latin1').decode(bytes) }
+    }
+  }
+
   function onFile(file) {
     if (!file) return
     const rd = new FileReader()
-    rd.onload = e => { const t = e.target.result; setTexto(t); analizar(t) }
-    rd.readAsText(file, 'UTF-8')
+    rd.onload = e => {
+      let t = decodeBuffer(e.target.result)
+      if (t.charCodeAt(0) === 0xFEFF) t = t.slice(1)   // sacar BOM si viene
+      setTexto(t); analizar(t)
+    }
+    rd.readAsArrayBuffer(file)
   }
 
   function descargarPlantilla() {
