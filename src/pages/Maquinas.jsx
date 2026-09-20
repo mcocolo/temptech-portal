@@ -35,7 +35,7 @@ const EMPTY = { ...Object.fromEntries(CAMPOS.map(([k]) => [k, k === 'sectores' ?
 const estColor = e => { const s = (e || '').toLowerCase(); if (/(no funciona|fuera)/.test(s)) return '#ff5577'; if (/(manten)/.test(s)) return '#fb923c'; if (/(funciona|operativa|ok)/.test(s)) return '#3dd68c'; return 'var(--text3)' }
 
 export default function Maquinas() {
-  const { isAdmin, isAdmin2, isMantenimiento } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -48,6 +48,19 @@ export default function Maquinas() {
   const [importOpen, setImportOpen] = useState(false)
   const [expandido, setExpandido] = useState(null)
   const [moviendo, setMoviendo] = useState(null)
+  const [filtroVida, setFiltroVida] = useState('activo')   // activo | discontinuado | eliminado | todos
+  const nombreUsuario = profile?.full_name || user?.email || 'Admin'
+
+  async function cambiarEstadoVida(m, estado) {
+    const labels = { activo: 'reactivar', discontinuado: 'discontinuar', eliminado: 'marcar como disposición final (eliminado)' }
+    if (!window.confirm(`¿${labels[estado][0].toUpperCase() + labels[estado].slice(1)} "${m.nombre}"?`)) return
+    const { error } = await supabase.from('maquinas').update({
+      estado_vida: estado, estado_vida_at: new Date().toISOString(), estado_vida_por: nombreUsuario,
+    }).eq('id', m.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Actualizado ✅')
+    setItems(prev => prev.map(x => x.id === m.id ? { ...x, estado_vida: estado } : x))
+  }
 
   // Mueve una máquina mal clasificada a la tabla Herramental (y la borra de Máquinas)
   async function moverAHerramental(m) {
@@ -112,7 +125,11 @@ export default function Maquinas() {
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
   const readOnly = isAdmin2   // mantenimiento edita todo
   const q = busqueda.trim().toLowerCase()
-  const filtrados = items.filter(m => !q || [m.nombre, m.codigo, m.numero, m.sigla, m.marca, m.modelo, m.ubicacion, m.ubicacion_fisica, m.proveedor].some(v => (v || '').toLowerCase().includes(q)) || (m.sectores || []).some(s => s.toLowerCase().includes(q)))
+  const vidaDe = m => m.estado_vida || 'activo'
+  const cuenta = est => items.filter(m => vidaDe(m) === est).length
+  const filtrados = items.filter(m =>
+    (filtroVida === 'todos' || vidaDe(m) === filtroVida) &&
+    (!q || [m.nombre, m.codigo, m.numero, m.sigla, m.marca, m.modelo, m.ubicacion, m.ubicacion_fisica, m.proveedor].some(v => (v || '').toLowerCase().includes(q)) || (m.sectores || []).some(s => s.toLowerCase().includes(q))))
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -128,7 +145,16 @@ export default function Maquinas() {
       </div>
       {importOpen && <ImportarCSV titulo="Máquinas" tabla="maquinas" columnas={COLS_CSV} onClose={() => setImportOpen(false)} onDone={cargar} />}
 
-      <input type="text" placeholder="🔍 Buscar por equipo, código, N°, sigla, marca, sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420, marginBottom: 16 }} />
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+        <input type="text" placeholder="🔍 Buscar por equipo, código, N°, sigla, marca, sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 360 }} />
+        <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
+          {[['activo', 'Activas'], ['discontinuado', 'Discontinuadas'], ['eliminado', 'Eliminadas'], ['todos', 'Todas']].map(([v, l]) => (
+            <button key={v} onClick={() => setFiltroVida(v)} style={{ padding: '7px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: filtroVida === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: filtroVida === v ? '#7b9fff' : 'var(--text3)' }}>
+              {l}{v !== 'todos' && cuenta(v) > 0 ? ` (${cuenta(v)})` : ''}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando...</div>
@@ -142,7 +168,10 @@ export default function Maquinas() {
               <div key={m.id} style={{ background: 'var(--surface)', border: `1px solid ${isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
                   <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setExpandido(isExp ? null : m.id)}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{m.nombre || '—'} {m.codigo && <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'monospace' }}>{m.codigo}</span>} {m.sigla && <span style={{ fontSize: 11, color: '#7b9fff', fontWeight: 700 }}>· {m.sigla}</span>}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{m.nombre || '—'} {m.codigo && <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'monospace' }}>{m.codigo}</span>} {m.sigla && <span style={{ fontSize: 11, color: '#7b9fff', fontWeight: 700 }}>· {m.sigla}</span>}
+                      {vidaDe(m) === 'discontinuado' && <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 20, padding: '1px 8px', marginLeft: 6 }}>🚫 Discontinuada</span>}
+                      {vidaDe(m) === 'eliminado' && <span style={{ fontSize: 10, fontWeight: 700, color: '#ff5577', background: 'rgba(255,85,119,0.12)', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 20, padding: '1px 8px', marginLeft: 6 }}>🗑 Disposición final</span>}
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)' }}>{[m.marca, m.modelo, m.ubicacion, m.ubicacion_fisica].filter(Boolean).join(' · ') || '—'}</div>
                   </div>
                   {m.estado && <span style={{ fontSize: 10, fontWeight: 700, color: estColor(m.estado), background: `${estColor(m.estado)}18`, border: `1px solid ${estColor(m.estado)}44`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{m.estado}</span>}
@@ -153,9 +182,12 @@ export default function Maquinas() {
                       <button onClick={() => setConfirmDel(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>No</button>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', gap: 5 }}>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       <button onClick={() => moverAHerramental(m)} disabled={moviendo === m.id} title="Mover a Herramental" style={{ background: 'rgba(45,212,191,0.1)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>{moviendo === m.id ? '…' : '→ Herramental'}</button>
                       <button onClick={() => abrirEditar(m)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
+                      {vidaDe(m) === 'activo' && <button onClick={() => cambiarEstadoVida(m, 'discontinuado')} title="Discontinuar" style={{ background: 'rgba(251,146,60,0.08)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫</button>}
+                      {vidaDe(m) !== 'eliminado' && <button onClick={() => cambiarEstadoVida(m, 'eliminado')} title="Disposición final" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>♻</button>}
+                      {vidaDe(m) !== 'activo' && <button onClick={() => cambiarEstadoVida(m, 'activo')} title="Reactivar" style={{ background: 'rgba(61,214,140,0.08)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩</button>}
                       <button onClick={() => setConfirmDel(m.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
                     </div>
                   ))}
