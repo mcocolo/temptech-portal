@@ -23,7 +23,7 @@ const SECTORES_HERR = ['Corte', 'Aguj1+Alambre+Pegado', 'Encuadre', 'Aguj N°2',
 const secsDe = h => (Array.isArray(h.sectores) && h.sectores.length) ? h.sectores : (h.sector ? [h.sector] : [])
 
 export default function Herramental() {
-  const { isAdmin, isAdmin2, isMantenimiento } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -34,6 +34,19 @@ export default function Herramental() {
   const [subiendo, setSubiendo] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [filtroVida, setFiltroVida] = useState('activo')   // activo | discontinuado | eliminado | todos
+  const nombreUsuario = profile?.full_name || user?.email || 'Admin'
+
+  async function cambiarEstadoVida(h, estado) {
+    const labels = { activo: 'reactivar', discontinuado: 'discontinuar', eliminado: 'marcar como disposición final (eliminado)' }
+    if (!window.confirm(`¿${labels[estado] ? labels[estado][0].toUpperCase() + labels[estado].slice(1) : estado} "${h.nombre}"?`)) return
+    const { error } = await supabase.from('herramental').update({
+      estado_vida: estado, estado_vida_at: new Date().toISOString(), estado_vida_por: nombreUsuario,
+    }).eq('id', h.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Actualizado ✅')
+    setItems(prev => prev.map(x => x.id === h.id ? { ...x, estado_vida: estado } : x))
+  }
 
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
 
@@ -83,7 +96,10 @@ export default function Herramental() {
   const readOnly = isAdmin2   // mantenimiento edita todo
 
   const q = busqueda.trim().toLowerCase()
+  const vidaDe = h => h.estado_vida || 'activo'
+  const cuenta = est => items.filter(h => vidaDe(h) === est).length
   const filtrados = items.filter(h =>
+    (filtroVida === 'todos' || vidaDe(h) === filtroVida) &&
     (!q || [h.nombre, h.codigo, h.lote, ...secsDe(h)].some(v => (v || '').toLowerCase().includes(q)))
   )
 
@@ -103,7 +119,16 @@ export default function Herramental() {
       </div>
       {importOpen && <ImportarCSV titulo="Herramental" tabla="herramental" columnas={COLS_CSV} onClose={() => setImportOpen(false)} onDone={cargar} />}
 
-      <input type="text" placeholder="🔍 Buscar por nombre, código, lote o sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420, marginBottom: 18, marginTop: 4 }} />
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18, marginTop: 4 }}>
+        <input type="text" placeholder="🔍 Buscar por nombre, código, lote o sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 360 }} />
+        <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
+          {[['activo', 'Activos'], ['discontinuado', 'Discontinuados'], ['eliminado', 'Eliminados'], ['todos', 'Todos']].map(([v, l]) => (
+            <button key={v} onClick={() => setFiltroVida(v)} style={{ padding: '7px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: filtroVida === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: filtroVida === v ? '#7b9fff' : 'var(--text3)' }}>
+              {l}{v !== 'todos' && cuenta(v) > 0 ? ` (${cuenta(v)})` : ''}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando...</div>
@@ -115,9 +140,14 @@ export default function Herramental() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
           {filtrados.map(h => {
             const isDel = confirmDel === h.id
+            const vida = vidaDe(h)
             return (
-              <div key={h.id} style={{ background: 'var(--surface)', border: `1px solid ${isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{h.nombre}</div>
+              <div key={h.id} style={{ background: 'var(--surface)', border: `1px solid ${isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 16px', opacity: vida !== 'activo' ? 0.7 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{h.nombre}</span>
+                  {vida === 'discontinuado' && <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 20, padding: '1px 8px' }}>🚫 Discontinuado</span>}
+                  {vida === 'eliminado' && <span style={{ fontSize: 10, fontWeight: 700, color: '#ff5577', background: 'rgba(255,85,119,0.12)', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 20, padding: '1px 8px' }}>🗑 Disposición final</span>}
+                </div>
                 {h.foto_url && <img src={h.foto_url} alt="" onClick={() => window.open(h.foto_url, '_blank')} style={{ width: '100%', height: 110, objectFit: 'contain', background: 'rgba(0,0,0,0.2)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 8, cursor: 'zoom-in' }} />}
                 <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {h.codigo && <div>Código: <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{h.codigo}</span></div>}
@@ -138,8 +168,11 @@ export default function Herramental() {
                   </div>
                 </div>
                 {!readOnly && (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                     <button onClick={() => abrirEditar(h)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️ Editar</button>
+                    {vida === 'activo' && <button onClick={() => cambiarEstadoVida(h, 'discontinuado')} style={{ background: 'rgba(251,146,60,0.08)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫 Discontinuar</button>}
+                    {vida !== 'eliminado' && <button onClick={() => cambiarEstadoVida(h, 'eliminado')} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>♻ Disposición final</button>}
+                    {vida !== 'activo' && <button onClick={() => cambiarEstadoVida(h, 'activo')} style={{ background: 'rgba(61,214,140,0.08)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reactivar</button>}
                     {isDel ? (
                       <>
                         <button onClick={() => eliminar(h.id)} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Eliminar</button>
