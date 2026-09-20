@@ -285,7 +285,9 @@ export default function LogisticaDiaria() {
     const direccion = [rec.direccion, rec.piso ? `Piso ${rec.piso}` : '', rec.departamento ? `Depto ${rec.departamento}` : ''].filter(Boolean).join(', ')
     const nombre = `${rec.nombre_apellido || g.referencia_nombre || 'Cliente'} ${g.observacion ? g.observacion.replace(/^Reclamo\s+/i, '') : ''}`.trim()
     const productos = {}
-    const col = codigoALogColumna(g.codigo)
+    // El egreso puede tener un código de "cambio" (CAMB500) que no es columna de planilla:
+    // si no matchea por código, inferimos la columna por el nombre/modelo ("CAMBIO 500w" → 500w).
+    const col = codigoALogColumna(g.codigo) || textoALogColumna(`${g.nombre || ''} ${g.modelo || ''}`)
     if (col) productos[col] = g.cantidad || 1
     setForm({
       ...EMPTY_FORM, tipo: 'cambio_garantia', nombre,
