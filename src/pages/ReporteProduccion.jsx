@@ -27,7 +27,7 @@ const periodKey = (iso, modo) => modo === 'dia' ? iso : modo === 'mes' ? iso.sli
 const periodLabel = (k, modo) => modo === 'dia' ? new Date(k + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) : k
 
 export default function ReporteProduccion() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento } = useAuth()
   const [ot, setOt] = useState([])
   const [partes, setPartes] = useState([])
   const [lotes, setLotes] = useState({})
@@ -96,7 +96,7 @@ export default function ReporteProduccion() {
     return { t, g }
   }, [filas])
 
-  if (!isAdmin && !isAdmin2) return null
+  if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
 
   const th = { padding: '8px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
   const td = { padding: '7px 10px', fontSize: 13, borderBottom: '1px solid var(--border)', textAlign: 'center' }

@@ -16,9 +16,11 @@ serve(async (req) => {
     new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   try {
-    const { email, password, nombre, apodo, empleado_id } = await req.json()
+    const { email, password, nombre, apodo, empleado_id, rol } = await req.json()
     if (!email || !password) return json({ error: 'Email y contraseña son requeridos' }, 400)
     if (String(password).length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400)
+    // Rol del acceso (por defecto 'proceso'); solo se permiten roles internos de producción/mantenimiento
+    const rolFinal = ['proceso', 'mantenimiento'].includes(rol) ? rol : 'proceso'
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -38,7 +40,7 @@ serve(async (req) => {
     if (uid) {
       const { error: upErr } = await admin.auth.admin.updateUserById(uid, { password: String(password), email: mail, email_confirm: true })
       if (upErr) return json({ error: upErr.message }, 400)
-      await admin.from('profiles').upsert({ id: uid, full_name: nombre || '', role: 'proceso' }, { onConflict: 'id' })
+      await admin.from('profiles').upsert({ id: uid, full_name: nombre || '', role: rolFinal }, { onConflict: 'id' })
       if (empleado_id) await admin.from('empleados').update({ email: mail }).eq('id', empleado_id)
       return json({ success: true, user_id: uid, reset: true })
     }
@@ -54,7 +56,7 @@ serve(async (req) => {
 
     const newUid = created?.user?.id
     if (newUid) {
-      await admin.from('profiles').upsert({ id: newUid, full_name: nombre || '', role: 'proceso' }, { onConflict: 'id' })
+      await admin.from('profiles').upsert({ id: newUid, full_name: nombre || '', role: rolFinal }, { onConflict: 'id' })
       if (empleado_id) await admin.from('empleados').update({ user_id: newUid, email: mail }).eq('id', empleado_id)
     }
 

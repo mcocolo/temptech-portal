@@ -66,13 +66,14 @@ export function AuthProvider({ children }) {
   const isVendedor    = profile?.role === 'vendedor'
   const isChofer      = profile?.role === 'chofer'
   const isProceso     = profile?.role === 'proceso'
+  const isMantenimiento = profile?.role === 'mantenimiento'
   const isClient      = profile?.user_type === 'client'      || profile?.clientes?.user_type === 'client'
   const isDistributor = profile?.user_type === 'distributor'  || profile?.clientes?.user_type === 'distributor'
   const isTechService = profile?.user_type === 'tecnico' || profile?.clientes?.user_type === 'tecnico'
   const clientCode    = profile?.clientes?.client_code || profile?.client_code
 
   // Aprobación: solo aplica a distribuidores y técnicos (nunca a roles internos)
-  const esRolInterno = isAdmin || isAdmin2 || isVendedor || isChofer || isProceso
+  const esRolInterno = isAdmin || isAdmin2 || isVendedor || isChofer || isProceso || isMantenimiento
   const necesitaAprobacion = !esRolInterno && (isDistributor || isTechService)
   const aprobacionPendiente = necesitaAprobacion && profile?.aprobado === null
   const aprobacionRechazada = necesitaAprobacion && profile?.aprobado === false
@@ -81,7 +82,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, profile, loading,
-      isAdmin, isAdmin2, isVendedor, isChofer, isProceso, isClient, isDistributor, isTechService,
+      isAdmin, isAdmin2, isVendedor, isChofer, isProceso, isMantenimiento, isClient, isDistributor, isTechService,
       isAprobado, aprobacionPendiente, aprobacionRechazada,
       clientCode,
       signIn, signInWithGoogle, signUp, signOut,

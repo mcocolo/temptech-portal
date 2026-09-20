@@ -77,7 +77,7 @@ const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid v
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
 
 export default function Produccion() {
-  const { isAdmin, isAdmin2, isProceso, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, isProceso, isMantenimiento, user, profile } = useAuth()
   const [lotes, setLotes] = useState([])
   const [partes, setPartes] = useState([])
   const [ncf, setNcf] = useState([])
@@ -253,9 +253,9 @@ export default function Produccion() {
     cargar()
   }
 
-  if (!isAdmin && !isAdmin2 && !isProceso) return null
+  if (!isAdmin && !isAdmin2 && !isProceso && !isMantenimiento) return null
   const puedeGestionar = isAdmin                          // crear / editar / borrar lotes y bases
-  const puedeCargar = isAdmin || isAdmin2 || isProceso     // cargar partes, OT, avances y no conformidades
+  const puedeCargar = isAdmin || isAdmin2 || isProceso     // cargar partes, OT, avances y no conformidades (mantenimiento NO edita)
   const readOnly = !puedeCargar                            // sin permisos de carga = solo lectura
 
   const enFamilia = l => fFamilia === '' || (fFamilia === '1400' ? l.modelo === '1400w' : l.modelo !== '1400w')
@@ -649,6 +649,7 @@ function ProcesoAccesosModal({ onClose }) {
   const [emailEdit, setEmailEdit] = useState({})   // { [empId]: email }
   const [creando, setCreando] = useState(null)
   const [busq, setBusq] = useState('')
+  const [rol, setRol] = useState('proceso')   // 'proceso' | 'mantenimiento'
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
@@ -667,7 +668,7 @@ function ProcesoAccesosModal({ onClose }) {
     if (password.trim().length < 6) return toast.error('La contraseña debe tener al menos 6 caracteres')
     setCreando(emp.id)
     const { data, error } = await supabase.functions.invoke('crear-acceso-proceso', {
-      body: { email, password: password.trim(), nombre: label, apodo: emp.apodo, empleado_id: emp.id },
+      body: { email, password: password.trim(), nombre: label, apodo: emp.apodo, empleado_id: emp.id, rol },
     })
     setCreando(null)
     if (error || data?.error) { toast.error('Error: ' + (data?.error || error?.message)); return }
@@ -686,8 +687,15 @@ function ProcesoAccesosModal({ onClose }) {
   const lista = empleados.filter(e => !q || [e.apodo, e.nombre, e.apellido, e.email].some(v => (v || '').toLowerCase().includes(q)))
 
   return (
-    <Modal titulo="👤 Accesos de Proceso" onClose={onClose}>
-      <div style={{ fontSize: 12, color: 'var(--text3)' }}>Los empleados con acceso pueden entrar con su email y cargar avances/partes/OT (no crean ni borran lotes). El apodo, nombre y apellido salen del listado de Empleados.</div>
+    <Modal titulo="👤 Accesos internos" onClose={onClose}>
+      <div style={{ display: 'flex', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
+        {[['proceso', '🏭 Proceso'], ['mantenimiento', '🛠 Mantenimiento']].map(([v, l]) => (
+          <button key={v} onClick={() => setRol(v)} style={{ flex: 1, padding: '7px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: rol === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: rol === v ? '#7b9fff' : 'var(--text3)' }}>{l}</button>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text3)' }}>{rol === 'proceso'
+        ? 'Proceso: entra con su email y carga avances/partes/OT (no crea ni borra lotes).'
+        : 'Mantenimiento: ve Producción (solo lectura) y edita Máquinas y Herramental.'} El apodo/nombre salen del listado de Empleados.</div>
       <input value={busq} onChange={e => setBusq(e.target.value)} placeholder="🔍 Buscar empleado..." style={iSt} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '52vh', overflowY: 'auto' }}>
         {lista.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sin empleados. Cargalos en Producción → Empleados.</div>}

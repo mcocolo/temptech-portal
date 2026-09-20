@@ -36,7 +36,7 @@ const COLS_CSV_EMP = [
 ]
 
 export default function Empleados() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -48,7 +48,7 @@ export default function Empleados() {
   const [expandido, setExpandido] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
 
-  useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
+  useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
 
   async function cargar() {
     setLoading(true)
@@ -96,8 +96,8 @@ export default function Empleados() {
     cargar()
   }
 
-  if (!isAdmin && !isAdmin2) return null
-  const readOnly = isAdmin2
+  if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
+  const readOnly = isAdmin2 || isMantenimiento
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(e => !q || [e.apodo, e.nombre, e.apellido, e.sector, e.cuil].some(v => (v || '').toLowerCase().includes(q)))

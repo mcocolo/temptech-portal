@@ -51,7 +51,7 @@ function stockLabel(actual, minimo) {
 }
 
 export default function Insumos() {
-  const { isAdmin, isAdmin2, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
   const location = useLocation()
   const tipo = location.pathname.includes('indirectos') ? 'indirecto' : 'directo'
   const titulo = tipo === 'directo' ? 'Insumos Directos' : 'Insumos Indirectos'
@@ -466,7 +466,8 @@ export default function Insumos() {
 
   const bajosStock = insumos.filter(i => !i.discontinuado && (i.stock_actual || 0) <= (i.stock_minimo || 0))
 
-  if (!isAdmin && !isAdmin2) return null
+  if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
+  const soloLectura = isMantenimiento   // mantenimiento ve pero no edita
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -483,14 +484,14 @@ export default function Insumos() {
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
             <History size={15} /> Historial
           </button>
-          <button onClick={() => setImportOpen(true)}
+          {!soloLectura && <button onClick={() => setImportOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
             <Upload size={15} /> Importar CSV
-          </button>
-          <button onClick={abrirNuevo}
+          </button>}
+          {!soloLectura && <button onClick={abrirNuevo}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: color === '#7b9fff' ? 'rgba(123,159,255,0.15)' : 'rgba(167,139,250,0.15)', border: `1px solid ${color}40`, borderRadius: 'var(--radius)', padding: '9px 18px', fontSize: 13, fontWeight: 700, color, cursor: 'pointer', fontFamily: 'var(--font)' }}>
             <Plus size={15} /> Nuevo insumo
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -729,8 +730,8 @@ export default function Insumos() {
                                     {m.editado_por && <span style={{ color: '#fb923c', marginLeft: 6 }}>· ✏️ editado por {m.editado_por}{m.editado_por_at ? ` (${formatDistanceToNow(new Date(m.editado_por_at), { addSuffix: true, locale: es })})` : ''}</span>}
                                   </div>
                                 </div>
-                                <button onClick={() => abrirEditarMov(m, ins.unidad)} title="Editar movimiento"
-                                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✏️</button>
+                                {!soloLectura && <button onClick={() => abrirEditarMov(m, ins.unidad)} title="Editar movimiento"
+                                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✏️</button>}
                               </div>
                             ))}
                           </div>
@@ -739,7 +740,7 @@ export default function Insumos() {
                     )}
 
                     {/* Acciones */}
-                    <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                    {!soloLectura && <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
                       <button onClick={() => abrirIngreso(ins)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#3dd68c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         <TrendingUp size={13} /> Ingreso
@@ -774,7 +775,7 @@ export default function Insumos() {
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#ff5577', cursor: 'pointer', fontFamily: 'var(--font)', marginLeft: 'auto' }}>
                         <Trash2 size={13} /> Eliminar
                       </button>
-                    </div>
+                    </div>}
 
                     {confirmDel === ins.id && (
                       <div style={{ marginTop: 10, background: 'rgba(255,85,119,0.08)', border: '1px solid rgba(255,85,119,0.3)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>

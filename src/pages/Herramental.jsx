@@ -23,7 +23,7 @@ const SECTORES_HERR = ['Corte', 'Aguj1+Alambre+Pegado', 'Encuadre', 'Aguj N°2',
 const secsDe = h => (Array.isArray(h.sectores) && h.sectores.length) ? h.sectores : (h.sector ? [h.sector] : [])
 
 export default function Herramental() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -35,7 +35,7 @@ export default function Herramental() {
   const [confirmDel, setConfirmDel] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
 
-  useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
+  useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
 
   async function cargar() {
     setLoading(true)
@@ -79,8 +79,8 @@ export default function Herramental() {
     cargar()
   }
 
-  if (!isAdmin && !isAdmin2) return null
-  const readOnly = isAdmin2
+  if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
+  const readOnly = isAdmin2   // mantenimiento edita todo
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(h =>

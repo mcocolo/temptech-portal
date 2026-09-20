@@ -35,7 +35,7 @@ const EMPTY = { ...Object.fromEntries(CAMPOS.map(([k]) => [k, k === 'sectores' ?
 const estColor = e => { const s = (e || '').toLowerCase(); if (/(no funciona|fuera)/.test(s)) return '#ff5577'; if (/(manten)/.test(s)) return '#fb923c'; if (/(funciona|operativa|ok)/.test(s)) return '#3dd68c'; return 'var(--text3)' }
 
 export default function Maquinas() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -48,7 +48,7 @@ export default function Maquinas() {
   const [importOpen, setImportOpen] = useState(false)
   const [expandido, setExpandido] = useState(null)
 
-  useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
+  useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
   async function cargar() {
     setLoading(true)
     const data = await fetchAllRows(() => supabase.from('maquinas').select('*').order('nombre'))
@@ -88,8 +88,8 @@ export default function Maquinas() {
   }
   async function eliminar(id) { const { error } = await supabase.from('maquinas').delete().eq('id', id); setConfirmDel(null); if (error) { toast.error('Error: ' + error.message); return } cargar() }
 
-  if (!isAdmin && !isAdmin2) return null
-  const readOnly = isAdmin2
+  if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
+  const readOnly = isAdmin2   // mantenimiento edita todo
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(m => !q || [m.nombre, m.codigo, m.numero, m.sigla, m.marca, m.modelo, m.ubicacion, m.ubicacion_fisica, m.proveedor].some(v => (v || '').toLowerCase().includes(q)) || (m.sectores || []).some(s => s.toLowerCase().includes(q)))
 
