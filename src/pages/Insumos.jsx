@@ -382,10 +382,32 @@ export default function Insumos() {
 
     if (stockDelta !== 0) {
       const { data: ins } = await supabase.from('insumos').select('stock_actual').eq('id', m.insumo_id).single()
-      if (ins) await supabase.from('insumos').update({ stock_actual: Math.max(0, (Number(ins.stock_actual) || 0) + stockDelta), updated_at: new Date().toISOString() }).eq('id', m.insumo_id)
+      if (ins) await supabase.from('insumos').update({ stock_actual: Math.round(((Number(ins.stock_actual) || 0) + stockDelta) * 1000) / 1000, updated_at: new Date().toISOString() }).eq('id', m.insumo_id)
     }
     setGuardandoEdit(false)
     toast.success('Movimiento editado ✅')
+    setEditMov(null)
+    cargarHistorial(m.insumo_id)
+    cargar()
+  }
+
+  async function eliminarMovimiento() {
+    const m = editMov
+    if (!window.confirm('¿Eliminar este movimiento? Se revierte su efecto en el stock.')) return
+    setGuardandoEdit(true)
+    const cant = Number(m.cantidad) || 0
+    // Revertir el efecto en el stock: ingreso suma → restar; egreso resta → sumar. El ajuste no se revierte.
+    let stockDelta = 0
+    if (m.tipo === 'ingreso') stockDelta = -cant
+    else if (m.tipo === 'egreso') stockDelta = cant
+    const { error } = await supabase.from('movimientos_insumos').delete().eq('id', m.id)
+    if (error) { setGuardandoEdit(false); toast.error('Error: ' + error.message); return }
+    if (stockDelta !== 0) {
+      const { data: ins } = await supabase.from('insumos').select('stock_actual').eq('id', m.insumo_id).single()
+      if (ins) await supabase.from('insumos').update({ stock_actual: Math.round(((Number(ins.stock_actual) || 0) + stockDelta) * 1000) / 1000, updated_at: new Date().toISOString() }).eq('id', m.insumo_id)
+    }
+    setGuardandoEdit(false)
+    toast.success('Movimiento eliminado ✅')
     setEditMov(null)
     cargarHistorial(m.insumo_id)
     cargar()
@@ -1081,7 +1103,7 @@ export default function Insumos() {
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Cantidad {editMov.unidad}</label>
-                <input type="number" min="0" value={editForm.cantidad} onChange={e => setEditForm(p => ({ ...p, cantidad: e.target.value }))} disabled={editMov.tipo === 'ajuste'} style={{ ...inputSt, opacity: editMov.tipo === 'ajuste' ? 0.6 : 1 }} />
+                <input type="number" min="0" step="any" value={editForm.cantidad} onChange={e => setEditForm(p => ({ ...p, cantidad: e.target.value }))} disabled={editMov.tipo === 'ajuste'} style={{ ...inputSt, opacity: editMov.tipo === 'ajuste' ? 0.6 : 1 }} />
                 {editMov.tipo === 'ajuste' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>En un ajuste no se edita la cantidad (crearía inconsistencia). Editá lote/motivo o hacé un nuevo movimiento.</div>}
               </div>
               {editMov.tipo === 'egreso' && (
@@ -1103,6 +1125,7 @@ export default function Insumos() {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={guardarEdicion} disabled={guardandoEdit} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardandoEdit ? 'not-allowed' : 'pointer', opacity: guardandoEdit ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardandoEdit ? 'Guardando...' : '✓ Guardar cambios'}</button>
+                <button onClick={eliminarMovimiento} disabled={guardandoEdit} style={{ background: 'rgba(255,85,119,0.1)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 'var(--radius)', padding: '11px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑 Eliminar</button>
                 <button onClick={() => setEditMov(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
