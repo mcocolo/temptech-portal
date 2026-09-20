@@ -413,6 +413,25 @@ export default function Insumos() {
     cargar()
   }
 
+  // Recalcula el saldo desde los movimientos (ingreso suma, egreso resta, ajuste fija el valor).
+  // Corrige cualquier desfase acumulado en stock_actual.
+  async function recalcularStock(ins) {
+    if (!window.confirm(`¿Recalcular el saldo de ${ins.codigo} desde sus movimientos? Reemplaza el stock actual.`)) return
+    const { data: movs } = await supabase.from('movimientos_insumos').select('tipo,cantidad,created_at').eq('insumo_id', ins.id).order('created_at', { ascending: true })
+    let run = 0
+    for (const m of (movs || [])) {
+      const c = Number(m.cantidad) || 0
+      if (m.tipo === 'ingreso') run += c
+      else if (m.tipo === 'egreso') run -= c
+      else if (m.tipo === 'ajuste') run = c
+    }
+    run = Math.round(run * 1000) / 1000
+    const { error } = await supabase.from('insumos').update({ stock_actual: run, updated_at: new Date().toISOString() }).eq('id', ins.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(`Saldo recalculado: ${run} ${ins.unidad || ''}`)
+    cargar()
+  }
+
   function toggleExpand(id) {
     if (expandido === id) { setExpandido(null); return }
     setExpandido(id)
@@ -725,6 +744,12 @@ export default function Insumos() {
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,209,102,0.1)', border: '1px solid rgba(255,209,102,0.3)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#ffd166', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         🔧 Ajuste
                       </button>
+                      {isAdmin && (
+                        <button onClick={() => recalcularStock(ins)} title="Recalcular el saldo desde los movimientos"
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.3)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: '#2dd4bf', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          🔄 Recalcular
+                        </button>
+                      )}
                       <button onClick={() => abrirEditar(ins)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                         <Edit2 size={13} /> Editar
