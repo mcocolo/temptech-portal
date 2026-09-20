@@ -31,6 +31,7 @@ const EMPTY_FORM = {
   venta_id: null,
   repuesto_id: null,
   egreso_garantia_id: null,
+  devolucion_id: null,
   proveedor_id: null,
   fecha: '',
 }
@@ -168,7 +169,7 @@ export default function LogisticaDiaria() {
     // Pedidos / ventas por asignar (solo admin)
     if (!isChofer) {
       const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }, { data: descData }, { data: garantiasData }] = await Promise.all([
-        supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id,egreso_garantia_id'),
+        supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id,egreso_garantia_id,devolucion_id'),
         supabase.from('pedidos').select('*').or('tipo_envio.in.(correo,logistica),entrega_logistica.eq.true').in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
@@ -180,6 +181,7 @@ export default function LogisticaDiaria() {
       const asignadosVentas = new Set((logAsign || []).map(l => l.venta_id).filter(Boolean))
       const asignadosRepuestos = new Set((logAsign || []).map(l => l.repuesto_id).filter(Boolean))
       const asignadosGarantia = new Set((logAsign || []).map(l => l.egreso_garantia_id).filter(Boolean))
+      const asignadosDevolucion = new Set((logAsign || []).map(l => l.devolucion_id).filter(Boolean))
       const pedidosFiltrados = (pedidosData || []).filter(p => !asignadosPedidos.has(p.id) && !descartado('pedido', p.id))
       if (pedidosFiltrados.length > 0) {
         const ids = [...new Set(pedidosFiltrados.map(p => p.distribuidor_id).filter(Boolean))]
@@ -199,16 +201,21 @@ export default function LogisticaDiaria() {
       } else setRepuestosPendientes([])
 
       // Egresos de garantía por logística: traer con la dirección del reclamo vinculado (DEV-...)
-      const garFiltradas = (garantiasData || []).filter(g => !asignadosGarantia.has(g.id) && !descartado('garantia', g.id))
-      if (garFiltradas.length > 0) {
-        // observacion = "Reclamo <tracking_id>" → resolver dirección del reclamo (devoluciones)
-        const refs = [...new Set(garFiltradas.map(g => (g.observacion || '').replace(/^Reclamo\s+/i, '').trim()).filter(Boolean))]
+      const refClave = g => (g.observacion || '').replace(/^Reclamo\s+/i, '').trim()
+      const candidatosGar = (garantiasData || []).filter(g => !asignadosGarantia.has(g.id) && !descartado('garantia', g.id))
+      if (candidatosGar.length > 0) {
+        // observacion = "Reclamo <tracking_id>" → resolver el reclamo (id + dirección)
+        const refs = [...new Set(candidatosGar.map(refClave).filter(Boolean))]
         let recMap = {}
         if (refs.length) {
-          const { data: recs } = await supabase.from('devoluciones').select('tracking_id,direccion,piso,departamento,localidad,telefono,email,nombre_apellido,motivo').in('tracking_id', refs)
+          const { data: recs } = await supabase.from('devoluciones').select('id,tracking_id,direccion,piso,departamento,localidad,telefono,email,nombre_apellido,motivo').in('tracking_id', refs)
           recMap = Object.fromEntries((recs || []).map(r => [r.tracking_id, r]))
         }
-        setGarantiasPendientes(garFiltradas.map(g => ({ ...g, _reclamo: recMap[(g.observacion || '').replace(/^Reclamo\s+/i, '').trim()] || null })))
+        // Excluir los que ya tienen parada por el reclamo (devolucion_id ya asignado)
+        const garFiltradas = candidatosGar
+          .map(g => ({ ...g, _reclamo: recMap[refClave(g)] || null }))
+          .filter(g => !(g._reclamo && asignadosDevolucion.has(g._reclamo.id)))
+        setGarantiasPendientes(garFiltradas)
       } else setGarantiasPendientes([])
     }
 
@@ -225,6 +232,7 @@ export default function LogisticaDiaria() {
       zona: item.zona || '', telefono: item.telefono || '', email: item.email || '', dni: item.dni || '',
       descripcion: item.descripcion || '', notas: item.notas || '', productos,
       pedido_id: item.pedido_id || null, venta_id: item.venta_id || null, repuesto_id: item.repuesto_id || null,
+      egreso_garantia_id: item.egreso_garantia_id || null, devolucion_id: item.devolucion_id || null,
       proveedor_id: item.proveedor_id || null, fecha: item.fecha || '',
     })
     setEditId(item.id); setModalOpen(true)
@@ -283,7 +291,7 @@ export default function LogisticaDiaria() {
       ...EMPTY_FORM, tipo: 'cambio_garantia', nombre,
       direccion: direccion || '', localidad: rec.localidad || '', telefono: rec.telefono || '', email: rec.email || '',
       descripcion: `Entregar: ${g.nombre}${g.cantidad ? ` ×${g.cantidad}` : ''}${rec.motivo ? ` · ${rec.motivo}` : ''}`,
-      productos, egreso_garantia_id: g.id,
+      productos, egreso_garantia_id: g.id, devolucion_id: rec.id || null,
     })
     setEditId(null); setModalOpen(true)
   }
@@ -330,6 +338,7 @@ export default function LogisticaDiaria() {
       venta_id: form.venta_id || null,
       repuesto_id: form.repuesto_id || null,
       egreso_garantia_id: form.egreso_garantia_id || null,
+      devolucion_id: form.devolucion_id || null,
       proveedor_id: form.proveedor_id || null,
     }
 
