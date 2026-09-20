@@ -104,7 +104,7 @@ export default function TallerOT({ lote, onClose, onDone }) {
       const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', codigo).limit(1)
       const row = ins?.[0]
       if (row) {
-        await supabase.from('insumos').update({ stock_actual: Math.max(0, (row.stock_actual || 0) - delta), updated_at: new Date().toISOString() }).eq('id', row.id)
+        await supabase.from('insumos').update({ stock_actual: (row.stock_actual || 0) - delta, updated_at: new Date().toISOString() }).eq('id', row.id)
         await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Taller', motivo: `OT Taller · Lote F${lote.numero}`, lote: lote_ins || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
       }
     } catch (_) { /* no bloquea */ }

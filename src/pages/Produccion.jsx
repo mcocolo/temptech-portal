@@ -202,7 +202,7 @@ export default function Produccion() {
       const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', HOJA_CODIGO).limit(1)
       const row = ins?.[0]
       if (!row) { toast('⚠️ No encontré el insumo ' + HOJA_CODIGO + ' para descontar', { icon: '⚠️' }); return }
-      const nuevo = Math.max(0, (row.stock_actual || 0) - lote.hojas)
+      const nuevo = (row.stock_actual || 0) - lote.hojas
       await supabase.from('insumos').update({ stock_actual: nuevo, updated_at: new Date().toISOString() }).eq('id', row.id)
       await supabase.from('movimientos_insumos').insert({
         insumo_id: row.id, tipo: 'egreso', cantidad: lote.hojas, sector: 'Corte',
