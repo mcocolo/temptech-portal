@@ -173,7 +173,7 @@ export default function LogisticaDiaria() {
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('logistica_descartes').select('fuente,ref_id'),
-        supabase.from('egresos_garantia').select('*').eq('tipo_envio', 'logistica').not('estado', 'in', '("confirmado","cancelado")').order('created_at', { ascending: false }),
+        supabase.from('egresos_garantia').select('*').ilike('tipo_envio', 'log%').not('estado', 'in', '("confirmado","cancelado")').order('created_at', { ascending: false }),
       ])
       const descartado = (fuente, id) => (descData || []).some(d => d.fuente === fuente && d.ref_id === String(id))
       const asignadosPedidos = new Set((logAsign || []).map(l => l.pedido_id).filter(Boolean))
