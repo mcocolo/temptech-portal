@@ -30,6 +30,7 @@ const EMPTY_FORM = {
   pedido_id: null,
   venta_id: null,
   repuesto_id: null,
+  egreso_garantia_id: null,
   proveedor_id: null,
   fecha: '',
 }
@@ -78,6 +79,7 @@ export default function LogisticaDiaria() {
   const [pedidosPendientes, setPedidosPendientes] = useState([])
   const [ventasPendientes, setVentasPendientes] = useState([])
   const [repuestosPendientes, setRepuestosPendientes] = useState([])
+  const [garantiasPendientes, setGarantiasPendientes] = useState([])
   const [choferInput, setChoferInput] = useState({})     // { camionetaId: nombre }
   const [asignar, setAsignar] = useState({})             // { itemId: { fecha, camioneta_id } }
   const [flotaOpen, setFlotaOpen] = useState(false)
@@ -165,17 +167,19 @@ export default function LogisticaDiaria() {
 
     // Pedidos / ventas por asignar (solo admin)
     if (!isChofer) {
-      const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }, { data: descData }] = await Promise.all([
-        supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id'),
+      const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }, { data: descData }, { data: garantiasData }] = await Promise.all([
+        supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id,egreso_garantia_id'),
         supabase.from('pedidos').select('*').or('tipo_envio.in.(correo,logistica),entrega_logistica.eq.true').in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('logistica_descartes').select('fuente,ref_id'),
+        supabase.from('egresos_garantia').select('*').eq('tipo_envio', 'logistica').not('estado', 'in', '("confirmado","cancelado")').order('created_at', { ascending: false }),
       ])
       const descartado = (fuente, id) => (descData || []).some(d => d.fuente === fuente && d.ref_id === String(id))
       const asignadosPedidos = new Set((logAsign || []).map(l => l.pedido_id).filter(Boolean))
       const asignadosVentas = new Set((logAsign || []).map(l => l.venta_id).filter(Boolean))
       const asignadosRepuestos = new Set((logAsign || []).map(l => l.repuesto_id).filter(Boolean))
+      const asignadosGarantia = new Set((logAsign || []).map(l => l.egreso_garantia_id).filter(Boolean))
       const pedidosFiltrados = (pedidosData || []).filter(p => !asignadosPedidos.has(p.id) && !descartado('pedido', p.id))
       if (pedidosFiltrados.length > 0) {
         const ids = [...new Set(pedidosFiltrados.map(p => p.distribuidor_id).filter(Boolean))]
@@ -193,6 +197,19 @@ export default function LogisticaDiaria() {
         const repMap = Object.fromEntries((profsRep || []).map(p => [p.id, p]))
         setRepuestosPendientes(repFiltrados.map(r => ({ ...r, _profile: repMap[r.tecnico_id] || null })))
       } else setRepuestosPendientes([])
+
+      // Egresos de garantía por logística: traer con la dirección del reclamo vinculado (DEV-...)
+      const garFiltradas = (garantiasData || []).filter(g => !asignadosGarantia.has(g.id) && !descartado('garantia', g.id))
+      if (garFiltradas.length > 0) {
+        // observacion = "Reclamo <tracking_id>" → resolver dirección del reclamo (devoluciones)
+        const refs = [...new Set(garFiltradas.map(g => (g.observacion || '').replace(/^Reclamo\s+/i, '').trim()).filter(Boolean))]
+        let recMap = {}
+        if (refs.length) {
+          const { data: recs } = await supabase.from('devoluciones').select('tracking_id,direccion,piso,departamento,localidad,telefono,email,nombre_apellido,motivo').in('tracking_id', refs)
+          recMap = Object.fromEntries((recs || []).map(r => [r.tracking_id, r]))
+        }
+        setGarantiasPendientes(garFiltradas.map(g => ({ ...g, _reclamo: recMap[(g.observacion || '').replace(/^Reclamo\s+/i, '').trim()] || null })))
+      } else setGarantiasPendientes([])
     }
 
     setLoading(false)
@@ -255,6 +272,22 @@ export default function LogisticaDiaria() {
     setEditId(null); setModalOpen(true)
   }
 
+  function abrirDesdeGarantia(g) {
+    const rec = g._reclamo || {}
+    const direccion = [rec.direccion, rec.piso ? `Piso ${rec.piso}` : '', rec.departamento ? `Depto ${rec.departamento}` : ''].filter(Boolean).join(', ')
+    const nombre = `${rec.nombre_apellido || g.referencia_nombre || 'Cliente'} ${g.observacion ? g.observacion.replace(/^Reclamo\s+/i, '') : ''}`.trim()
+    const productos = {}
+    const col = codigoALogColumna(g.codigo)
+    if (col) productos[col] = g.cantidad || 1
+    setForm({
+      ...EMPTY_FORM, tipo: 'cambio_garantia', nombre,
+      direccion: direccion || '', localidad: rec.localidad || '', telefono: rec.telefono || '', email: rec.email || '',
+      descripcion: `Entregar: ${g.nombre}${g.cantidad ? ` ×${g.cantidad}` : ''}${rec.motivo ? ` · ${rec.motivo}` : ''}`,
+      productos, egreso_garantia_id: g.id,
+    })
+    setEditId(null); setModalOpen(true)
+  }
+
   function setProducto(codigo, val) {
     const n = parseInt(val) || 0
     setForm(prev => { const p = { ...prev.productos }; if (n > 0) p[codigo] = n; else delete p[codigo]; return { ...prev, productos: p } })
@@ -296,6 +329,7 @@ export default function LogisticaDiaria() {
       pedido_id: form.pedido_id || null,
       venta_id: form.venta_id || null,
       repuesto_id: form.repuesto_id || null,
+      egreso_garantia_id: form.egreso_garantia_id || null,
       proveedor_id: form.proveedor_id || null,
     }
 
@@ -640,10 +674,10 @@ export default function LogisticaDiaria() {
       )}
 
       {/* Pedidos / ventas por traer a ruta — solo admin */}
-      {editaPlanilla && (pedidosPendientes.length > 0 || ventasPendientes.length > 0 || repuestosPendientes.length > 0) && (
+      {editaPlanilla && (pedidosPendientes.length > 0 || ventasPendientes.length > 0 || repuestosPendientes.length > 0 || garantiasPendientes.length > 0) && (
         <div style={{ marginBottom: 24, background: 'rgba(74,108,247,0.04)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
-            🚚 Traer a logística ({pedidosPendientes.length + ventasPendientes.length + repuestosPendientes.length})
+            🚚 Traer a logística ({pedidosPendientes.length + ventasPendientes.length + repuestosPendientes.length + garantiasPendientes.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pedidosPendientes.map(pedido => {
@@ -708,6 +742,32 @@ export default function LogisticaDiaria() {
                   </div>
                   <button onClick={() => abrirDesdeRepuesto(r)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
                   <button onClick={() => descartarTraer('repuesto', r.id)} title="Descartar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
+                </div>
+              )
+            })}
+            {/* Egresos de garantía por logística */}
+            {garantiasPendientes.map(g => {
+              const rec = g._reclamo || {}
+              const nombre = rec.nombre_apellido || g.referencia_nombre || 'Cliente'
+              const ref = (g.observacion || '').replace(/^Reclamo\s+/i, '')
+              const sinDir = !rec.direccion
+              return (
+                <div key={g.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 7px', borderRadius: 4 }}>{ref || '#' + g.id.slice(0, 8).toUpperCase()}</span>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{nombre}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', padding: '1px 7px', borderRadius: 10 }}>🔄 Cambio Garantía</span>
+                      {g.fecha_envio && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)' }}>📅 {new Date(g.fecha_envio + 'T12:00:00').toLocaleDateString('es-AR')}</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                      {g.nombre}{g.cantidad ? ` ×${g.cantidad}` : ''}
+                      {rec.localidad ? <span style={{ color: 'var(--text3)' }}> · {rec.localidad}</span> : ''}
+                      {sinDir && <span style={{ color: '#fb923c' }}> · ⚠ sin dirección en el reclamo, completala en la parada</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => abrirDesdeGarantia(g)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
+                  <button onClick={() => descartarTraer('garantia', g.id)} title="Descartar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
                 </div>
               )
             })}
