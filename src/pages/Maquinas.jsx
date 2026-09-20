@@ -47,6 +47,27 @@ export default function Maquinas() {
   const [confirmDel, setConfirmDel] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   const [expandido, setExpandido] = useState(null)
+  const [moviendo, setMoviendo] = useState(null)
+
+  // Mueve una máquina mal clasificada a la tabla Herramental (y la borra de Máquinas)
+  async function moverAHerramental(m) {
+    if (!window.confirm(`¿Mover "${m.nombre}" a Herramental? Se saca de Máquinas.`)) return
+    setMoviendo(m.id)
+    const payload = {
+      nombre: m.nombre || '—',
+      codigo: (m.codigo || m.sigla || '').trim() || null,
+      sectores: Array.isArray(m.sectores) ? m.sectores : [],
+      sector: (Array.isArray(m.sectores) && m.sectores[0]) || null,
+      foto_url: m.foto_url || null,
+    }
+    const { error } = await supabase.from('herramental').insert(payload)
+    if (error) { setMoviendo(null); toast.error('Error al crear en Herramental: ' + error.message); return }
+    const { error: delErr } = await supabase.from('maquinas').delete().eq('id', m.id)
+    setMoviendo(null)
+    if (delErr) { toast.error('Se creó en Herramental pero no se borró de Máquinas: ' + delErr.message); cargar(); return }
+    toast.success(`"${m.nombre}" movido a Herramental ✅`)
+    setItems(prev => prev.filter(x => x.id !== m.id))
+  }
 
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
   async function cargar() {
@@ -133,6 +154,7 @@ export default function Maquinas() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: 5 }}>
+                      <button onClick={() => moverAHerramental(m)} disabled={moviendo === m.id} title="Mover a Herramental" style={{ background: 'rgba(45,212,191,0.1)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>{moviendo === m.id ? '…' : '→ Herramental'}</button>
                       <button onClick={() => abrirEditar(m)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
                       <button onClick={() => setConfirmDel(m.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
                     </div>
