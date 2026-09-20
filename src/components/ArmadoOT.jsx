@@ -125,7 +125,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods }
+    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCredit: conforme }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const payload = {
       lote_id: lote.id, etapa: 'armado',
@@ -153,9 +153,10 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       await descontar(cod, total - prevTot(cod), f.insumosEst[cod]?.lote, motivo)
     }
 
-    // Acumular AGUJEROS = paneles del lote a cada mecha con lote cargado (por código + lote),
-    // por el delta de paneles respecto de lo ya guardado. Cada mecha suma la cantidad de paneles.
-    const dPan = conforme - int(prevOt?.piezas)
+    // Acumular AGUJEROS = paneles del lote a cada mecha con lote cargado (por código + lote).
+    // Usa un contador propio (agujCredit) de lo ya acreditado, así funciona aunque la OT
+    // se haya guardado antes de existir esta función (acredita lo que falte al re-guardar).
+    const dPan = conforme - int(prev.agujCredit)
     if (dPan) {
       const yaHecho = new Set()
       for (const m of f.mechas) {
