@@ -416,10 +416,18 @@ export default function Insumos() {
   // Recalcula el saldo desde los movimientos (ingreso suma, egreso resta, ajuste fija el valor).
   // Corrige cualquier desfase acumulado en stock_actual.
   async function recalcularStock(ins) {
-    if (!window.confirm(`¿Recalcular el saldo de ${ins.codigo} desde sus movimientos? Reemplaza el stock actual.`)) return
     const { data: movs } = await supabase.from('movimientos_insumos').select('tipo,cantidad,created_at').eq('insumo_id', ins.id).order('created_at', { ascending: true })
+    const lista = movs || []
+    const tieneBase = lista.some(m => m.tipo === 'ingreso' || m.tipo === 'ajuste')
+    // Si no hay ingresos/ajustes registrados como movimiento, el stock inicial no está en el
+    // historial: recalcular daría solo los egresos (negativo). Avisamos y no lo hacemos.
+    if (!tieneBase) {
+      toast.error('Este insumo no tiene ingresos/ajustes registrados como movimiento (su stock inicial se cargó directo). Recalcular daría negativo — usá "Ajuste" para fijar el stock físico real.', { duration: 8000 })
+      return
+    }
+    if (!window.confirm(`¿Recalcular el saldo de ${ins.codigo} desde sus movimientos? Reemplaza el stock actual.`)) return
     let run = 0
-    for (const m of (movs || [])) {
+    for (const m of lista) {
       const c = Number(m.cantidad) || 0
       if (m.tipo === 'ingreso') run += c
       else if (m.tipo === 'egreso') run -= c
