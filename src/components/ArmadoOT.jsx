@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }
 const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4, letterSpacing: '0.3px' }
 const int = v => parseInt(v) || 0
+const num = v => parseFloat(v) || 0   // cantidades de insumo pueden ser decimales (ej. 0,94 kg)
 
 // Duración (mismas pausas/jornada que la OT de Corte)
 const BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]]
@@ -107,16 +108,17 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const conforme = int(f.conforme)
   const duracion = FASES.reduce((sum, [k]) => sum + (calcularDuracion(f.tiempos[k].fi, f.tiempos[k].hi, f.tiempos[k].ff, f.tiempos[k].hf) || 0), 0) || null
 
-  const totalInsumo = cod => COLS.reduce((s, c) => s + int(f.insumosEst[cod]?.[c]), 0)
+  const totalInsumo = cod => COLS.reduce((s, c) => s + num(f.insumosEst[cod]?.[c]), 0)
 
+  const round3 = n => Math.round(n * 1000) / 1000
   async function descontar(codigo, delta, lote_ins, motivo) {
     if (!codigo || !delta) return
     try {
       const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', codigo).limit(1)
       const row = ins?.[0]
       if (row) {
-        await supabase.from('insumos').update({ stock_actual: (row.stock_actual || 0) - delta, updated_at: new Date().toISOString() }).eq('id', row.id)
-        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Alambre', motivo: motivo || `OT Alambre · Lote #${lote.numero}`, lote: lote_ins || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+        await supabase.from('insumos').update({ stock_actual: round3((row.stock_actual || 0) - delta), updated_at: new Date().toISOString() }).eq('id', row.id)
+        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: round3(Math.abs(delta)), sector: 'Alambre', motivo: motivo || `OT Alambre · Lote #${lote.numero}`, lote: lote_ins || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
       }
     } catch (_) { /* no bloquea */ }
   }
@@ -140,7 +142,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     // Descontar insumos por el delta respecto de lo ya descontado (incluye los agregados a mano)
     // y dejar un registro de consumo: "Consumo: xxx <unidad> · Lote <lote> · <paneles> paneles · <fecha>"
     const prev = prevOt?.datos || {}
-    const prevTot = cod => COLS.reduce((s, c) => s + int(prev.insumosEst?.[cod]?.[c]), 0)
+    const prevTot = cod => COLS.reduce((s, c) => s + num(prev.insumosEst?.[cod]?.[c]), 0)
     const codsUsados = [...new Set([...insumosCat.map(x => x.cod), ...Object.keys(f.insumosEst || {})])]
     const uniDe = Object.fromEntries(allInsumos.map(x => [x.cod, x.unidad || '']))
     const fechaHoy = new Date().toLocaleDateString('es-AR')
@@ -272,7 +274,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                           <tr key={cod}>
                             <td style={{ fontSize: 12, padding: '3px 6px' }}>{labelMap[cod] || cod} <span style={{ color: 'var(--text3)', fontFamily: 'monospace', fontSize: 10 }}>{cod}</span></td>
                             {COLS.map(e => (
-                              <td key={e} style={{ padding: '3px 4px' }}><input type="number" value={f.insumosEst[cod]?.[e] ?? ''} onChange={ev => setInsEst(cod, e, ev.target.value)} style={{ ...iSt, width: 54, padding: '5px 6px', textAlign: 'center' }} /></td>
+                              <td key={e} style={{ padding: '3px 4px' }}><input type="number" step="any" value={f.insumosEst[cod]?.[e] ?? ''} onChange={ev => setInsEst(cod, e, ev.target.value)} style={{ ...iSt, width: 54, padding: '5px 6px', textAlign: 'center' }} /></td>
                             ))}
                             <td style={{ padding: '3px 4px' }}><input value={f.insumosEst[cod]?.lote ?? ''} onChange={ev => setInsEst(cod, 'lote', ev.target.value)} placeholder="lote" style={{ ...iSt, width: 70, padding: '5px 6px' }} /></td>
                             <td style={{ padding: '3px 6px', fontWeight: 800, color: '#7b9fff', textAlign: 'center' }}>{totalInsumo(cod)}</td>

@@ -6,6 +6,8 @@ import toast from 'react-hot-toast'
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '7px 10px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }
 const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4, letterSpacing: '0.3px' }
 const int = v => parseInt(v) || 0
+const num = v => parseFloat(v) || 0
+const round3 = n => Math.round(n * 1000) / 1000
 
 // Duración (mismas pausas/jornada que las otras OT)
 const BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]]
@@ -104,8 +106,8 @@ export default function TallerOT({ lote, onClose, onDone }) {
       const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', codigo).limit(1)
       const row = ins?.[0]
       if (row) {
-        await supabase.from('insumos').update({ stock_actual: (row.stock_actual || 0) - delta, updated_at: new Date().toISOString() }).eq('id', row.id)
-        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Taller', motivo: `OT Taller · Lote F${lote.numero}`, lote: lote_ins || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+        await supabase.from('insumos').update({ stock_actual: round3((row.stock_actual || 0) - delta), updated_at: new Date().toISOString() }).eq('id', row.id)
+        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: round3(Math.abs(delta)), sector: 'Taller', motivo: `OT Taller · Lote F${lote.numero}`, lote: lote_ins || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
       }
     } catch (_) { /* no bloquea */ }
   }
@@ -130,7 +132,7 @@ export default function TallerOT({ lote, onClose, onDone }) {
 
     // Descontar insumos por el delta respecto de lo ya descontado
     const prev = prevOt?.datos || {}
-    for (const { cod } of insumosCat) await descontar(cod, int(f.insumos[cod]?.cant) - int(prev.insumos?.[cod]?.cant), f.insumos[cod]?.lote)
+    for (const { cod } of insumosCat) await descontar(cod, num(f.insumos[cod]?.cant) - num(prev.insumos?.[cod]?.cant), f.insumos[cod]?.lote)
 
     // Avance de taller = paneles completos; si llegó al objetivo, pasa a Terminado
     const completo = conforme >= target && conforme > 0
@@ -211,7 +213,7 @@ export default function TallerOT({ lote, onClose, onDone }) {
                   {insumosCat.map(({ cod, label }) => (
                     <tr key={cod}>
                       <td style={{ fontSize: 12, padding: '3px 6px' }}>{label} <span style={{ color: 'var(--text3)', fontFamily: 'monospace', fontSize: 10 }}>{cod}</span></td>
-                      <td style={{ padding: '3px 4px' }}><input type="number" value={f.insumos[cod]?.cant ?? ''} onChange={e => setIns(cod, 'cant', e.target.value)} style={{ ...iSt, width: 90, padding: '5px 6px', textAlign: 'center' }} /></td>
+                      <td style={{ padding: '3px 4px' }}><input type="number" step="any" value={f.insumos[cod]?.cant ?? ''} onChange={e => setIns(cod, 'cant', e.target.value)} style={{ ...iSt, width: 90, padding: '5px 6px', textAlign: 'center' }} /></td>
                       <td style={{ padding: '3px 4px' }}><input value={f.insumos[cod]?.lote ?? ''} onChange={e => setIns(cod, 'lote', e.target.value)} placeholder="lote" style={{ ...iSt, width: 90, padding: '5px 6px' }} /></td>
                     </tr>
                   ))}
