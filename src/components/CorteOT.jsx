@@ -168,6 +168,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
     if (hojasTUsadas > 0 && !insumoTapa) return toast.error('Indicá el código de la hoja de la tapa (T)')
     if (int(f.tomar_pulmon_ct) > maxTakeCt) return toast.error(`Pulmón CT disponible: ${maxTakeCt}`)
     if (int(f.tomar_pulmon_t) > maxTakeT) return toast.error(`Pulmón T disponible: ${maxTakeT}`)
+    // Aviso: si se cortaron piezas pero no se cargaron las hojas, no se descuenta MPSTD6
+    const cortoSinHojas = (ctOk + int(f.ct_nc) > 0 && hojasCtUsadas === 0) || (tOk + int(f.t_nc) > 0 && hojasTUsadas === 0)
+    if (cortoSinHojas && !window.confirm('Cortaste piezas pero dejaste "Hojas usadas" en 0. Si guardás así, NO se descuenta el stock de hojas ni queda el consumo en el historial. ¿Guardar igual?')) return
     setG(true)
     const payload = {
       lote_id: lote.id, etapa: 'corte',
@@ -271,7 +274,13 @@ export default function CorteOT({ lote, onClose, onDone }) {
       <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 6 }}>{tit}</div>
       {objetivo && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>🎯 Medida objetivo: <b style={{ color: 'var(--text2)' }}>{objetivo}</b></div>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div><label style={lbl}>Hojas usadas</label><input type="number" value={f[hojasKey]} onChange={e => setF(s => ({ ...s, [hojasKey]: e.target.value }))} placeholder="0" style={iSt} /></div>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={lbl}>Hojas usadas</label>
+            {(() => { const sug = ceilHojas(int(f[okKey]) + int(f[ncKey])); return sug > 0 && int(f[hojasKey]) !== sug ? <button type="button" onClick={() => setF(s => ({ ...s, [hojasKey]: String(sug) }))} title="OK+NC ÷ 8" style={{ fontSize: 9, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 5, padding: '1px 6px', cursor: 'pointer', fontFamily: 'var(--font)' }}>📐 {sug}</button> : null })()}
+          </div>
+          <input type="number" value={f[hojasKey]} onChange={e => setF(s => ({ ...s, [hojasKey]: e.target.value }))} placeholder="0" style={iSt} />
+        </div>
         <div><label style={lbl}>OK</label><input type="number" value={f[okKey]} onChange={e => setF(s => ({ ...s, [okKey]: e.target.value }))} placeholder="0" style={iSt} /></div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
