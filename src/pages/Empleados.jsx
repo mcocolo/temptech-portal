@@ -48,15 +48,29 @@ export default function Empleados() {
   const [guardando, setGuardando] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
   const [expandido, setExpandido] = useState(null)
+  const [susp, setSusp] = useState([])
+  const [charlas, setCharlas] = useState([])
   const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
 
   async function cargar() {
     setLoading(true)
-    const data = await fetchAllRows(() => supabase.from('empleados').select('*').order('apodo'))
+    const [data, s, c] = await Promise.all([
+      fetchAllRows(() => supabase.from('empleados').select('*').order('apodo')),
+      supabase.from('suspensiones').select('empleado_id,fecha,dias,motivo').order('fecha', { ascending: false }),
+      supabase.from('charlas').select('empleado_id,fecha,motivo,responsable').order('fecha', { ascending: false }),
+    ])
     setItems(data || [])
+    setSusp(s.data || []); setCharlas(c.data || [])
     setLoading(false)
+  }
+  const recargarRegistros = async () => {
+    const [s, c] = await Promise.all([
+      supabase.from('suspensiones').select('empleado_id,fecha,dias,motivo').order('fecha', { ascending: false }),
+      supabase.from('charlas').select('empleado_id,fecha,motivo,responsable').order('fecha', { ascending: false }),
+    ])
+    setSusp(s.data || []); setCharlas(c.data || [])
   }
 
   function abrirNuevo() { setForm(EMPTY); setEditId(null); setModalOpen(true) }
@@ -142,8 +156,8 @@ export default function Empleados() {
         </div>
       </div>
       {importOpen && <ImportarCSV titulo="Empleados" tabla="empleados" columnas={COLS_CSV_EMP} onClose={() => setImportOpen(false)} onDone={cargar} />}
-      {suspOpen && <SuspensionesModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setSuspOpen(false)} />}
-      {charlasOpen && <CharlasModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setCharlasOpen(false)} />}
+      {suspOpen && <SuspensionesModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setSuspOpen(false)} onChange={recargarRegistros} />}
+      {charlasOpen && <CharlasModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setCharlasOpen(false)} onChange={recargarRegistros} />}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <input type="text" placeholder="🔍 Buscar por apodo, nombre, apellido o CUIL..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420 }} />
@@ -204,6 +218,21 @@ export default function Empleados() {
                         <div style={{ fontSize: 13, color: '#3dd68c', fontWeight: 700 }}>{a.txt}</div>
                       </div>
                     ) : null })()}
+                    {(() => {
+                      const sE = susp.filter(x => x.empleado_id === e.id)
+                      const cE = charlas.filter(x => x.empleado_id === e.id)
+                      const diasT = sE.reduce((s, x) => s + (x.dias || 0), 0)
+                      return (
+                        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: sE.length || cE.length ? 6 : 0 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 20, padding: '2px 10px' }}>🚫 Suspensiones: {sE.length}{diasT ? ` · ${diasT} días` : ''}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 20, padding: '2px 10px' }}>💬 Charlas: {cE.length}</span>
+                          </div>
+                          {sE.slice(0, 3).map((x, i) => <div key={'s' + i} style={{ fontSize: 11, color: 'var(--text3)' }}>🚫 {new Date(x.fecha + 'T12:00:00').toLocaleDateString('es-AR')} · {x.dias} día{x.dias !== 1 ? 's' : ''}{x.motivo ? ` · ${x.motivo}` : ''}</div>)}
+                          {cE.slice(0, 3).map((x, i) => <div key={'c' + i} style={{ fontSize: 11, color: 'var(--text3)' }}>💬 {new Date(x.fecha + 'T12:00:00').toLocaleDateString('es-AR')}{x.responsable ? ` · con ${x.responsable}` : ''}{x.motivo ? ` · ${x.motivo}` : ''}</div>)}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
@@ -258,7 +287,7 @@ export default function Empleados() {
   )
 }
 
-function SuspensionesModal({ empleados, puedeEditar, usuario, onClose }) {
+function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), dias: 1 })
@@ -285,13 +314,13 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose }) {
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('Suspensión registrada ✅')
     setForm({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), dias: 1 })
-    cargar()
+    cargar(); onChange && onChange()
   }
   async function eliminar(id) {
     if (!window.confirm('¿Eliminar este registro de suspensión?')) return
     const { error } = await supabase.from('suspensiones').delete().eq('id', id)
     if (error) { toast.error('Error: ' + error.message); return }
-    setItems(prev => prev.filter(x => x.id !== id))
+    setItems(prev => prev.filter(x => x.id !== id)); onChange && onChange()
   }
 
   return (
@@ -340,7 +369,7 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose }) {
   )
 }
 
-function CharlasModal({ empleados, puedeEditar, usuario, onClose }) {
+function CharlasModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), responsable: '' })
@@ -365,13 +394,13 @@ function CharlasModal({ empleados, puedeEditar, usuario, onClose }) {
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('Charla registrada ✅')
     setForm({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), responsable: '' })
-    cargar()
+    cargar(); onChange && onChange()
   }
   async function eliminar(id) {
     if (!window.confirm('¿Eliminar este registro de charla?')) return
     const { error } = await supabase.from('charlas').delete().eq('id', id)
     if (error) { toast.error('Error: ' + error.message); return }
-    setItems(prev => prev.filter(x => x.id !== id))
+    setItems(prev => prev.filter(x => x.id !== id)); onChange && onChange()
   }
 
   return (
@@ -393,7 +422,12 @@ function CharlasModal({ empleados, puedeEditar, usuario, onClose }) {
               </div>
               <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Motivo</label><input value={form.motivo} onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))} placeholder="Motivo de la charla" style={iSt} /></div>
               <div><label style={lbl}>Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
-              <div><label style={lbl}>Quién dio la charla</label><input value={form.responsable} onChange={e => setForm(f => ({ ...f, responsable: e.target.value }))} placeholder="Nombre" style={iSt} /></div>
+              <div><label style={lbl}>Quién dio la charla</label>
+                <select value={form.responsable} onChange={e => setForm(f => ({ ...f, responsable: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
+                  <option value="">Elegí…</option>
+                  {empleados.map(e => { const n = `${e.apodo}${[e.nombre, e.apellido].filter(Boolean).length ? ` · ${[e.nombre, e.apellido].filter(Boolean).join(' ')}` : ''}`; return <option key={e.id} value={n}>{n}</option> })}
+                </select>
+              </div>
               <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', height: 38 }}>➕ Registrar</button>
             </div>
           )}
