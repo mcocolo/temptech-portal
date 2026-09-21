@@ -719,7 +719,18 @@ export default function Layout({ children }) {
 
         {/* Page content */}
         <main style={{ flex: 1, padding: '32px' }}>
-          {aprobacionPendiente ? (
+          {(profile?.bloqueado === true && !isAdmin && !isAdmin2 && !isVendedor && !isChofer && !isProceso && !isMantenimiento) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', gap: 16 }}>
+              <div style={{ fontSize: 56 }}>🔒</div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 800, margin: 0, color: '#ff5577' }}>Tu cuenta está bloqueada</h2>
+              <p style={{ color: 'var(--text3)', fontSize: 14, maxWidth: 440, margin: 0 }}>
+                Tu acceso al portal fue suspendido. Para regularizar tu situación, contactanos a través de nuestros canales oficiales.
+              </p>
+              <button onClick={signOut} style={{ marginTop: 8, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 'var(--radius)', padding: '8px 20px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                Cerrar sesión
+              </button>
+            </div>
+          ) : aprobacionPendiente ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', gap: 16 }}>
               <div style={{ fontSize: 56 }}>⏳</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 800, margin: 0 }}>Tu cuenta está pendiente de aprobación</h2>
