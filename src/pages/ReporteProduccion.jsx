@@ -15,6 +15,9 @@ const ETAPAS = [
 ]
 const OT_ETAPAS = ['corte', 'armado']   // estas vienen de la OT
 const MODOS = [['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año']]
+const ETAPA_LABEL = { corte: 'Corte', armado: 'Aguj1+Alambre+Pegado', taller: 'Taller', encuadre: 'Encuadre', aguj2: 'Aguj N°2', enduido_lija: 'Enduido+Lija', pintura: 'Pintura' }
+const fmtDur = m => (m == null || m === '') ? '—' : `${Math.floor(m / 60)}h ${m % 60}m`
+const fmtF = f => f ? new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'
 
 const dOf = s => s ? String(s).slice(0, 10) : ''
 function isoWeek(iso) {
@@ -36,19 +39,40 @@ export default function ReporteProduccion() {
   const [familia, setFamilia] = useState('')   // '' | '1400' | 'otros'
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
+  const [vista, setVista] = useState('resumen')   // 'resumen' | 'detalle'
+  const [loteNum, setLoteNum] = useState({})
 
-  useEffect(() => { if (isAdmin || isAdmin2) cargar() }, [isAdmin, isAdmin2])
+  useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
   async function cargar() {
     setLoading(true)
     const [otD, parD, lotD] = await Promise.all([
-      fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,etapa,piezas,fecha_fin,fecha_inicio,created_at')),
+      fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,etapa,piezas,fecha_fin,hora_fin,fecha_inicio,hora_inicio,duracion_min,personal,created_at')),
       fetchAllRows(() => supabase.from('produccion_partes').select('lote_id,etapa,cantidad,fecha,created_at')),
-      fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo')),
+      fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo,numero')),
     ])
     setOt(otD || []); setPartes(parD || [])
     setLotes(Object.fromEntries((lotD || []).map(l => [l.id, l.modelo || ''])))
+    setLoteNum(Object.fromEntries((lotD || []).map(l => [l.id, l.numero])))
     setLoading(false)
   }
+
+  // Filas de detalle: cada OT (corte/armado/taller) con fecha, lote, etapa, duración y personal
+  const detalle = useMemo(() => {
+    const rows = (ot || []).map(o => {
+      const fecha = dOf(o.fecha_fin || o.fecha_inicio || o.created_at)
+      const modelo = lotes[o.lote_id] || ''
+      const personal = Array.isArray(o.personal) ? o.personal : []
+      return { fecha, lote: loteNum[o.lote_id], modelo, etapa: o.etapa, inicio: o.fecha_inicio, fin: o.fecha_fin, dur: o.duracion_min, personal, piezas: Number(o.piezas) || 0 }
+    })
+    return rows.filter(r => {
+      if (!r.fecha) return false
+      if (familia === '1400' && !r.modelo.includes('1400')) return false
+      if (familia === 'otros' && r.modelo.includes('1400')) return false
+      if (desde && r.fecha < desde) return false
+      if (hasta && r.fecha > hasta) return false
+      return true
+    }).sort((a, b) => a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0)
+  }, [ot, lotes, loteNum, familia, desde, hasta])
 
   const eventos = useMemo(() => {
     const ev = []
@@ -108,13 +132,20 @@ export default function ReporteProduccion() {
         <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Unidades por etapa · por día, semana, mes o año</p>
       </div>
 
+      {/* Vista */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {[['resumen', '📊 Resumen por período'], ['detalle', '🧾 Detalle por OT / etapa']].map(([v, l]) => (
+          <button key={v} onClick={() => setVista(v)} style={{ padding: '8px 16px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: `1px solid ${vista === v ? 'transparent' : 'var(--border)'}`, background: vista === v ? 'var(--brand-gradient)' : 'var(--surface2)', color: vista === v ? '#fff' : 'var(--text3)' }}>{l}</button>
+        ))}
+      </div>
+
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 16px' }}>
-        <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
+        {vista === 'resumen' && <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
           {MODOS.map(([v, l]) => (
             <button key={v} onClick={() => setModo(v)} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: modo === v ? 'var(--brand-gradient)' : 'transparent', color: modo === v ? '#fff' : 'var(--text3)' }}>{l}</button>
           ))}
-        </div>
+        </div>}
         <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
           {[['', 'Todos'], ['1400', '1400w (F)'], ['otros', '250w / 500w']].map(([v, l]) => (
             <button key={v || 't'} onClick={() => setFamilia(v)} style={{ padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: familia === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: familia === v ? '#7b9fff' : 'var(--text3)' }}>{l}</button>
@@ -125,11 +156,41 @@ export default function ReporteProduccion() {
         <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>Hasta</span>
         <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={iSt} />
         {(desde || hasta) && <button onClick={() => { setDesde(''); setHasta('') }} style={{ ...iSt, cursor: 'pointer', color: 'var(--text3)' }}>Limpiar</button>}
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text2)', fontWeight: 700 }}>Total: {totalesEtapa.g} u.</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text2)', fontWeight: 700 }}>{vista === 'resumen' ? `Total: ${totalesEtapa.g} u.` : `${detalle.length} OT(s)`}</span>
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>Cargando...</div>
+      ) : vista === 'detalle' ? (
+        <div style={{ overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 820 }}>
+            <thead><tr>
+              <th style={{ ...th, textAlign: 'left' }}>Fecha</th>
+              <th style={{ ...th, textAlign: 'left' }}>Lote</th>
+              <th style={{ ...th, textAlign: 'left' }}>Etapa</th>
+              <th style={th}>Inicio</th>
+              <th style={th}>Fin</th>
+              <th style={th}>Duración</th>
+              <th style={{ ...th, textAlign: 'left' }}>Personal</th>
+              <th style={th}>Piezas</th>
+            </tr></thead>
+            <tbody>
+              {detalle.map((r, i) => (
+                <tr key={i} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ ...td, textAlign: 'left', whiteSpace: 'nowrap' }}>{fmtF(r.fecha)}</td>
+                  <td style={{ ...td, textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap' }}>{r.modelo.includes('1400') ? 'F' : '#'}{r.lote ?? '—'} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>{r.modelo}</span></td>
+                  <td style={{ ...td, textAlign: 'left', whiteSpace: 'nowrap' }}>{ETAPA_LABEL[r.etapa] || r.etapa}</td>
+                  <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtF(r.inicio)}</td>
+                  <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtF(r.fin)}</td>
+                  <td style={{ ...td, fontWeight: 700, color: r.dur ? '#7b9fff' : 'var(--text3)', whiteSpace: 'nowrap' }}>{fmtDur(r.dur)}</td>
+                  <td style={{ ...td, textAlign: 'left' }}>{r.personal.length ? <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{r.personal.map((p, j) => <span key={j} style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 12, padding: '1px 8px' }}>{p}</span>)}</div> : <span style={{ color: 'var(--text3)' }}>—</span>}</td>
+                  <td style={{ ...td, fontWeight: 700 }}>{r.piezas || '·'}</td>
+                </tr>
+              ))}
+              {detalle.length === 0 && <tr><td colSpan={8} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin OT registradas en el período. (El detalle sale de las OT de Corte, Alambre y Taller.)</td></tr>}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div style={{ overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 720 }}>

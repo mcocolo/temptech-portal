@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
@@ -78,6 +79,7 @@ const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransfor
 
 export default function Produccion() {
   const { isAdmin, isAdmin2, isProceso, isMantenimiento, user, profile } = useAuth()
+  const navigate = useNavigate()
   const [lotes, setLotes] = useState([])
   const [partes, setPartes] = useState([])
   const [ncf, setNcf] = useState([])
@@ -297,6 +299,7 @@ export default function Produccion() {
               </button>
             ))}
           </div>
+          <button onClick={() => navigate('/produccion/reportes')} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📊 Ver reportes</button>
           <button onClick={() => setPulmonOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📦 Pulmón / NC</button>
           {puedeGestionar && (
             <button onClick={() => setAccesosOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>👤 Accesos</button>
