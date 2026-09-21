@@ -9,7 +9,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin, Cog
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin, Cog, Clock
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -77,6 +77,7 @@ const ADMIN_NAV = [
     { label: 'Empleados',          icon: Users,  path: '/produccion/empleados' },
     { label: 'Insumos Directos',   icon: Layers, path: '/produccion/insumos-directos' },
     { label: 'Insumos Indirectos', icon: Box,    path: '/produccion/insumos-indirectos' },
+    { label: 'Pausas de jornada',  icon: Clock,  path: '/produccion/pausas' },
   ]},
   { section: 'Mantenimiento' },
   { label: 'Mantenimiento', icon: Wrench, isAdmin: true, submenu: 'mantenimiento', children: [

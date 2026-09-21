@@ -8,27 +8,17 @@ const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransfor
 const int = v => parseInt(v) || 0
 const num = v => parseFloat(v) || 0   // cantidades de insumo pueden ser decimales (ej. 0,94 kg)
 
-// Duración (mismas pausas/jornada que la OT de Corte)
-const BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]]
-const DAY_START = 480
+// Duración: usa los horarios cargados (sin topar) y descuenta las pausas configurables
+const DEFAULT_BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]]
 const hm = s => { if (!s) return null; const [h, m] = String(s).split(':').map(Number); return h * 60 + (m || 0) }
-const parseYMD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
-const fmtISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const overlap = (a1, a2, b1, b2) => Math.max(0, Math.min(a2, b2) - Math.max(a1, b1))
-function calcularDuracion(fi, hi, ff, hf) {
-  if (!fi || !hi || !ff || !hf) return null
-  const start = parseYMD(fi), end = parseYMD(ff); if (end < start) return null
-  let total = 0
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dow = d.getDay(); if (dow === 0 || dow === 6) continue
-    const iso = fmtISO(d), dayEnd = dow === 5 ? 840 : 990
-    const wStart = iso === fi ? hm(hi) : DAY_START
-    const wEnd = iso === ff ? Math.min(hm(hf), dayEnd) : dayEnd
-    let mins = Math.max(0, wEnd - wStart)
-    for (const [b1, b2] of BREAKS) mins -= overlap(wStart, wEnd, b1, b2)
-    total += Math.max(0, mins)
-  }
-  return total
+// Cada jornada es de un solo día: dura (fin - inicio) menos las pausas que se solapan
+function calcularDuracion(fi, hi, ff, hf, breaks = DEFAULT_BREAKS) {
+  const a = hm(hi), b = hm(hf)
+  if (a == null || b == null || b < a) return null
+  let mins = b - a
+  for (const [b1, b2] of breaks) mins -= overlap(a, b, b1, b2)
+  return Math.max(0, mins)
 }
 const fmtDur = m => m == null ? '—' : `${Math.floor(m / 60)}h ${m % 60}m`
 
@@ -72,15 +62,18 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const [buscarIns, setBuscarIns] = useState('')
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
+  const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [f, setF] = useState(clone(FDEF))
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [e, ins, ot] = await Promise.all([
+    const [e, ins, ot, pau] = await Promise.all([
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('insumos').select('*').eq('tipo', 'directo').order('codigo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'armado').maybeSingle(),
+      supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
     ])
+    if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || ['Armado', 'Alambre'].some(s => x.sectores.includes(s))))
     const arm = (ins.data || []).filter(i => !i.discontinuado && Array.isArray(i.sectores) && i.sectores.some(s => SECTORES_ARMADO_INS.includes(s)))
     setInsumosCat(arm.length ? arm.map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo })) : FALLBACK_INS)
@@ -112,7 +105,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const conforme = int(f.conforme)
   // Día de cada jornada: la primera usa la Fecha de Inicio; las siguientes su propia fecha
   const diaJornada = (j, i) => (i === 0 ? (j.fecha || f.fechaInicio) : (j.fecha || f.fechaInicio))
-  const duracion = f.jornadas.reduce((sum, j, i) => { const dia = diaJornada(j, i); return sum + (calcularDuracion(dia, j.hi, dia, j.hf) || 0) }, 0) || null
+  const duracion = f.jornadas.reduce((sum, j, i) => { const dia = diaJornada(j, i); return sum + (calcularDuracion(dia, j.hi, dia, j.hf, pausas) || 0) }, 0) || null
   const setJornada = (i, campo, val) => setF(s => { const n = clone(s); n.jornadas[i][campo] = val; return n })
   const addJornada = () => setF(s => ({ ...s, jornadas: [...s.jornadas, { fecha: '', hi: '', hf: '' }] }))
   const delJornada = i => setF(s => ({ ...s, jornadas: s.jornadas.length > 1 ? s.jornadas.filter((_, j) => j !== i) : s.jornadas }))

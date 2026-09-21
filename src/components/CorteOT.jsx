@@ -29,29 +29,16 @@ const insumoTapaDe = term => TAPA_FULL_MPSTD6.includes(term) ? 'MPSTD6' : (TAPA_
 const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }
 const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4, letterSpacing: '0.3px' }
 
-// Pausas (min desde medianoche) y jornada
-const BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]] // 9-9:15, 11-11:05, 13-13:30, 15-15:05
-const DAY_START = 480 // 08:00 (asunción de inicio de jornada)
+// Duración: usa los horarios cargados (sin topar) y descuenta las pausas configurables
+const DEFAULT_BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]]
 const hm = s => { if (!s) return null; const [h, m] = String(s).split(':').map(Number); return h * 60 + (m || 0) }
-const parseYMD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
-const fmtISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const overlap = (a1, a2, b1, b2) => Math.max(0, Math.min(a2, b2) - Math.max(a1, b1))
-function calcularDuracion(fi, hi, ff, hf) {
-  if (!fi || !hi || !ff || !hf) return null
-  const start = parseYMD(fi), end = parseYMD(ff)
-  if (end < start) return null
-  let total = 0
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dow = d.getDay(); if (dow === 0 || dow === 6) continue
-    const iso = fmtISO(d)
-    const dayEnd = dow === 5 ? 840 : 990   // 14:00 viernes, 16:30 lun-jue
-    const wStart = iso === fi ? hm(hi) : DAY_START
-    const wEnd = iso === ff ? Math.min(hm(hf), dayEnd) : dayEnd
-    let mins = Math.max(0, wEnd - wStart)
-    for (const [b1, b2] of BREAKS) mins -= overlap(wStart, wEnd, b1, b2)
-    total += Math.max(0, mins)
-  }
-  return total
+function calcularDuracion(fi, hi, ff, hf, breaks = DEFAULT_BREAKS) {
+  const a = hm(hi), b = hm(hf)
+  if (a == null || b == null || b < a) return null
+  let mins = b - a
+  for (const [b1, b2] of breaks) mins -= overlap(a, b, b1, b2)
+  return Math.max(0, mins)
 }
 const fmtDur = m => m == null ? '—' : `${Math.floor(m / 60)}h ${m % 60}m`
 
@@ -75,6 +62,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const [pulmon, setPulmon] = useState([])
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
+  const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [f, setF] = useState({
     disco_id: '', cinta_id: '', pie_id: '',
     disco_txt: '', cinta_txt: '', pie_txt: '', herramental_cambio: '',
@@ -91,12 +79,14 @@ export default function CorteOT({ lote, onClose, onDone }) {
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [h, e, ot, pl] = await Promise.all([
+    const [h, e, ot, pl, pau] = await Promise.all([
       supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'corte').maybeSingle(),
       supabase.from('produccion_pulmon').select('*').eq('modelo', lote.modelo).eq('estado', 'OK'),
+      supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
     ])
+    if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     setHerr(h.data || [])
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || x.sectores.includes('Corte')))
     setPulmon(pl.data || [])
@@ -129,8 +119,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const hojasMpstd = hojasCtUsadas + (insumoTapa === HOJA_CODIGO ? hojasTUsadas : 0)
   const cur = efectosDe(f)
   const piezas = cur.paneles
-  const dur1 = calcularDuracion(f.fecha_inicio, f.hora_inicio, f.fecha_fin, f.hora_fin)
-  const dur2 = calcularDuracion(f.fecha_inicio2, f.hora_inicio2, f.fecha_fin2, f.hora_fin2)
+  const dur1 = calcularDuracion(f.fecha_inicio, f.hora_inicio, f.fecha_fin, f.hora_fin, pausas)
+  const dur2 = calcularDuracion(f.fecha_inicio2, f.hora_inicio2, f.fecha_fin2, f.hora_fin2, pausas)
   const duracion = (dur1 == null && dur2 == null) ? null : (dur1 || 0) + (dur2 || 0)
   const controlesOk = f.mediciones.every(m => (m || '').toUpperCase() === 'OK')   // los 5 controles en OK
   const togglePersona = ap => setF(s => ({ ...s, personal: s.personal.includes(ap) ? s.personal.filter(x => x !== ap) : [...s.personal, ap] }))

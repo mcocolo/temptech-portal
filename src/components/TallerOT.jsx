@@ -9,27 +9,16 @@ const int = v => parseInt(v) || 0
 const num = v => parseFloat(v) || 0
 const round3 = n => Math.round(n * 1000) / 1000
 
-// Duración (mismas pausas/jornada que las otras OT)
-const BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]]
-const DAY_START = 480
+// Duración: usa los horarios cargados (sin topar) y descuenta las pausas configurables
+const DEFAULT_BREAKS = [[540, 555], [660, 665], [780, 810], [900, 905]]
 const hm = s => { if (!s) return null; const [h, m] = String(s).split(':').map(Number); return h * 60 + (m || 0) }
-const parseYMD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
-const fmtISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const overlap = (a1, a2, b1, b2) => Math.max(0, Math.min(a2, b2) - Math.max(a1, b1))
-function calcularDuracion(fi, hi, ff, hf) {
-  if (!fi || !hi || !ff || !hf) return null
-  const start = parseYMD(fi), end = parseYMD(ff); if (end < start) return null
-  let total = 0
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dow = d.getDay(); if (dow === 0 || dow === 6) continue
-    const iso = fmtISO(d), dayEnd = dow === 5 ? 840 : 990
-    const wStart = iso === fi ? hm(hi) : DAY_START
-    const wEnd = iso === ff ? Math.min(hm(hf), dayEnd) : dayEnd
-    let mins = Math.max(0, wEnd - wStart)
-    for (const [b1, b2] of BREAKS) mins -= overlap(wStart, wEnd, b1, b2)
-    total += Math.max(0, mins)
-  }
-  return total
+function calcularDuracion(fi, hi, ff, hf, breaks = DEFAULT_BREAKS) {
+  const a = hm(hi), b = hm(hf)
+  if (a == null || b == null || b < a) return null
+  let mins = b - a
+  for (const [b1, b2] of breaks) mins -= overlap(a, b, b1, b2)
+  return Math.max(0, mins)
 }
 const fmtDur = m => m == null ? '—' : `${Math.floor(m / 60)}h ${m % 60}m`
 
@@ -66,15 +55,18 @@ export default function TallerOT({ lote, onClose, onDone }) {
   const [insumosCat, setInsumosCat] = useState(FALLBACK_INS)
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
+  const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [f, setF] = useState(clone(FDEF))
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [e, ins, ot] = await Promise.all([
+    const [e, ins, ot, pau] = await Promise.all([
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('insumos').select('*').eq('tipo', 'directo').order('codigo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'taller').maybeSingle(),
+      supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
     ])
+    if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || SECTORES_TALLER.some(s => (x.sectores || []).includes(s))))
     const tall = (ins.data || []).filter(i => !i.discontinuado && Array.isArray(i.sectores) && i.sectores.some(s => SECTORES_TALLER.includes(s)))
     setInsumosCat(tall.length ? tall.map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo })) : FALLBACK_INS)
@@ -98,7 +90,7 @@ export default function TallerOT({ lote, onClose, onDone }) {
 
   const ctOk = int(f.ct_ok), tOk = int(f.t_ok)
   const conforme = Math.min(ctOk, tOk)   // panel completo = 1 CT + 1 T terminadas
-  const duracion = FASES.reduce((sum, [k]) => sum + (calcularDuracion(f.tiempos[k].fi, f.tiempos[k].hi, f.tiempos[k].ff, f.tiempos[k].hf) || 0), 0) || null
+  const duracion = FASES.reduce((sum, [k]) => sum + (calcularDuracion(f.tiempos[k].fi, f.tiempos[k].hi, f.tiempos[k].ff, f.tiempos[k].hf, pausas) || 0), 0) || null
 
   async function descontar(codigo, delta, lote_ins) {
     if (!codigo || !delta) return

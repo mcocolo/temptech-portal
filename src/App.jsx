@@ -48,6 +48,7 @@ import Proveedores from '@/pages/Proveedores'
 import Produccion from '@/pages/Produccion'
 import ReporteDevoluciones from '@/pages/ReporteDevoluciones'
 import ReporteProduccion from '@/pages/ReporteProduccion'
+import PausasProduccion from '@/pages/PausasProduccion'
 import Maquinas from '@/pages/Maquinas'
 import Empleados from '@/pages/Empleados'
 import Herramental from '@/pages/Herramental'
@@ -121,6 +122,7 @@ function AppRoutes() {
               <Route path="/ingreso-transito/vo"           element={<IngresoTransito key="vo" />} />
               <Route path="/produccion/tablero"             element={<Produccion />} />
               <Route path="/produccion/reportes"            element={<ReporteProduccion />} />
+              <Route path="/produccion/pausas"              element={<PausasProduccion />} />
               <Route path="/mantenimiento/maquinas"         element={<Maquinas />} />
               <Route path="/produccion/empleados"           element={<Empleados />} />
               <Route path="/produccion/herramental"         element={<Herramental />} />
