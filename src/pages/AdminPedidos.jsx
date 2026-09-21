@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { usePersistedState } from '@/hooks/usePersistedState'
@@ -93,6 +93,7 @@ const STATUS_CONFIG = {
 export default function AdminPedidos() {
   const { isAdmin, isAdmin2, isVendedor, user, profile } = useAuth()
   const [vista, setVista] = useState('lista')          // 'lista' | 'nuevo'
+  const [deudaOpen, setDeudaOpen] = useState(false)
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
   const [exportando, setExportando] = useState(false)
@@ -1251,6 +1252,11 @@ export default function AdminPedidos() {
             title="Actualizar pedidos">
             🔄
           </button>
+          <button onClick={() => setDeudaOpen(true)}
+            style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}
+            title="Deuda por distribuidor (pedidos entregados sin pagar)">
+            💰 Estado de deuda
+          </button>
           {!isAdmin2 && (
             <button onClick={exportarTodos} disabled={exportando}
               style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: exportando ? 'not-allowed' : 'pointer', opacity: exportando ? 0.5 : 1, fontFamily: 'var(--font)' }}
@@ -1266,6 +1272,8 @@ export default function AdminPedidos() {
           )}
         </div>
       </div>
+
+      {deudaOpen && <DeudaModal formatPrecio={formatPrecio} onClose={() => setDeudaOpen(false)} />}
 
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1944,6 +1952,116 @@ export default function AdminPedidos() {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+// Estado de deuda: pedidos entregados o pendientes de pago (sin finalizar) agrupados por distribuidor
+function DeudaModal({ formatPrecio, onClose }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [q, setQ] = useState('')
+  const [exp, setExp] = useState(null)
+
+  useEffect(() => { cargar() }, [])
+  async function cargar() {
+    setLoading(true)
+    const data = await fetchAllRows(() =>
+      supabase.from('pedidos')
+        .select('id,total,estado,fecha_entrega,created_at,concepto,profiles!distribuidor_id(id,full_name,razon_social,email)')
+        .in('estado', ['entregado', 'pendiente_pago'])
+        .order('created_at', { ascending: false })
+    )
+    // Las devoluciones (concepto) son $0 / no cobrables → no cuentan como deuda
+    const list = (data || []).filter(p => p.concepto !== 'devoluciones_pendientes')
+    const m = new Map()
+    for (const p of list) {
+      const key = p.profiles?.id || p.profiles?.email || 'sin'
+      const nombre = p.profiles?.razon_social || p.profiles?.full_name || p.profiles?.email || 'Sin distribuidor'
+      if (!m.has(key)) m.set(key, { key, nombre, email: p.profiles?.email || '', total: 0, pedidos: [] })
+      const g = m.get(key)
+      g.total += Number(p.total) || 0
+      g.pedidos.push(p)
+    }
+    setRows([...m.values()].sort((a, b) => b.total - a.total))
+    setLoading(false)
+  }
+
+  const ql = q.trim().toLowerCase()
+  const filtradas = rows.filter(r => !ql || r.nombre.toLowerCase().includes(ql) || (r.email || '').toLowerCase().includes(ql))
+  const totalGeneral = filtradas.reduce((s, r) => s + r.total, 0)
+  const th = { padding: '8px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
+  const td = { padding: '8px 10px', fontSize: 13, borderBottom: '1px solid var(--border)' }
+  const fF = f => f ? new Date((String(f).length <= 10 ? f + 'T12:00:00' : f)).toLocaleDateString('es-AR') : '—'
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>💰 Estado de deuda</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Pedidos Entregados / Pendientes de pago (los Finalizados ya están pagos)</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Buscar distribuidor / cliente…" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', maxWidth: 300 }} />
+            <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 800, color: '#fb923c' }}>Deuda total: {formatPrecio(totalGeneral)}</span>
+          </div>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>Cargando…</div>
+          ) : filtradas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>Sin deuda registrada. 🎉</div>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                <thead><tr>
+                  <th style={{ ...th, textAlign: 'left' }}>Distribuidor</th>
+                  <th style={{ ...th, textAlign: 'center' }}>Pedidos</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Deuda</th>
+                  <th style={{ ...th, width: 30 }}></th>
+                </tr></thead>
+                <tbody>
+                  {filtradas.map(r => {
+                    const isE = exp === r.key
+                    return (
+                      <Fragment key={r.key}>
+                        <tr onClick={() => setExp(isE ? null : r.key)} style={{ cursor: 'pointer', background: isE ? 'var(--surface2)' : 'transparent' }}>
+                          <td style={{ ...td, fontWeight: 700 }}>🏪 {r.nombre}</td>
+                          <td style={{ ...td, textAlign: 'center' }}>{r.pedidos.length}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: '#fb923c' }}>{formatPrecio(r.total)}</td>
+                          <td style={{ ...td, textAlign: 'center', color: 'var(--text3)' }}>{isE ? '▲' : '▾'}</td>
+                        </tr>
+                        {isE && (
+                          <tr>
+                            <td colSpan={4} style={{ padding: '4px 16px 12px', background: 'var(--surface2)' }}>
+                              {r.pedidos.map(p => (
+                                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                                  <span style={{ fontFamily: 'monospace', color: '#7b9fff' }}>#{String(p.id).slice(0, 8).toUpperCase()}</span>
+                                  <span style={{ color: p.estado === 'pendiente_pago' ? '#ffd166' : '#38bdf8' }}>{p.estado === 'pendiente_pago' ? 'Pendiente pago' : 'Entregado'}</span>
+                                  <span style={{ color: 'var(--text3)' }}>{fF(p.fecha_entrega || p.created_at)}</span>
+                                  <span style={{ fontWeight: 700 }}>{formatPrecio(Number(p.total) || 0)}</span>
+                                </div>
+                              ))}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+                <tfoot><tr>
+                  <td style={{ ...td, fontWeight: 800 }}>TOTAL</td>
+                  <td style={{ ...td, textAlign: 'center', fontWeight: 800 }}>{filtradas.reduce((s, r) => s + r.pedidos.length, 0)}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: '#fb923c' }}>{formatPrecio(totalGeneral)}</td>
+                  <td style={td}></td>
+                </tr></tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
