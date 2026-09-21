@@ -159,11 +159,12 @@ export default function Herramental() {
                     <span style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>500w: {h.usos_500w || 0}</span>
                     <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w T: {h.usos_1400w_t || 0}</span>
                     <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w CT: {h.usos_1400w_ct || 0}</span>
+                    <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 800 }}>Total usos: {(h.usos_250w || 0) + (h.usos_500w || 0) + (h.usos_1400w_t || 0) + (h.usos_1400w_ct || 0)}</span>
                     {(/^MM/i.test(h.codigo || '') || h.agujeros_250w > 0 || h.agujeros_500w > 0 || h.agujeros_1400w > 0) && (
-                      <span style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.35)', color: '#a78bfa', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Agujeros · 250w: {h.agujeros_250w || 0} · 500w: {h.agujeros_500w || 0} · 1400w: {h.agujeros_1400w || 0}</span>
+                      <span style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.35)', color: '#a78bfa', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Agujeros · 250w: {h.agujeros_250w || 0} · 500w: {h.agujeros_500w || 0} · 1400w: {h.agujeros_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(h.agujeros_250w || 0) + (h.agujeros_500w || 0) + (h.agujeros_1400w || 0)}</b></span>
                     )}
                     {(/^DISC/i.test(h.codigo || '') || h.cortes_250w > 0 || h.cortes_500w > 0 || h.cortes_1400w > 0) && (
-                      <span style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.35)', color: '#2dd4bf', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Cortes · 250w: {h.cortes_250w || 0} · 500w: {h.cortes_500w || 0} · 1400w: {h.cortes_1400w || 0}</span>
+                      <span style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.35)', color: '#2dd4bf', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Cortes · 250w: {h.cortes_250w || 0} · 500w: {h.cortes_500w || 0} · 1400w: {h.cortes_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(h.cortes_250w || 0) + (h.cortes_500w || 0) + (h.cortes_1400w || 0)}</b></span>
                     )}
                   </div>
                 </div>
