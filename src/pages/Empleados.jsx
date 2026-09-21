@@ -372,7 +372,7 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange 
 function CharlasModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), responsable: '' })
+  const [form, setForm] = useState({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), responsable: '', detalle: '' })
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => { cargar() }, [])
@@ -389,11 +389,11 @@ function CharlasModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
     if (!form.empleado_id) return toast.error('Elegí el empleado')
     if (!form.fecha) return toast.error('Ingresá la fecha')
     setGuardando(true)
-    const { error } = await supabase.from('charlas').insert({ empleado_id: form.empleado_id, motivo: form.motivo.trim() || null, fecha: form.fecha, responsable: form.responsable.trim() || null, creado_por: usuario })
+    const { error } = await supabase.from('charlas').insert({ empleado_id: form.empleado_id, motivo: form.motivo.trim() || null, fecha: form.fecha, responsable: form.responsable.trim() || null, detalle: form.detalle.trim() || null, creado_por: usuario })
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('Charla registrada ✅')
-    setForm({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), responsable: '' })
+    setForm({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), responsable: '', detalle: '' })
     cargar(); onChange && onChange()
   }
   async function eliminar(id) {
@@ -425,10 +425,12 @@ function CharlasModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
               <div><label style={lbl}>Quién dio la charla</label>
                 <select value={form.responsable} onChange={e => setForm(f => ({ ...f, responsable: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
                   <option value="">Elegí…</option>
+                  {usuario && <option value={usuario}>{usuario} (yo)</option>}
                   {empleados.map(e => { const n = `${e.apodo}${[e.nombre, e.apellido].filter(Boolean).length ? ` · ${[e.nombre, e.apellido].filter(Boolean).join(' ')}` : ''}`; return <option key={e.id} value={n}>{n}</option> })}
                 </select>
               </div>
-              <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', height: 38 }}>➕ Registrar</button>
+              <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Detalle de la charla</label><textarea value={form.detalle} onChange={e => setForm(f => ({ ...f, detalle: e.target.value }))} rows={3} placeholder="Escribí lo que se habló en la charla…" style={{ ...iSt, resize: 'vertical', lineHeight: 1.5 }} /></div>
+              <button onClick={agregar} disabled={guardando} style={{ gridColumn: '1 / -1', background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Registrar charla</button>
             </div>
           )}
           {loading ? (
@@ -438,12 +440,13 @@ function CharlasModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map(s => (
-                <div key={s.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div key={s.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{nombreDe(s.empleado_id)}</div>
                     <div style={{ fontSize: 12, color: 'var(--text3)' }}>{fmtF(s.fecha)}{s.responsable ? ` · con ${s.responsable}` : ''}{s.motivo ? ` · ${s.motivo}` : ''}{s.creado_por ? <span style={{ color: 'var(--text3)' }}> · cargó {s.creado_por}</span> : ''}</div>
+                    {s.detalle && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{s.detalle}</div>}
                   </div>
-                  {puedeEditar && <button onClick={() => eliminar(s.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>}
+                  {puedeEditar && <button onClick={() => eliminar(s.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>🗑</button>}
                 </div>
               ))}
             </div>
