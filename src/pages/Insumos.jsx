@@ -33,7 +33,7 @@ const MODELO_COLOR = { Slim: '#7b9fff', Firenze: '#fb923c', 'Slim/Firenze': '#a7
 const EMPTY_FORM = {
   codigo: '', descripcion: '', unidad: 'unidades',
   proveedor_nombre: '', proveedor_direccion: '', proveedor_telefono: '', proveedor_horario: '', proveedor_contacto: '',
-  sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '',
+  sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '', tamano_envase: '',
   es_repuesto: false, precio_tecnico: '',
   imagen_url: '',
   es_kit: false, componentes: [],
@@ -196,7 +196,7 @@ export default function Insumos() {
       proveedor_nombre: ins.proveedor_nombre || '', proveedor_direccion: ins.proveedor_direccion || '',
       proveedor_telefono: ins.proveedor_telefono || '', proveedor_horario: ins.proveedor_horario || '',
       proveedor_contacto: ins.proveedor_contacto || '',
-      sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '',
+      sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
       imagen_url: ins.imagen_url || '',
       es_kit: ins.es_kit || false, componentes: ins.componentes || [],
@@ -211,7 +211,7 @@ export default function Insumos() {
       proveedor_nombre: ins.proveedor_nombre || '', proveedor_direccion: ins.proveedor_direccion || '',
       proveedor_telefono: ins.proveedor_telefono || '', proveedor_horario: ins.proveedor_horario || '',
       proveedor_contacto: ins.proveedor_contacto || '',
-      sectores: ins.sectores || [], stock_actual: 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '',
+      sectores: ins.sectores || [], stock_actual: 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
       imagen_url: ins.imagen_url || '',
       es_kit: ins.es_kit || false, componentes: ins.componentes || [],
@@ -280,6 +280,7 @@ export default function Insumos() {
       tipo,
       stock_actual: parseFloat(form.stock_actual) || 0,
       stock_minimo: parseFloat(form.stock_minimo) || 0,
+      tamano_envase: parseFloat(form.tamano_envase) || null,
       es_repuesto: form.es_repuesto,
       precio_tecnico: form.es_repuesto ? (parseFloat(form.precio_tecnico) || null) : null,
       imagen_url: form.imagen_url || null,
@@ -685,6 +686,13 @@ export default function Insumos() {
                             <span style={{ color: 'var(--text3)' }}>Unidad: </span>
                             <strong style={{ color: 'var(--text2)' }}>{ins.unidad}</strong>
                           </div>
+                          {ins.tamano_envase > 0 && (
+                            <div style={{ fontSize: 12, marginTop: 4 }}>
+                              <span style={{ color: 'var(--text3)' }}>Envase: </span>
+                              <strong style={{ color: '#7b9fff' }}>{ins.tamano_envase} {ins.unidad}</strong>
+                              <span style={{ color: 'var(--text3)' }}> · {ins.stock_actual > 0 ? `${Math.round((ins.stock_actual / ins.tamano_envase) * 100) / 100} envases` : ''}</span>
+                            </div>
+                          )}
                         </div>
                         {/* Lotes */}
                         <div style={{ gridColumn: '1 / -1' }}>
@@ -830,6 +838,11 @@ export default function Insumos() {
                     {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Tamaño de envase ({form.unidad} por envase) — opcional</label>
+                <input type="number" min="0" step="any" value={form.tamano_envase} onChange={e => setForm(p => ({ ...p, tamano_envase: e.target.value }))} placeholder={`Ej: 20 (${form.unidad} por envase)`} style={inputSt} />
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>Si lo cargás, al hacer Ingreso/Egreso podés poner cantidad de envases y se convierte a {form.unidad} (y viceversa).</div>
               </div>
 
               {/* Modelo */}
@@ -1050,9 +1063,18 @@ export default function Insumos() {
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
                   {stockTipo === 'ajuste' ? 'Nuevo stock total *' : 'Cantidad *'}
                 </label>
-                <input type="number" min="0" value={stockCantidad} onChange={e => setStockCantidad(e.target.value)}
+                <input type="number" min="0" step="any" value={stockCantidad} onChange={e => setStockCantidad(e.target.value)}
                   placeholder={stockTipo === 'ajuste' ? `Stock actual: ${modalStock.stock_actual}` : `Ej: 5`}
                   style={inputSt} autoFocus />
+                {modalStock.tamano_envase > 0 && (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>📦 Envases</span>
+                    <input type="number" min="0" step="any" value={stockCantidad ? Math.round((parseFloat(stockCantidad) / modalStock.tamano_envase) * 1000) / 1000 : ''}
+                      onChange={e => { const v = parseFloat(e.target.value); setStockCantidad(v ? String(Math.round(v * modalStock.tamano_envase * 1000) / 1000) : '') }}
+                      placeholder="0" style={{ ...inputSt, width: 90 }} />
+                    <span style={{ fontSize: 12, color: 'var(--text2)' }}>× {modalStock.tamano_envase} {modalStock.unidad} = <b style={{ color: '#7b9fff' }}>{stockCantidad || 0} {modalStock.unidad}</b></span>
+                  </div>
+                )}
               </div>
 
               {stockTipo === 'egreso' && (
