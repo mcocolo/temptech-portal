@@ -13,7 +13,9 @@ const TIPOS = [
 ]
 const tipoCfg = k => TIPOS.find(t => t.k === k) || { label: k, color: 'var(--text3)' }
 const fmtF = f => f ? new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
-const EMPTY = { tipo: 'preventivo', maquina_id: '', objeto: '', fecha: new Date().toISOString().slice(0, 10), descripcion: '', realizado_por: '', proximo: '', costo: '' }
+const EMPTY = { tipo: 'preventivo', maquina_id: '', objeto: '', fecha: new Date().toISOString().slice(0, 10), descripcion: '', realizado_por: '', proximo: '', costo: '', fotos: [] }
+const hoyISO = () => new Date().toISOString().slice(0, 10)
+const diasHasta = f => Math.round((new Date(f + 'T12:00:00') - new Date(hoyISO() + 'T12:00:00')) / 86400000)
 
 export default function MantenimientosRegistros() {
   const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
@@ -26,6 +28,24 @@ export default function MantenimientosRegistros() {
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [guardando, setGuardando] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
+
+  async function subirFotos(files) {
+    if (!files || !files.length) return
+    setSubiendo(true)
+    const urls = []
+    for (const file of files) {
+      try {
+        const ext = file.name.split('.').pop()
+        const path = `mantenimientos/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+        const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
+        if (!error) urls.push(supabase.storage.from('Imagenes').getPublicUrl(path).data.publicUrl)
+      } catch (_) { /* sigue */ }
+    }
+    setForm(f => ({ ...f, fotos: [...(f.fotos || []), ...urls] }))
+    setSubiendo(false)
+    if (urls.length) toast.success(`${urls.length} foto(s) subida(s) ✅`)
+  }
 
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
   async function cargar() {
@@ -48,7 +68,7 @@ export default function MantenimientosRegistros() {
     const { error } = await supabase.from('mantenimientos').insert({
       tipo: form.tipo, maquina_id: form.maquina_id || null, objeto: form.objeto.trim() || null,
       fecha: form.fecha, descripcion: form.descripcion.trim() || null, realizado_por: form.realizado_por.trim() || null,
-      proximo: form.proximo || null, costo: parseFloat(form.costo) || null, creado_por: nombreUsuario,
+      proximo: form.proximo || null, costo: parseFloat(form.costo) || null, fotos: form.fotos || [], creado_por: nombreUsuario,
     })
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
@@ -72,6 +92,15 @@ export default function MantenimientosRegistros() {
   )
   const cuenta = t => items.filter(m => m.tipo === t).length
 
+  // Próximos mantenimientos: registros con "próximo" no resueltos (sin uno posterior del mismo equipo)
+  const claveEq = m => m.maquina_id || (m.objeto || '').toLowerCase().trim()
+  const pendientes = items.filter(m => {
+    if (!m.proximo) return false
+    const clave = claveEq(m)
+    const resuelto = items.some(x => x.id !== m.id && claveEq(x) === clave && x.fecha >= m.proximo)
+    return !resuelto && diasHasta(m.proximo) <= 30   // vencidos + próximos 30 días
+  }).sort((a, b) => a.proximo < b.proximo ? -1 : 1)
+
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
@@ -81,6 +110,22 @@ export default function MantenimientosRegistros() {
         </div>
         {!readOnly && <button onClick={() => { setForm(EMPTY); setModal(true) }} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Ingresar mantenimiento</button>}
       </div>
+
+      {pendientes.length > 0 && (
+        <div style={{ background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#fb923c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>🔔 Próximos mantenimientos ({pendientes.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {pendientes.map(m => { const d = diasHasta(m.proximo); const venc = d < 0; return (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: venc ? '#ff5577' : '#fb923c', background: venc ? 'rgba(255,85,119,0.12)' : 'rgba(251,146,60,0.12)', border: `1px solid ${venc ? 'rgba(255,85,119,0.4)' : 'rgba(251,146,60,0.4)'}`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{venc ? `Vencido hace ${Math.abs(d)} día${Math.abs(d) !== 1 ? 's' : ''}` : d === 0 ? 'Hoy' : `En ${d} día${d !== 1 ? 's' : ''}`}</span>
+                <span style={{ fontWeight: 700 }}>{maqNombre(m.maquina_id) || m.objeto || '—'}</span>
+                <span style={{ color: 'var(--text3)' }}>· {tipoCfg(m.tipo).label} · próximo {fmtF(m.proximo)}</span>
+                {!readOnly && <button onClick={() => { setForm({ ...EMPTY, tipo: m.tipo, maquina_id: m.maquina_id || '', objeto: m.objeto || '' }); setModal(true) }} style={{ marginLeft: 'auto', background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Registrar realizado</button>}
+              </div>
+            ) })}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
         <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar máquina, equipo, descripción, responsable…" style={{ ...iSt, maxWidth: 360 }} />
@@ -109,6 +154,13 @@ export default function MantenimientosRegistros() {
                     <span style={{ fontSize: 12, color: 'var(--text3)' }}>· {fmtF(m.fecha)}</span>
                   </div>
                   {m.descripcion && <div style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>{m.descripcion}</div>}
+                  {Array.isArray(m.fotos) && m.fotos.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                      {m.fotos.map((url, i) => /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url)
+                        ? <img key={i} src={url} alt="" onClick={() => window.open(url, '_blank')} style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'zoom-in' }} />
+                        : <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#7b9fff', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', textDecoration: 'none' }}>📄 archivo {i + 1}</a>)}
+                    </div>
+                  )}
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
                     {m.realizado_por ? `👷 ${m.realizado_por}` : ''}
                     {m.proximo ? ` · 🔁 próximo: ${fmtF(m.proximo)}` : ''}
@@ -155,6 +207,21 @@ export default function MantenimientosRegistros() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div><label style={lbl}>Realizado por</label><input value={form.realizado_por} onChange={e => setForm(f => ({ ...f, realizado_por: e.target.value }))} placeholder="Nombre / empresa" style={iSt} /></div>
                 <div><label style={lbl}>Costo (opcional)</label><input type="number" step="any" value={form.costo} onChange={e => setForm(f => ({ ...f, costo: e.target.value }))} placeholder="$" style={iSt} /></div>
+              </div>
+              <div>
+                <label style={lbl}>Fotos (antes/después, remito…)</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {(form.fotos || []).map((url, i) => (
+                    <div key={i} style={{ position: 'relative' }}>
+                      <img src={url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                      <button onClick={() => setForm(f => ({ ...f, fotos: f.fotos.filter((_, j) => j !== i) }))} style={{ position: 'absolute', top: -6, right: -6, background: '#ff5577', color: '#fff', border: 'none', borderRadius: '50%', width: 18, height: 18, fontSize: 11, cursor: 'pointer', lineHeight: 1 }}>×</button>
+                    </div>
+                  ))}
+                  <label style={{ width: 64, height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px dashed var(--border)', background: 'var(--surface2)', color: 'var(--text3)', fontSize: 22, cursor: 'pointer' }}>
+                    {subiendo ? '…' : '＋'}
+                    <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={e => subirFotos(Array.from(e.target.files || []))} />
+                  </label>
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={guardar} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando…' : '✓ Registrar'}</button>
