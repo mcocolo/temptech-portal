@@ -83,6 +83,7 @@ const ADMIN_NAV = [
   { label: 'Mantenimiento', icon: Wrench, isAdmin: true, submenu: 'mantenimiento', children: [
     { label: 'Máquinas', icon: Cog, path: '/mantenimiento/maquinas' },
     { label: 'Herramental', icon: Wrench, path: '/produccion/herramental' },
+    { label: 'Registros', icon: ClipboardList, path: '/mantenimiento/registros' },
   ]},
 ]
 
@@ -117,6 +118,7 @@ const ADMIN2_NAV = [
   { label: 'Mantenimiento', icon: Wrench, isAdmin: true, submenu: 'mantenimiento', children: [
     { label: 'Máquinas', icon: Cog, path: '/mantenimiento/maquinas' },
     { label: 'Herramental', icon: Wrench, path: '/produccion/herramental' },
+    { label: 'Registros', icon: ClipboardList, path: '/mantenimiento/registros' },
   ]},
 ]
 
@@ -155,6 +157,7 @@ const NAV_MANTENIMIENTO = [
   { label: 'Mantenimiento', icon: Wrench, submenu: 'mantenimiento', children: [
     { label: 'Máquinas', icon: Cog, path: '/mantenimiento/maquinas' },
     { label: 'Herramental', icon: Wrench, path: '/produccion/herramental' },
+    { label: 'Registros', icon: ClipboardList, path: '/mantenimiento/registros' },
   ]},
 ]
 

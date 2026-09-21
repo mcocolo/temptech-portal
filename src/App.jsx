@@ -50,6 +50,7 @@ import ReporteDevoluciones from '@/pages/ReporteDevoluciones'
 import ReporteProduccion from '@/pages/ReporteProduccion'
 import PausasProduccion from '@/pages/PausasProduccion'
 import Maquinas from '@/pages/Maquinas'
+import MantenimientosRegistros from '@/pages/MantenimientosRegistros'
 import Empleados from '@/pages/Empleados'
 import Herramental from '@/pages/Herramental'
 
@@ -124,6 +125,7 @@ function AppRoutes() {
               <Route path="/produccion/reportes"            element={<ReporteProduccion />} />
               <Route path="/produccion/pausas"              element={<PausasProduccion />} />
               <Route path="/mantenimiento/maquinas"         element={<Maquinas />} />
+              <Route path="/mantenimiento/registros"        element={<MantenimientosRegistros />} />
               <Route path="/produccion/empleados"           element={<Empleados />} />
               <Route path="/produccion/herramental"         element={<Herramental />} />
               <Route path="/produccion/insumos-directos"   element={<Insumos />} />
