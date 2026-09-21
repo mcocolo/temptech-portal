@@ -45,7 +45,9 @@ const TUBOS = Array.from({ length: 12 }, (_, i) => i + 1)
 
 const emptyEst = () => ({ E1: '', E2: '', E3: '', E4: '', E5: '', lote: '' })
 const FDEF = {
-  tiempos: { aguj1: { fi: '', hi: '', ff: '', hf: '' }, alambre: { fi: '', hi: '', ff: '', hf: '' }, pegado: { fi: '', hi: '', ff: '', hf: '' } },
+  // Una sola fecha de inicio para todo el sector; jornadas de trabajo por día; fecha fin = registro
+  fechaInicio: '', fechaFin: '',
+  jornadas: [{ fecha: '', hi: '', hf: '' }],
   personalEst: { E1: [], E2: [], E3: [], E4: [], E5: [] },
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '',
@@ -90,7 +92,9 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       setRemovedCods(Array.isArray(d.removedCods) ? d.removedCods : [])
       setF({
         ...clone(FDEF), ...d,
-        tiempos: { ...FDEF.tiempos, ...(d.tiempos || {}) },
+        fechaInicio: d.fechaInicio ?? ot.data.fecha_inicio ?? '',
+        fechaFin: d.fechaFin ?? ot.data.fecha_fin ?? '',
+        jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : clone(FDEF.jornadas),
         personalEst: { ...FDEF.personalEst, ...(d.personalEst || {}) },
         mechas: d.mechas || clone(FDEF.mechas),
         insumosEst: { ...(d.insumosEst || {}) },
@@ -106,7 +110,12 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const setInsEst = (cod, col, val) => setF(s => { const n = clone(s); if (!n.insumosEst[cod]) n.insumosEst[cod] = emptyEst(); n.insumosEst[cod][col] = val; return n })
 
   const conforme = int(f.conforme)
-  const duracion = FASES.reduce((sum, [k]) => sum + (calcularDuracion(f.tiempos[k].fi, f.tiempos[k].hi, f.tiempos[k].ff, f.tiempos[k].hf) || 0), 0) || null
+  // Día de cada jornada: la primera usa la Fecha de Inicio; las siguientes su propia fecha
+  const diaJornada = (j, i) => (i === 0 ? (j.fecha || f.fechaInicio) : (j.fecha || f.fechaInicio))
+  const duracion = f.jornadas.reduce((sum, j, i) => { const dia = diaJornada(j, i); return sum + (calcularDuracion(dia, j.hi, dia, j.hf) || 0) }, 0) || null
+  const setJornada = (i, campo, val) => setF(s => { const n = clone(s); n.jornadas[i][campo] = val; return n })
+  const addJornada = () => setF(s => ({ ...s, jornadas: [...s.jornadas, { fecha: '', hi: '', hf: '' }] }))
+  const delJornada = i => setF(s => ({ ...s, jornadas: s.jornadas.length > 1 ? s.jornadas.filter((_, j) => j !== i) : s.jornadas }))
 
   const totalInsumo = cod => COLS.reduce((s, c) => s + num(f.insumosEst[cod]?.[c]), 0)
 
@@ -125,12 +134,13 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { tiempos: f.tiempos, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
+    const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'armado',
-      fecha_inicio: f.tiempos.aguj1.fi || null, hora_inicio: f.tiempos.aguj1.hi || null,
-      fecha_fin: f.tiempos.pegado.ff || null, hora_fin: f.tiempos.pegado.hf || null,
+      fecha_inicio: f.fechaInicio || null, hora_inicio: f.jornadas[0]?.hi || null,
+      fecha_fin: f.fechaFin || ultJor.fecha || f.fechaInicio || null, hora_fin: ultJor.hf || null,
       personal: personalPlano, piezas: conforme, duracion_min: duracion, notas: f.notas.trim() || null,
       datos,
       ...(prevOt ? {} : { creado_por: nombreUsuario }),
@@ -200,20 +210,29 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         </div>
         <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-          {/* Tiempos por fase */}
-          <Sec t="⏱ Tiempos por fase (duración suma las tres)">
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}><span style={{ fontSize: 12 }}>Duración total: <b style={{ color: '#7b9fff' }}>{fmtDur(duracion)}</b></span></div>
-            {FASES.map(([k, label]) => (
-              <div key={k} style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', marginBottom: 4 }}>{label}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-                  <input key={'fi' + f.tiempos[k].fi} type="date" defaultValue={f.tiempos[k].fi} onBlur={e => setD(`tiempos.${k}.fi`, e.target.value)} style={iSt} title="Fecha inicio" />
-                  <input key={'hi' + f.tiempos[k].hi} type="time" defaultValue={f.tiempos[k].hi} onBlur={e => setD(`tiempos.${k}.hi`, e.target.value)} style={iSt} title="Hora inicio" />
-                  <input key={'ff' + f.tiempos[k].ff} type="date" defaultValue={f.tiempos[k].ff} onBlur={e => setD(`tiempos.${k}.ff`, e.target.value)} style={iSt} title="Fecha fin" />
-                  <input key={'hf' + f.tiempos[k].hf} type="time" defaultValue={f.tiempos[k].hf} onBlur={e => setD(`tiempos.${k}.hf`, e.target.value)} style={iSt} title="Hora fin" />
-                </div>
+          {/* Tiempos: 1 fecha de inicio para todo el sector + jornadas por día */}
+          <Sec t="⏱ Tiempos de trabajo (Aguj1 + Alambre + Pegado)">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <label style={lbl}>Fecha de inicio del sector</label>
+                <input key={'ini' + f.fechaInicio} type="date" defaultValue={f.fechaInicio} onBlur={e => setF(s => ({ ...s, fechaInicio: e.target.value }))} style={{ ...iSt, maxWidth: 180 }} />
+              </div>
+              <span style={{ fontSize: 12 }}>Duración total: <b style={{ color: '#7b9fff' }}>{fmtDur(duracion)}</b></span>
+            </div>
+            <label style={lbl}>Jornadas (si no se termina, se suma otro día)</label>
+            {f.jornadas.map((j, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                <input key={'jf' + i + (i === 0 ? f.fechaInicio : j.fecha)} type="date" defaultValue={i === 0 ? (j.fecha || f.fechaInicio) : j.fecha} onBlur={e => setJornada(i, 'fecha', e.target.value)} style={iSt} title="Día" />
+                <input key={'jhi' + i + j.hi} type="time" defaultValue={j.hi} onBlur={e => setJornada(i, 'hi', e.target.value)} style={iSt} title="Hora inicio" />
+                <input key={'jhf' + i + j.hf} type="time" defaultValue={j.hf} onBlur={e => setJornada(i, 'hf', e.target.value)} style={iSt} title="Hora fin" />
+                {f.jornadas.length > 1 ? <button onClick={() => delJornada(i)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18 }}>×</button> : <span />}
               </div>
             ))}
+            <button onClick={addJornada} style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontFamily: 'var(--font)', marginTop: 2 }}>+ Agregar jornada (otro día)</button>
+            <div style={{ marginTop: 10 }}>
+              <label style={lbl}>Fecha de finalización (registro)</label>
+              <input key={'fin' + f.fechaFin} type="date" defaultValue={f.fechaFin} onBlur={e => setF(s => ({ ...s, fechaFin: e.target.value }))} style={{ ...iSt, maxWidth: 180 }} />
+            </div>
           </Sec>
 
           {/* Personal por estación */}
