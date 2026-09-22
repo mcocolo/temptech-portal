@@ -19,10 +19,27 @@ const hoyStr = () => { const d = new Date(); return `${d.getFullYear()}-${String
 const addDias = (f, n) => { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 // activo = sin egreso final (mismo criterio que la ficha)
 const esActivo = e => !(e.fecha_ingreso2 ? e.fecha_egreso2 : (e.fecha_egreso1 || e.fecha_egreso2))
+const TOL_ENTRADA = 10 // minutos de tolerancia para el ingreso
+// Estado del día: null (sin datos/finde), 'ok', 'no' (fuera de horario), 'aus', 'incompleto'
+function estadoDia(r, fechaStr) {
+  const hn = horarioNormal(fechaStr)
+  if (hn.finde) return 'finde'
+  if (!r) return null
+  if (r.ausente) return 'aus'
+  if (!r.entra || !r.sale) return 'incompleto'
+  const tarde = hm(r.entra) > hm(hn.inicio) + TOL_ENTRADA
+  const antes = hm(r.sale) < hm(hn.fin)
+  return (!tarde && !antes) ? 'ok' : 'no'
+}
+const mesActual = () => hoyStr().slice(0, 7)
+const diasDelMes = ym => { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate() }
+const addMes = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
+const NOM_MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 export default function Asistencia() {
   const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
   const [fecha, setFecha] = useState(hoyStr())
+  const [vista, setVista] = useState('dia') // 'dia' | 'mes'
   const [empleados, setEmpleados] = useState([])
   const [regs, setRegs] = useState({}) // empleado_id -> registro
   const [loading, setLoading] = useState(true)
@@ -97,34 +114,44 @@ export default function Asistencia() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Ingreso / Egreso</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Asistencia diaria · horario normal Lun-Jue 7:00-17:00 · Vie 7:00-15:00</p>
         </div>
+        <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4 }}>
+          <button onClick={() => setVista('dia')} style={tabBtn(vista === 'dia')}>📆 Ver día</button>
+          <button onClick={() => setVista('mes')} style={tabBtn(vista === 'mes')}>🗓 Ver mes</button>
+        </div>
       </div>
 
-      {/* Selector de fecha */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 6px' }}>
-          <button onClick={() => setFecha(f => addDias(f, -1))} style={navBtn}>‹</button>
-          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={{ ...iSt, padding: '6px 8px' }} />
-          <button onClick={() => setFecha(f => addDias(f, 1))} style={navBtn}>›</button>
-          <button onClick={() => setFecha(hoyStr())} style={{ ...navBtn, width: 'auto', padding: '0 10px', fontSize: 12, fontWeight: 700 }}>Hoy</button>
+      {/* Selector de fecha (solo vista día) */}
+      {vista === 'dia' && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 6px' }}>
+            <button onClick={() => setFecha(f => addDias(f, -1))} style={navBtn}>‹</button>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={{ ...iSt, padding: '6px 8px' }} />
+            <button onClick={() => setFecha(f => addDias(f, 1))} style={navBtn}>›</button>
+            <button onClick={() => setFecha(hoyStr())} style={{ ...navBtn, width: 'auto', padding: '0 10px', fontSize: 12, fontWeight: 700 }}>Hoy</button>
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 800, color: hn.finde ? '#fbbf24' : 'var(--text)' }}>
+            {DIAS[dow]}{hn.finde ? ' · Fin de semana' : ` · ${hn.inicio} a ${hn.fin}`}
+          </span>
         </div>
-        <span style={{ fontSize: 14, fontWeight: 800, color: hn.finde ? '#fbbf24' : 'var(--text)' }}>
-          {DIAS[dow]}{hn.finde ? ' · Fin de semana' : ` · ${hn.inicio} a ${hn.fin}`}
-        </span>
-      </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
         <input type="text" placeholder="🔍 Buscar empleado…" value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, padding: '8px 11px', maxWidth: 320, flex: '1 1 220px' }} />
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontWeight: 700 }}>
           <input type="checkbox" checked={soloActivos} onChange={e => setSoloActivos(e.target.checked)} /> Solo activos
         </label>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 'auto' }}>
-          <span style={pill('#3dd68c')}>Presentes: {totPres}</span>
-          <span style={pill('#ff5577')}>Ausentes: {totAus}</span>
-          <span style={pill('#fbbf24')}>HE del día: {fmtHm(totHE) || '0'}</span>
-        </div>
+        {vista === 'dia' && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 'auto' }}>
+            <span style={pill('#3dd68c')}>Presentes: {totPres}</span>
+            <span style={pill('#ff5577')}>Ausentes: {totAus}</span>
+            <span style={pill('#fbbf24')}>HE del día: {fmtHm(totHE) || '0'}</span>
+          </div>
+        )}
       </div>
 
-      {loading ? (
+      {vista === 'mes' ? (
+        <VistaMes lista={lista} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando…</div>
       ) : lista.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>Sin empleados.</div>
@@ -196,3 +223,109 @@ const th = { padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--
 const celda = { padding: '6px 8px', textAlign: 'center', verticalAlign: 'top' }
 const navBtn = { width: 30, height: 30, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontSize: 16, fontWeight: 700, fontFamily: 'var(--font)' }
 const pill = c => ({ fontSize: 11, fontWeight: 700, color: c, background: `${c}1a`, border: `1px solid ${c}55`, borderRadius: 20, padding: '4px 11px' })
+const tabBtn = activo => ({ background: activo ? 'var(--brand-gradient)' : 'transparent', color: activo ? '#fff' : 'var(--text3)', border: 'none', borderRadius: 8, padding: '7px 13px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' })
+
+// ─── Vista mensual: empleados × días, ✓ si el ingreso/egreso fue según lo estipulado ───
+const MARCA = {
+  ok:         { txt: '✓', color: '#3dd68c', bg: 'rgba(61,214,140,0.14)', label: 'En horario' },
+  no:         { txt: '✕', color: '#fb923c', bg: 'rgba(251,146,60,0.14)', label: 'Fuera de horario' },
+  aus:        { txt: 'A', color: '#ff5577', bg: 'rgba(255,85,119,0.14)', label: 'Ausente' },
+  incompleto: { txt: '·', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', label: 'Incompleto' },
+}
+function VistaMes({ lista, onAbrirDia }) {
+  const [mes, setMes] = useState(mesActual())
+  const [regs, setRegs] = useState({}) // 'empId|fecha' -> registro
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let vivo = true
+    setLoading(true)
+    const desde = `${mes}-01`, hasta = `${mes}-${String(diasDelMes(mes)).padStart(2, '0')}`
+    supabase.from('asistencias').select('*').gte('fecha', desde).lte('fecha', hasta).then(({ data }) => {
+      if (!vivo) return
+      const map = {}
+      for (const r of (data || [])) map[`${r.empleado_id}|${r.fecha}`] = r
+      setRegs(map); setLoading(false)
+    })
+    return () => { vivo = false }
+  }, [mes])
+
+  const [y, m] = mes.split('-').map(Number)
+  const ndias = diasDelMes(mes)
+  const dias = Array.from({ length: ndias }, (_, i) => i + 1)
+  const fechaDe = d => `${mes}-${String(d).padStart(2, '0')}`
+  const dowDe = d => new Date(y, m - 1, d).getDay()
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 6px' }}>
+          <button onClick={() => setMes(mm => addMes(mm, -1))} style={navBtn}>‹</button>
+          <span style={{ fontSize: 14, fontWeight: 800, minWidth: 150, textAlign: 'center' }}>{NOM_MES[m - 1]} {y}</span>
+          <button onClick={() => setMes(mm => addMes(mm, 1))} style={navBtn}>›</button>
+          <button onClick={() => setMes(mesActual())} style={{ ...navBtn, width: 'auto', padding: '0 10px', fontSize: 12, fontWeight: 700 }}>Este mes</button>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: 'var(--text3)' }}>
+          {Object.entries(MARCA).map(([k, v]) => <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><b style={{ color: v.color }}>{v.txt}</b> {v.label}</span>)}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando…</div>
+      ) : lista.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>Sin empleados.</div>
+      ) : (
+        <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--surface)' }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'var(--surface2)' }}>
+                <th style={{ ...th, textAlign: 'left', position: 'sticky', left: 0, background: 'var(--surface2)', zIndex: 2, minWidth: 150 }}>Empleado</th>
+                {dias.map(d => {
+                  const finde = [0, 6].includes(dowDe(d))
+                  return <th key={d} style={{ ...th, padding: '6px 0', width: 26, minWidth: 26, color: finde ? '#fbbf24' : 'var(--text3)', background: finde ? 'rgba(251,191,36,0.08)' : 'var(--surface2)' }}>{d}</th>
+                })}
+                <th style={{ ...th, minWidth: 54 }}>✓</th>
+                <th style={{ ...th, minWidth: 60 }}>HE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lista.map(e => {
+                let oks = 0, heTot = 0
+                const celdas = dias.map(d => {
+                  const f = fechaDe(d)
+                  const r = regs[`${e.id}|${f}`]
+                  const est = estadoDia(r, f)
+                  if (est === 'ok') oks++
+                  heTot += hm(r?.he) || 0
+                  return { d, f, r, est }
+                })
+                return (
+                  <tr key={e.id} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td style={{ padding: '6px 12px', fontWeight: 700, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }}>
+                      {e.apodo}
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</div>
+                    </td>
+                    {celdas.map(({ d, f, r, est }) => {
+                      const finde = [0, 6].includes(dowDe(d))
+                      const mk = MARCA[est]
+                      const titulo = r ? `${f} · ${r.ausente ? 'Ausente' : `${r.entra || '—'} a ${r.sale || '—'}`}${r.he ? ` · HE ${r.he}` : ''}${r.vale ? ` · ${r.vale}` : ''}` : f
+                      return (
+                        <td key={d} onClick={() => onAbrirDia(f)} title={titulo}
+                          style={{ textAlign: 'center', padding: '5px 0', cursor: 'pointer', background: mk ? mk.bg : (finde ? 'rgba(251,191,36,0.05)' : 'transparent'), color: mk ? mk.color : 'var(--text3)', fontWeight: 800, borderLeft: '1px solid var(--border)' }}>
+                          {mk ? mk.txt : (finde ? '' : '')}
+                        </td>
+                      )
+                    })}
+                    <td style={{ textAlign: 'center', fontWeight: 800, color: '#3dd68c', borderLeft: '1px solid var(--border)' }}>{oks}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: heTot > 0 ? '#fbbf24' : 'var(--text3)', borderLeft: '1px solid var(--border)' }}>{fmtHm(heTot) || '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 10 }}>Tocá una celda para abrir ese día y editarlo.</div>
+    </div>
+  )
+}
