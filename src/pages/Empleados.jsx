@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
@@ -37,6 +38,7 @@ const COLS_CSV_EMP = [
 
 export default function Empleados() {
   const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
+  const navigate = useNavigate()
   const [suspOpen, setSuspOpen] = useState(false)
   const [charlasOpen, setCharlasOpen] = useState(false)
   const [items, setItems] = useState([])
@@ -149,6 +151,7 @@ export default function Empleados() {
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Ficha completa del personal de producción</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => navigate('/produccion/asistencia')} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🕐 Ingreso/Egreso</button>
           <button onClick={() => setCharlasOpen(true)} style={{ background: 'var(--surface2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💬 Charlas</button>
           <button onClick={() => setSuspOpen(true)} style={{ background: 'var(--surface2)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫 Suspensiones</button>
           {!readOnly && <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>}
