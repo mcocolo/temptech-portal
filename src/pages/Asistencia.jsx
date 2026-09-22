@@ -94,23 +94,31 @@ export default function Asistencia() {
     if (data) setRegs(r => ({ ...r, [empId]: data }))
   }
 
-  // Completa un empleado con el horario normal del día
-  const marcarOk = empId => guardar(empId, { entra: hn.inicio, sale: hn.fin, ausente: false })
+  // Toggle por empleado: si está en horario lo borra, si no lo completa con el horario del día
+  const marcarOk = empId => {
+    const enHorario = estadoDia(regs[empId], fecha) === 'ok'
+    guardar(empId, enHorario ? { entra: '', sale: '' } : { entra: hn.inicio, sale: hn.fin, ausente: false })
+  }
 
-  // Completa de una todos los que están vacíos (no pisa los ya cargados ni los ausentes)
+  // Toggle masivo: si hay vacíos los completa; si ya está todo cargado, los borra (no toca ausentes)
   async function marcarTodosOk() {
     if (readOnly || hn.finde) return
-    const pendientes = lista.filter(e => { const r = regs[e.id] || {}; return !r.entra && !r.sale && !r.ausente })
-    if (pendientes.length === 0) return toast('Ya están todos cargados')
-    const payload = pendientes.map(e => ({
-      empleado_id: e.id, fecha, entra: hn.inicio, sale: hn.fin,
+    const vacios = lista.filter(e => { const r = regs[e.id] || {}; return !r.entra && !r.sale && !r.ausente })
+    const limpiar = vacios.length === 0
+    const objetivo = limpiar
+      ? lista.filter(e => { const r = regs[e.id] || {}; return (r.entra || r.sale) && !r.ausente })
+      : vacios
+    if (objetivo.length === 0) return
+    const payload = objetivo.map(e => ({
+      empleado_id: e.id, fecha,
+      entra: limpiar ? null : hn.inicio, sale: limpiar ? null : hn.fin,
       he: regs[e.id]?.he || null, vale: regs[e.id]?.vale || null, ausente: false,
       creado_por: usuario, updated_at: new Date().toISOString(),
     }))
     const { data, error } = await supabase.from('asistencias').upsert(payload, { onConflict: 'empleado_id,fecha' }).select()
     if (error) { toast.error('Error: ' + error.message); return }
     setRegs(r => { const m = { ...r }; for (const row of (data || [])) m[row.empleado_id] = row; return m })
-    toast.success(`${pendientes.length} completados con ${hn.inicio}-${hn.fin} ✅`)
+    toast.success(limpiar ? `${objetivo.length} horarios borrados` : `${objetivo.length} completados con ${hn.inicio}-${hn.fin} ✅`)
   }
 
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
@@ -182,7 +190,7 @@ export default function Asistencia() {
                 <th style={{ ...th, textAlign: 'left', minWidth: 180 }}>Empleado</th>
                 <th style={{ ...th, width: 64 }}>
                   {!readOnly && !hn.finde
-                    ? <button onClick={marcarTodosOk} title="Completar todos los vacíos con el horario del día" style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '5px 8px', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Todos</button>
+                    ? <button onClick={marcarTodosOk} title="Completar los vacíos con el horario del día · si ya están todos, los borra" style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '5px 8px', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Todos</button>
                     : 'OK'}
                 </th>
                 <th style={{ ...th, width: 110 }}>Entra</th>
@@ -208,7 +216,7 @@ export default function Asistencia() {
                       {!hn.finde && (() => {
                         const enHorario = estadoDia(r, fecha) === 'ok'
                         return (
-                          <button disabled={readOnly} onClick={() => marcarOk(e.id)} title={`Completar con ${hn.inicio}-${hn.fin}`}
+                          <button disabled={readOnly} onClick={() => marcarOk(e.id)} title={enHorario ? 'Borrar horario (destildar)' : `Completar con ${hn.inicio}-${hn.fin}`}
                             style={{ width: 30, height: 30, borderRadius: 8, background: enHorario ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: enHorario ? '#3dd68c' : 'var(--text3)', border: `1px solid ${enHorario ? 'rgba(61,214,140,0.45)' : 'var(--border)'}`, fontSize: 14, fontWeight: 800, cursor: readOnly ? 'default' : 'pointer', fontFamily: 'var(--font)' }}>✓</button>
                         )
                       })()}
