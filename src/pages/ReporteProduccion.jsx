@@ -26,6 +26,9 @@ function isoWeek(iso) {
   const week = 1 + Math.round(((d - firstThu) / 86400000 - 3 + ((firstThu.getDay() + 6) % 7)) / 7)
   return `${d.getFullYear()}-S${String(week).padStart(2, '0')}`
 }
+// Familia legible a partir del modelo (para desglosar la tabla por modelo)
+const famDe = m => (m || '').includes('1400') ? '1400w (F)' : (m || '').includes('500') ? '500w' : (m || '').includes('250') ? '250w' : (m || '—')
+const famColor = f => f.includes('1400') ? '#a78bfa' : f.includes('500') ? '#7b9fff' : f.includes('250') ? '#38bdf8' : 'var(--text3)'
 // Filtro por familia/modelo específico
 const matchFamilia = (familia, modelo) => {
   const m = modelo || ''
@@ -107,17 +110,20 @@ export default function ReporteProduccion() {
     return true
   })
 
-  // Agrupar por período × etapa
+  // Agrupar por período × modelo × etapa (una fila por modelo para que quede claro a qué corresponde cada etapa)
   const filas = useMemo(() => {
     const m = new Map()
     for (const e of filtrados) {
       const k = periodKey(e.fecha, modo)
-      if (!m.has(k)) m.set(k, { periodo: k, total: 0, celdas: {} })
-      const row = m.get(k)
+      const fam = famDe(e.modelo)
+      const mk = `${k}|${fam}`
+      if (!m.has(mk)) m.set(mk, { periodo: k, fam, total: 0, celdas: {} })
+      const row = m.get(mk)
       row.celdas[e.etapa] = (row.celdas[e.etapa] || 0) + e.cantidad
       row.total += e.cantidad
     }
-    return [...m.values()].sort((a, b) => a.periodo < b.periodo ? 1 : -1)   // más reciente primero
+    const ordFam = { '1400w (F)': 0, '500w': 1, '250w': 2 }
+    return [...m.values()].sort((a, b) => a.periodo < b.periodo ? 1 : a.periodo > b.periodo ? -1 : ((ordFam[a.fam] ?? 9) - (ordFam[b.fam] ?? 9)))
   }, [filtrados, modo])
 
   const totalesEtapa = useMemo(() => {
@@ -204,22 +210,27 @@ export default function ReporteProduccion() {
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 720 }}>
             <thead><tr>
               <th style={{ ...th, textAlign: 'left', position: 'sticky', left: 0, background: 'var(--surface)' }}>{MODOS.find(m => m[0] === modo)[1]}</th>
+              <th style={{ ...th, textAlign: 'left' }}>Modelo</th>
               {ETAPAS.map(e => <th key={e.key} style={{ ...th, color: e.color }}>{e.label}</th>)}
               <th style={{ ...th, color: 'var(--text)' }}>Total</th>
             </tr></thead>
             <tbody>
-              {filas.map(r => (
-                <tr key={r.periodo} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <td style={{ ...td, textAlign: 'left', fontWeight: 700, textTransform: 'capitalize', position: 'sticky', left: 0, background: 'var(--surface)' }}>{periodLabel(r.periodo, modo)}</td>
+              {filas.map((r, idx) => {
+                const nuevoPeriodo = idx === 0 || filas[idx - 1].periodo !== r.periodo
+                return (
+                <tr key={`${r.periodo}|${r.fam}`} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ borderTop: nuevoPeriodo ? '2px solid var(--border)' : 'none' }}>
+                  <td style={{ ...td, textAlign: 'left', fontWeight: 700, textTransform: 'capitalize', position: 'sticky', left: 0, background: 'var(--surface)', color: nuevoPeriodo ? 'var(--text)' : 'var(--text3)' }}>{nuevoPeriodo ? periodLabel(r.periodo, modo) : ''}</td>
+                  <td style={{ ...td, textAlign: 'left', fontWeight: 700, color: famColor(r.fam) }}>{r.fam}</td>
                   {ETAPAS.map(e => { const v = r.celdas[e.key] || 0; return <td key={e.key} style={{ ...td, color: v ? 'var(--text)' : 'var(--border2)', fontWeight: v ? 700 : 400 }}>{v || '·'}</td> })}
                   <td style={{ ...td, fontWeight: 800, color: '#7b9fff' }}>{r.total}</td>
                 </tr>
-              ))}
-              {filas.length === 0 && <tr><td colSpan={ETAPAS.length + 2} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin producción registrada en el período.</td></tr>}
+              )})}
+              {filas.length === 0 && <tr><td colSpan={ETAPAS.length + 3} style={{ ...td, padding: 30, color: 'var(--text3)' }}>Sin producción registrada en el período.</td></tr>}
             </tbody>
             {filas.length > 0 && (
               <tfoot><tr>
                 <td style={{ ...td, textAlign: 'left', fontWeight: 800, position: 'sticky', left: 0, background: 'var(--surface)' }}>TOTAL</td>
+                <td style={td}></td>
                 {ETAPAS.map(e => <td key={e.key} style={{ ...td, fontWeight: 800, color: e.color }}>{totalesEtapa.t[e.key] || 0}</td>)}
                 <td style={{ ...td, fontWeight: 800, color: '#7b9fff' }}>{totalesEtapa.g}</td>
               </tr></tfoot>
