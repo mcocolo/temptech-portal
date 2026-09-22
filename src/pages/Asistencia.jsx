@@ -94,6 +94,25 @@ export default function Asistencia() {
     if (data) setRegs(r => ({ ...r, [empId]: data }))
   }
 
+  // Completa un empleado con el horario normal del día
+  const marcarOk = empId => guardar(empId, { entra: hn.inicio, sale: hn.fin, ausente: false })
+
+  // Completa de una todos los que están vacíos (no pisa los ya cargados ni los ausentes)
+  async function marcarTodosOk() {
+    if (readOnly || hn.finde) return
+    const pendientes = lista.filter(e => { const r = regs[e.id] || {}; return !r.entra && !r.sale && !r.ausente })
+    if (pendientes.length === 0) return toast('Ya están todos cargados')
+    const payload = pendientes.map(e => ({
+      empleado_id: e.id, fecha, entra: hn.inicio, sale: hn.fin,
+      he: regs[e.id]?.he || null, vale: regs[e.id]?.vale || null, ausente: false,
+      creado_por: usuario, updated_at: new Date().toISOString(),
+    }))
+    const { data, error } = await supabase.from('asistencias').upsert(payload, { onConflict: 'empleado_id,fecha' }).select()
+    if (error) { toast.error('Error: ' + error.message); return }
+    setRegs(r => { const m = { ...r }; for (const row of (data || [])) m[row.empleado_id] = row; return m })
+    toast.success(`${pendientes.length} completados con ${hn.inicio}-${hn.fin} ✅`)
+  }
+
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
 
   const q = busqueda.trim().toLowerCase()
@@ -161,6 +180,11 @@ export default function Asistencia() {
             <thead>
               <tr style={{ background: 'var(--surface2)' }}>
                 <th style={{ ...th, textAlign: 'left', minWidth: 180 }}>Empleado</th>
+                <th style={{ ...th, width: 64 }}>
+                  {!readOnly && !hn.finde
+                    ? <button onClick={marcarTodosOk} title="Completar todos los vacíos con el horario del día" style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '5px 8px', fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Todos</button>
+                    : 'OK'}
+                </th>
                 <th style={{ ...th, width: 110 }}>Entra</th>
                 <th style={{ ...th, width: 110 }}>Sale</th>
                 <th style={{ ...th, width: 90 }}>HE</th>
@@ -179,6 +203,15 @@ export default function Asistencia() {
                     <td style={{ padding: '8px 12px' }}>
                       <div style={{ fontWeight: 700 }}>{e.apodo}{saving[e.id] ? <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}> · guardando…</span> : ''}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</div>
+                    </td>
+                    <td style={{ ...celda, verticalAlign: 'middle' }}>
+                      {!hn.finde && (() => {
+                        const enHorario = estadoDia(r, fecha) === 'ok'
+                        return (
+                          <button disabled={readOnly} onClick={() => marcarOk(e.id)} title={`Completar con ${hn.inicio}-${hn.fin}`}
+                            style={{ width: 30, height: 30, borderRadius: 8, background: enHorario ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: enHorario ? '#3dd68c' : 'var(--text3)', border: `1px solid ${enHorario ? 'rgba(61,214,140,0.45)' : 'var(--border)'}`, fontSize: 14, fontWeight: 800, cursor: readOnly ? 'default' : 'pointer', fontFamily: 'var(--font)' }}>✓</button>
+                        )
+                      })()}
                     </td>
                     <td style={celda}>
                       <input key={`en-${fecha}-${e.id}-${r.entra || ''}`} type="time" defaultValue={r.entra || ''} disabled={readOnly || r.ausente}
