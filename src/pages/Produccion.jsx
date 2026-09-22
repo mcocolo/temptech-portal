@@ -466,15 +466,16 @@ export default function Produccion() {
                             const c = fl.indexOf(l.etapa), i = fl.indexOf(e.key)
                             const target = l.cantidad_actual
                             const raw = (l.avance && l.avance[e.key] != null) ? l.avance[e.key] : null
-                            const completaPos = l.etapa === 'terminado' || i < c
-                            const hecho = raw != null ? raw : (completaPos ? target : 0)
-                            const completa = completaPos || (i === c && hecho >= target && hecho > 0)
-                            const enProceso = i === c && !completa
+                            const esTerminado = l.etapa === 'terminado'
+                            const pasada = esTerminado || i < c
+                            const hecho = raw != null ? raw : (pasada ? target : 0)
+                            // Completa solo si el lote está terminado, o la etapa pasó sin avance parcial cargado, o el avance alcanzó el total
+                            const completa = esTerminado || (pasada && raw == null) || (hecho >= target && hecho > 0)
                             const puedeClick = !readOnly && i <= c
                             let inner
                             if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 15 }} title={`${hecho} u.`}>✓</span>
-                            else if (enProceso && hecho > 0) inner = <span style={{ color: '#fb923c', fontWeight: 800 }}>{hecho}/{target}</span>
-                            else if (enProceso) inner = <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }}>•</span>
+                            else if (hecho > 0) inner = <span style={{ color: '#fb923c', fontWeight: 800 }} title={`${hecho} de ${target} u.`}>{hecho}/{target}</span>
+                            else if (i === c) inner = <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }} title="En proceso, sin avance cargado">•</span>
                             else inner = <span style={{ color: 'var(--border2)' }}>·</span>
                             return <td key={e.key} style={{ ...td, cursor: puedeClick ? 'pointer' : 'default' }} title={puedeClick ? 'Cargar avance' : undefined}
                               onClick={puedeClick ? () => setAvanceCell({ lote: l, etapa: e.key }) : undefined}>{inner}</td>
