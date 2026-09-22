@@ -157,6 +157,8 @@ export default function ReporteProduccion() {
             <button key={v || 't'} onClick={() => setFamilia(v)} style={{ padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: familia === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: familia === v ? '#7b9fff' : 'var(--text3)' }}>{l}</button>
           ))}
         </div>
+        {(() => { const h = new Date(); const hoy = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`; const activo = desde === hoy && hasta === hoy
+          return <button onClick={() => { setModo('dia'); setDesde(hoy); setHasta(hoy) }} style={{ ...iSt, cursor: 'pointer', fontWeight: 700, background: activo ? 'var(--brand-gradient)' : 'var(--surface2)', color: activo ? '#fff' : 'var(--text2)', border: activo ? '1px solid transparent' : '1px solid var(--border)' }}>Hoy</button> })()}
         <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>Desde</span>
         <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={iSt} />
         <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>Hasta</span>
