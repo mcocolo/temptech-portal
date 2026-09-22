@@ -26,6 +26,14 @@ function isoWeek(iso) {
   const week = 1 + Math.round(((d - firstThu) / 86400000 - 3 + ((firstThu.getDay() + 6) % 7)) / 7)
   return `${d.getFullYear()}-S${String(week).padStart(2, '0')}`
 }
+// Filtro por familia/modelo específico
+const matchFamilia = (familia, modelo) => {
+  const m = modelo || ''
+  if (familia === '1400') return m.includes('1400')
+  if (familia === '250') return m.includes('250')
+  if (familia === '500') return m.includes('500')
+  return true   // '' = Todos
+}
 const periodKey = (iso, modo) => modo === 'dia' ? iso : modo === 'mes' ? iso.slice(0, 7) : modo === 'anio' ? iso.slice(0, 4) : isoWeek(iso)
 const periodLabel = (k, modo) => modo === 'dia' ? new Date(k + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) : k
 
@@ -66,8 +74,7 @@ export default function ReporteProduccion() {
     })
     return rows.filter(r => {
       if (!r.fecha) return false
-      if (familia === '1400' && !r.modelo.includes('1400')) return false
-      if (familia === 'otros' && r.modelo.includes('1400')) return false
+      if (!matchFamilia(familia, r.modelo)) return false
       if (desde && r.fecha < desde) return false
       if (hasta && r.fecha > hasta) return false
       return true
@@ -94,8 +101,7 @@ export default function ReporteProduccion() {
   }, [ot, partes, lotes])
 
   const filtrados = eventos.filter(e => {
-    if (familia === '1400' && !e.modelo.includes('1400')) return false
-    if (familia === 'otros' && e.modelo.includes('1400')) return false
+    if (!matchFamilia(familia, e.modelo)) return false
     if (desde && e.fecha < desde) return false
     if (hasta && e.fecha > hasta) return false
     return true
@@ -147,7 +153,7 @@ export default function ReporteProduccion() {
           ))}
         </div>}
         <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
-          {[['', 'Todos'], ['1400', '1400w (F)'], ['otros', '250w / 500w']].map(([v, l]) => (
+          {[['', 'Todos'], ['1400', '1400w (F)'], ['500', '500w'], ['250', '250w']].map(([v, l]) => (
             <button key={v || 't'} onClick={() => setFamilia(v)} style={{ padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: familia === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: familia === v ? '#7b9fff' : 'var(--text3)' }}>{l}</button>
           ))}
         </div>
