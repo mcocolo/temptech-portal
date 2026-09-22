@@ -130,15 +130,22 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const maxTakeCt = pulmonDe('CT', '') + int(prevOt?.tomar_pulmon_ct)
   const maxTakeT = pulmonDe('T', termT) + int(prevOt?.tomar_pulmon_t)
 
-  async function descontarInsumo(codigo, delta, label, loteInsumo) {
-    if (!codigo || !delta) return
+  // Descuenta hasta dejar `objetivo` hojas descontadas por esta OT/lado.
+  // Calcula lo ya descontado sumando los movimientos reales existentes (neto egresos - ingresos),
+  // así es auto-correctivo: si nunca se descontó, descuenta todo; si ya estaba, no duplica.
+  async function descontarInsumo(codigo, objetivo, label, loteInsumo) {
+    if (!codigo) return
     try {
       const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', codigo).limit(1)
       const row = ins?.[0]
-      if (row) {
-        await supabase.from('insumos').update({ stock_actual: (row.stock_actual || 0) - delta, updated_at: new Date().toISOString() }).eq('id', row.id)
-        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Corte', motivo: `OT Corte · Lote ${es1400 ? 'F' : ''}${lote.numero}${label ? ` · ${label}` : ''}`, lote: loteInsumo || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
-      }
+      if (!row) return
+      const motivo = `OT Corte · Lote ${es1400 ? 'F' : ''}${lote.numero}${label ? ` · ${label}` : ''}`
+      const { data: movs } = await supabase.from('movimientos_insumos').select('tipo,cantidad').eq('insumo_id', row.id).eq('motivo', motivo)
+      const yaDescontado = (movs || []).reduce((s, m) => s + (m.tipo === 'egreso' ? (m.cantidad || 0) : -(m.cantidad || 0)), 0)
+      const delta = (objetivo || 0) - yaDescontado
+      if (!delta) return
+      await supabase.from('insumos').update({ stock_actual: (row.stock_actual || 0) - delta, updated_at: new Date().toISOString() }).eq('id', row.id)
+      await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Corte', motivo, lote: loteInsumo || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
     } catch (_) { /* no bloquea */ }
   }
 
@@ -186,9 +193,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
 
-    // Descontar hojas del stock (solo el delta respecto de lo ya descontado en esta OT)
-    await descontarInsumo(HOJA_CODIGO, hojasMpstd - int(prevOt?.hojas_usadas), 'CT', f.lote_ct.trim())
-    if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTUsadas - int(prevOt?.hojas_t), 'T', f.lote_t.trim())
+    // Descontar hojas del stock hasta el total usado por esta OT (auto-correctivo por movimientos reales)
+    await descontarInsumo(HOJA_CODIGO, hojasMpstd, 'CT', f.lote_ct.trim())
+    if (insumoTapa && insumoTapa !== HOJA_CODIGO) await descontarInsumo(insumoTapa, hojasTUsadas, 'T', f.lote_t.trim())
 
     // Ajustar stocks de pulmón / NC (por el delta de efectos de esta OT)
     const prev = efectosDe(prevOt || {})
