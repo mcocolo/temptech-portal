@@ -115,7 +115,7 @@ export default function Empleados() {
   }
 
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
-  const readOnly = isAdmin2 || isMantenimiento
+  const readOnly = isMantenimiento   // Admin2 puede editar fichas, charlas y suspensiones; Mantenimiento solo lee
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(e => !q || [e.apodo, e.nombre, e.apellido, e.sector, e.cuil].some(v => (v || '').toLowerCase().includes(q)))

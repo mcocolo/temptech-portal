@@ -47,7 +47,7 @@ export default function Asistencia() {
   const [soloActivos, setSoloActivos] = useState(true)
   const [saving, setSaving] = useState({})
 
-  const readOnly = isAdmin2 || isMantenimiento
+  const readOnly = isMantenimiento   // Admin2 puede cargar asistencia; Mantenimiento solo lee
   const usuario = profile?.full_name || user?.email || 'Admin'
   const hn = useMemo(() => horarioNormal(fecha), [fecha])
 
