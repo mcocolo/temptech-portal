@@ -73,18 +73,37 @@ export default function AdminPrecios() {
   const [subiendoLista, setSubiendoLista] = useState(false)
   const listaFileRef = useRef()
 
+  // Condiciones comerciales por categoría
+  const [condiciones, setCondiciones] = useState({})
+  const [condOpen, setCondOpen] = useState(false)
+  const [condForm, setCondForm] = useState({})
+  const [condSaving, setCondSaving] = useState(false)
+
   useEffect(() => { if (isAdmin || isVendedor || isDistributor) cargar() }, [isAdmin, isVendedor, isDistributor])
 
   async function cargar() {
     setLoading(true)
-    const [preciosRes, listasRes] = await Promise.all([
+    const [preciosRes, listasRes, condRes] = await Promise.all([
       supabase.from('precios').select('*').order('categoria').order('nombre'),
       supabase.from('listas_precios').select('*').order('created_at'),
+      supabase.from('condiciones_precios').select('*'),
     ])
     if (preciosRes.error) toast.error('Error al cargar precios')
     else setPrecios(preciosRes.data || [])
     setListasPrecios(listasRes.data || [])
+    setCondiciones(Object.fromEntries((condRes.data || []).map(c => [c.categoria, c.texto || ''])))
     setLoading(false)
+  }
+
+  async function guardarCondiciones() {
+    setCondSaving(true)
+    const rows = Object.keys(CATEGORIAS).map(cat => ({ categoria: cat, texto: (condForm[cat] ?? '').trim() || null, updated_at: new Date().toISOString() }))
+    const { error } = await supabase.from('condiciones_precios').upsert(rows, { onConflict: 'categoria' })
+    setCondSaving(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Condiciones actualizadas ✅')
+    setCondOpen(false)
+    cargar()
   }
 
   async function subirLista() {
@@ -257,6 +276,54 @@ export default function AdminPrecios() {
           {listasPrecios.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sin listas cargadas aún.</div>}
         </div>
       </div>
+
+      {/* Condiciones comerciales */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+            📋 Condiciones
+          </div>
+          {isAdmin && (
+            <button onClick={() => { setCondForm({ ...condiciones }); setCondOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(123,159,255,0.1)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              ✏️ Editar condiciones
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+          {Object.entries(CATEGORIAS).map(([cat, label]) => (
+            <div key={cat} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8, color: '#ffd166' }}>{label}</div>
+              {condiciones[cat]
+                ? <div style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'pre-line', lineHeight: 1.6 }}>{condiciones[cat]}</div>
+                : <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sin condiciones cargadas.</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Modal editar condiciones */}
+      {condOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>📋 Editar condiciones</div>
+              <button onClick={() => setCondOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            {Object.entries(CATEGORIAS).map(([cat, label]) => (
+              <div key={cat}>
+                <label style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: 5 }}>{label}</label>
+                <textarea value={condForm[cat] ?? ''} onChange={e => setCondForm(f => ({ ...f, [cat]: e.target.value }))} rows={4}
+                  placeholder={'Clientes Habituales: 3%\nContado: +8%\nPlazo Cheques: 30-60-90'}
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', resize: 'vertical', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' }} />
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={guardarCondiciones} disabled={condSaving} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: condSaving ? 'not-allowed' : 'pointer', opacity: condSaving ? 0.7 : 1, fontFamily: 'var(--font)' }}>{condSaving ? 'Guardando...' : '✓ Guardar'}</button>
+              <button onClick={() => setCondOpen(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal agregar lista PDF */}
       {modalLista && (
