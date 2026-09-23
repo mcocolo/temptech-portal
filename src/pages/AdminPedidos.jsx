@@ -759,6 +759,12 @@ export default function AdminPedidos() {
 
     if (error) { toast.error('Error al guardar: ' + error.message); setGuardando(false); return }
 
+    // Si se entrega con logística propia, limpiar un posible descarte previo en "Traer a logística"
+    // (si antes se había descartado con la ✕, no volvía a aparecer aunque se re-marque)
+    if (entregaLogistica) {
+      try { await supabase.from('logistica_descartes').delete().eq('fuente', 'pedido').eq('ref_id', String(pedido.id)) } catch (_) { /* no bloquea */ }
+    }
+
     // Enviar email al distribuidor
     try {
       const emailDist = pedido.profiles?.email
