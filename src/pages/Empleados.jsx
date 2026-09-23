@@ -60,7 +60,7 @@ export default function Empleados() {
     setLoading(true)
     const [data, s, c] = await Promise.all([
       fetchAllRows(() => supabase.from('empleados').select('*').order('apodo')),
-      supabase.from('suspensiones').select('empleado_id,fecha,dias,motivo').order('fecha', { ascending: false }),
+      supabase.from('suspensiones').select('empleado_id,fecha,fecha_hasta,dias,motivo').order('fecha', { ascending: false }),
       supabase.from('charlas').select('empleado_id,fecha,motivo,responsable').order('fecha', { ascending: false }),
     ])
     setItems(data || [])
@@ -69,7 +69,7 @@ export default function Empleados() {
   }
   const recargarRegistros = async () => {
     const [s, c] = await Promise.all([
-      supabase.from('suspensiones').select('empleado_id,fecha,dias,motivo').order('fecha', { ascending: false }),
+      supabase.from('suspensiones').select('empleado_id,fecha,fecha_hasta,dias,motivo').order('fecha', { ascending: false }),
       supabase.from('charlas').select('empleado_id,fecha,motivo,responsable').order('fecha', { ascending: false }),
     ])
     setSusp(s.data || []); setCharlas(c.data || [])
@@ -290,11 +290,23 @@ export default function Empleados() {
   )
 }
 
+// Cuenta días hábiles (Lun-Vie) entre dos fechas inclusive
+function contarDiasHabiles(desde, hasta) {
+  if (!desde || !hasta) return 0
+  let d = new Date(desde + 'T12:00:00'); const end = new Date(hasta + 'T12:00:00')
+  if (end < d) return 0
+  let n = 0
+  while (d <= end) { const dow = d.getDay(); if (dow !== 0 && dow !== 6) n++; d.setDate(d.getDate() + 1) }
+  return n
+}
+
 function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), dias: 1 })
+  const [form, setForm] = useState({ empleado_id: '', motivo: '', desde: new Date().toISOString().slice(0, 10), hasta: new Date().toISOString().slice(0, 10) })
   const [guardando, setGuardando] = useState(false)
+
+  const dias = contarDiasHabiles(form.desde, form.hasta)
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
@@ -308,15 +320,15 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange 
 
   async function agregar() {
     if (!form.empleado_id) return toast.error('Elegí el empleado')
-    if (!form.fecha) return toast.error('Ingresá la fecha')
-    const dias = parseInt(form.dias) || 0
-    if (dias <= 0) return toast.error('Los días deben ser mayor a 0')
+    if (!form.desde || !form.hasta) return toast.error('Elegí las fechas desde y hasta')
+    if (form.hasta < form.desde) return toast.error('"Hasta" no puede ser anterior a "Desde"')
+    if (dias <= 0) return toast.error('El rango no tiene días hábiles')
     setGuardando(true)
-    const { error } = await supabase.from('suspensiones').insert({ empleado_id: form.empleado_id, motivo: form.motivo.trim() || null, fecha: form.fecha, dias, creado_por: usuario })
+    const { error } = await supabase.from('suspensiones').insert({ empleado_id: form.empleado_id, motivo: form.motivo.trim() || null, fecha: form.desde, fecha_hasta: form.hasta, dias, creado_por: usuario })
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('Suspensión registrada ✅')
-    setForm({ empleado_id: '', motivo: '', fecha: new Date().toISOString().slice(0, 10), dias: 1 })
+    setForm({ empleado_id: '', motivo: '', desde: new Date().toISOString().slice(0, 10), hasta: new Date().toISOString().slice(0, 10) })
     cargar(); onChange && onChange()
   }
   async function eliminar(id) {
@@ -335,7 +347,7 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange 
         </div>
         <div style={{ padding: '16px 20px' }}>
           {puedeEditar && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.7fr auto', gap: 8, alignItems: 'end', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px', marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 8, alignItems: 'end', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px', marginBottom: 14 }}>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={lbl}>Empleado *</label>
                 <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
@@ -344,8 +356,12 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange 
                 </select>
               </div>
               <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Motivo</label><input value={form.motivo} onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))} placeholder="Motivo de la suspensión" style={iSt} /></div>
-              <div><label style={lbl}>Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
-              <div><label style={lbl}>Días *</label><input type="number" min="1" value={form.dias} onChange={e => setForm(f => ({ ...f, dias: e.target.value }))} style={iSt} /></div>
+              <div><label style={lbl}>Desde *</label><input type="date" value={form.desde} onChange={e => setForm(f => ({ ...f, desde: e.target.value, hasta: f.hasta && f.hasta < e.target.value ? e.target.value : f.hasta }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
+              <div><label style={lbl}>Hasta *</label><input type="date" min={form.desde} value={form.hasta} onChange={e => setForm(f => ({ ...f, hasta: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', flexDirection: 'column' }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: '#fb923c' }}>{dias}</span>
+                <span style={{ fontSize: 10, color: 'var(--text3)' }}>día{dias !== 1 ? 's' : ''} hábil{dias !== 1 ? 'es' : ''}</span>
+              </div>
               <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', height: 38 }}>➕ Registrar</button>
             </div>
           )}
@@ -359,7 +375,7 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange 
                 <div key={s.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{nombreDe(s.empleado_id)}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>{fmtF(s.fecha)} · <b style={{ color: '#fb923c' }}>{s.dias} día{s.dias !== 1 ? 's' : ''}</b>{s.motivo ? ` · ${s.motivo}` : ''}{s.creado_por ? <span style={{ color: 'var(--text3)' }}> · cargó {s.creado_por}</span> : ''}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>{fmtF(s.fecha)}{s.fecha_hasta && s.fecha_hasta !== s.fecha ? ` → ${fmtF(s.fecha_hasta)}` : ''} · <b style={{ color: '#fb923c' }}>{s.dias} día{s.dias !== 1 ? 's' : ''}</b>{s.motivo ? ` · ${s.motivo}` : ''}{s.creado_por ? <span style={{ color: 'var(--text3)' }}> · cargó {s.creado_por}</span> : ''}</div>
                   </div>
                   {puedeEditar && <button onClick={() => eliminar(s.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>}
                 </div>

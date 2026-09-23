@@ -41,6 +41,7 @@ export default function Asistencia() {
   const [fecha, setFecha] = useState(hoyStr())
   const [vista, setVista] = useState('dia') // 'dia' | 'mes'
   const [empleados, setEmpleados] = useState([])
+  const [susp, setSusp] = useState([]) // suspensiones (para marcar SUSPENDIDO)
   const [regs, setRegs] = useState({}) // empleado_id -> registro
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -55,9 +56,15 @@ export default function Asistencia() {
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargarRegs() }, [fecha, isAdmin, isAdmin2, isMantenimiento])
 
   async function cargarEmpleados() {
-    const data = await fetchAllRows(() => supabase.from('empleados').select('id,apodo,nombre,apellido,sector,fecha_ingreso,fecha_egreso1,fecha_ingreso2,fecha_egreso2').order('apodo'))
+    const [data, s] = await Promise.all([
+      fetchAllRows(() => supabase.from('empleados').select('id,apodo,nombre,apellido,sector,fecha_ingreso,fecha_egreso1,fecha_ingreso2,fecha_egreso2').order('apodo')),
+      supabase.from('suspensiones').select('empleado_id,fecha,fecha_hasta,dias'),
+    ])
     setEmpleados(data || [])
+    setSusp(s.data || [])
   }
+  // ¿El empleado está suspendido en la fecha? (rango desde..hasta inclusive)
+  const suspendidoEn = (empId, f) => susp.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   async function cargarRegs() {
     setLoading(true)
     const { data } = await supabase.from('asistencias').select('*').eq('fecha', fecha)
@@ -131,8 +138,9 @@ export default function Asistencia() {
   const dow = new Date(fecha + 'T12:00:00').getDay()
   // Totales del día
   const totHE = lista.reduce((s, e) => s + (hm(regs[e.id]?.he) || 0), 0)
-  const totAus = lista.filter(e => regs[e.id]?.ausente).length
-  const totPres = lista.filter(e => regs[e.id]?.entra).length
+  const totSusp = lista.filter(e => suspendidoEn(e.id, fecha)).length
+  const totAus = lista.filter(e => !suspendidoEn(e.id, fecha) && regs[e.id]?.ausente).length
+  const totPres = lista.filter(e => !suspendidoEn(e.id, fecha) && regs[e.id]?.entra).length
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
@@ -171,13 +179,14 @@ export default function Asistencia() {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 'auto' }}>
             <span style={pill('#3dd68c')}>Presentes: {totPres}</span>
             <span style={pill('#ff5577')}>Ausentes: {totAus}</span>
+            {totSusp > 0 && <span style={pill('#ff5577')}>Suspendidos: {totSusp}</span>}
             <span style={pill('#fbbf24')}>HE del día: {fmtHm(totHE) || '0'}</span>
           </div>
         )}
       </div>
 
       {vista === 'mes' ? (
-        <VistaMes lista={lista} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
+        <VistaMes lista={lista} susp={susp} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
       ) : loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando…</div>
       ) : lista.length === 0 ? (
@@ -203,6 +212,18 @@ export default function Asistencia() {
             <tbody>
               {lista.map(e => {
                 const r = regs[e.id] || {}
+                // Suspendido ese día: fila bloqueada mostrando SUSPENDIDO
+                if (suspendidoEn(e.id, fecha)) return (
+                  <tr key={e.id} style={{ borderTop: '1px solid var(--border)', background: 'rgba(255,85,119,0.07)' }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ fontWeight: 700 }}>{e.apodo}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</div>
+                    </td>
+                    <td colSpan={5} style={{ padding: '8px 12px', textAlign: 'left' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#ff5577', background: 'rgba(255,85,119,0.14)', border: '1px solid rgba(255,85,119,0.4)', borderRadius: 20, padding: '4px 12px' }}>🚫 SUSPENDIDO</span>
+                    </td>
+                  </tr>
+                )
                 const saleMin = hm(r.sale), finMin = hn.fin ? hm(hn.fin) : null
                 const salioAntes = !r.ausente && saleMin != null && finMin != null && saleMin < finMin
                 const heMin = hm(r.he)
@@ -271,9 +292,11 @@ const MARCA = {
   ok:         { txt: '✓', color: '#3dd68c', bg: 'rgba(61,214,140,0.14)', label: 'En horario' },
   no:         { txt: '✕', color: '#fb923c', bg: 'rgba(251,146,60,0.14)', label: 'Fuera de horario' },
   aus:        { txt: 'A', color: '#ff5577', bg: 'rgba(255,85,119,0.14)', label: 'Ausente' },
+  sus:        { txt: 'S', color: '#ff5577', bg: 'rgba(255,85,119,0.14)', label: 'Suspendido' },
   incompleto: { txt: '·', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', label: 'Incompleto' },
 }
-function VistaMes({ lista, onAbrirDia }) {
+function VistaMes({ lista, susp = [], onAbrirDia }) {
+  const suspendidoEn = (empId, f) => susp.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const [mes, setMes] = useState(mesActual())
   const [regs, setRegs] = useState({}) // 'empId|fecha' -> registro
   const [loading, setLoading] = useState(true)
@@ -335,7 +358,7 @@ function VistaMes({ lista, onAbrirDia }) {
                 const celdas = dias.map(d => {
                   const f = fechaDe(d)
                   const r = regs[`${e.id}|${f}`]
-                  const est = estadoDia(r, f)
+                  const est = suspendidoEn(e.id, f) ? 'sus' : estadoDia(r, f)
                   if (est === 'ok') oks++
                   heTot += hm(r?.he) || 0
                   return { d, f, r, est }
@@ -349,7 +372,7 @@ function VistaMes({ lista, onAbrirDia }) {
                     {celdas.map(({ d, f, r, est }) => {
                       const finde = [0, 6].includes(dowDe(d))
                       const mk = MARCA[est]
-                      const titulo = r ? `${f} · ${r.ausente ? 'Ausente' : `${r.entra || '—'} a ${r.sale || '—'}`}${r.he ? ` · HE ${r.he}` : ''}${r.vale ? ` · ${r.vale}` : ''}` : f
+                      const titulo = est === 'sus' ? `${f} · Suspendido` : r ? `${f} · ${r.ausente ? 'Ausente' : `${r.entra || '—'} a ${r.sale || '—'}`}${r.he ? ` · HE ${r.he}` : ''}${r.vale ? ` · ${r.vale}` : ''}` : f
                       return (
                         <td key={d} onClick={() => onAbrirDia(f)} title={titulo}
                           style={{ textAlign: 'center', padding: '5px 0', cursor: 'pointer', background: mk ? mk.bg : (finde ? 'rgba(251,191,36,0.05)' : 'transparent'), color: mk ? mk.color : 'var(--text3)', fontWeight: 800, borderLeft: '1px solid var(--border)' }}>
