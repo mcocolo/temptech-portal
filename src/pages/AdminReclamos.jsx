@@ -69,6 +69,26 @@ function InfoRow({ label, value, highlight }) {
   )
 }
 
+// URL de seguimiento según empresa de envío
+const trackingURL = (empresa, codigo) => {
+  if (!codigo) return ''
+  const c = String(codigo).trim()
+  const map = {
+    'Correo Argentino': `https://www.correoargentino.com.ar/formularios/e-commerce?id=${encodeURIComponent(c)}`,
+    'Andreani': `https://www.andreani.com/#!/informacionEnvio/${encodeURIComponent(c)}`,
+  }
+  return map[empresa] || ''
+}
+
+// Renderiza texto convirtiendo las URLs en enlaces clickeables
+function Linkify({ text }) {
+  if (!text) return null
+  const parts = String(text).split(/(https?:\/\/[^\s]+)/g)
+  return parts.map((p, i) => /^https?:\/\//.test(p)
+    ? <a key={i} href={p} target="_blank" rel="noreferrer" style={{ color: '#2dd4bf', wordBreak: 'break-all' }}>{p}</a>
+    : <span key={i}>{p}</span>)
+}
+
 function tiempoSinRespuesta(fechaIngreso) {
   if (!fechaIngreso) return null
   const ingreso = new Date(fechaIngreso)
@@ -415,8 +435,8 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
         {isDevolucion ? '📦 Datos de devolución' : isService ? '🔧 Service' : '🚚 Datos de resolución'}
       </div>
 
-      {/* Empresa + código/fecha — solo Resolución */}
-      {!isDevolucion && !isService && (
+      {/* Empresa + código/fecha — Resolución y Devolución (para guardar el seguimiento) */}
+      {!isService && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
             <label style={{ fontSize: 11, color: T.text3, display: 'block', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Empresa</label>
@@ -889,17 +909,17 @@ export default function AdminReclamos({ openTracking } = {}) {
   async function guardarEnvio(item, { empresa, codigo, fechaEnvio, textoEmail, tipo, adjuntosUrls }) {
     const notaTexto = window.prompt(`Nota para ${tipo.toUpperCase()}:`, '')
     if (notaTexto === null) return
-    const nuevaNota = armarLineaNota(tipo.toUpperCase(), notaTexto)
 
-    // Armar texto final con datos de envío para Resolución
+    // Link de seguimiento (Correo Argentino / Andreani) — para Resolución y Devolución
+    const link = empresa !== 'Logistica Propia' ? trackingURL(empresa, codigo) : ''
+    // Se guarda dentro de la nota para poder clickearlo desde el historial
+    const notaConLink = link ? `${notaTexto}\n${empresa} · Seguimiento: ${link}` : notaTexto
+    const nuevaNota = armarLineaNota(tipo.toUpperCase(), notaConLink)
+
+    // Armar texto final con datos de envío para el email de Resolución
     let textoFinal = textoEmail
     if (tipo !== 'Devolucion' && empresa !== 'Logistica Propia' && codigo) {
-      const linkMap = {
-        'Correo Argentino': `https://www.correoargentino.com.ar/formularios/e-commerce?id=${codigo}`,
-        'Andreani': `https://www.andreani.com/#!/informacionEnvio/${codigo}`,
-      }
-      const link = linkMap[empresa] || codigo
-      textoFinal += `\nEmpresa: "${empresa}"\nCódigo de seguimiento: "${codigo}"\nLink de seguimiento: ${link}`
+      textoFinal += `\nEmpresa: "${empresa}"\nCódigo de seguimiento: "${codigo}"\nLink de seguimiento: ${link || codigo}`
     }
     // Agregar links de adjuntos al final del texto
     if (adjuntosUrls && adjuntosUrls.length > 0) {
@@ -1494,9 +1514,12 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         {item.motivo_rechazo && <div style={{ fontSize: 13, color: T.red, marginBottom: 8 }}><strong>Motivo rechazo:</strong> {item.motivo_rechazo}</div>}
                         {item.empresa_envio && <InfoRow label="Empresa envío" value={item.empresa_envio} />}
                         {item.codigo_seguimiento && <InfoRow label="Código seguimiento" value={item.codigo_seguimiento} />}
+                        {(() => { const url = trackingURL(item.empresa_envio, item.codigo_seguimiento); return url ? (
+                          <a href={url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#2dd4bf', background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.3)', borderRadius: 8, padding: '6px 12px', textDecoration: 'none', marginTop: 4, marginBottom: 6 }}>🔍 Rastrear envío →</a>
+                        ) : null })()}
                         {item.fecha_envio && <InfoRow label="Fecha de envío" value={formatearFecha(item.fecha_envio)} />}
                         {item.fecha_resolucion && !item.fecha_envio && <InfoRow label="Fecha de envío" value={formatearFecha(item.fecha_resolucion)} />}
-                        {item.notas && <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line', marginTop: 8, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>{item.notas}</div>}
+                        {item.notas && <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line', marginTop: 8, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}><Linkify text={item.notas} /></div>}
 
                         {/* Nota manual */}
                         <div className="ar-nota-row" style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
@@ -1539,7 +1562,7 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         {item.notas_internas && (
                           <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,209,102,0.08)', border: `1px solid rgba(255,209,102,0.25)`, borderRadius: T.radius }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: T.yellow, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.6px' }}>🔒 Notas internas</div>
-                            <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line' }}>{item.notas_internas}</div>
+                            <div style={{ fontSize: 12, color: T.text3, whiteSpace: 'pre-line' }}><Linkify text={item.notas_internas} /></div>
                           </div>
                         )}
                         <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
