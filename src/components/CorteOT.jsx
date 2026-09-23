@@ -144,8 +144,9 @@ export default function CorteOT({ lote, onClose, onDone }) {
       const yaDescontado = (movs || []).reduce((s, m) => s + (m.tipo === 'egreso' ? (m.cantidad || 0) : -(m.cantidad || 0)), 0)
       const delta = (objetivo || 0) - yaDescontado
       if (!delta) return
-      await supabase.from('insumos').update({ stock_actual: (row.stock_actual || 0) - delta, updated_at: new Date().toISOString() }).eq('id', row.id)
-      await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Corte', motivo, lote: loteInsumo || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+      const { error: e1 } = await supabase.from('insumos').update({ stock_actual: (row.stock_actual || 0) - delta, updated_at: new Date().toISOString() }).eq('id', row.id)
+      const { error: e2 } = await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: Math.abs(delta), sector: 'Corte', motivo, lote: loteInsumo || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+      if (e1 || e2) toast.error(`No se pudo descontar ${codigo} (permisos?). Avisá al admin.`)
     } catch (_) { /* no bloquea */ }
   }
 
