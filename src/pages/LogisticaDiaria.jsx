@@ -170,7 +170,7 @@ export default function LogisticaDiaria() {
     if (!isChofer) {
       const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }, { data: descData }, { data: garantiasData }] = await Promise.all([
         supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id,egreso_garantia_id,devolucion_id'),
-        supabase.from('pedidos').select('*').or('tipo_envio.in.(correo,logistica),entrega_logistica.eq.true').in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
+        supabase.from('pedidos').select('*').in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('logistica_descartes').select('fuente,ref_id'),
@@ -182,7 +182,9 @@ export default function LogisticaDiaria() {
       const asignadosRepuestos = new Set((logAsign || []).map(l => l.repuesto_id).filter(Boolean))
       const asignadosGarantia = new Set((logAsign || []).map(l => l.egreso_garantia_id).filter(Boolean))
       const asignadosDevolucion = new Set((logAsign || []).map(l => l.devolucion_id).filter(Boolean))
-      const pedidosFiltrados = (pedidosData || []).filter(p => !asignadosPedidos.has(p.id) && !descartado('pedido', p.id))
+      // Solo los que se entregan por logística: envío correo/logística, o marcado "logística propia"
+      const esLogistica = p => ['correo', 'logistica'].includes(p.tipo_envio) || p.entrega_logistica === true
+      const pedidosFiltrados = (pedidosData || []).filter(p => esLogistica(p) && !asignadosPedidos.has(p.id) && !descartado('pedido', p.id))
       if (pedidosFiltrados.length > 0) {
         const ids = [...new Set(pedidosFiltrados.map(p => p.distribuidor_id).filter(Boolean))]
         const { data: profsData } = await supabase.from('profiles').select('id,full_name,razon_social').in('id', ids)
