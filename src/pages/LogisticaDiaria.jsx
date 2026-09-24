@@ -53,6 +53,22 @@ function diasDesde(iso) {
   return d <= 0 ? 'hoy' : d === 1 ? 'hace 1 día' : `hace ${d} días`
 }
 
+// Link de WhatsApp a partir de un teléfono (normaliza a formato internacional AR)
+function waLink(tel) {
+  let d = String(tel || '').replace(/\D/g, '').replace(/^0+/, '')
+  if (!d) return null
+  if (d.startsWith('54')) { /* ya tiene país */ }
+  else if (d.startsWith('9')) d = '54' + d
+  else d = '549' + d
+  return `https://wa.me/${d}`
+}
+
+// Extrae el código de caso (DEV-…, RMA-…, etc.) de un texto
+function codigoCaso(texto) {
+  const m = String(texto || '').match(/\b([A-Z]{2,}-[0-9A-Za-z-]+)\b/)
+  return m ? m[1] : null
+}
+
 // Productos de una parada; si no tiene cargados, los infiere del detalle (garantías viejas)
 function paradaProductos(item) {
   const arr = (item.productos || []).filter(p => p.cantidad > 0)
@@ -768,7 +784,9 @@ export default function LogisticaDiaria() {
                 <div key={g.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 7px', borderRadius: 4 }}>{ref || '#' + g.id.slice(0, 8).toUpperCase()}</span>
+                      {ref
+                        ? <a href={`/reclamos?tracking=${encodeURIComponent(ref)}`} target="_blank" rel="noreferrer" title="Abrir el caso" style={{ fontFamily: 'monospace', fontSize: 11, color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 7px', borderRadius: 4, textDecoration: 'underline' }}>{ref}</a>
+                        : <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 7px', borderRadius: 4 }}>{'#' + g.id.slice(0, 8).toUpperCase()}</span>}
                       <span style={{ fontWeight: 700, fontSize: 13 }}>{nombre}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', padding: '1px 7px', borderRadius: 10 }}>🔄 Cambio Garantía</span>
                       {g.fecha_envio && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)' }}>📅 {new Date(g.fecha_envio + 'T12:00:00').toLocaleDateString('es-AR')}</span>}
@@ -821,7 +839,14 @@ export default function LogisticaDiaria() {
                     <div style={{ flex: 1, minWidth: 200 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                         <span style={{ background: t?.bg, color: t?.color, border: `1px solid ${t?.border}`, fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>{t?.emoji} {t?.label}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700 }}>{item.nombre || item.descripcion}</span>
+                        {(() => {
+                          const cod = item.devolucion_id ? codigoCaso(item.nombre) : null
+                          const nombreSolo = cod ? String(item.nombre).replace(cod, '').trim() : (item.nombre || item.descripcion)
+                          return <span style={{ fontSize: 14, fontWeight: 700 }}>
+                            {nombreSolo}
+                            {cod && <> <a href={`/reclamos?tracking=${encodeURIComponent(cod)}`} target="_blank" rel="noreferrer" title="Abrir el caso" style={{ color: '#7b9fff', textDecoration: 'underline', fontFamily: 'monospace', fontSize: 12 }}>{cod}</a></>}
+                          </span>
+                        })()}
                         {item.fecha && <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', padding: '1px 8px', borderRadius: 10 }}>📅 {item.fecha.slice(8,10)}/{item.fecha.slice(5,7)}</span>}
                         {item.created_at && <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 10 }}>🕒 {diasDesde(item.created_at)}</span>}
                         {(item.pedido_id || item.venta_id || item.devolucion_id || item.repuesto_id) && <span style={{ fontSize: 9, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.25)', padding: '1px 7px', borderRadius: 10 }}>vinculado</span>}
@@ -829,7 +854,9 @@ export default function LogisticaDiaria() {
                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: 'var(--text3)' }}>
                         {item.direccion && <span>📍 {item.direccion}{item.localidad ? `, ${item.localidad}` : ''}</span>}
                         {item.zona && <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 12, color: 'var(--text2)', fontWeight: 600 }}>{item.zona}</span>}
-                        {item.telefono && <span>📞 {item.telefono}</span>}
+                        {item.telefono && (() => { const wa = waLink(item.telefono); return wa
+                          ? <a href={wa} target="_blank" rel="noreferrer" title="Abrir WhatsApp" style={{ color: '#25D366', textDecoration: 'none', fontWeight: 600 }}>💬 {item.telefono}</a>
+                          : <span>📞 {item.telefono}</span> })()}
                       </div>
                       {item.descripcion && item.nombre && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>📝 {item.descripcion}</div>}
                       {prodsCon.length > 0 && (
@@ -1573,7 +1600,14 @@ function ParadaRow({ item, idx, grupo, isChofer, puedeConfirmar, onMover, onSetO
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ background: t?.bg, color: t?.color, border: `1px solid ${t?.border}`, fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>{t?.emoji} {t?.label}</span>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>{item.nombre || item.descripcion}</span>
+            {(() => {
+              const cod = item.devolucion_id ? codigoCaso(item.nombre) : null
+              const nombreSolo = cod ? String(item.nombre).replace(cod, '').trim() : (item.nombre || item.descripcion)
+              return <span style={{ fontSize: 14, fontWeight: 700 }}>
+                {nombreSolo}
+                {cod && <> <a href={`/reclamos?tracking=${encodeURIComponent(cod)}`} target="_blank" rel="noreferrer" title="Abrir el caso" style={{ color: '#7b9fff', textDecoration: 'underline', fontFamily: 'monospace', fontSize: 12 }}>{cod}</a></>}
+              </span>
+            })()}
             {item.estado_entrega && <span style={{ fontSize: 10, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', padding: '2px 10px', borderRadius: 20 }}>{item.estado_entrega === 'entregado' ? '✅ Entregado' : '📥 Recibido'}{item.chofer_nombre ? ` · ${item.chofer_nombre}` : ''}</span>}
           </div>
           <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
@@ -1601,7 +1635,9 @@ function ParadaRow({ item, idx, grupo, isChofer, puedeConfirmar, onMover, onSetO
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: 'var(--text3)' }}>
           {item.direccion && <span>📍 {item.direccion}{item.localidad ? `, ${item.localidad}` : ''}</span>}
           {item.zona && <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 12, color: 'var(--text2)', fontWeight: 600 }}>{item.zona}</span>}
-          {item.telefono && <span>📞 {item.telefono}</span>}
+          {item.telefono && (() => { const wa = waLink(item.telefono); return wa
+            ? <a href={wa} target="_blank" rel="noreferrer" title="Abrir WhatsApp" style={{ color: '#25D366', textDecoration: 'none', fontWeight: 600 }}>💬 {item.telefono}</a>
+            : <span>📞 {item.telefono}</span> })()}
           {item.dni && <span style={{ color: 'var(--text2)' }}>DNI: {item.dni}</span>}
         </div>
         {item.descripcion && item.nombre && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>📝 {item.descripcion}</div>}
