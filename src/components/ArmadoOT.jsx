@@ -40,7 +40,7 @@ const FDEF = {
   jornadas: [{ fecha: '', hi: '', hf: '' }],
   personalEst: { E1: [], E2: [], E3: [], E4: [], E5: [] },
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
-  tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '',
+  tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '', maquinasUsadas: [],
   insumosEst: {},
   prensas: { P1: { cant: '', pres: '' }, P2: { cant: '', pres: '' }, P3: { cant: '', pres: '' }, P4: { cant: '', pres: '' } },
   conforme: '', no_conforme: '', notas: '',
@@ -61,19 +61,24 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const [removedCods, setRemovedCods] = useState([]) // insumos quitados de la tabla
   const [buscarIns, setBuscarIns] = useState('')
   const [prevOt, setPrevOt] = useState(null)
+  const [maquinas, setMaquinas] = useState([])   // máquinas para el checklist (Maq-Sil / Prensa)
   const [g, setG] = useState(false)
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [f, setF] = useState(clone(FDEF))
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [e, ins, ot, pau] = await Promise.all([
+    const [e, ins, ot, pau, maq] = await Promise.all([
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('insumos').select('*').eq('tipo', 'directo').order('codigo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'armado').maybeSingle(),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
+      supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
     ])
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
+    const maqAct = (maq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida))
+    const maqAlambre = maqAct.filter(m => !(m.sectores || []).length || (m.sectores || []).includes('Alambre'))
+    setMaquinas(maqAlambre.length ? maqAlambre : maqAct)
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || ['Armado', 'Alambre'].some(s => x.sectores.includes(s))))
     const arm = (ins.data || []).filter(i => !i.discontinuado && Array.isArray(i.sectores) && i.sectores.some(s => SECTORES_ARMADO_INS.includes(s)))
     setInsumosCat(arm.length ? arm.map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo })) : FALLBACK_INS)
@@ -100,6 +105,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const setD = (path, val) => setF(s => { const n = clone(s); let o = n; const ks = path.split('.'); for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; return n })
   const togglePers = (est, ap) => setF(s => { const n = clone(s); const arr = n.personalEst[est]; n.personalEst[est] = arr.includes(ap) ? arr.filter(x => x !== ap) : [...arr, ap]; return n })
   const toggleTubo = t => setF(s => { const n = clone(s); n.tubos = n.tubos.includes(t) ? n.tubos.filter(x => x !== t) : [...n.tubos, t]; return n })
+  const toggleMaquina = id => setF(s => { const n = clone(s); const arr = n.maquinasUsadas || []; n.maquinasUsadas = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]; return n })
   const setInsEst = (cod, col, val) => setF(s => { const n = clone(s); if (!n.insumosEst[cod]) n.insumosEst[cod] = emptyEst(); n.insumosEst[cod][col] = val; return n })
 
   const conforme = int(f.conforme)
@@ -127,7 +133,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
@@ -172,6 +178,24 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         try {
           const { data: hr } = await supabase.from('herramental').select(`id,${colAguj}`).eq('codigo', m.cod).eq('lote', loteM).limit(1)
           if (hr?.[0]) await supabase.from('herramental').update({ [colAguj]: Math.max(0, (hr[0][colAguj] || 0) + dPan) }).eq('id', hr[0].id)
+        } catch (_) { /* no bloquea */ }
+      }
+
+      // Sumar paneles a las MÁQUINAS tildadas (Maq-Sil / Prensa-Alambre) → usos_paneles
+      for (const id of (f.maquinasUsadas || [])) {
+        try {
+          const { data: mq } = await supabase.from('maquinas').select('id,usos_paneles').eq('id', id).single()
+          if (mq) await supabase.from('maquinas').update({ usos_paneles: Math.max(0, (mq.usos_paneles || 0) + dPan) }).eq('id', id)
+        } catch (_) { /* no bloquea */ }
+      }
+
+      // Sumar usos a los TUBOS de aluminio tildados → herramental (por familia del lote)
+      const colUsos = (lote.modelo || '').includes('1400') ? 'usos_1400w_t' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
+      for (const t of (f.tubos || [])) {
+        try {
+          const cod = `TubAl${t}`
+          const { data: hr } = await supabase.from('herramental').select(`id,${colUsos}`).eq('codigo', cod).limit(1)
+          if (hr?.[0]) await supabase.from('herramental').update({ [colUsos]: Math.max(0, (hr[0][colUsos] || 0) + dPan) }).eq('id', hr[0].id)
         } catch (_) { /* no bloquea */ }
       }
     }
@@ -251,11 +275,17 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
               ))}
             </div>
             <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: -2, marginBottom: 8 }}>A cada mecha con <b>lote cargado</b> se le suman automáticamente los <b>{conforme || 0} agujeros</b> (= paneles) en Herramental al guardar.</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-              <div><label style={lbl}>Maq-Sil1</label><input value={f.maqSil1} onChange={e => setD('maqSil1', e.target.value)} placeholder="ID / lote" style={iSt} /></div>
-              <div><label style={lbl}>Maq-Sil2</label><input value={f.maqSil2} onChange={e => setD('maqSil2', e.target.value)} placeholder="ID / lote" style={iSt} /></div>
-              <div><label style={lbl}>Prensa-Alambre</label><input value={f.prensaAlambre} onChange={e => setD('prensaAlambre', e.target.value)} placeholder="ID / lote" style={iSt} /></div>
-            </div>
+            <label style={lbl}>Máquinas usadas (Maq-Sil / Prensa-Alambre)</label>
+            {maquinas.length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>Cargá las máquinas en <b>Mantenimiento → Máquinas</b> (podés asignarles el sector "Alambre").</div>
+            ) : (
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 4 }}>
+                {maquinas.map(m => { const sel = (f.maquinasUsadas || []).includes(m.id); const et = m.codigo || m.sigla || m.nombre; return (
+                  <button key={m.id} onClick={() => toggleMaquina(m.id)} title={m.nombre} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: sel ? '#7b9fff' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(74,108,247,0.45)' : 'var(--border)'}` }}>{et}</button>
+                ) })}
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, marginBottom: 8 }}>A cada máquina tildada se le suman los <b>{conforme || 0} paneles</b> a su historial de uso al guardar.</div>
             <label style={lbl}>Tubos de aluminio usados</label>
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
               {TUBOS.map(t => { const sel = f.tubos.includes(t); return (
