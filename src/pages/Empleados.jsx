@@ -117,6 +117,7 @@ export default function Empleados() {
 
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
   const readOnly = isMantenimiento   // Admin2 puede editar fichas, charlas y suspensiones; Mantenimiento solo lee
+  const esDuenoVales = (user?.email || '').toLowerCase() === 'martin.cocolo@gmail.com'   // solo Martin carga vales
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(e => !q || [e.apodo, e.nombre, e.apellido, e.sector, e.cuil].some(v => (v || '').toLowerCase().includes(q)))
@@ -153,7 +154,7 @@ export default function Empleados() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate('/produccion/asistencia')} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🕐 Ingreso/Egreso</button>
-          <button onClick={() => setValesOpen(true)} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💵 Vales</button>
+          {esDuenoVales && <button onClick={() => setValesOpen(true)} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💵 Vales</button>}
           <button onClick={() => setCharlasOpen(true)} style={{ background: 'var(--surface2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💬 Charlas</button>
           <button onClick={() => setSuspOpen(true)} style={{ background: 'var(--surface2)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫 Suspensiones</button>
           {!readOnly && <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>}
@@ -163,7 +164,7 @@ export default function Empleados() {
       {importOpen && <ImportarCSV titulo="Empleados" tabla="empleados" columnas={COLS_CSV_EMP} onClose={() => setImportOpen(false)} onDone={cargar} />}
       {suspOpen && <SuspensionesModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setSuspOpen(false)} onChange={recargarRegistros} />}
       {charlasOpen && <CharlasModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setCharlasOpen(false)} onChange={recargarRegistros} />}
-      {valesOpen && <ValesModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setValesOpen(false)} />}
+      {valesOpen && esDuenoVales && <ValesModal empleados={items} puedeEditar={true} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setValesOpen(false)} />}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <input type="text" placeholder="🔍 Buscar por apodo, nombre, apellido o CUIL..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420 }} />
