@@ -41,6 +41,7 @@ const FDEF = {
   personalEst: { E1: [], E2: [], E3: [], E4: [], E5: [] },
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '', maquinasUsadas: [],
+  prodDiaria: { E4: [{ fecha: '', cant: '' }], E5: [{ fecha: '', cant: '' }] },  // terminación: cuánto por día
   insumosEst: {},
   prensas: { P1: { cant: '', pres: '' }, P2: { cant: '', pres: '' }, P3: { cant: '', pres: '' }, P4: { cant: '', pres: '' } },
   conforme: '', no_conforme: '', notas: '',
@@ -95,6 +96,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : clone(FDEF.jornadas),
         personalEst: { ...FDEF.personalEst, ...(d.personalEst || {}) },
         mechas: d.mechas || clone(FDEF.mechas),
+        prodDiaria: { E4: d.prodDiaria?.E4?.length ? d.prodDiaria.E4 : clone(FDEF.prodDiaria.E4), E5: d.prodDiaria?.E5?.length ? d.prodDiaria.E5 : clone(FDEF.prodDiaria.E5) },
         insumosEst: { ...(d.insumosEst || {}) },
         prensas: { ...FDEF.prensas, ...(d.prensas || {}) },
         conforme: ot.data.piezas ?? d.conforme ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
@@ -106,6 +108,10 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const togglePers = (est, ap) => setF(s => { const n = clone(s); const arr = n.personalEst[est]; n.personalEst[est] = arr.includes(ap) ? arr.filter(x => x !== ap) : [...arr, ap]; return n })
   const toggleTubo = t => setF(s => { const n = clone(s); n.tubos = n.tubos.includes(t) ? n.tubos.filter(x => x !== t) : [...n.tubos, t]; return n })
   const toggleMaquina = id => setF(s => { const n = clone(s); const arr = n.maquinasUsadas || []; n.maquinasUsadas = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]; return n })
+  const addProdDia = est => setF(s => { const n = clone(s); n.prodDiaria[est] = [...(n.prodDiaria[est] || []), { fecha: '', cant: '' }]; return n })
+  const setProdDia = (est, i, campo, val) => setF(s => { const n = clone(s); n.prodDiaria[est][i][campo] = val; return n })
+  const delProdDia = (est, i) => setF(s => { const n = clone(s); n.prodDiaria[est] = n.prodDiaria[est].filter((_, j) => j !== i); if (!n.prodDiaria[est].length) n.prodDiaria[est] = [{ fecha: '', cant: '' }]; return n })
+  const sumProd = est => (f.prodDiaria?.[est] || []).reduce((s, r) => s + int(r.cant), 0)
   const setInsEst = (cod, col, val) => setF(s => { const n = clone(s); if (!n.insumosEst[cod]) n.insumosEst[cod] = emptyEst(); n.insumosEst[cod][col] = val; return n })
 
   const conforme = int(f.conforme)
@@ -133,7 +139,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
@@ -292,6 +298,23 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                 <button key={t} onClick={() => toggleTubo(t)} style={{ padding: '4px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: sel ? '#7b9fff' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(74,108,247,0.45)' : 'var(--border)'}` }}>TubAl{t}</button>
               ) })}
             </div>
+          </Sec>
+
+          {/* Producción por día en las estaciones de terminación (E4/E5) */}
+          <Sec t="📅 Producción por día — Terminación">
+            {[['E4', 'E4 · Terminación + Alim.'], ['E5', 'E5 · Silicona + Prensa (Pegado)']].map(([est, label]) => (
+              <div key={est} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>{label} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· total {sumProd(est)} u.</span></div>
+                {(f.prodDiaria?.[est] || []).map((r, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                    <input type="date" value={r.fecha} onChange={e => setProdDia(est, i, 'fecha', e.target.value)} style={{ ...iSt, colorScheme: 'dark', maxWidth: 170 }} />
+                    <input type="number" value={r.cant} onChange={e => setProdDia(est, i, 'cant', e.target.value)} placeholder="cantidad" style={{ ...iSt, maxWidth: 130 }} />
+                    <button onClick={() => delProdDia(est, i)} title="Quitar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '6px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+                  </div>
+                ))}
+                <button onClick={() => addProdDia(est)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>+ Agregar día</button>
+              </div>
+            ))}
           </Sec>
 
           {/* Insumos por estación — arranca con los del sector, pero podés agregar cualquiera */}
