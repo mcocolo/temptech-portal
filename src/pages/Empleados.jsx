@@ -41,6 +41,7 @@ export default function Empleados() {
   const navigate = useNavigate()
   const [suspOpen, setSuspOpen] = useState(false)
   const [charlasOpen, setCharlasOpen] = useState(false)
+  const [valesOpen, setValesOpen] = useState(false)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -152,6 +153,7 @@ export default function Empleados() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate('/produccion/asistencia')} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🕐 Ingreso/Egreso</button>
+          <button onClick={() => setValesOpen(true)} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💵 Vales</button>
           <button onClick={() => setCharlasOpen(true)} style={{ background: 'var(--surface2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💬 Charlas</button>
           <button onClick={() => setSuspOpen(true)} style={{ background: 'var(--surface2)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫 Suspensiones</button>
           {!readOnly && <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>}
@@ -161,6 +163,7 @@ export default function Empleados() {
       {importOpen && <ImportarCSV titulo="Empleados" tabla="empleados" columnas={COLS_CSV_EMP} onClose={() => setImportOpen(false)} onDone={cargar} />}
       {suspOpen && <SuspensionesModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setSuspOpen(false)} onChange={recargarRegistros} />}
       {charlasOpen && <CharlasModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setCharlasOpen(false)} onChange={recargarRegistros} />}
+      {valesOpen && <ValesModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setValesOpen(false)} />}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <input type="text" placeholder="🔍 Buscar por apodo, nombre, apellido o CUIL..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420 }} />
@@ -468,6 +471,131 @@ function CharlasModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
                   {puedeEditar && <button onClick={() => eliminar(s.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>🗑</button>}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const fmtMonto = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(Number(n) || 0)
+
+function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ empleado_id: '', fecha: new Date().toISOString().slice(0, 10), monto: '', comentario: '' })
+  const [guardando, setGuardando] = useState(false)
+  const [verSaldados, setVerSaldados] = useState(false)
+
+  useEffect(() => { cargar() }, [])
+  async function cargar() {
+    setLoading(true)
+    const { data } = await supabase.from('vales_empleados').select('*').order('fecha', { ascending: false })
+    setItems(data || [])
+    setLoading(false)
+  }
+  const nombreDe = id => { const e = empleados.find(x => x.id === id); return e ? `${e.apodo}${e.nombre || e.apellido ? ` · ${[e.nombre, e.apellido].filter(Boolean).join(' ')}` : ''}` : '—' }
+  const fmtF = f => f ? new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'
+
+  async function agregar() {
+    if (!form.empleado_id) return toast.error('Elegí el empleado')
+    const monto = parseFloat(String(form.monto).replace(',', '.')) || 0
+    if (monto === 0 && !form.comentario.trim()) return toast.error('Cargá un monto o un comentario')
+    setGuardando(true)
+    const { error } = await supabase.from('vales_empleados').insert({ empleado_id: form.empleado_id, fecha: form.fecha, monto, comentario: form.comentario.trim() || null, creado_por: usuario })
+    setGuardando(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Vale registrado ✅')
+    setForm(f => ({ empleado_id: f.empleado_id, fecha: new Date().toISOString().slice(0, 10), monto: '', comentario: '' }))
+    cargar()
+  }
+  async function eliminar(id) {
+    if (!window.confirm('¿Eliminar este vale?')) return
+    const { error } = await supabase.from('vales_empleados').delete().eq('id', id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    setItems(prev => prev.filter(x => x.id !== id))
+  }
+  async function saldarEmpleado(empId, pendientes) {
+    if (!pendientes.length) return
+    if (!window.confirm(`¿Marcar como saldados (descontados del sueldo) los ${pendientes.length} vale(s) pendientes de ${nombreDe(empId)}?`)) return
+    const hoy = new Date().toISOString().slice(0, 10)
+    const { error } = await supabase.from('vales_empleados').update({ saldado: true, saldado_fecha: hoy }).in('id', pendientes.map(v => v.id))
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Vales saldados ✅')
+    cargar()
+  }
+
+  // Agrupar por empleado (solo los que tienen vales)
+  const grupos = empleados
+    .map(e => ({ e, vales: items.filter(v => v.empleado_id === e.id) }))
+    .filter(g => g.vales.length > 0)
+    .map(g => {
+      const pendientes = g.vales.filter(v => !v.saldado)
+      return { ...g, pendientes, totalPend: pendientes.reduce((s, v) => s + (Number(v.monto) || 0), 0) }
+    })
+    .sort((a, b) => b.totalPend - a.totalPend)
+  const totalGeneral = grupos.reduce((s, g) => s + g.totalPend, 0)
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 760, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>💵 Vales <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)' }}>· pendiente total: <b style={{ color: '#3dd68c' }}>{fmtMonto(totalGeneral)}</b></span></div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          {puedeEditar && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 8, alignItems: 'end', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px', marginBottom: 14 }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={lbl}>Empleado *</label>
+                <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
+                  <option value="">Elegí un empleado…</option>
+                  {empleados.map(e => <option key={e.id} value={e.id}>{e.apodo} · {[e.nombre, e.apellido].filter(Boolean).join(' ')}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Comentario (plata, producto, lo que pidieron…)</label><input value={form.comentario} onChange={e => setForm(f => ({ ...f, comentario: e.target.value }))} placeholder="Ej: adelanto, 1 par de zapatos, mercadería…" style={iSt} /></div>
+              <div><label style={lbl}>Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
+              <div><label style={lbl}>Monto $</label><input type="number" step="any" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0" style={{ ...iSt, width: 120 }} /></div>
+              <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', height: 38 }}>➕ Registrar</button>
+            </div>
+          )}
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)', cursor: 'pointer', fontWeight: 700, marginBottom: 12 }}>
+            <input type="checkbox" checked={verSaldados} onChange={e => setVerSaldados(e.target.checked)} /> Ver también los ya saldados
+          </label>
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Cargando…</div>
+          ) : grupos.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Sin vales registrados.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {grupos.map(({ e, vales, pendientes, totalPend }) => {
+                const visibles = verSaldados ? vales : vales.filter(v => !v.saldado)
+                if (visibles.length === 0) return null
+                return (
+                  <div key={e.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800 }}>{e.apodo} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text3)' }}>· {[e.nombre, e.apellido].filter(Boolean).join(' ')}</span></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#3dd68c' }}>Pendiente: {fmtMonto(totalPend)}</span>
+                        {puedeEditar && pendientes.length > 0 && <button onClick={() => saldarEmpleado(e.id, pendientes)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Saldar (descontar)</button>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {visibles.map(v => (
+                        <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, opacity: v.saldado ? 0.55 : 1 }}>
+                          <span style={{ color: 'var(--text3)', width: 58, flexShrink: 0 }}>{fmtF(v.fecha)}</span>
+                          <span style={{ fontWeight: 800, color: v.saldado ? 'var(--text3)' : '#3dd68c', minWidth: 90 }}>{fmtMonto(v.monto)}</span>
+                          <span style={{ flex: 1, color: 'var(--text2)' }}>{v.comentario || '—'}{v.saldado ? <span style={{ color: 'var(--text3)' }}> · saldado {v.saldado_fecha ? fmtF(v.saldado_fecha) : ''}</span> : ''}</span>
+                          {puedeEditar && <button onClick={() => eliminar(v.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>🗑</button>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
