@@ -34,14 +34,16 @@ function agruparPorCodigo(rows) {
   }
   return [...map.values()]
 }
-function Chips({ o, aguj, cortes }) {
+function Chips({ o, aguj, cortes, usos = true }) {
   const totUsos = (o.usos_250w || 0) + (o.usos_500w || 0) + (o.usos_1400w_t || 0) + (o.usos_1400w_ct || 0)
   return <>
-    <span style={{ background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', color: '#7b9fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>250w: {o.usos_250w || 0}</span>
-    <span style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>500w: {o.usos_500w || 0}</span>
-    <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w T: {o.usos_1400w_t || 0}</span>
-    <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w CT: {o.usos_1400w_ct || 0}</span>
-    <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 800 }}>Total usos: {totUsos}</span>
+    {usos && <>
+      <span style={{ background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', color: '#7b9fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>250w: {o.usos_250w || 0}</span>
+      <span style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>500w: {o.usos_500w || 0}</span>
+      <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w T: {o.usos_1400w_t || 0}</span>
+      <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w CT: {o.usos_1400w_ct || 0}</span>
+      <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 800 }}>Total usos: {totUsos}</span>
+    </>}
     {aguj && <span style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.35)', color: '#a78bfa', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Agujeros · 250w: {o.agujeros_250w || 0} · 500w: {o.agujeros_500w || 0} · 1400w: {o.agujeros_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(o.agujeros_250w || 0) + (o.agujeros_500w || 0) + (o.agujeros_1400w || 0)}</b></span>}
     {cortes && <span style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.35)', color: '#2dd4bf', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Cortes · 250w: {o.cortes_250w || 0} · 500w: {o.cortes_500w || 0} · 1400w: {o.cortes_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(o.cortes_250w || 0) + (o.cortes_500w || 0) + (o.cortes_1400w || 0)}</b></span>}
   </>
@@ -172,8 +174,10 @@ export default function Herramental() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
           {agruparPorCodigo(filtrados).map(g => {
             const tot = sumarContadores(g.lotes)
-            const aguj = /^MM/i.test(g.codigo) || (tot.agujeros_250w + tot.agujeros_500w + tot.agujeros_1400w) > 0
+            const esMecha = /^MM/i.test(g.codigo)
+            const aguj = esMecha || (tot.agujeros_250w + tot.agujeros_500w + tot.agujeros_1400w) > 0
             const cortes = /^DISC/i.test(g.codigo) || (tot.cortes_250w + tot.cortes_500w + tot.cortes_1400w) > 0
+            const usos = !esMecha   // las mechas miden desgaste en agujeros, no en usos
             return (
               <div key={g.key} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
@@ -212,7 +216,7 @@ export default function Herramental() {
                             </div>
                           )}
                         </div>
-                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}><Chips o={h} aguj={aguj} cortes={cortes} /></div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}><Chips o={h} aguj={aguj} cortes={cortes} usos={usos} /></div>
                       </div>
                     )
                   })}
@@ -220,7 +224,7 @@ export default function Herramental() {
 
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                   <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text2)' }}>TOTAL {g.codigo}:</span>
-                  <Chips o={tot} aguj={aguj} cortes={cortes} />
+                  <Chips o={tot} aguj={aguj} cortes={cortes} usos={usos} />
                 </div>
 
                 {!readOnly && g.codigo && <button onClick={() => agregarLote(g)} style={{ marginTop: 10, background: 'var(--surface2)', color: 'var(--text2)', border: '1px dashed var(--border)', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', width: '100%' }}>+ Agregar lote de {g.codigo}</button>}
