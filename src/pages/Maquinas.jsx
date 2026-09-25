@@ -179,7 +179,14 @@ export default function Maquinas() {
                       {vidaDe(m) === 'eliminado' && <span style={{ fontSize: 10, fontWeight: 700, color: '#ff5577', background: 'rgba(255,85,119,0.12)', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 20, padding: '1px 8px', marginLeft: 6 }}>🗑 Disposición final</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)' }}>{[m.marca, m.modelo, m.ubicacion, m.ubicacion_fisica].filter(Boolean).join(' · ') || '—'}</div>
-                    {m.usos_paneles > 0 && <div style={{ marginTop: 4 }}><span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 4, padding: '1px 7px' }}>🔩 Usos: {m.usos_paneles} paneles</span></div>}
+                    {((m.usos_250w || 0) + (m.usos_500w || 0) + (m.usos_1400w || 0)) > 0 && (
+                      <div style={{ marginTop: 4, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 4, padding: '1px 7px' }}>250w: {m.usos_250w || 0}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 4, padding: '1px 7px' }}>500w: {m.usos_500w || 0}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 4, padding: '1px 7px' }}>1400w: {m.usos_1400w || 0}</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 7px' }}>🔩 Total usos: {(m.usos_250w || 0) + (m.usos_500w || 0) + (m.usos_1400w || 0)}</span>
+                      </div>
+                    )}
                   </div>
                   {m.estado && <span style={{ fontSize: 10, fontWeight: 700, color: estColor(m.estado), background: `${estColor(m.estado)}18`, border: `1px solid ${estColor(m.estado)}44`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{m.estado}</span>}
                   <button onClick={() => setExpandido(isExp ? null : m.id)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 13 }}>{isExp ? '▲' : '▾'}</button>

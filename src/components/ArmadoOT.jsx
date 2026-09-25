@@ -152,6 +152,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     // Así, si cambia a qué lote/máquina/tubo va, se reversa lo anterior y se aplica a lo nuevo.
     const colAguj = (lote.modelo || '').includes('1400') ? 'agujeros_1400w' : (lote.modelo || '').includes('250') ? 'agujeros_250w' : 'agujeros_500w'
     const colUsos = (lote.modelo || '').includes('1400') ? 'usos_1400w_t' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
+    const colMaq = (lote.modelo || '').includes('1400') ? 'usos_1400w' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
     const prevD = prevOt?.datos || {}
     const credF = int(prevD.agujCreditF)   // migración desde el esquema viejo (crédito único)
     const prevAguj = (prevD.agujCredit && typeof prevD.agujCredit === 'object') ? { ...prevD.agujCredit }
@@ -171,7 +172,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     }
     for (const k of new Set([...Object.keys(prevMaq), ...Object.keys(curMaq)])) {
       const obj = k in curMaq ? curMaq[k] : 0, d = obj - int(prevMaq[k])
-      if (d) acciones.push({ t: 'maq', id: k, delta: d }); if (obj) nuevoMaq[k] = obj
+      if (d) acciones.push({ t: 'maq', id: k, col: colMaq, delta: d }); if (obj) nuevoMaq[k] = obj
     }
     for (const k of new Set([...Object.keys(prevTubo), ...Object.keys(curTubo)])) {
       const obj = k in curTubo ? curTubo[k] : 0, d = obj - int(prevTubo[k])
@@ -211,8 +212,8 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     for (const a of acciones) {
       try {
         if (a.t === 'maq') {
-          const { data: mq } = await supabase.from('maquinas').select('id,usos_paneles').eq('id', a.id).single()
-          if (mq) await supabase.from('maquinas').update({ usos_paneles: Math.max(0, (mq.usos_paneles || 0) + a.delta) }).eq('id', a.id)
+          const { data: mq } = await supabase.from('maquinas').select(`id,${a.col}`).eq('id', a.id).single()
+          if (mq) await supabase.from('maquinas').update({ [a.col]: Math.max(0, (mq[a.col] || 0) + a.delta) }).eq('id', a.id)
         } else {
           let query = supabase.from('herramental').select(`id,${a.col}`).eq('codigo', a.cod)
           if (a.lote != null) query = query.eq('lote', a.lote)
