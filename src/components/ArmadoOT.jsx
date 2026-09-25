@@ -148,7 +148,37 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme }
+    // ── Reconciliar créditos (agujeros de mechas, usos de máquinas/tubos) por objetivo, no por delta global ──
+    // Así, si cambia a qué lote/máquina/tubo va, se reversa lo anterior y se aplica a lo nuevo.
+    const colAguj = (lote.modelo || '').includes('1400') ? 'agujeros_1400w' : (lote.modelo || '').includes('250') ? 'agujeros_250w' : 'agujeros_500w'
+    const colUsos = (lote.modelo || '').includes('1400') ? 'usos_1400w_t' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
+    const prevD = prevOt?.datos || {}
+    const credF = int(prevD.agujCreditF)   // migración desde el esquema viejo (crédito único)
+    const prevAguj = (prevD.agujCredit && typeof prevD.agujCredit === 'object') ? { ...prevD.agujCredit }
+      : Object.fromEntries((prevD.mechas || []).filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, credF]))
+    const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit }
+      : Object.fromEntries((prevD.maquinasUsadas || []).map(id => [id, credF]))
+    const prevTubo = (prevD.tuboCredit && typeof prevD.tuboCredit === 'object') ? { ...prevD.tuboCredit }
+      : Object.fromEntries((prevD.tubos || []).map(t => [String(t), credF]))
+    const curAguj = Object.fromEntries(f.mechas.filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, conforme]))
+    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, conforme]))
+    const curTubo = Object.fromEntries((f.tubos || []).map(t => [String(t), conforme]))
+    const acciones = []
+    const nuevoAguj = {}, nuevoMaq = {}, nuevoTubo = {}
+    for (const k of new Set([...Object.keys(prevAguj), ...Object.keys(curAguj)])) {
+      const obj = k in curAguj ? curAguj[k] : 0, d = obj - int(prevAguj[k]); const [cod, l] = k.split('|')
+      if (d) acciones.push({ t: 'herr', cod, lote: l, col: colAguj, delta: d }); if (obj) nuevoAguj[k] = obj
+    }
+    for (const k of new Set([...Object.keys(prevMaq), ...Object.keys(curMaq)])) {
+      const obj = k in curMaq ? curMaq[k] : 0, d = obj - int(prevMaq[k])
+      if (d) acciones.push({ t: 'maq', id: k, delta: d }); if (obj) nuevoMaq[k] = obj
+    }
+    for (const k of new Set([...Object.keys(prevTubo), ...Object.keys(curTubo)])) {
+      const obj = k in curTubo ? curTubo[k] : 0, d = obj - int(prevTubo[k])
+      if (d) acciones.push({ t: 'herr', cod: `TubAl${k}`, col: colUsos, delta: d }); if (obj) nuevoTubo[k] = obj
+    }
+
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
@@ -177,42 +207,19 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       await descontar(cod, total - prevTot(cod), f.insumosEst[cod]?.lote, motivo)
     }
 
-    // Acumular AGUJEROS = paneles del lote a cada mecha con lote cargado (por código + lote),
-    // separados por familia (250w/500w/1400w). Usa un contador propio (agujCreditF) de lo ya
-    // acreditado, así funciona aunque la OT se haya guardado antes de existir esta función.
-    const colAguj = (lote.modelo || '').includes('1400') ? 'agujeros_1400w' : (lote.modelo || '').includes('250') ? 'agujeros_250w' : 'agujeros_500w'
-    const dPan = conforme - int(prev.agujCreditF)
-    if (dPan) {
-      const yaHecho = new Set()
-      for (const m of f.mechas) {
-        const loteM = String(m.lote || '').trim()
-        if (!m.cod || !loteM) continue
-        const key = `${m.cod}__${loteM}`
-        if (yaHecho.has(key)) continue
-        yaHecho.add(key)
-        try {
-          const { data: hr } = await supabase.from('herramental').select(`id,${colAguj}`).eq('codigo', m.cod).eq('lote', loteM).limit(1)
-          if (hr?.[0]) await supabase.from('herramental').update({ [colAguj]: Math.max(0, (hr[0][colAguj] || 0) + dPan) }).eq('id', hr[0].id)
-        } catch (_) { /* no bloquea */ }
-      }
-
-      // Sumar paneles a las MÁQUINAS tildadas (Maq-Sil / Prensa-Alambre) → usos_paneles
-      for (const id of (f.maquinasUsadas || [])) {
-        try {
-          const { data: mq } = await supabase.from('maquinas').select('id,usos_paneles').eq('id', id).single()
-          if (mq) await supabase.from('maquinas').update({ usos_paneles: Math.max(0, (mq.usos_paneles || 0) + dPan) }).eq('id', id)
-        } catch (_) { /* no bloquea */ }
-      }
-
-      // Sumar usos a los TUBOS de aluminio tildados → herramental (por familia del lote)
-      const colUsos = (lote.modelo || '').includes('1400') ? 'usos_1400w_t' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
-      for (const t of (f.tubos || [])) {
-        try {
-          const cod = `TubAl${t}`
-          const { data: hr } = await supabase.from('herramental').select(`id,${colUsos}`).eq('codigo', cod).limit(1)
-          if (hr?.[0]) await supabase.from('herramental').update({ [colUsos]: Math.max(0, (hr[0][colUsos] || 0) + dPan) }).eq('id', hr[0].id)
-        } catch (_) { /* no bloquea */ }
-      }
+    // Aplicar la reconciliación de agujeros/usos (mechas, máquinas, tubos)
+    for (const a of acciones) {
+      try {
+        if (a.t === 'maq') {
+          const { data: mq } = await supabase.from('maquinas').select('id,usos_paneles').eq('id', a.id).single()
+          if (mq) await supabase.from('maquinas').update({ usos_paneles: Math.max(0, (mq.usos_paneles || 0) + a.delta) }).eq('id', a.id)
+        } else {
+          let query = supabase.from('herramental').select(`id,${a.col}`).eq('codigo', a.cod)
+          if (a.lote != null) query = query.eq('lote', a.lote)
+          const { data: hr } = await query.limit(1)
+          if (hr?.[0]) await supabase.from('herramental').update({ [a.col]: Math.max(0, (hr[0][a.col] || 0) + a.delta) }).eq('id', hr[0].id)
+        }
+      } catch (_) { /* no bloquea */ }
     }
 
     // Actualizar el lote: avance de armado = conforme; si completó, pasa a Encuadre
