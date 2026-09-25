@@ -164,7 +164,10 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    // ── Reconciliar créditos (agujeros de mechas, usos de máquinas/tubos) por objetivo, no por delta global ──
+    // Los descuentos de stock y los contadores de herramental/máquinas se aplican SOLO al finalizar el lote.
+    // Mientras la OT es parcial (no llegó al objetivo), se guardan los datos pero no se toca stock ni contadores.
+    const finalizado = conforme >= target && conforme > 0
+    // ── Reconciliar créditos (agujeros de mechas, usos de máquinas/tubos): objetivo = paneles si finalizó, 0 si no ──
     // Así, si cambia a qué lote/máquina/tubo va, se reversa lo anterior y se aplica a lo nuevo.
     const colAguj = (lote.modelo || '').includes('1400') ? 'agujeros_1400w' : (lote.modelo || '').includes('250') ? 'agujeros_250w' : 'agujeros_500w'
     const colUsos = (lote.modelo || '').includes('1400') ? 'usos_1400w_t' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
@@ -178,9 +181,10 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit } : {}
     const prevTubo = (prevD.tuboCredit && typeof prevD.tuboCredit === 'object') ? { ...prevD.tuboCredit }
       : Object.fromEntries((prevD.tubos || []).map(t => [String(t), credF]))
-    const curAguj = Object.fromEntries(f.mechas.filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, conforme]))
-    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, conforme]))
-    const curTubo = Object.fromEntries((f.tubos || []).map(t => [String(t), conforme]))
+    const objUso = finalizado ? conforme : 0   // solo se acredita al finalizar
+    const curAguj = Object.fromEntries(f.mechas.filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, objUso]))
+    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, objUso]))
+    const curTubo = Object.fromEntries((f.tubos || []).map(t => [String(t), objUso]))
     const acciones = []
     const nuevoAguj = {}, nuevoMaq = {}, nuevoTubo = {}
     for (const k of new Set([...Object.keys(prevAguj), ...Object.keys(curAguj)])) {
@@ -196,7 +200,29 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       if (d) acciones.push({ t: 'herr', cod: `TubAl${k}`, col: colUsos, delta: d }); if (obj) nuevoTubo[k] = obj
     }
 
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo }
+    // ── Insumos y alambre: descontar hasta el total, solo si finalizó (reconciliable por lo ya descontado) ──
+    const codsUsados = [...new Set([...insumosCat.map(x => x.cod), ...Object.keys(f.insumosEst || {})])]
+    const prevInsDesc = (prevD.insumoDesc && typeof prevD.insumoDesc === 'object') ? prevD.insumoDesc
+      : Object.fromEntries(codsUsados.map(cod => [cod, COLS.reduce((s, c) => s + num(prevD.insumosEst?.[cod]?.[c]), 0)]))
+    const nuevoInsDesc = {}, insAcciones = []
+    for (const cod of codsUsados) {
+      const objetivo = finalizado ? round3(totalInsumo(cod)) : 0
+      const delta = round3(objetivo - num(prevInsDesc[cod]))
+      nuevoInsDesc[cod] = objetivo
+      if (delta) insAcciones.push({ cod, delta, total: round3(totalInsumo(cod)) })
+    }
+    const alambreCons = arr => { const m = {}; for (const a of (arr || [])) { if (!a.cod) continue; m[a.cod] = round3((m[a.cod] || 0) + consumoAlambre(a)) } return m }
+    const curAlambreAll = alambreCons(f.alambres)
+    const prevAlDesc = (prevD.alambreDesc && typeof prevD.alambreDesc === 'object') ? prevD.alambreDesc : alambreCons(prevD.alambres)
+    const nuevoAlDesc = {}, alAcciones = []
+    for (const cod of new Set([...Object.keys(curAlambreAll), ...Object.keys(prevAlDesc)])) {
+      const objetivo = finalizado ? round3(curAlambreAll[cod] || 0) : 0
+      const delta = round3(objetivo - num(prevAlDesc[cod]))
+      nuevoAlDesc[cod] = objetivo
+      if (delta) alAcciones.push({ cod, delta, total: round3(curAlambreAll[cod] || 0) })
+    }
+
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo, insumoDesc: nuevoInsDesc, alambreDesc: nuevoAlDesc }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
@@ -211,30 +237,19 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
 
-    // Descontar insumos por el delta respecto de lo ya descontado (incluye los agregados a mano)
-    // y dejar un registro de consumo: "Consumo: xxx <unidad> · Lote <lote> · <paneles> paneles · <fecha>"
-    const prev = prevOt?.datos || {}
-    const prevTot = cod => COLS.reduce((s, c) => s + num(prev.insumosEst?.[cod]?.[c]), 0)
-    const codsUsados = [...new Set([...insumosCat.map(x => x.cod), ...Object.keys(f.insumosEst || {})])]
+    // Descontar insumos (solo al finalizar; delta respecto de lo ya descontado por esta OT)
     const uniDe = Object.fromEntries(allInsumos.map(x => [x.cod, x.unidad || '']))
     const fechaHoy = new Date().toLocaleDateString('es-AR')
-    for (const cod of codsUsados) {
-      const total = totalInsumo(cod)
-      const loteIns = f.insumosEst[cod]?.lote || '—'
-      const motivo = `OT Alambre · Lote #${lote.numero} · Consumo: ${total} ${uniDe[cod] || ''}`.trim() + ` · Lote ${loteIns} · ${conforme} paneles · ${fechaHoy}`
-      await descontar(cod, total - prevTot(cod), f.insumosEst[cod]?.lote, motivo)
+    for (const a of insAcciones) {
+      const loteIns = f.insumosEst[a.cod]?.lote || '—'
+      const motivo = `OT Alambre · Lote #${lote.numero} · Consumo: ${a.total} ${uniDe[a.cod] || ''}`.trim() + ` · Lote ${loteIns} · ${conforme} paneles · ${fechaHoy}`
+      await descontar(a.cod, a.delta, f.insumosEst[a.cod]?.lote, motivo)
     }
-
-    // Descontar ALAMBRE por peso (kg consumidos), por delta respecto de lo ya descontado en esta OT
-    const alambreCons = arr => { const m = {}; for (const a of (arr || [])) { if (!a.cod) continue; m[a.cod] = round3((m[a.cod] || 0) + consumoAlambre(a)) } return m }
-    const curAlambre = alambreCons(f.alambres)
-    const prevAlambre = alambreCons(prev.alambres)
-    for (const cod of new Set([...Object.keys(curAlambre), ...Object.keys(prevAlambre)])) {
-      const delta = round3((curAlambre[cod] || 0) - (prevAlambre[cod] || 0))
-      if (!delta) continue
-      const loteAl = (f.alambres || []).filter(a => a.cod === cod && a.lote).map(a => a.lote).join(', ') || null
-      const motivo = `OT Alambre · Lote #${lote.numero} · Consumo alambre: ${round3(curAlambre[cod] || 0)} kg · Lote ${loteAl || '—'} · ${conforme} paneles · ${fechaHoy}`
-      await descontar(cod, delta, loteAl, motivo)
+    // Descontar ALAMBRE por peso (kg), solo al finalizar
+    for (const a of alAcciones) {
+      const loteAl = (f.alambres || []).filter(x => x.cod === a.cod && x.lote).map(x => x.lote).join(', ') || null
+      const motivo = `OT Alambre · Lote #${lote.numero} · Consumo alambre: ${a.total} kg · Lote ${loteAl || '—'} · ${conforme} paneles · ${fechaHoy}`
+      await descontar(a.cod, a.delta, loteAl, motivo)
     }
 
     // Aplicar la reconciliación de agujeros/usos (mechas, máquinas, tubos)
@@ -262,7 +277,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     }).eq('id', lote.id)
 
     setG(false)
-    toast.success('OT de Armado guardada ✅')
+    toast.success(finalizado ? 'OT finalizada ✅ · stock y contadores actualizados' : 'OT guardada (parcial) · el stock y contadores se aplican al finalizar el lote', { duration: finalizado ? 3000 : 4500 })
     onClose(); onDone()
   }
 
