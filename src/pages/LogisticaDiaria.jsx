@@ -395,6 +395,20 @@ export default function LogisticaDiaria() {
     cargar()
   }
 
+  // Cambiar el vehículo de todo un reparto (mueve sus paradas a otra camioneta)
+  async function cambiarCamioneta(desdeCamId, haciaCamId, grupo) {
+    if (!haciaCamId || haciaCamId === desdeCamId) return
+    const destino = camionetas.find(c => c.id === haciaCamId)
+    if (!window.confirm(`¿Mover las ${grupo.length} parada(s) a "${destino?.nombre || 'la otra camioneta'}"?`)) return
+    const base = rutaItems.filter(i => i.camioneta_id === haciaCamId).reduce((m, i) => Math.max(m, i.orden ?? 0), -1) + 1
+    for (let k = 0; k < grupo.length; k++) {
+      const { error } = await supabase.from('logistica_diaria').update({ camioneta_id: haciaCamId, orden: base + k }).eq('id', grupo[k].id)
+      if (error) { toast.error('Error: ' + error.message); cargar(); return }
+    }
+    toast.success('Vehículo cambiado ✅')
+    cargar()
+  }
+
   async function guardarChofer(camionetaId) {
     const nombre = (choferInput[camionetaId] || '').trim()
     const ids = rutaItems.filter(i => i.camioneta_id === camionetaId).map(i => i.id)
@@ -943,6 +957,10 @@ export default function LogisticaDiaria() {
                           {chofer && !choferes.some(c => c.nombre === chofer) && <option value={chofer}>{chofer}</option>}
                         </select>
                         <button onClick={() => guardarChofer(camioneta.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Asignar chofer</button>
+                        <select value="" onChange={e => { const v = e.target.value; if (v) { cambiarCamioneta(camioneta.id, v, grupo); e.target.value = '' } }} title="Cambiar el vehículo de todo el reparto" style={{ ...iSt, width: 170, padding: '6px 10px', cursor: 'pointer', color: '#fb923c', fontWeight: 700 }}>
+                          <option value="">🚐 Cambiar vehículo…</option>
+                          {camionetas.filter(c => c.id !== camioneta.id).map(c => <option key={c.id} value={c.id}>{c.nombre}{c.patente ? ` · ${c.patente}` : ''}</option>)}
+                        </select>
                         <button onClick={() => imprimirRutaCamioneta(camioneta.nombre, chofer, grupo)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>🖨️ Hoja</button>
                       </>
                     ) : (
