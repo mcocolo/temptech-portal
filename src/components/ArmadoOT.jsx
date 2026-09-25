@@ -41,7 +41,7 @@ const FDEF = {
   personalEst: { E1: [], E2: [], E3: [], E4: [], E5: [] },
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '', maquinasUsadas: [],
-  prodDiaria: { E4: [{ fecha: '', cant: '' }], E5: [{ fecha: '', cant: '' }] },  // terminación: cuánto por día
+  prodDiaria: { E3: [{ fecha: '', cant: '' }], E4: [{ fecha: '', cant: '' }] },  // terminación: cuánto por día
   insumosEst: {},
   prensas: { P1: { cant: '', pres: '' }, P2: { cant: '', pres: '' }, P3: { cant: '', pres: '' }, P4: { cant: '', pres: '' } },
   conforme: '', no_conforme: '', notas: '',
@@ -105,7 +105,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : clone(FDEF.jornadas),
         personalEst: { ...FDEF.personalEst, ...(d.personalEst || {}) },
         mechas: d.mechas || clone(FDEF.mechas),
-        prodDiaria: { E4: d.prodDiaria?.E4?.length ? d.prodDiaria.E4 : clone(FDEF.prodDiaria.E4), E5: d.prodDiaria?.E5?.length ? d.prodDiaria.E5 : clone(FDEF.prodDiaria.E5) },
+        prodDiaria: { E3: d.prodDiaria?.E3?.length ? d.prodDiaria.E3 : clone(FDEF.prodDiaria.E3), E4: d.prodDiaria?.E4?.length ? d.prodDiaria.E4 : clone(FDEF.prodDiaria.E4) },
         insumosEst: { ...(d.insumosEst || {}) },
         prensas: { ...FDEF.prensas, ...(d.prensas || {}) },
         conforme: ot.data.piezas ?? d.conforme ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
@@ -321,7 +321,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
 
           {/* Producción por día en las estaciones de terminación (E4/E5) */}
           <Sec t="📅 Producción por día — Terminación">
-            {[['E4', 'E4 · Terminación + Alim.'], ['E5', 'E5 · Silicona + Prensa (Pegado)']].map(([est, label]) => (
+            {[['E3', 'E3 · Terminación'], ['E4', 'E4 · Terminación + Alim.']].map(([est, label]) => (
               <div key={est} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>{label} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· total {sumProd(est)} u.</span></div>
                 {(f.prodDiaria?.[est] || []).map((r, i) => (
