@@ -157,8 +157,9 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     const credF = int(prevD.agujCreditF)   // migración desde el esquema viejo (crédito único)
     const prevAguj = (prevD.agujCredit && typeof prevD.agujCredit === 'object') ? { ...prevD.agujCredit }
       : Object.fromEntries((prevD.mechas || []).filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, credF]))
-    const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit }
-      : Object.fromEntries((prevD.maquinasUsadas || []).map(id => [id, credF]))
+    // Máquinas: el crédito viejo iba a usos_paneles (otra columna). Las columnas por familia
+    // arrancan sin crédito de esta OT, así que la migración parte de cero (no usa credF).
+    const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit } : {}
     const prevTubo = (prevD.tuboCredit && typeof prevD.tuboCredit === 'object') ? { ...prevD.tuboCredit }
       : Object.fromEntries((prevD.tubos || []).map(t => [String(t), credF]))
     const curAguj = Object.fromEntries(f.mechas.filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, conforme]))
