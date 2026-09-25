@@ -92,21 +92,26 @@ export default function Herramental() {
     setRecalc(true)
     try {
       const [ots, lotes] = await Promise.all([
-        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,datos').eq('etapa', 'armado')),
-        fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo')),
+        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,piezas,datos').eq('etapa', 'armado')),
+        fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo,cantidad_objetivo,cantidad_actual')),
       ])
-      const modeloDe = Object.fromEntries((lotes || []).map(l => [l.id, l.modelo || '']))
+      const loteInfo = Object.fromEntries((lotes || []).map(l => [l.id, l]))
       const col = (modelo, tipo) => { const is1400 = modelo.includes('1400'), is250 = modelo.includes('250')
         if (tipo === 'aguj') return is1400 ? 'agujeros_1400w' : is250 ? 'agujeros_250w' : 'agujeros_500w'
         if (tipo === 'tubo') return is1400 ? 'usos_1400w_t' : is250 ? 'usos_250w' : 'usos_500w'
         return is1400 ? 'usos_1400w' : is250 ? 'usos_250w' : 'usos_500w' }  // máquina
       const aguj = {}, tubo = {}, maq = {}
       const add = (obj, key, c, v) => { (obj[key] = obj[key] || {}); obj[key][c] = (obj[key][c] || 0) + (Number(v) || 0) }
+      // Reconstruir desde la historia real: cada OT finalizada suma sus piezas a las mechas/tubos/máquinas que uso
       for (const ot of (ots || [])) {
-        const d = ot.datos || {}, modelo = modeloDe[ot.lote_id] || ''
-        for (const [k, v] of Object.entries(d.agujCredit || {})) add(aguj, k, col(modelo, 'aguj'), v)
-        for (const [k, v] of Object.entries(d.tuboCredit || {})) add(tubo, `TubAl${k}`, col(modelo, 'tubo'), v)
-        for (const [k, v] of Object.entries(d.maqCredit || {})) add(maq, k, col(modelo, 'maq'), v)
+        const li = loteInfo[ot.lote_id]; if (!li) continue
+        const modelo = li.modelo || '', panels = Number(ot.piezas) || 0
+        const objetivo = li.cantidad_actual || li.cantidad_objetivo || 0
+        if (!(panels > 0 && panels >= objetivo)) continue  // solo lotes finalizados
+        const d = ot.datos || {}
+        for (const m of (d.mechas || [])) { const l = String(m.lote || '').trim(); if (m.cod && l) add(aguj, `${m.cod}|${l}`, col(modelo, 'aguj'), panels) }
+        for (const t of (d.tubos || [])) add(tubo, `TubAl${t}`, col(modelo, 'tubo'), panels)
+        for (const id of (d.maquinasUsadas || [])) add(maq, id, col(modelo, 'maq'), panels)
       }
       // Herramental: MM* (agujeros) y TubAl* (usos)
       const herr = await fetchAllRows(() => supabase.from('herramental').select('id,codigo,lote'))
