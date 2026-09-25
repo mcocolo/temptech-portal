@@ -181,7 +181,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit } : {}
     const prevTubo = (prevD.tuboCredit && typeof prevD.tuboCredit === 'object') ? { ...prevD.tuboCredit }
       : Object.fromEntries((prevD.tubos || []).map(t => [String(t), credF]))
-    const objUso = finalizado ? conforme : 0   // solo se acredita al finalizar
+    const objUso = conforme   // los contadores de uso son progresivos: cuentan los paneles hechos, esté finalizado o no
     const curAguj = Object.fromEntries(f.mechas.filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, objUso]))
     const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, objUso]))
     const curTubo = Object.fromEntries((f.tubos || []).map(t => [String(t), objUso]))
@@ -277,7 +277,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     }).eq('id', lote.id)
 
     setG(false)
-    toast.success(finalizado ? 'OT finalizada ✅ · stock y contadores actualizados' : 'OT guardada (parcial) · el stock y contadores se aplican al finalizar el lote', { duration: finalizado ? 3000 : 4500 })
+    toast.success(finalizado ? 'OT finalizada ✅ · stock descontado y contadores actualizados' : 'OT guardada · contadores actualizados (el stock se descuenta al finalizar el lote)', { duration: 4000 })
     onClose(); onDone()
   }
 

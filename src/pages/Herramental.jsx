@@ -102,12 +102,11 @@ export default function Herramental() {
         return is1400 ? 'usos_1400w' : is250 ? 'usos_250w' : 'usos_500w' }  // máquina
       const aguj = {}, tubo = {}, maq = {}
       const add = (obj, key, c, v) => { (obj[key] = obj[key] || {}); obj[key][c] = (obj[key][c] || 0) + (Number(v) || 0) }
-      // Reconstruir desde la historia real: cada OT finalizada suma sus piezas a las mechas/tubos/máquinas que uso
+      // Reconstruir desde la historia real: cada OT suma sus piezas (paneles hechos) a las mechas/tubos/máquinas que uso
       for (const ot of (ots || [])) {
         const li = loteInfo[ot.lote_id]; if (!li) continue
         const modelo = li.modelo || '', panels = Number(ot.piezas) || 0
-        const objetivo = li.cantidad_actual || li.cantidad_objetivo || 0
-        if (!(panels > 0 && panels >= objetivo)) continue  // solo lotes finalizados
+        if (!(panels > 0)) continue
         const d = ot.datos || {}
         for (const m of (d.mechas || [])) { const l = String(m.lote || '').trim(); if (m.cod && l) add(aguj, `${m.cod}|${l}`, col(modelo, 'aguj'), panels) }
         for (const t of (d.tubos || [])) add(tubo, `TubAl${t}`, col(modelo, 'tubo'), panels)
