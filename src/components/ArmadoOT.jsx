@@ -42,6 +42,7 @@ const FDEF = {
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '', maquinasUsadas: [],
   prodDiaria: { E3: [{ fecha: '', cant: '' }], E4: [{ fecha: '', cant: '' }] },  // terminación: cuánto por día
+  alambres: [{ cod: '', lote: '', pesoInicial: '', usadoTodo: false, pesoFinal: '' }],  // consumo de alambre por peso (kg)
   insumosEst: {},
   prensas: { P1: { cant: '', pres: '' }, P2: { cant: '', pres: '' }, P3: { cant: '', pres: '' }, P4: { cant: '', pres: '' } },
   conforme: '', no_conforme: '', notas: '',
@@ -106,6 +107,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         personalEst: { ...FDEF.personalEst, ...(d.personalEst || {}) },
         mechas: d.mechas || clone(FDEF.mechas),
         prodDiaria: { E3: d.prodDiaria?.E3?.length ? d.prodDiaria.E3 : clone(FDEF.prodDiaria.E3), E4: d.prodDiaria?.E4?.length ? d.prodDiaria.E4 : clone(FDEF.prodDiaria.E4) },
+        alambres: Array.isArray(d.alambres) && d.alambres.length ? d.alambres : clone(FDEF.alambres),
         insumosEst: { ...(d.insumosEst || {}) },
         prensas: { ...FDEF.prensas, ...(d.prensas || {}) },
         conforme: ot.data.piezas ?? d.conforme ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
@@ -121,6 +123,12 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const setProdDia = (est, i, campo, val) => setF(s => { const n = clone(s); n.prodDiaria[est][i][campo] = val; return n })
   const delProdDia = (est, i) => setF(s => { const n = clone(s); n.prodDiaria[est] = n.prodDiaria[est].filter((_, j) => j !== i); if (!n.prodDiaria[est].length) n.prodDiaria[est] = [{ fecha: '', cant: '' }]; return n })
   const sumProd = est => (f.prodDiaria?.[est] || []).reduce((s, r) => s + int(r.cant), 0)
+  // Alambre por peso: si se usó todo → peso inicial; si no → inicial - final
+  const consumoAlambre = a => a?.usadoTodo ? num(a.pesoInicial) : Math.max(0, num(a?.pesoInicial) - num(a?.pesoFinal))
+  const addAlambre = () => setF(s => ({ ...s, alambres: [...(s.alambres || []), { cod: '', lote: '', pesoInicial: '', usadoTodo: false, pesoFinal: '' }] }))
+  const setAlambre = (i, campo, val) => setF(s => { const n = clone(s); n.alambres[i][campo] = val; return n })
+  const delAlambre = i => setF(s => { const n = clone(s); n.alambres = n.alambres.filter((_, j) => j !== i); if (!n.alambres.length) n.alambres = clone(FDEF.alambres); return n })
+  const totalAlambre = (f.alambres || []).reduce((s, a) => s + consumoAlambre(a), 0)
   const setInsEst = (cod, col, val) => setF(s => { const n = clone(s); if (!n.insumosEst[cod]) n.insumosEst[cod] = emptyEst(); n.insumosEst[cod][col] = val; return n })
 
   const conforme = int(f.conforme)
@@ -180,7 +188,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       if (d) acciones.push({ t: 'herr', cod: `TubAl${k}`, col: colUsos, delta: d }); if (obj) nuevoTubo[k] = obj
     }
 
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo }
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
@@ -207,6 +215,18 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       const loteIns = f.insumosEst[cod]?.lote || '—'
       const motivo = `OT Alambre · Lote #${lote.numero} · Consumo: ${total} ${uniDe[cod] || ''}`.trim() + ` · Lote ${loteIns} · ${conforme} paneles · ${fechaHoy}`
       await descontar(cod, total - prevTot(cod), f.insumosEst[cod]?.lote, motivo)
+    }
+
+    // Descontar ALAMBRE por peso (kg consumidos), por delta respecto de lo ya descontado en esta OT
+    const alambreCons = arr => { const m = {}; for (const a of (arr || [])) { if (!a.cod) continue; m[a.cod] = round3((m[a.cod] || 0) + consumoAlambre(a)) } return m }
+    const curAlambre = alambreCons(f.alambres)
+    const prevAlambre = alambreCons(prev.alambres)
+    for (const cod of new Set([...Object.keys(curAlambre), ...Object.keys(prevAlambre)])) {
+      const delta = round3((curAlambre[cod] || 0) - (prevAlambre[cod] || 0))
+      if (!delta) continue
+      const loteAl = (f.alambres || []).filter(a => a.cod === cod && a.lote).map(a => a.lote).join(', ') || null
+      const motivo = `OT Alambre · Lote #${lote.numero} · Consumo alambre: ${round3(curAlambre[cod] || 0)} kg · Lote ${loteAl || '—'} · ${conforme} paneles · ${fechaHoy}`
+      await descontar(cod, delta, loteAl, motivo)
     }
 
     // Aplicar la reconciliación de agujeros/usos (mechas, máquinas, tubos)
@@ -397,6 +417,48 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                     )}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>Arranca con los insumos de sector <b>Alambre</b> o <b>Pegado</b>. Podés agregar cualquier otro con el buscador. E5 = Pegado.</div>
+                </>
+              )
+            })()}
+          </Sec>
+
+          {/* Alambre por peso */}
+          <Sec t="🧵 Alambre (por peso · descuenta stock)">
+            {(() => {
+              const alambreOpts = allInsumos.filter(x => (x.label || '').toLowerCase().includes('alambre') || (x.cod || '').toUpperCase().startsWith('CROMAL'))
+              return (
+                <>
+                  {(f.alambres || []).map((a, i) => {
+                    const cons = consumoAlambre(a)
+                    return (
+                      <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 8, background: 'var(--surface2)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 1fr', gap: 8, alignItems: 'end' }}>
+                          <div><label style={lbl}>Alambre</label>
+                            <select value={a.cod} onChange={e => setAlambre(i, 'cod', e.target.value)} style={{ ...iSt, cursor: 'pointer' }}>
+                              <option value="">— Elegir —</option>
+                              {alambreOpts.map(x => <option key={x.cod} value={x.cod}>{x.label}</option>)}
+                              {a.cod && !alambreOpts.some(x => x.cod === a.cod) && <option value={a.cod}>{a.cod}</option>}
+                            </select>
+                          </div>
+                          <div><label style={lbl}>Lote</label><input value={a.lote} onChange={e => setAlambre(i, 'lote', e.target.value)} placeholder="N° de lote" style={iSt} /></div>
+                          <div><label style={lbl}>Peso inicial (kg)</label><input type="number" step="any" value={a.pesoInicial} onChange={e => setAlambre(i, 'pesoInicial', e.target.value)} placeholder="Ej: 2.905" style={iSt} /></div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={!!a.usadoTodo} onChange={e => setAlambre(i, 'usadoTodo', e.target.checked)} /> Usé todo el rollo
+                          </label>
+                          {!a.usadoTodo && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><label style={{ ...lbl, marginBottom: 0 }}>Peso final (kg)</label><input type="number" step="any" value={a.pesoFinal} onChange={e => setAlambre(i, 'pesoFinal', e.target.value)} placeholder="Ej: 0.85" style={{ ...iSt, width: 120 }} /></div>}
+                          <span style={{ fontSize: 13, fontWeight: 800, color: '#3dd68c', marginLeft: 'auto' }}>Consumo: {round3(cons)} kg</span>
+                          <button onClick={() => delAlambre(i)} title="Quitar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '6px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <button onClick={addAlambre} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px dashed var(--border)', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>+ Agregar rollo de alambre</button>
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>Total consumido: <span style={{ color: '#3dd68c' }}>{round3(totalAlambre)} kg</span></span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>Marcá <b>"Usé todo el rollo"</b> si se consumió entero (cuenta el peso inicial). En el último, cargá el <b>peso final</b> y descuenta la diferencia. Al guardar, el total se descuenta del stock del alambre. (No lo cargues también en la grilla de insumos.)</div>
                 </>
               )
             })()}
