@@ -85,6 +85,52 @@ export default function Herramental() {
     setLoading(false)
   }
 
+  const [recalc, setRecalc] = useState(false)
+  // Recalcula los contadores de Alambre (agujeros MM, usos TubAl, usos de máquinas) desde los mapas de cada OT
+  async function recalcularUsosAlambre() {
+    if (!window.confirm('¿Recalcular los usos de Alambre (mechas MM, tubos TubAl y máquinas) desde todas las OT?\nSobrescribe esos contadores con la suma real de las OT finalizadas.')) return
+    setRecalc(true)
+    try {
+      const [ots, lotes] = await Promise.all([
+        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,datos').eq('etapa', 'armado')),
+        fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo')),
+      ])
+      const modeloDe = Object.fromEntries((lotes || []).map(l => [l.id, l.modelo || '']))
+      const col = (modelo, tipo) => { const is1400 = modelo.includes('1400'), is250 = modelo.includes('250')
+        if (tipo === 'aguj') return is1400 ? 'agujeros_1400w' : is250 ? 'agujeros_250w' : 'agujeros_500w'
+        if (tipo === 'tubo') return is1400 ? 'usos_1400w_t' : is250 ? 'usos_250w' : 'usos_500w'
+        return is1400 ? 'usos_1400w' : is250 ? 'usos_250w' : 'usos_500w' }  // máquina
+      const aguj = {}, tubo = {}, maq = {}
+      const add = (obj, key, c, v) => { (obj[key] = obj[key] || {}); obj[key][c] = (obj[key][c] || 0) + (Number(v) || 0) }
+      for (const ot of (ots || [])) {
+        const d = ot.datos || {}, modelo = modeloDe[ot.lote_id] || ''
+        for (const [k, v] of Object.entries(d.agujCredit || {})) add(aguj, k, col(modelo, 'aguj'), v)
+        for (const [k, v] of Object.entries(d.tuboCredit || {})) add(tubo, `TubAl${k}`, col(modelo, 'tubo'), v)
+        for (const [k, v] of Object.entries(d.maqCredit || {})) add(maq, k, col(modelo, 'maq'), v)
+      }
+      // Herramental: MM* (agujeros) y TubAl* (usos)
+      const herr = await fetchAllRows(() => supabase.from('herramental').select('id,codigo,lote'))
+      for (const h of (herr || [])) {
+        const cod = (h.codigo || '').trim()
+        if (/^MM/i.test(cod)) {
+          const a = aguj[`${cod}|${String(h.lote || '').trim()}`] || {}
+          await supabase.from('herramental').update({ agujeros_250w: a.agujeros_250w || 0, agujeros_500w: a.agujeros_500w || 0, agujeros_1400w: a.agujeros_1400w || 0 }).eq('id', h.id)
+        } else if (/^TubAl/i.test(cod)) {
+          const t = tubo[cod] || {}
+          await supabase.from('herramental').update({ usos_250w: t.usos_250w || 0, usos_500w: t.usos_500w || 0, usos_1400w_t: t.usos_1400w_t || 0 }).eq('id', h.id)
+        }
+      }
+      // Máquinas: solo las que aparecen en algún mapa
+      for (const id of Object.keys(maq)) {
+        const u = maq[id]
+        await supabase.from('maquinas').update({ usos_250w: u.usos_250w || 0, usos_500w: u.usos_500w || 0, usos_1400w: u.usos_1400w || 0 }).eq('id', id)
+      }
+      toast.success('Usos de Alambre recalculados ✅')
+      cargar()
+    } catch (e) { toast.error('Error: ' + e.message) }
+    setRecalc(false)
+  }
+
   function abrirNuevo() { setForm({ ...EMPTY }); setEditId(null); setModalOpen(true) }
   function agregarLote(g) { setForm({ ...EMPTY, nombre: g.nombre, codigo: g.codigo, sectores: g.sectores || [] }); setEditId(null); setModalOpen(true) }
   function abrirEditar(h) { setForm({ nombre: h.nombre || '', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '', usos_250w: h.usos_250w ?? '', usos_500w: h.usos_500w ?? '', usos_1400w_t: h.usos_1400w_t ?? '', usos_1400w_ct: h.usos_1400w_ct ?? '', agujeros_250w: h.agujeros_250w ?? '', agujeros_500w: h.agujeros_500w ?? '', agujeros_1400w: h.agujeros_1400w ?? '', cortes_250w: h.cortes_250w ?? '', cortes_500w: h.cortes_500w ?? '', cortes_1400w: h.cortes_1400w ?? '' }); setEditId(h.id); setModalOpen(true) }
@@ -142,6 +188,7 @@ export default function Herramental() {
         </div>
         {!readOnly && (
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={recalcularUsosAlambre} disabled={recalc} title="Recalcula agujeros de mechas, usos de tubos y máquinas desde las OT" style={{ background: 'var(--surface2)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: recalc ? 'not-allowed' : 'pointer', opacity: recalc ? 0.6 : 1, fontFamily: 'var(--font)' }}>{recalc ? 'Recalculando…' : '🔄 Recalcular usos'}</button>
             <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>
             <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva herramienta</button>
           </div>
