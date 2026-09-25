@@ -213,6 +213,15 @@ export default function Maquinas() {
                       <div key={l}><div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>{l}</div><div style={{ fontSize: 13, color: 'var(--text2)' }}>{v}</div></div>
                     ) : null)}
                     {(m.sectores || []).length > 0 && <div style={{ gridColumn: '1 / -1' }}><div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 3 }}>Sectores afectados</div><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{m.sectores.map(s => <span key={s} style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 20, padding: '2px 9px' }}>{s}</span>)}</div></div>}
+                    <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 4 }}>Uso · paneles procesados</div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 4, padding: '1px 7px' }}>250w: {m.usos_250w || 0}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 4, padding: '1px 7px' }}>500w: {m.usos_500w || 0}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 4, padding: '1px 7px' }}>1400w: {m.usos_1400w || 0}</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 7px' }}>🔩 Total usos: {(m.usos_250w || 0) + (m.usos_500w || 0) + (m.usos_1400w || 0)}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
