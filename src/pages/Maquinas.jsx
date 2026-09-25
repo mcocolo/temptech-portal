@@ -49,6 +49,7 @@ export default function Maquinas() {
   const [expandido, setExpandido] = useState(null)
   const [moviendo, setMoviendo] = useState(null)
   const [filtroVida, setFiltroVida] = useState('activo')   // activo | discontinuado | eliminado | todos
+  const [filtroSector, setFiltroSector] = useState('')
   const nombreUsuario = profile?.full_name || user?.email || 'Admin'
 
   async function cambiarEstadoVida(m, estado) {
@@ -129,6 +130,7 @@ export default function Maquinas() {
   const cuenta = est => items.filter(m => vidaDe(m) === est).length
   const filtrados = items.filter(m =>
     (filtroVida === 'todos' || vidaDe(m) === filtroVida) &&
+    (!filtroSector || (m.sectores || []).includes(filtroSector)) &&
     (!q || [m.nombre, m.codigo, m.numero, m.sigla, m.marca, m.modelo, m.ubicacion, m.ubicacion_fisica, m.proveedor].some(v => (v || '').toLowerCase().includes(q)) || (m.sectores || []).some(s => s.toLowerCase().includes(q))))
 
   return (
@@ -147,6 +149,10 @@ export default function Maquinas() {
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
         <input type="text" placeholder="🔍 Buscar por equipo, código, N°, sigla, marca, sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 360 }} />
+        <select value={filtroSector} onChange={e => setFiltroSector(e.target.value)} style={{ ...iSt, cursor: 'pointer', maxWidth: 200, color: filtroSector ? '#7b9fff' : 'var(--text3)', fontWeight: 700 }}>
+          <option value="">🏭 Todos los sectores</option>
+          {SECTORES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
           {[['activo', 'Activas'], ['discontinuado', 'Discontinuadas'], ['eliminado', 'Eliminadas'], ['todos', 'Todas']].map(([v, l]) => (
             <button key={v} onClick={() => setFiltroVida(v)} style={{ padding: '7px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: filtroVida === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: filtroVida === v ? '#7b9fff' : 'var(--text3)' }}>

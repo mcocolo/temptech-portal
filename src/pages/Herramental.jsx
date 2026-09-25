@@ -60,6 +60,7 @@ export default function Herramental() {
   const [confirmDel, setConfirmDel] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   const [filtroVida, setFiltroVida] = useState('activo')   // activo | discontinuado | eliminado | todos
+  const [filtroSector, setFiltroSector] = useState('')
   const nombreUsuario = profile?.full_name || user?.email || 'Admin'
 
   async function cambiarEstadoVida(h, estado) {
@@ -126,6 +127,7 @@ export default function Herramental() {
   const cuenta = est => items.filter(h => vidaDe(h) === est).length
   const filtrados = items.filter(h =>
     (filtroVida === 'todos' || vidaDe(h) === filtroVida) &&
+    (!filtroSector || secsDe(h).includes(filtroSector)) &&
     (!q || [h.nombre, h.codigo, h.lote, ...secsDe(h)].some(v => (v || '').toLowerCase().includes(q)))
   )
 
@@ -147,6 +149,10 @@ export default function Herramental() {
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18, marginTop: 4 }}>
         <input type="text" placeholder="🔍 Buscar por nombre, código, lote o sector..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 360 }} />
+        <select value={filtroSector} onChange={e => setFiltroSector(e.target.value)} style={{ ...iSt, cursor: 'pointer', maxWidth: 220, color: filtroSector ? '#7b9fff' : 'var(--text3)', fontWeight: 700 }}>
+          <option value="">🏭 Todos los sectores</option>
+          {SECTORES_HERR.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
           {[['activo', 'Activos'], ['discontinuado', 'Discontinuados'], ['eliminado', 'Eliminados'], ['todos', 'Todos']].map(([v, l]) => (
             <button key={v} onClick={() => setFiltroVida(v)} style={{ padding: '7px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', border: 'none', background: filtroVida === v ? 'rgba(74,108,247,0.2)' : 'transparent', color: filtroVida === v ? '#7b9fff' : 'var(--text3)' }}>
