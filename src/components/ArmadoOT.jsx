@@ -63,23 +63,32 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const [buscarIns, setBuscarIns] = useState('')
   const [prevOt, setPrevOt] = useState(null)
   const [maquinas, setMaquinas] = useState([])   // máquinas para el checklist (Maq-Sil / Prensa)
+  const [herrLotes, setHerrLotes] = useState({}) // codigo -> [lotes] (herramental activo, para elegir en las mechas)
   const [g, setG] = useState(false)
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [f, setF] = useState(clone(FDEF))
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [e, ins, ot, pau, maq] = await Promise.all([
+    const [e, ins, ot, pau, maq, herr] = await Promise.all([
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('insumos').select('*').eq('tipo', 'directo').order('codigo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'armado').maybeSingle(),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
       supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
+      supabase.from('herramental').select('codigo,lote,estado_vida'),
     ])
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     const maqAct = (maq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida))
     const maqAlambre = maqAct.filter(m => !(m.sectores || []).length || (m.sectores || []).includes('Alambre'))
     setMaquinas(maqAlambre.length ? maqAlambre : maqAct)
+    const lm = {}
+    for (const h of (herr.data || [])) {
+      if (['discontinuado', 'eliminado'].includes(h.estado_vida) || !h.codigo || !h.lote) continue
+      const c = String(h.codigo).trim(); (lm[c] = lm[c] || []).push(String(h.lote).trim())
+    }
+    for (const k of Object.keys(lm)) lm[k] = [...new Set(lm[k])].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    setHerrLotes(lm)
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || ['Armado', 'Alambre'].some(s => x.sectores.includes(s))))
     const arm = (ins.data || []).filter(i => !i.discontinuado && Array.isArray(i.sectores) && i.sectores.some(s => SECTORES_ARMADO_INS.includes(s)))
     setInsumosCat(arm.length ? arm.map(i => ({ cod: i.codigo, label: i.descripcion || i.codigo })) : FALLBACK_INS)
@@ -276,9 +285,19 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
           {/* Herramental */}
           <Sec t="🔧 Herramental">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-              {f.mechas.map((m, i) => (
-                <div key={i}><label style={lbl}>Micromecha {m.cod}</label><input value={m.lote} onChange={e => setD(`mechas.${i}.lote`, e.target.value)} placeholder="N° de lote" style={iSt} /></div>
-              ))}
+              {f.mechas.map((m, i) => { const lotes = herrLotes[m.cod] || []; return (
+                <div key={i}><label style={lbl}>Micromecha {m.cod}</label>
+                  {lotes.length > 0 ? (
+                    <select value={m.lote} onChange={e => setD(`mechas.${i}.lote`, e.target.value)} style={{ ...iSt, cursor: 'pointer' }}>
+                      <option value="">— Sin lote —</option>
+                      {lotes.map(l => <option key={l} value={l}>Lote {l}</option>)}
+                      {m.lote && !lotes.includes(m.lote) && <option value={m.lote}>Lote {m.lote} (no existe)</option>}
+                    </select>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--text3)', padding: '8px 0' }}>Sin lotes de {m.cod}. Cargalos en <b>Herramental</b>.</div>
+                  )}
+                </div>
+              ) })}
             </div>
             <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: -2, marginBottom: 8 }}>A cada mecha con <b>lote cargado</b> se le suman automáticamente los <b>{conforme || 0} agujeros</b> (= paneles) en Herramental al guardar.</div>
             <label style={lbl}>Máquinas usadas (Maq-Sil / Prensa-Alambre)</label>

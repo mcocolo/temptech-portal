@@ -22,6 +22,31 @@ const EMPTY = { nombre: '', codigo: '', lote: '', sectores: [], fecha_ingreso: '
 const SECTORES_HERR = ['Corte', 'Aguj1+Alambre+Pegado', 'Encuadre', 'Aguj N°2', 'Enduido+Lija', 'Pintura', 'Cables+Kits', 'Eléctrica+Embalaje', '1400w']
 const secsDe = h => (Array.isArray(h.sectores) && h.sectores.length) ? h.sectores : (h.sector ? [h.sector] : [])
 
+// Agrupa las filas por código (un card por código con sus lotes adentro)
+const CNT = ['usos_250w', 'usos_500w', 'usos_1400w_t', 'usos_1400w_ct', 'agujeros_250w', 'agujeros_500w', 'agujeros_1400w', 'cortes_250w', 'cortes_500w', 'cortes_1400w']
+const sumarContadores = lotes => { const o = {}; for (const k of CNT) o[k] = lotes.reduce((s, h) => s + (h[k] || 0), 0); return o }
+function agruparPorCodigo(rows) {
+  const map = new Map()
+  for (const h of rows) {
+    const key = h.codigo ? `c:${h.codigo}` : `i:${h.id}`
+    if (!map.has(key)) map.set(key, { key, codigo: h.codigo || '', nombre: h.nombre, sectores: secsDe(h), foto_url: h.foto_url || '', lotes: [] })
+    const g = map.get(key); g.lotes.push(h); if (!g.foto_url && h.foto_url) g.foto_url = h.foto_url
+  }
+  return [...map.values()]
+}
+function Chips({ o, aguj, cortes }) {
+  const totUsos = (o.usos_250w || 0) + (o.usos_500w || 0) + (o.usos_1400w_t || 0) + (o.usos_1400w_ct || 0)
+  return <>
+    <span style={{ background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', color: '#7b9fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>250w: {o.usos_250w || 0}</span>
+    <span style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>500w: {o.usos_500w || 0}</span>
+    <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w T: {o.usos_1400w_t || 0}</span>
+    <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w CT: {o.usos_1400w_ct || 0}</span>
+    <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 800 }}>Total usos: {totUsos}</span>
+    {aguj && <span style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.35)', color: '#a78bfa', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Agujeros · 250w: {o.agujeros_250w || 0} · 500w: {o.agujeros_500w || 0} · 1400w: {o.agujeros_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(o.agujeros_250w || 0) + (o.agujeros_500w || 0) + (o.agujeros_1400w || 0)}</b></span>}
+    {cortes && <span style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.35)', color: '#2dd4bf', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Cortes · 250w: {o.cortes_250w || 0} · 500w: {o.cortes_500w || 0} · 1400w: {o.cortes_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(o.cortes_250w || 0) + (o.cortes_500w || 0) + (o.cortes_1400w || 0)}</b></span>}
+  </>
+}
+
 export default function Herramental() {
   const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
   const [items, setItems] = useState([])
@@ -58,6 +83,7 @@ export default function Herramental() {
   }
 
   function abrirNuevo() { setForm({ ...EMPTY }); setEditId(null); setModalOpen(true) }
+  function agregarLote(g) { setForm({ ...EMPTY, nombre: g.nombre, codigo: g.codigo, sectores: g.sectores || [] }); setEditId(null); setModalOpen(true) }
   function abrirEditar(h) { setForm({ nombre: h.nombre || '', codigo: h.codigo || '', lote: h.lote || '', sectores: secsDe(h), fecha_ingreso: h.fecha_ingreso || '', foto_url: h.foto_url || '', usos_250w: h.usos_250w ?? '', usos_500w: h.usos_500w ?? '', usos_1400w_t: h.usos_1400w_t ?? '', usos_1400w_ct: h.usos_1400w_ct ?? '', agujeros_250w: h.agujeros_250w ?? '', agujeros_500w: h.agujeros_500w ?? '', agujeros_1400w: h.agujeros_1400w ?? '', cortes_250w: h.cortes_250w ?? '', cortes_500w: h.cortes_500w ?? '', cortes_1400w: h.cortes_1400w ?? '' }); setEditId(h.id); setModalOpen(true) }
 
   async function subirFoto(file) {
@@ -137,53 +163,61 @@ export default function Herramental() {
           {busqueda ? 'Sin resultados.' : 'Todavía no hay herramental. Agregá la primera herramienta.'}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-          {filtrados.map(h => {
-            const isDel = confirmDel === h.id
-            const vida = vidaDe(h)
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
+          {agruparPorCodigo(filtrados).map(g => {
+            const tot = sumarContadores(g.lotes)
+            const aguj = /^MM/i.test(g.codigo) || (tot.agujeros_250w + tot.agujeros_500w + tot.agujeros_1400w) > 0
+            const cortes = /^DISC/i.test(g.codigo) || (tot.cortes_250w + tot.cortes_500w + tot.cortes_1400w) > 0
             return (
-              <div key={h.id} style={{ background: 'var(--surface)', border: `1px solid ${isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: '14px 16px', opacity: vida !== 'activo' ? 0.7 : 1 }}>
+              <div key={g.key} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>{h.nombre}</span>
-                  {vida === 'discontinuado' && <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 20, padding: '1px 8px' }}>🚫 Discontinuado</span>}
-                  {vida === 'eliminado' && <span style={{ fontSize: 10, fontWeight: 700, color: '#ff5577', background: 'rgba(255,85,119,0.12)', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 20, padding: '1px 8px' }}>🗑 Disposición final</span>}
+                  <span style={{ fontSize: 15, fontWeight: 800 }}>{g.nombre}</span>
+                  {g.codigo && <span style={{ fontSize: 12, color: '#7b9fff', fontFamily: 'monospace', fontWeight: 700 }}>{g.codigo}</span>}
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 20, padding: '1px 8px' }}>{g.lotes.length} lote{g.lotes.length !== 1 ? 's' : ''}</span>
                 </div>
-                {h.foto_url && <img src={h.foto_url} alt="" onClick={() => window.open(h.foto_url, '_blank')} style={{ width: '100%', height: 110, objectFit: 'contain', background: 'rgba(0,0,0,0.2)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 8, cursor: 'zoom-in' }} />}
-                <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {h.codigo && <div>Código: <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{h.codigo}</span></div>}
-                  {h.lote && <div>Lote: <span style={{ color: 'var(--text2)', fontFamily: 'monospace' }}>{h.lote}</span></div>}
-                  {secsDe(h).length > 0 && <div>Sectores: <span style={{ color: 'var(--text2)' }}>{secsDe(h).join(', ')}</span></div>}
-                  {h.fecha_ingreso && <div>Ingreso: {new Date(h.fecha_ingreso + 'T12:00:00').toLocaleDateString('es-AR')}</div>}
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
-                    <span style={{ background: 'rgba(123,159,255,0.1)', border: '1px solid rgba(123,159,255,0.3)', color: '#7b9fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>250w: {h.usos_250w || 0}</span>
-                    <span style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', color: '#3dd68c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>500w: {h.usos_500w || 0}</span>
-                    <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w T: {h.usos_1400w_t || 0}</span>
-                    <span style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>1400w CT: {h.usos_1400w_ct || 0}</span>
-                    <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 800 }}>Total usos: {(h.usos_250w || 0) + (h.usos_500w || 0) + (h.usos_1400w_t || 0) + (h.usos_1400w_ct || 0)}</span>
-                    {(/^MM/i.test(h.codigo || '') || h.agujeros_250w > 0 || h.agujeros_500w > 0 || h.agujeros_1400w > 0) && (
-                      <span style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.35)', color: '#a78bfa', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Agujeros · 250w: {h.agujeros_250w || 0} · 500w: {h.agujeros_500w || 0} · 1400w: {h.agujeros_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(h.agujeros_250w || 0) + (h.agujeros_500w || 0) + (h.agujeros_1400w || 0)}</b></span>
-                    )}
-                    {(/^DISC/i.test(h.codigo || '') || h.cortes_250w > 0 || h.cortes_500w > 0 || h.cortes_1400w > 0) && (
-                      <span style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.35)', color: '#2dd4bf', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>Cortes · 250w: {h.cortes_250w || 0} · 500w: {h.cortes_500w || 0} · 1400w: {h.cortes_1400w || 0} · <b style={{ color: '#fff' }}>Total: {(h.cortes_250w || 0) + (h.cortes_500w || 0) + (h.cortes_1400w || 0)}</b></span>
-                    )}
-                  </div>
+                {g.foto_url && <img src={g.foto_url} alt="" onClick={() => window.open(g.foto_url, '_blank')} style={{ width: '100%', height: 110, objectFit: 'contain', background: 'rgba(0,0,0,0.2)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 8, cursor: 'zoom-in' }} />}
+                {g.sectores.length > 0 && <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>Sectores: <span style={{ color: 'var(--text2)' }}>{g.sectores.join(', ')}</span></div>}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {g.lotes.map(h => {
+                    const isDel = confirmDel === h.id
+                    const vida = vidaDe(h)
+                    return (
+                      <div key={h.id} style={{ border: `1px solid ${isDel ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 8, padding: '8px 10px', background: 'var(--surface2)', opacity: vida !== 'activo' ? 0.6 : 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800 }}>Lote {h.lote || '—'}</span>
+                          {vida === 'discontinuado' && <span style={{ fontSize: 9, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 20, padding: '1px 7px' }}>🚫 Discontinuado</span>}
+                          {vida === 'eliminado' && <span style={{ fontSize: 9, fontWeight: 700, color: '#ff5577', background: 'rgba(255,85,119,0.12)', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 20, padding: '1px 7px' }}>🗑 Disp. final</span>}
+                          {h.fecha_ingreso && <span style={{ fontSize: 10, color: 'var(--text3)' }}>· ingreso {new Date(h.fecha_ingreso + 'T12:00:00').toLocaleDateString('es-AR')}</span>}
+                          {!readOnly && (
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              <button onClick={() => abrirEditar(h)} title="Editar" style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
+                              {vida === 'activo' && <button onClick={() => cambiarEstadoVida(h, 'discontinuado')} title="Discontinuar" style={{ background: 'rgba(251,146,60,0.08)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫</button>}
+                              {vida !== 'activo' && <button onClick={() => cambiarEstadoVida(h, 'activo')} title="Reactivar" style={{ background: 'rgba(61,214,140,0.08)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩</button>}
+                              {vida !== 'eliminado' && <button onClick={() => cambiarEstadoVida(h, 'eliminado')} title="Disposición final" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>♻</button>}
+                              {isDel ? (
+                                <>
+                                  <button onClick={() => eliminar(h.id)} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Sí</button>
+                                  <button onClick={() => setConfirmDel(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>No</button>
+                                </>
+                              ) : (
+                                <button onClick={() => setConfirmDel(h.id)} title="Eliminar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}><Chips o={h} aguj={aguj} cortes={cortes} /></div>
+                      </div>
+                    )
+                  })}
                 </div>
-                {!readOnly && (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                    <button onClick={() => abrirEditar(h)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️ Editar</button>
-                    {vida === 'activo' && <button onClick={() => cambiarEstadoVida(h, 'discontinuado')} style={{ background: 'rgba(251,146,60,0.08)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫 Discontinuar</button>}
-                    {vida !== 'eliminado' && <button onClick={() => cambiarEstadoVida(h, 'eliminado')} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>♻ Disposición final</button>}
-                    {vida !== 'activo' && <button onClick={() => cambiarEstadoVida(h, 'activo')} style={{ background: 'rgba(61,214,140,0.08)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reactivar</button>}
-                    {isDel ? (
-                      <>
-                        <button onClick={() => eliminar(h.id)} style={{ background: 'rgba(255,85,119,0.12)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.35)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>Eliminar</button>
-                        <button onClick={() => setConfirmDel(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>No</button>
-                      </>
-                    ) : (
-                      <button onClick={() => setConfirmDel(h.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.2)', borderRadius: 6, padding: '5px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
-                    )}
-                  </div>
-                )}
+
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text2)' }}>TOTAL {g.codigo}:</span>
+                  <Chips o={tot} aguj={aguj} cortes={cortes} />
+                </div>
+
+                {!readOnly && g.codigo && <button onClick={() => agregarLote(g)} style={{ marginTop: 10, background: 'var(--surface2)', color: 'var(--text2)', border: '1px dashed var(--border)', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', width: '100%' }}>+ Agregar lote de {g.codigo}</button>}
               </div>
             )
           })}
