@@ -80,8 +80,8 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     ])
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     const maqAct = (maq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida))
-    const maqAlambre = maqAct.filter(m => !(m.sectores || []).length || (m.sectores || []).includes('Alambre'))
-    setMaquinas(maqAlambre.length ? maqAlambre : maqAct)
+    // Solo las máquinas con el sector "Alambre" (las que se cargan para esta etapa)
+    setMaquinas(maqAct.filter(m => (m.sectores || []).includes('Alambre')))
     const lm = {}
     for (const h of (herr.data || [])) {
       if (['discontinuado', 'eliminado'].includes(h.estado_vida) || !h.codigo || !h.lote) continue
