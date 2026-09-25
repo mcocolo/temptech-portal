@@ -113,6 +113,14 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         conforme: ot.data.piezas ?? d.conforme ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
       })
     }
+    // Arrastrar el sobrante de alambre del lote anterior: peso final → peso inicial de esta OT (si aún no cargó alambres)
+    if (!ot.data || !(ot.data.datos?.alambres || []).length) {
+      const { data: ultimas } = await supabase.from('produccion_ot').select('datos,modificado_por_at').eq('etapa', 'armado').neq('lote_id', lote.id).order('modificado_por_at', { ascending: false }).limit(8)
+      const prevAl = (ultimas || []).map(o => o.datos?.alambres).find(a => Array.isArray(a) && a.length)
+      const carry = (prevAl || []).filter(a => a.cod && !a.usadoTodo && (parseFloat(a.pesoFinal) || 0) > 0)
+        .map(a => ({ cod: a.cod, lote: a.lote || '', pesoInicial: String(parseFloat(a.pesoFinal) || ''), usadoTodo: false, pesoFinal: '' }))
+      if (carry.length) setF(s => ({ ...s, alambres: carry }))
+    }
   }
 
   const setD = (path, val) => setF(s => { const n = clone(s); let o = n; const ks = path.split('.'); for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; return n })
@@ -458,7 +466,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                     <button onClick={addAlambre} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px dashed var(--border)', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>+ Agregar rollo de alambre</button>
                     <span style={{ fontSize: 13, fontWeight: 800 }}>Total consumido: <span style={{ color: '#3dd68c' }}>{round3(totalAlambre)} kg</span></span>
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>Marcá <b>"Usé todo el rollo"</b> si se consumió entero (cuenta el peso inicial). En el último, cargá el <b>peso final</b> y descuenta la diferencia. Al guardar, el total se descuenta del stock del alambre. (No lo cargues también en la grilla de insumos.)</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>Marcá <b>"Usé todo el rollo"</b> si se consumió entero (cuenta el peso inicial). Si no, cargá el <b>peso final</b> y descuenta la diferencia; ese <b>sobrante pasa como peso inicial al próximo lote</b> (se arrastra solo). Al guardar, el total se descuenta del stock. (No lo cargues también en la grilla de insumos.)</div>
                 </>
               )
             })()}
