@@ -37,7 +37,7 @@ const COLS_CSV_EMP = [
 ]
 
 export default function Empleados() {
-  const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento, isSuperadmin, user, profile } = useAuth()
   const navigate = useNavigate()
   const [suspOpen, setSuspOpen] = useState(false)
   const [charlasOpen, setCharlasOpen] = useState(false)
@@ -118,7 +118,7 @@ export default function Empleados() {
 
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
   const readOnly = isMantenimiento   // Admin2 puede editar fichas, charlas y suspensiones; Mantenimiento solo lee
-  const esDuenoVales = (user?.email || '').toLowerCase() === 'martin.cocolo@gmail.com' || (profile?.full_name || '').trim().toLowerCase() === 'martin cocolo'   // solo Martin carga vales
+  const esDuenoVales = isSuperadmin   // Vales: solo superadmin (Martin)
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(e => !q || [e.apodo, e.nombre, e.apellido, e.sector, e.cuil].some(v => (v || '').toLowerCase().includes(q)))

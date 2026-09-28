@@ -207,7 +207,7 @@ const NOTIF_COLORS = { pedido: '#7b9fff', reclamo: '#fb923c', foro: '#3dd68c', p
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [openSubmenus, setOpenSubmenus] = useState({ produccion: true })
-  const { user, profile, signOut, isAdmin, isAdmin2, isVendedor, isChofer, isProceso, isMantenimiento, isDistributor, isTechService, aprobacionPendiente, aprobacionRechazada } = useAuth()
+  const { user, profile, signOut, isSuperadmin, isAdmin, isAdmin2, isVendedor, isChofer, isProceso, isMantenimiento, isDistributor, isTechService, aprobacionPendiente, aprobacionRechazada } = useAuth()
   // Admin2 y proceso no deben ver importes: activar el guard global de precios
   setOcultarPrecios(isAdmin2 || isProceso)
   const navigate  = useNavigate()
@@ -306,7 +306,7 @@ export default function Layout({ children }) {
     !(item.path === '/reportes' && isAdmin)
   )
   const adminNavFiltrado = ADMIN_NAV.filter(item =>
-    item.path !== '/reportes' || user?.email === 'martin@temptech.com.ar'
+    item.path !== '/reportes' || isSuperadmin || user?.email === 'martin@temptech.com.ar'
   )
   const allNav = isAdmin
     ? [...baseNav, ...adminNavFiltrado]
@@ -552,8 +552,8 @@ export default function Layout({ children }) {
               <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {profile?.full_name || 'Usuario'}
               </div>
-              <div style={{ fontSize: 11, color: isAdmin ? '#7b9fff' : isAdmin2 ? '#fb923c' : isChofer ? '#3dd68c' : isProceso ? '#a78bfa' : isMantenimiento ? '#2dd4bf' : isTechService ? '#2dd4bf' : 'var(--text3)' }}>
-                {isAdmin ? '⭐ Admin' : isAdmin2 ? '📦 Control Físico' : isChofer ? '🚚 Chofer' : isProceso ? '🏭 Proceso' : isMantenimiento ? '🛠 Mantenimiento' : isTechService ? '🔧 Servicio Técnico' : 'Cliente'}
+              <div style={{ fontSize: 11, color: isSuperadmin ? '#ffd166' : isAdmin ? '#7b9fff' : isAdmin2 ? '#fb923c' : isChofer ? '#3dd68c' : isProceso ? '#a78bfa' : isMantenimiento ? '#2dd4bf' : isTechService ? '#2dd4bf' : 'var(--text3)' }}>
+                {isSuperadmin ? '👑 Superadmin' : isAdmin ? '⭐ Admin' : isAdmin2 ? '📦 Control Físico' : isChofer ? '🚚 Chofer' : isProceso ? '🏭 Proceso' : isMantenimiento ? '🛠 Mantenimiento' : isTechService ? '🔧 Servicio Técnico' : 'Cliente'}
               </div>
             </div>
             <button

@@ -61,7 +61,8 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
-  const isAdmin       = profile?.role === 'admin'
+  const isSuperadmin  = profile?.role === 'superadmin'
+  const isAdmin       = profile?.role === 'admin' || isSuperadmin   // superadmin es superconjunto de admin
   const isAdmin2      = profile?.role === 'admin2'
   const isVendedor    = profile?.role === 'vendedor'
   const isChofer      = profile?.role === 'chofer'
@@ -73,7 +74,7 @@ export function AuthProvider({ children }) {
   const clientCode    = profile?.clientes?.client_code || profile?.client_code
 
   // Aprobación: solo aplica a distribuidores y técnicos (nunca a roles internos)
-  const esRolInterno = isAdmin || isAdmin2 || isVendedor || isChofer || isProceso || isMantenimiento
+  const esRolInterno = isAdmin || isAdmin2 || isVendedor || isChofer || isProceso || isMantenimiento || isSuperadmin
   const necesitaAprobacion = !esRolInterno && (isDistributor || isTechService)
   const aprobacionPendiente = necesitaAprobacion && profile?.aprobado === null
   const aprobacionRechazada = necesitaAprobacion && profile?.aprobado === false
@@ -82,7 +83,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, profile, loading,
-      isAdmin, isAdmin2, isVendedor, isChofer, isProceso, isMantenimiento, isClient, isDistributor, isTechService,
+      isSuperadmin, isAdmin, isAdmin2, isVendedor, isChofer, isProceso, isMantenimiento, isClient, isDistributor, isTechService,
       isAprobado, aprobacionPendiente, aprobacionRechazada,
       clientCode,
       signIn, signInWithGoogle, signUp, signOut,

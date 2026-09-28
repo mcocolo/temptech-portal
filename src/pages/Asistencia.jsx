@@ -38,7 +38,7 @@ const addMes = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = 
 const NOM_MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 export default function Asistencia() {
-  const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, isMantenimiento, isSuperadmin, user, profile } = useAuth()
   const [fecha, setFecha] = useState(hoyStr())
   const [vista, setVista] = useState('dia') // 'dia' | 'mes'
   const [empleados, setEmpleados] = useState([])
@@ -48,7 +48,7 @@ export default function Asistencia() {
   const [reporteOpen, setReporteOpen] = useState(false)
   const [examenGestion, setExamenGestion] = useState(false)
   const [valesOpen, setValesOpen] = useState(false)
-  const esDuenoVales = (user?.email || '').toLowerCase() === 'martin.cocolo@gmail.com' || (profile?.full_name || '').trim().toLowerCase() === 'martin cocolo'
+  const esDuenoVales = isSuperadmin   // Vales: solo superadmin (Martin)
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [soloActivos, setSoloActivos] = useState(true)
