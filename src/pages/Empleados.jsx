@@ -608,7 +608,7 @@ function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
   )
 }
 
-function ExamenesModal({ empleados, usuario, onClose, onChange }) {
+export function ExamenesModal({ empleados, usuario, onClose, onChange }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ empleado_id: '', motivo: '', desde: new Date().toISOString().slice(0, 10), hasta: new Date().toISOString().slice(0, 10) })
