@@ -42,7 +42,9 @@ export default function Asistencia() {
   const [vista, setVista] = useState('dia') // 'dia' | 'mes'
   const [empleados, setEmpleados] = useState([])
   const [susp, setSusp] = useState([]) // suspensiones (para marcar SUSPENDIDO)
+  const [examenes, setExamenes] = useState([]) // días de examen (para marcar EXAMEN)
   const [regs, setRegs] = useState({}) // empleado_id -> registro
+  const [reporteOpen, setReporteOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [soloActivos, setSoloActivos] = useState(true)
@@ -56,15 +58,18 @@ export default function Asistencia() {
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargarRegs() }, [fecha, isAdmin, isAdmin2, isMantenimiento])
 
   async function cargarEmpleados() {
-    const [data, s] = await Promise.all([
+    const [data, s, ex] = await Promise.all([
       fetchAllRows(() => supabase.from('empleados').select('id,apodo,nombre,apellido,sector,fecha_ingreso,fecha_egreso1,fecha_ingreso2,fecha_egreso2').order('apodo')),
       supabase.from('suspensiones').select('empleado_id,fecha,fecha_hasta,dias'),
+      supabase.from('dias_examen').select('empleado_id,fecha,fecha_hasta'),
     ])
     setEmpleados(data || [])
     setSusp(s.data || [])
+    setExamenes(ex.data || [])
   }
-  // ¿El empleado está suspendido en la fecha? (rango desde..hasta inclusive)
+  // ¿El empleado está suspendido / de examen en la fecha? (rango desde..hasta inclusive)
   const suspendidoEn = (empId, f) => susp.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
+  const examenEn = (empId, f) => examenes.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   async function cargarRegs() {
     setLoading(true)
     const { data } = await supabase.from('asistencias').select('*').eq('fecha', fecha)
@@ -86,14 +91,14 @@ export default function Asistencia() {
     }
     setRegs(r => ({ ...r, [empId]: merged }))
     // No persistir filas totalmente vacías que aún no existen
-    const vacio = !merged.entra && !merged.sale && !merged.he && !merged.vale && !merged.ausente
+    const vacio = !merged.entra && !merged.sale && !merged.he && !merged.vale && !merged.ausente && !merged.medico
     if (vacio && !merged.id) return
     setSaving(s => ({ ...s, [empId]: true }))
     const payload = {
       empleado_id: empId, fecha,
       entra: merged.entra || null, sale: merged.sale || null,
       he: merged.he || null, vale: merged.vale || null,
-      ausente: !!merged.ausente, creado_por: usuario, updated_at: new Date().toISOString(),
+      ausente: !!merged.ausente, medico: !!merged.medico, creado_por: usuario, updated_at: new Date().toISOString(),
     }
     const { data, error } = await supabase.from('asistencias').upsert(payload, { onConflict: 'empleado_id,fecha' }).select().single()
     setSaving(s => ({ ...s, [empId]: false }))
@@ -149,11 +154,15 @@ export default function Asistencia() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Ingreso / Egreso</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Asistencia diaria · horario normal Lun-Jue 7:00-17:00 · Vie 7:00-15:00</p>
         </div>
-        <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4 }}>
-          <button onClick={() => setVista('dia')} style={tabBtn(vista === 'dia')}>📆 Ver día</button>
-          <button onClick={() => setVista('mes')} style={tabBtn(vista === 'mes')}>🗓 Ver mes</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {isAdmin && <button onClick={() => setReporteOpen(true)} style={{ background: 'var(--surface2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: 'var(--radius)', padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📊 Reporte</button>}
+          <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4 }}>
+            <button onClick={() => setVista('dia')} style={tabBtn(vista === 'dia')}>📆 Ver día</button>
+            <button onClick={() => setVista('mes')} style={tabBtn(vista === 'mes')}>🗓 Ver mes</button>
+          </div>
         </div>
       </div>
+      {reporteOpen && <ReporteModal empleados={empleados} susp={susp} examenes={examenes} onClose={() => setReporteOpen(false)} />}
 
       {/* Selector de fecha (solo vista día) */}
       {vista === 'dia' && (
@@ -186,7 +195,7 @@ export default function Asistencia() {
       </div>
 
       {vista === 'mes' ? (
-        <VistaMes lista={lista} susp={susp} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
+        <VistaMes lista={lista} susp={susp} examenes={examenes} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
       ) : loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando…</div>
       ) : lista.length === 0 ? (
@@ -219,8 +228,20 @@ export default function Asistencia() {
                       <div style={{ fontWeight: 700 }}>{e.apodo}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</div>
                     </td>
-                    <td colSpan={5} style={{ padding: '8px 12px', textAlign: 'left' }}>
+                    <td colSpan={6} style={{ padding: '8px 12px', textAlign: 'left' }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: '#ff5577', background: 'rgba(255,85,119,0.14)', border: '1px solid rgba(255,85,119,0.4)', borderRadius: 20, padding: '4px 12px' }}>🚫 SUSPENDIDO</span>
+                    </td>
+                  </tr>
+                )
+                // Día de examen: fila bloqueada mostrando EXAMEN
+                if (examenEn(e.id, fecha)) return (
+                  <tr key={e.id} style={{ borderTop: '1px solid var(--border)', background: 'rgba(56,189,248,0.06)' }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ fontWeight: 700 }}>{e.apodo}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</div>
+                    </td>
+                    <td colSpan={6} style={{ padding: '8px 12px', textAlign: 'left' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.14)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 20, padding: '4px 12px' }}>📚 EXAMEN</span>
                     </td>
                   </tr>
                 )
@@ -268,6 +289,9 @@ export default function Asistencia() {
                         style={{ background: r.ausente ? 'rgba(255,85,119,0.15)' : 'var(--surface2)', color: r.ausente ? '#ff5577' : 'var(--text3)', border: `1px solid ${r.ausente ? 'rgba(255,85,119,0.45)' : 'var(--border)'}`, borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: readOnly ? 'default' : 'pointer', fontFamily: 'var(--font)' }}>
                         {r.ausente ? '✓ Ausente' : 'Marcar'}
                       </button>
+                      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 5, fontSize: 11, fontWeight: 700, color: r.medico ? '#a78bfa' : 'var(--text3)', cursor: readOnly ? 'default' : 'pointer' }}>
+                        <input type="checkbox" checked={!!r.medico} disabled={readOnly} onChange={() => guardar(e.id, { medico: !r.medico })} /> 🩺 Médico
+                      </label>
                     </td>
                   </tr>
                 )
@@ -292,11 +316,14 @@ const MARCA = {
   ok:         { txt: '✓', color: '#3dd68c', bg: 'rgba(61,214,140,0.14)', label: 'En horario' },
   no:         { txt: '✕', color: '#fb923c', bg: 'rgba(251,146,60,0.14)', label: 'Fuera de horario' },
   aus:        { txt: 'A', color: '#ff5577', bg: 'rgba(255,85,119,0.14)', label: 'Ausente' },
+  med:        { txt: 'M', color: '#a78bfa', bg: 'rgba(167,139,250,0.14)', label: 'Médico' },
   sus:        { txt: 'S', color: '#ff5577', bg: 'rgba(255,85,119,0.14)', label: 'Suspendido' },
+  exa:        { txt: 'E', color: '#38bdf8', bg: 'rgba(56,189,248,0.14)', label: 'Examen' },
   incompleto: { txt: '·', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', label: 'Incompleto' },
 }
-function VistaMes({ lista, susp = [], onAbrirDia }) {
+function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
   const suspendidoEn = (empId, f) => susp.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
+  const examenEn = (empId, f) => examenes.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const [mes, setMes] = useState(mesActual())
   const [regs, setRegs] = useState({}) // 'empId|fecha' -> registro
   const [loading, setLoading] = useState(true)
@@ -358,7 +385,7 @@ function VistaMes({ lista, susp = [], onAbrirDia }) {
                 const celdas = dias.map(d => {
                   const f = fechaDe(d)
                   const r = regs[`${e.id}|${f}`]
-                  const est = suspendidoEn(e.id, f) ? 'sus' : estadoDia(r, f)
+                  const est = suspendidoEn(e.id, f) ? 'sus' : examenEn(e.id, f) ? 'exa' : (r?.medico ? 'med' : estadoDia(r, f))
                   if (est === 'ok') oks++
                   heTot += hm(r?.he) || 0
                   return { d, f, r, est }
@@ -390,6 +417,113 @@ function VistaMes({ lista, susp = [], onAbrirDia }) {
         </div>
       )}
       <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 10 }}>Tocá una celda para abrir ese día y editarlo.</div>
+    </div>
+  )
+}
+
+// Cuenta días hábiles (Lun-Vie) en la intersección de dos rangos [a1,a2] y [b1,b2] (strings YYYY-MM-DD)
+function diasHabilesInter(a1, a2, b1, b2) {
+  const ini = a1 > b1 ? a1 : b1, fin = a2 < b2 ? a2 : b2
+  if (!ini || !fin || ini > fin) return 0
+  let d = new Date(ini + 'T12:00:00'); const end = new Date(fin + 'T12:00:00'); let n = 0
+  while (d <= end) { const dw = d.getDay(); if (dw !== 0 && dw !== 6) n++; d.setDate(d.getDate() + 1) }
+  return n
+}
+
+function ReporteModal({ empleados, susp, examenes, onClose }) {
+  const [modo, setModo] = useState('mes') // 'mes' | 'anio'
+  const [periodo, setPeriodo] = useState(mesActual())
+  const [anio, setAnio] = useState(String(new Date().getFullYear()))
+  const [regs, setRegs] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const rango = modo === 'mes'
+    ? { desde: `${periodo}-01`, hasta: `${periodo}-${String(diasDelMes(periodo)).padStart(2, '0')}`, label: `${NOM_MES[Number(periodo.slice(5)) - 1]} ${periodo.slice(0, 4)}` }
+    : { desde: `${anio}-01-01`, hasta: `${anio}-12-31`, label: `Año ${anio}` }
+
+  useEffect(() => {
+    let vivo = true; setLoading(true)
+    supabase.from('asistencias').select('empleado_id,fecha,entra,ausente,medico').gte('fecha', rango.desde).lte('fecha', rango.hasta).then(({ data }) => {
+      if (vivo) { setRegs(data || []); setLoading(false) }
+    })
+    return () => { vivo = false }
+  }, [modo, periodo, anio])
+
+  // Cálculo por empleado
+  const filas = empleados.map(e => {
+    let tarde = 0, aus = 0, med = 0
+    for (const a of regs) {
+      if (a.empleado_id !== e.id) continue
+      const dow = new Date(a.fecha + 'T12:00:00').getDay(), finde = dow === 0 || dow === 6
+      if (a.medico) med++
+      else if (a.ausente) aus++
+      if (a.entra && !finde && hm(a.entra) != null && hm(a.entra) > 430) tarde++   // 07:10
+    }
+    const exa = examenes.filter(x => x.empleado_id === e.id).reduce((s, x) => s + diasHabilesInter(x.fecha, x.fecha_hasta || x.fecha, rango.desde, rango.hasta), 0)
+    const sus = susp.filter(x => x.empleado_id === e.id).reduce((s, x) => s + diasHabilesInter(x.fecha, x.fecha_hasta || x.fecha, rango.desde, rango.hasta), 0)
+    return { e, tarde, aus, med, exa, sus, tot: tarde + aus + med + exa + sus }
+  }).filter(f => f.tot > 0).sort((a, b) => b.tot - a.tot)
+
+  const totCol = k => filas.reduce((s, f) => s + f[k], 0)
+  const th2 = { padding: '8px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', textAlign: 'center' }
+  const td2 = { padding: '7px 10px', fontSize: 13, textAlign: 'center', borderTop: '1px solid var(--border)' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 820, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>📊 Reporte de asistencia <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)' }}>· {rango.label}</span></div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 3 }}>
+              <button onClick={() => setModo('mes')} style={tabBtn(modo === 'mes')}>Mensual</button>
+              <button onClick={() => setModo('anio')} style={tabBtn(modo === 'anio')}>Anual</button>
+            </div>
+            {modo === 'mes'
+              ? <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)} style={{ ...iSt, padding: '7px 10px' }} />
+              : <input type="number" value={anio} onChange={e => setAnio(e.target.value)} style={{ ...iSt, padding: '7px 10px', width: 110 }} />}
+          </div>
+          {loading ? <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Cargando…</div>
+            : filas.length === 0 ? <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Sin novedades en el período.</div>
+            : (
+              <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                  <thead><tr style={{ background: 'var(--surface2)' }}>
+                    <th style={{ ...th2, textAlign: 'left' }}>Empleado</th>
+                    <th style={{ ...th2, color: '#fb923c' }}>Llegadas tarde</th>
+                    <th style={{ ...th2, color: '#ff5577' }}>Ausentes</th>
+                    <th style={{ ...th2, color: '#a78bfa' }}>Médico</th>
+                    <th style={{ ...th2, color: '#38bdf8' }}>Examen</th>
+                    <th style={{ ...th2, color: '#ff5577' }}>Suspensión</th>
+                  </tr></thead>
+                  <tbody>
+                    {filas.map(({ e, tarde, aus, med, exa, sus }) => (
+                      <tr key={e.id}>
+                        <td style={{ ...td2, textAlign: 'left', fontWeight: 700 }}>{e.apodo} <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</span></td>
+                        <td style={{ ...td2, fontWeight: 700, color: tarde ? '#fb923c' : 'var(--border2)' }}>{tarde || '·'}</td>
+                        <td style={{ ...td2, fontWeight: 700, color: aus ? '#ff5577' : 'var(--border2)' }}>{aus || '·'}</td>
+                        <td style={{ ...td2, fontWeight: 700, color: med ? '#a78bfa' : 'var(--border2)' }}>{med || '·'}</td>
+                        <td style={{ ...td2, fontWeight: 700, color: exa ? '#38bdf8' : 'var(--border2)' }}>{exa || '·'}</td>
+                        <td style={{ ...td2, fontWeight: 700, color: sus ? '#ff5577' : 'var(--border2)' }}>{sus || '·'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot><tr style={{ background: 'var(--surface2)' }}>
+                    <td style={{ ...td2, textAlign: 'left', fontWeight: 800 }}>TOTAL</td>
+                    <td style={{ ...td2, fontWeight: 800, color: '#fb923c' }}>{totCol('tarde')}</td>
+                    <td style={{ ...td2, fontWeight: 800, color: '#ff5577' }}>{totCol('aus')}</td>
+                    <td style={{ ...td2, fontWeight: 800, color: '#a78bfa' }}>{totCol('med')}</td>
+                    <td style={{ ...td2, fontWeight: 800, color: '#38bdf8' }}>{totCol('exa')}</td>
+                    <td style={{ ...td2, fontWeight: 800, color: '#ff5577' }}>{totCol('sus')}</td>
+                  </tr></tfoot>
+                </table>
+              </div>
+            )}
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 10 }}>Llegada tarde = ingreso después de 07:10. Ausentes/Médico salen de la grilla diaria; Examen y Suspensión de sus registros (días hábiles del período).</div>
+        </div>
+      </div>
     </div>
   )
 }
