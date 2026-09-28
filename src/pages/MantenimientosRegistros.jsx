@@ -22,6 +22,8 @@ export default function MantenimientosRegistros() {
   const nombreUsuario = profile?.full_name || user?.email || 'Admin'
   const [items, setItems] = useState([])
   const [maquinas, setMaquinas] = useState([])
+  const [maqBusca, setMaqBusca] = useState('')
+  const [maqOpen, setMaqOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [fTipo, setFTipo] = useState('')
@@ -192,11 +194,39 @@ export default function MantenimientosRegistros() {
                 </div>
               </div>
               <div>
-                <label style={lbl}>Máquina</label>
-                <select value={form.maquina_id} onChange={e => setForm(f => ({ ...f, maquina_id: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
-                  <option value="">— Elegí una máquina (o dejá vacío y usá el campo de abajo) —</option>
-                  {maquinas.map(q => <option key={q.id} value={q.id}>{q.nombre}{q.codigo ? ` · ${q.codigo}` : ''}</option>)}
-                </select>
+                <label style={lbl}>Máquina <span style={{ color: 'var(--text3)', fontWeight: 400, textTransform: 'none' }}>(buscá por código o nombre)</span></label>
+                {(() => {
+                  const sel = maquinas.find(m => m.id === form.maquina_id)
+                  const q = maqBusca.trim().toLowerCase()
+                  const opts = q ? maquinas.filter(m => [m.nombre, m.codigo, m.sigla].some(v => (v || '').toLowerCase().includes(q))).slice(0, 12) : []
+                  return (
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        value={sel ? `${sel.nombre}${sel.codigo ? ` · ${sel.codigo}` : sel.sigla ? ` · ${sel.sigla}` : ''}` : maqBusca}
+                        onChange={e => { setForm(f => ({ ...f, maquina_id: '' })); setMaqBusca(e.target.value); setMaqOpen(true) }}
+                        onFocus={() => { if (!sel) setMaqOpen(true) }}
+                        onBlur={() => setTimeout(() => setMaqOpen(false), 150)}
+                        placeholder="Escribí código o nombre de máquina…" style={iSt} />
+                      {sel && <button type="button" onClick={() => { setForm(f => ({ ...f, maquina_id: '' })); setMaqBusca('') }} title="Quitar máquina" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 18 }}>×</button>}
+                      {maqOpen && !sel && opts.length > 0 && (
+                        <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 240, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                          {opts.map(m => (
+                            <div key={m.id} onMouseDown={() => { setForm(f => ({ ...f, maquina_id: m.id })); setMaqBusca(''); setMaqOpen(false) }}
+                              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                              <span style={{ fontWeight: 700 }}>{m.nombre}</span>
+                              {m.codigo && <span style={{ color: '#7b9fff', fontFamily: 'monospace', marginLeft: 6 }}>{m.codigo}</span>}
+                              {m.sigla && <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {m.sigla}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {maqOpen && !sel && q && opts.length === 0 && (
+                        <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--text3)' }}>Sin coincidencias · podés dejar la máquina vacía y usar el campo "Equipo / objeto".</div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               <div><label style={lbl}>Equipo / objeto (si no es una máquina cargada)</label><input value={form.objeto} onChange={e => setForm(f => ({ ...f, objeto: e.target.value }))} placeholder="Ej: Compresor, instalación eléctrica…" style={iSt} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
