@@ -118,7 +118,7 @@ export default function Empleados() {
 
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
   const readOnly = isMantenimiento   // Admin2 puede editar fichas, charlas y suspensiones; Mantenimiento solo lee
-  const esDuenoVales = (user?.email || '').toLowerCase() === 'martin.cocolo@gmail.com'   // solo Martin carga vales
+  const esDuenoVales = (user?.email || '').toLowerCase() === 'martin.cocolo@gmail.com' || (profile?.full_name || '').trim().toLowerCase() === 'martin cocolo'   // solo Martin carga vales
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = items.filter(e => !q || [e.apodo, e.nombre, e.apellido, e.sector, e.cuil].some(v => (v || '').toLowerCase().includes(q)))
@@ -485,7 +485,7 @@ function CharlasModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
 
 const fmtMonto = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(Number(n) || 0)
 
-function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
+export function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ empleado_id: '', fecha: new Date().toISOString().slice(0, 10), monto: '', comentario: '' })

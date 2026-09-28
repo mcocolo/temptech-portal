@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
-import { ExamenesModal } from '@/pages/Empleados'
+import { ExamenesModal, ValesModal } from '@/pages/Empleados'
 import toast from 'react-hot-toast'
 
 const iSt = { background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 9px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }
@@ -47,6 +47,8 @@ export default function Asistencia() {
   const [regs, setRegs] = useState({}) // empleado_id -> registro
   const [reporteOpen, setReporteOpen] = useState(false)
   const [examenGestion, setExamenGestion] = useState(false)
+  const [valesOpen, setValesOpen] = useState(false)
+  const esDuenoVales = (user?.email || '').toLowerCase() === 'martin.cocolo@gmail.com' || (profile?.full_name || '').trim().toLowerCase() === 'martin cocolo'
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [soloActivos, setSoloActivos] = useState(true)
@@ -157,6 +159,7 @@ export default function Asistencia() {
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Asistencia diaria · horario normal Lun-Jue 7:00-17:00 · Vie 7:00-15:00</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {esDuenoVales && <button onClick={() => setValesOpen(true)} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💵 Vales</button>}
           {isAdmin && <button onClick={() => setExamenGestion(true)} style={{ background: 'var(--surface2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 'var(--radius)', padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📚 Días de examen</button>}
           {isAdmin && <button onClick={() => setReporteOpen(true)} style={{ background: 'var(--surface2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: 'var(--radius)', padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📊 Reporte</button>}
           <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4 }}>
@@ -167,6 +170,7 @@ export default function Asistencia() {
       </div>
       {reporteOpen && <ReporteModal empleados={empleados} susp={susp} examenes={examenes} onClose={() => setReporteOpen(false)} />}
       {examenGestion && <ExamenesModal empleados={empleados} usuario={usuario} onClose={() => setExamenGestion(false)} onChange={cargarEmpleados} />}
+      {valesOpen && esDuenoVales && <ValesModal empleados={empleados} puedeEditar={true} usuario={usuario} onClose={() => setValesOpen(false)} />}
 
       {/* Selector de fecha (solo vista día) */}
       {vista === 'dia' && (
