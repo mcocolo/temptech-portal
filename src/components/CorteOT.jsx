@@ -76,7 +76,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     tomar_pulmon_ct: '', tomar_pulmon_t: '',
     lote_ct: '', lote_t: '',
     insumo_tapa: es1400 ? insumoTapaDe(lote.terminacion) : HOJA_CODIGO,
-    maquinasUsadas: [],
+    maquinasUsadas: [], supervisor: '',
   })
 
   useEffect(() => { cargar() }, [])
@@ -110,7 +110,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
         tomar_pulmon_ct: ot.data.tomar_pulmon_ct ?? '', tomar_pulmon_t: ot.data.tomar_pulmon_t ?? '',
         lote_ct: ot.data.lote_ct ?? '', lote_t: ot.data.lote_t ?? '',
         insumo_tapa: ot.data.insumo_tapa ?? (es1400 ? insumoTapaDe(lote.terminacion) : HOJA_CODIGO),
-        maquinasUsadas: ot.data.datos?.maquinasUsadas || [],
+        maquinasUsadas: ot.data.datos?.maquinasUsadas || [], supervisor: ot.data.datos?.supervisor || '',
       })
     }
   }
@@ -187,7 +187,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     }
     const payload = {
       lote_id: lote.id, etapa: 'corte',
-      datos: { maquinasUsadas: f.maquinasUsadas, maqCredit: nuevoMaq },
+      datos: { maquinasUsadas: f.maquinasUsadas, maqCredit: nuevoMaq, supervisor: f.supervisor || null },
       fecha_inicio: f.fecha_inicio || null, hora_inicio: f.hora_inicio || null,
       fecha_fin: f.fecha_fin || null, hora_fin: f.hora_fin || null,
       fecha_inicio2: f.fecha_inicio2 || null, hora_inicio2: f.hora_inicio2 || null,
@@ -382,6 +382,13 @@ export default function CorteOT({ lote, onClose, onDone }) {
                   style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: sel ? '#3dd68c' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(61,214,140,0.45)' : 'var(--border)'}` }}>{e.apodo}</button>
               })}
               {empleados.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Cargá empleados en Producción → Empleados.</span>}
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <label style={lbl}>👁 Supervisión</label>
+              <select value={f.supervisor || ''} onChange={e => setF(s => ({ ...s, supervisor: e.target.value }))} style={{ ...iSt, cursor: 'pointer', maxWidth: 320 }}>
+                <option value="">— Quién supervisó —</option>
+                {empleados.map(e => <option key={e.apodo} value={e.apodo}>{e.apodo}{e.nombre ? ` · ${e.nombre}` : ''}</option>)}
+              </select>
             </div>
           </div>
 

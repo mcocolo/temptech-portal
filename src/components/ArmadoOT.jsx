@@ -42,6 +42,7 @@ const FDEF = {
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '', maquinasUsadas: [],
   prodDiaria: { E3: [{ fecha: '', cant: '' }], E4: [{ fecha: '', cant: '' }] },  // terminación: cuánto por día
+  supervisor: '',
   alambres: [{ cod: '', lote: '', pesoInicial: '', usadoTodo: false, pesoFinal: '' }],  // consumo de alambre por peso (kg)
   insumosEst: {},
   prensas: { P1: { cant: '', pres: '' }, P2: { cant: '', pres: '' }, P3: { cant: '', pres: '' }, P4: { cant: '', pres: '' } },
@@ -222,7 +223,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       if (delta) alAcciones.push({ cod, delta, total: round3(curAlambreAll[cod] || 0) })
     }
 
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo, insumoDesc: nuevoInsDesc, alambreDesc: nuevoAlDesc }
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, supervisor: f.supervisor || null, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo, insumoDesc: nuevoInsDesc, alambreDesc: nuevoAlDesc }
     const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
@@ -332,6 +333,14 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                 </div>
               </div>
             ))}
+          </Sec>
+
+          {/* Supervisión */}
+          <Sec t="👁 Supervisión">
+            <select value={f.supervisor || ''} onChange={e => setF(s => ({ ...s, supervisor: e.target.value }))} style={{ ...iSt, cursor: 'pointer', maxWidth: 320 }}>
+              <option value="">— Quién supervisó —</option>
+              {empleados.map(e => <option key={e.apodo} value={e.apodo}>{e.apodo}{e.nombre ? ` · ${e.nombre}` : ''}</option>)}
+            </select>
           </Sec>
 
           {/* Herramental */}

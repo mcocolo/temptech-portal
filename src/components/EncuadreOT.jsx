@@ -42,6 +42,7 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
     personal: [], maquinasUsadas: [],
     disco_id: '', escuadra_id: '', metro_id: '', disco_txt: '', escuadra_txt: '', metro_txt: '',
     mediciones: ['', '', '', '', ''],
+    supervisor: '',
     ok: '', no_conforme: '', notas: '',
   })
   const herrTxt = h => `${h.nombre}${h.codigo ? ` · ${h.codigo}` : ''}${h.lote ? ` · L:${h.lote}` : ''}`
@@ -82,6 +83,7 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
         disco_id: d.disco_id || '', escuadra_id: d.escuadra_id || '', metro_id: d.metro_id || '',
         disco_txt: d.disco_txt || '', escuadra_txt: d.escuadra_txt || '', metro_txt: d.metro_txt || '',
         mediciones: (ot.data.mediciones || d.mediciones || ['', '', '', '', '']).concat(['', '', '', '', '']).slice(0, 5),
+        supervisor: d.supervisor || '',
         ok: ot.data.piezas ?? d.ok ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
       }))
     }
@@ -117,7 +119,7 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
       const obj = k in curMaq ? curMaq[k] : 0, dlt = obj - int(prevMaq[k])
       if (dlt) acciones.push({ id: k, delta: dlt }); if (obj) nuevoMaq[k] = obj
     }
-    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, maqCredit: nuevoMaq, disco_id: f.disco_id, escuadra_id: f.escuadra_id, metro_id: f.metro_id, disco_txt: f.disco_txt, escuadra_txt: f.escuadra_txt, metro_txt: f.metro_txt, mediciones: f.mediciones }
+    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, maqCredit: nuevoMaq, disco_id: f.disco_id, escuadra_id: f.escuadra_id, metro_id: f.metro_id, disco_txt: f.disco_txt, escuadra_txt: f.escuadra_txt, metro_txt: f.metro_txt, mediciones: f.mediciones, supervisor: f.supervisor || null }
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'encuadre',
@@ -206,6 +208,14 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
               ) })}
               {empleados.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Asigná empleados al sector Encuadre.</span>}
             </div>
+          </Sec>
+
+          {/* Supervisión */}
+          <Sec t="👁 Supervisión">
+            <select value={f.supervisor || ''} onChange={e => setF(s => ({ ...s, supervisor: e.target.value }))} style={{ ...iSt, cursor: 'pointer', maxWidth: 320 }}>
+              <option value="">— Quién supervisó —</option>
+              {empleados.map(e => <option key={e.apodo} value={e.apodo}>{e.apodo}{e.nombre ? ` · ${e.nombre}` : ''}</option>)}
+            </select>
           </Sec>
 
           {/* Herramental (desplegables del catálogo, como en Corte) */}

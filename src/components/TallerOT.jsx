@@ -38,6 +38,7 @@ const emptyTiempo = () => ({ fi: '', hi: '', ff: '', hf: '' })
 const FDEF = {
   tiempos: FASE_KEYS.reduce((o, k) => (o[k] = emptyTiempo(), o), {}),
   personalFase: FASE_KEYS.reduce((o, k) => (o[k] = [], o), {}),
+  supervisor: '',
   mechas: [{ lote: '' }, { lote: '' }],
   insumos: {},
   ct_ok: '', t_ok: '', no_conforme: '', notas: '',
@@ -106,7 +107,7 @@ export default function TallerOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const datos = { tiempos: f.tiempos, personalFase: f.personalFase, mechas: f.mechas, insumos: f.insumos, ct_ok: ctOk, t_ok: tOk, no_conforme: int(f.no_conforme) }
+    const datos = { tiempos: f.tiempos, personalFase: f.personalFase, supervisor: f.supervisor || null, mechas: f.mechas, insumos: f.insumos, ct_ok: ctOk, t_ok: tOk, no_conforme: int(f.no_conforme) }
     const personalPlano = [...new Set(FASE_KEYS.flatMap(k => f.personalFase[k]))]
     const payload = {
       lote_id: lote.id, etapa: 'taller',
@@ -172,6 +173,14 @@ export default function TallerOT({ lote, onClose, onDone }) {
         <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}><span style={{ fontSize: 12 }}>Duración total: <b style={{ color: '#22d3ee' }}>{fmtDur(duracion)}</b></span></div>
+
+          {/* Supervisión */}
+          <Sec t="👁 Supervisión">
+            <select value={f.supervisor || ''} onChange={e => setF(s => ({ ...s, supervisor: e.target.value }))} style={{ ...iSt, cursor: 'pointer', maxWidth: 320 }}>
+              <option value="">— Quién supervisó —</option>
+              {empleados.map(e => <option key={e.apodo} value={e.apodo}>{e.apodo}{e.nombre ? ` · ${e.nombre}` : ''}</option>)}
+            </select>
+          </Sec>
 
           {/* Rama CT */}
           <Sec t="◧ Contratapa (CT) — se agujerea y se lija">
