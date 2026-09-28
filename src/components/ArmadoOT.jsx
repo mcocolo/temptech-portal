@@ -197,7 +197,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     }
     for (const k of new Set([...Object.keys(prevTubo), ...Object.keys(curTubo)])) {
       const obj = k in curTubo ? curTubo[k] : 0, d = obj - int(prevTubo[k])
-      if (d) acciones.push({ t: 'herr', cod: `TubAl${k}`, col: colUsos, delta: d }); if (obj) nuevoTubo[k] = obj
+      if (d) acciones.push({ t: 'herr', cod: 'TubAl', lote: k, col: colUsos, delta: d }); if (obj) nuevoTubo[k] = obj
     }
 
     // ── Insumos y alambre: descontar hasta el total, solo si finalizó (reconciliable por lo ya descontado) ──

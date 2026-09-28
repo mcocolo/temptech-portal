@@ -109,7 +109,7 @@ export default function Herramental() {
         if (!(panels > 0)) continue
         const d = ot.datos || {}
         for (const m of (d.mechas || [])) { const l = String(m.lote || '').trim(); if (m.cod && l) add(aguj, `${m.cod}|${l}`, col(modelo, 'aguj'), panels) }
-        for (const t of (d.tubos || [])) add(tubo, `TubAl${t}`, col(modelo, 'tubo'), panels)
+        for (const t of (d.tubos || [])) add(tubo, String(t), col(modelo, 'tubo'), panels)   // clave = N° de lote de TubAl
         for (const id of (d.maquinasUsadas || [])) add(maq, id, col(modelo, 'maq'), panels)
       }
       // Herramental: MM* (agujeros) y TubAl* (usos)
@@ -120,7 +120,7 @@ export default function Herramental() {
           const a = aguj[`${cod}|${String(h.lote || '').trim()}`] || {}
           await supabase.from('herramental').update({ agujeros_250w: a.agujeros_250w || 0, agujeros_500w: a.agujeros_500w || 0, agujeros_1400w: a.agujeros_1400w || 0 }).eq('id', h.id)
         } else if (/^TubAl/i.test(cod)) {
-          const t = tubo[cod] || {}
+          const t = tubo[String(h.lote || '').trim()] || {}   // TubAl se distingue por N° de lote
           await supabase.from('herramental').update({ usos_250w: t.usos_250w || 0, usos_500w: t.usos_500w || 0, usos_1400w_t: t.usos_1400w_t || 0 }).eq('id', h.id)
         }
       }
