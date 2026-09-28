@@ -59,6 +59,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const termT = es1400 ? (lote.terminacion || '') : ''   // la tapa se distingue por color solo en 1400w
   const [herr, setHerr] = useState([])
   const [empleados, setEmpleados] = useState([])
+  const [maquinas, setMaquinas] = useState([])
   const [pulmon, setPulmon] = useState([])
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
@@ -75,20 +76,23 @@ export default function CorteOT({ lote, onClose, onDone }) {
     tomar_pulmon_ct: '', tomar_pulmon_t: '',
     lote_ct: '', lote_t: '',
     insumo_tapa: es1400 ? insumoTapaDe(lote.terminacion) : HOJA_CODIGO,
+    maquinasUsadas: [],
   })
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [h, e, ot, pl, pau] = await Promise.all([
+    const [h, e, ot, pl, pau, mq] = await Promise.all([
       supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'corte').maybeSingle(),
       supabase.from('produccion_pulmon').select('*').eq('modelo', lote.modelo).eq('estado', 'OK'),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
+      supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
     ])
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     setHerr(h.data || [])
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || x.sectores.includes('Corte')))
+    setMaquinas((mq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida) && (m.sectores || []).includes('Corte')))
     setPulmon(pl.data || [])
     if (ot.data) {
       setPrevOt(ot.data)
@@ -106,6 +110,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
         tomar_pulmon_ct: ot.data.tomar_pulmon_ct ?? '', tomar_pulmon_t: ot.data.tomar_pulmon_t ?? '',
         lote_ct: ot.data.lote_ct ?? '', lote_t: ot.data.lote_t ?? '',
         insumo_tapa: ot.data.insumo_tapa ?? (es1400 ? insumoTapaDe(lote.terminacion) : HOJA_CODIGO),
+        maquinasUsadas: ot.data.datos?.maquinasUsadas || [],
       })
     }
   }
@@ -124,6 +129,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const duracion = (dur1 == null && dur2 == null) ? null : (dur1 || 0) + (dur2 || 0)
   const controlesOk = f.mediciones.every(m => (m || '').toUpperCase() === 'OK')   // los 5 controles en OK
   const togglePersona = ap => setF(s => ({ ...s, personal: s.personal.includes(ap) ? s.personal.filter(x => x !== ap) : [...s.personal, ap] }))
+  const toggleMaquina = id => setF(s => { const arr = s.maquinasUsadas || []; return { ...s, maquinasUsadas: arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id] } })
 
   // Pulmón OK disponible por tipo (para tomar). Suma el que ya tomó esta OT (ya descontado antes).
   const pulmonDe = (tipo, term) => (pulmon.find(p => p.tipo === tipo && (p.terminacion || '') === (term || ''))?.cantidad) || 0
@@ -170,8 +176,18 @@ export default function CorteOT({ lote, onClose, onDone }) {
     const cortoSinHojas = (ctOk + int(f.ct_nc) > 0 && hojasCtUsadas === 0) || (tOk + int(f.t_nc) > 0 && hojasTUsadas === 0)
     if (cortoSinHojas && !window.confirm('Cortaste piezas pero dejaste "Hojas usadas" en 0. Si guardás así, NO se descuenta el stock de hojas ni queda el consumo en el historial. ¿Guardar igual?')) return
     setG(true)
+    // Máquinas usadas (ej: ME6): acreditar los paneles cortados a usos por familia (progresivo, reconciliable)
+    const colMaq = es1400 ? 'usos_1400w' : lote.modelo.includes('250') ? 'usos_250w' : 'usos_500w'
+    const prevMaq = (prevOt?.datos?.maqCredit && typeof prevOt.datos.maqCredit === 'object') ? { ...prevOt.datos.maqCredit } : {}
+    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, piezas]))
+    const nuevoMaq = {}, maqAcc = []
+    for (const k of new Set([...Object.keys(prevMaq), ...Object.keys(curMaq)])) {
+      const obj = k in curMaq ? curMaq[k] : 0, dlt = obj - int(prevMaq[k])
+      if (dlt) maqAcc.push({ id: k, delta: dlt }); if (obj) nuevoMaq[k] = obj
+    }
     const payload = {
       lote_id: lote.id, etapa: 'corte',
+      datos: { maquinasUsadas: f.maquinasUsadas, maqCredit: nuevoMaq },
       fecha_inicio: f.fecha_inicio || null, hora_inicio: f.hora_inicio || null,
       fecha_fin: f.fecha_fin || null, hora_fin: f.hora_fin || null,
       fecha_inicio2: f.fecha_inicio2 || null, hora_inicio2: f.hora_inicio2 || null,
@@ -193,6 +209,14 @@ export default function CorteOT({ lote, onClose, onDone }) {
     }
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
+
+    // Acreditar uso de máquinas (ME6) por los paneles cortados
+    for (const a of maqAcc) {
+      try {
+        const { data: mq } = await supabase.from('maquinas').select(`id,${colMaq}`).eq('id', a.id).single()
+        if (mq) await supabase.from('maquinas').update({ [colMaq]: Math.max(0, (mq[colMaq] || 0) + a.delta) }).eq('id', a.id)
+      } catch (_) { /* no bloquea */ }
+    }
 
     // Descontar hojas del stock hasta el total usado por esta OT (auto-correctivo por movimientos reales)
     await descontarInsumo(HOJA_CODIGO, hojasMpstd, 'CT', f.lote_ct.trim())
@@ -312,6 +336,17 @@ export default function CorteOT({ lote, onClose, onDone }) {
               {HerrSelect({ base: 'cinta', label: 'Cinta Métrica' })}
               {HerrSelect({ base: 'pie', label: 'Pie Metálico' })}
             </div>
+            {maquinas.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 4 }}>⚙️ Máquinas usadas (ej: ME6)</div>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {maquinas.map(m => { const sel = (f.maquinasUsadas || []).includes(m.id); const et = m.codigo || m.sigla || m.nombre; return (
+                    <button key={m.id} type="button" onClick={() => toggleMaquina(m.id)} title={m.nombre} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: sel ? '#7b9fff' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(74,108,247,0.45)' : 'var(--border)'}` }}>{et}</button>
+                  ) })}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>A cada máquina tildada se le suman los paneles cortados a su historial de uso.</div>
+              </div>
+            )}
           </div>
 
           {/* Tiempos (hasta 2 sesiones: arranca un día y termina otro) */}

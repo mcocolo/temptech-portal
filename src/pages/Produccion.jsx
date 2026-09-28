@@ -6,6 +6,7 @@ import { fetchAllRows } from '@/lib/fetchAll'
 import CorteOT from '@/components/CorteOT'
 import ArmadoOT from '@/components/ArmadoOT'
 import TallerOT from '@/components/TallerOT'
+import EncuadreOT from '@/components/EncuadreOT'
 import toast from 'react-hot-toast'
 
 // Modelos y rendimiento (cantidad de lote por defecto y hojas MPSTD6 que consume)
@@ -95,6 +96,7 @@ export default function Produccion() {
   const [otLote, setOtLote] = useState(null)           // lote cuya OT de Corte se está cargando
   const [armadoLote, setArmadoLote] = useState(null)   // lote cuya OT de Armado se está cargando
   const [tallerLote, setTallerLote] = useState(null)   // lote 1400w cuya OT de Taller se está cargando
+  const [encuadreLote, setEncuadreLote] = useState(null)   // lote cuya OT de Encuadre se está cargando
   const [expandido, setExpandido] = useState(null)
   const [vista, setVista] = useState('tablero')        // tablero | listado
   const [busqueda, setBusqueda] = useState('')
@@ -370,6 +372,7 @@ export default function Produccion() {
                             {lote.etapa !== 'terminado' && <button onClick={() => setOtLote(lote)} style={btn('#7b9fff')}>📋 {lote.etapa === 'por_iniciar' ? 'OT Corte' : 'Corte'}</button>}
                             {!esFirenze(lote.modelo) && !['por_iniciar', 'corte', 'terminado'].includes(lote.etapa) && <button onClick={() => setArmadoLote(lote)} style={btn('#a78bfa')}>🧵 {lote.etapa === 'armado' ? 'OT Alambre' : 'Alambre'}</button>}
                             {lote.etapa === 'taller' && esFirenze(lote.modelo) && <button onClick={() => setTallerLote(lote)} style={btn('#22d3ee')}>🛠 OT Taller</button>}
+                            {!esFirenze(lote.modelo) && ['encuadre', 'aguj2', 'enduido_lija', 'pintura'].includes(lote.etapa) && <button onClick={() => setEncuadreLote(lote)} style={btn('#3dd68c')}>📐 {lote.etapa === 'encuadre' ? 'OT Encuadre' : 'Encuadre'}</button>}
                             {puedeGestionar && lote.etapa !== 'por_iniciar' && <button onClick={() => retrocederEtapa(lote)} style={btn('var(--text3)')} title="Volver a la etapa anterior">← Volver</button>}
                             {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
                               <>
@@ -556,6 +559,7 @@ export default function Produccion() {
 
       {/* OT DE TALLER (1400w / Firenze) */}
       {tallerLote && <TallerOT lote={tallerLote} onClose={() => setTallerLote(null)} onDone={cargar} />}
+      {encuadreLote && <EncuadreOT lote={encuadreLote} onClose={() => setEncuadreLote(null)} onDone={cargar} />}
 
       {/* ACCESOS DE PROCESO (admin) */}
       {accesosOpen && puedeGestionar && <ProcesoAccesosModal onClose={() => setAccesosOpen(false)} />}
