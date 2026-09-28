@@ -13,7 +13,7 @@ const TIPOS = [
 ]
 const tipoCfg = k => TIPOS.find(t => t.k === k) || { label: k, color: 'var(--text3)' }
 const fmtF = f => f ? new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
-const EMPTY = { tipo: 'preventivo', maquina_id: '', objeto: '', fecha: new Date().toISOString().slice(0, 10), descripcion: '', realizado_por: '', proximo: '', costo: '', fotos: [] }
+const EMPTY = { tipo: 'preventivo', maquina_id: '', objeto: '', fecha: new Date().toISOString().slice(0, 10), descripcion: '', realizado_por: '', proximo: '', costo: '', fotos: [], presupuesto_url: '' }
 const hoyISO = () => new Date().toISOString().slice(0, 10)
 const diasHasta = f => Math.round((new Date(f + 'T12:00:00') - new Date(hoyISO() + 'T12:00:00')) / 86400000)
 
@@ -29,8 +29,30 @@ export default function MantenimientosRegistros() {
   const [fTipo, setFTipo] = useState('')
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
+  const [editId, setEditId] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
+  const [subiendoPres, setSubiendoPres] = useState(false)
+
+  async function subirPresupuesto(file) {
+    if (!file) return
+    setSubiendoPres(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `mantenimientos/presupuesto_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
+      if (error) throw error
+      const url = supabase.storage.from('Imagenes').getPublicUrl(path).data.publicUrl
+      setForm(f => ({ ...f, presupuesto_url: url }))
+      toast.success('Presupuesto subido ✅')
+    } catch (e) { toast.error('Error al subir: ' + (e.message || '')) }
+    setSubiendoPres(false)
+  }
+  function abrirNuevo() { setForm(EMPTY); setEditId(null); setMaqBusca(''); setModal(true) }
+  function abrirEditar(m) {
+    setForm({ tipo: m.tipo || 'preventivo', maquina_id: m.maquina_id || '', objeto: m.objeto || '', fecha: m.fecha || hoyISO(), descripcion: m.descripcion || '', realizado_por: m.realizado_por || '', proximo: m.proximo || '', costo: m.costo ?? '', fotos: Array.isArray(m.fotos) ? m.fotos : [], presupuesto_url: m.presupuesto_url || '' })
+    setEditId(m.id); setMaqBusca(''); setModal(true)
+  }
 
   async function subirFotos(files) {
     if (!files || !files.length) return
@@ -67,15 +89,18 @@ export default function MantenimientosRegistros() {
     if (!form.fecha) return toast.error('Ingresá la fecha')
     if (!form.maquina_id && !form.objeto.trim()) return toast.error('Elegí la máquina o escribí el equipo/objeto')
     setGuardando(true)
-    const { error } = await supabase.from('mantenimientos').insert({
+    const payload = {
       tipo: form.tipo, maquina_id: form.maquina_id || null, objeto: form.objeto.trim() || null,
       fecha: form.fecha, descripcion: form.descripcion.trim() || null, realizado_por: form.realizado_por.trim() || null,
-      proximo: form.proximo || null, costo: parseFloat(form.costo) || null, fotos: form.fotos || [], creado_por: nombreUsuario,
-    })
+      proximo: form.proximo || null, costo: parseFloat(form.costo) || null, fotos: form.fotos || [], presupuesto_url: form.presupuesto_url || null,
+    }
+    const { error } = editId
+      ? await supabase.from('mantenimientos').update(payload).eq('id', editId)
+      : await supabase.from('mantenimientos').insert({ ...payload, creado_por: nombreUsuario })
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('Mantenimiento registrado ✅')
-    setForm(EMPTY); setModal(false); cargar()
+    toast.success(editId ? 'Mantenimiento actualizado ✅' : 'Mantenimiento registrado ✅')
+    setForm(EMPTY); setEditId(null); setModal(false); cargar()
   }
   async function eliminar(id) {
     if (!window.confirm('¿Eliminar este registro de mantenimiento?')) return
@@ -110,7 +135,7 @@ export default function MantenimientosRegistros() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Registros de Mantenimiento</h1>
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Mantenimientos correctivos, preventivos y predictivos de máquinas y equipos</p>
         </div>
-        {!readOnly && <button onClick={() => { setForm(EMPTY); setModal(true) }} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Ingresar mantenimiento</button>}
+        {!readOnly && <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Ingresar mantenimiento</button>}
       </div>
 
       {pendientes.length > 0 && (
@@ -122,7 +147,7 @@ export default function MantenimientosRegistros() {
                 <span style={{ fontSize: 10, fontWeight: 700, color: venc ? '#ff5577' : '#fb923c', background: venc ? 'rgba(255,85,119,0.12)' : 'rgba(251,146,60,0.12)', border: `1px solid ${venc ? 'rgba(255,85,119,0.4)' : 'rgba(251,146,60,0.4)'}`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{venc ? `Vencido hace ${Math.abs(d)} día${Math.abs(d) !== 1 ? 's' : ''}` : d === 0 ? 'Hoy' : `En ${d} día${d !== 1 ? 's' : ''}`}</span>
                 <span style={{ fontWeight: 700 }}>{maqNombre(m.maquina_id) || m.objeto || '—'}</span>
                 <span style={{ color: 'var(--text3)' }}>· {tipoCfg(m.tipo).label} · próximo {fmtF(m.proximo)}</span>
-                {!readOnly && <button onClick={() => { setForm({ ...EMPTY, tipo: m.tipo, maquina_id: m.maquina_id || '', objeto: m.objeto || '' }); setModal(true) }} style={{ marginLeft: 'auto', background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Registrar realizado</button>}
+                {!readOnly && <button onClick={() => { setForm({ ...EMPTY, tipo: m.tipo, maquina_id: m.maquina_id || '', objeto: m.objeto || '' }); setEditId(null); setMaqBusca(''); setModal(true) }} style={{ marginLeft: 'auto', background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Registrar realizado</button>}
               </div>
             ) })}
           </div>
@@ -163,6 +188,7 @@ export default function MantenimientosRegistros() {
                         : <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#7b9fff', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', textDecoration: 'none' }}>📄 archivo {i + 1}</a>)}
                     </div>
                   )}
+                  {m.presupuesto_url && <div style={{ marginTop: 6 }}><a href={m.presupuesto_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '4px 10px', textDecoration: 'none' }}>📑 Presupuesto</a></div>}
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
                     {m.realizado_por ? `👷 ${m.realizado_por}` : ''}
                     {m.proximo ? ` · 🔁 próximo: ${fmtF(m.proximo)}` : ''}
@@ -170,7 +196,12 @@ export default function MantenimientosRegistros() {
                     {m.creado_por ? ` · cargó ${m.creado_por}` : ''}
                   </div>
                 </div>
-                {!readOnly && <button onClick={() => eliminar(m.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>🗑</button>}
+                {!readOnly && (
+                  <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                    <button onClick={() => abrirEditar(m)} title="Editar" style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
+                    <button onClick={() => eliminar(m.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -181,8 +212,8 @@ export default function MantenimientosRegistros() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>➕ Ingresar mantenimiento</div>
-              <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{editId ? '✏️ Editar mantenimiento' : '➕ Ingresar mantenimiento'}</div>
+              <button onClick={() => { setModal(false); setEditId(null) }} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -253,9 +284,20 @@ export default function MantenimientosRegistros() {
                   </label>
                 </div>
               </div>
+              <div>
+                <label style={lbl}>📑 Presupuesto (PDF o imagen) <span style={{ color: 'var(--text3)', fontWeight: 400, textTransform: 'none' }}>· puede cargarse después</span></label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {form.presupuesto_url && <a href={form.presupuesto_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 6, padding: '6px 12px', textDecoration: 'none' }}>📑 Ver presupuesto</a>}
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px dashed var(--border)', borderRadius: 6, padding: '7px 14px', color: 'var(--text2)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    {subiendoPres ? 'Subiendo…' : (form.presupuesto_url ? '🔄 Reemplazar' : '📎 Adjuntar presupuesto')}
+                    <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) subirPresupuesto(e.target.files[0]); e.target.value = '' }} />
+                  </label>
+                  {form.presupuesto_url && <button type="button" onClick={() => setForm(f => ({ ...f, presupuesto_url: '' }))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 12 }}>Quitar</button>}
+                </div>
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={guardar} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando…' : '✓ Registrar'}</button>
-                <button onClick={() => setModal(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+                <button onClick={guardar} disabled={guardando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardando ? 'Guardando…' : editId ? '✓ Guardar cambios' : '✓ Registrar'}</button>
+                <button onClick={() => { setModal(false); setEditId(null) }} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
