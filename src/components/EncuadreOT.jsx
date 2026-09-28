@@ -31,6 +31,7 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
   const es250 = (lote.modelo || '').includes('250')
 
   const [empleados, setEmpleados] = useState([])
+  const [herr, setHerr] = useState([])
   const [maquinas, setMaquinas] = useState([])
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [prevOt, setPrevOt] = useState(null)
@@ -38,13 +39,28 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
   const [g, setG] = useState(false)
   const [f, setF] = useState({
     jornadas: [{ fecha: new Date().toISOString().split('T')[0], hi: '', hf: '' }],
-    personal: [], maquinasUsadas: [], ok: '', no_conforme: '', notas: '',
+    personal: [], maquinasUsadas: [],
+    disco_id: '', escuadra_id: '', metro_id: '', disco_txt: '', escuadra_txt: '', metro_txt: '',
+    mediciones: ['', '', '', '', ''],
+    ok: '', no_conforme: '', notas: '',
   })
+  const herrTxt = h => `${h.nombre}${h.codigo ? ` · ${h.codigo}` : ''}${h.lote ? ` · L:${h.lote}` : ''}`
+  const HerrSelect = ({ base, label }) => (
+    <div>
+      <label style={lbl}>{label}</label>
+      <select value={f[base + '_id'] || ''} onChange={e => { const h = herr.find(x => x.id === e.target.value); setF(s => ({ ...s, [base + '_id']: e.target.value || '', [base + '_txt']: h ? herrTxt(h) : '' })) }} style={{ ...iSt, cursor: 'pointer' }}>
+        <option value="">— Elegir —</option>
+        {herr.map(h => <option key={h.id} value={h.id}>{herrTxt(h)}</option>)}
+      </select>
+    </div>
+  )
+  const controlesOk = f.mediciones.every(m => (m || '').toUpperCase() === 'OK')
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [e, mq, ot, pau, med] = await Promise.all([
+    const [e, h, mq, ot, pau, med] = await Promise.all([
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
+      supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
       supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'encuadre').maybeSingle(),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
@@ -52,17 +68,22 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
     ])
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || (x.sectores || []).includes('Encuadre')))
+    setHerr(h.data || [])
     const maqAct = (mq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida))
     setMaquinas(maqAct.filter(m => (m.sectores || []).includes('Encuadre')))
     if (med.data?.length) setMedidas({ ...MEDIDAS_DEF, ...Object.fromEntries(med.data.map(r => [r.clave, r.valor])) })
     if (ot.data) {
       setPrevOt(ot.data)
       const d = ot.data.datos || {}
-      setF({
-        jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : [{ fecha: new Date().toISOString().split('T')[0], hi: '', hf: '' }],
+      setF(s => ({
+        ...s,
+        jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : s.jornadas,
         personal: d.personal || [], maquinasUsadas: d.maquinasUsadas || [],
+        disco_id: d.disco_id || '', escuadra_id: d.escuadra_id || '', metro_id: d.metro_id || '',
+        disco_txt: d.disco_txt || '', escuadra_txt: d.escuadra_txt || '', metro_txt: d.metro_txt || '',
+        mediciones: (ot.data.mediciones || d.mediciones || ['', '', '', '', '']).concat(['', '', '', '', '']).slice(0, 5),
         ok: ot.data.piezas ?? d.ok ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
-      })
+      }))
     }
   }
 
@@ -84,7 +105,8 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
 
   async function guardar() {
     setG(true)
-    const finalizado = conforme >= target && conforme > 0
+    const alcanzo = conforme >= target && conforme > 0
+    const finalizado = alcanzo && controlesOk   // avanza solo con los 5 controles en OK (igual que Corte)
     // Máquinas: acreditar paneles a usos por familia (progresivo, reconciliable)
     const colMaq = es1400 ? 'usos_1400w' : es250 ? 'usos_250w' : 'usos_500w'
     const prevD = prevOt?.datos || {}
@@ -95,13 +117,14 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
       const obj = k in curMaq ? curMaq[k] : 0, dlt = obj - int(prevMaq[k])
       if (dlt) acciones.push({ id: k, delta: dlt }); if (obj) nuevoMaq[k] = obj
     }
-    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, maqCredit: nuevoMaq }
+    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, maqCredit: nuevoMaq, disco_id: f.disco_id, escuadra_id: f.escuadra_id, metro_id: f.metro_id, disco_txt: f.disco_txt, escuadra_txt: f.escuadra_txt, metro_txt: f.metro_txt, mediciones: f.mediciones }
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'encuadre',
       fecha_inicio: f.jornadas[0]?.fecha || null, hora_inicio: f.jornadas[0]?.hi || null,
       fecha_fin: ultJor.fecha || null, hora_fin: ultJor.hf || null,
       personal: f.personal, piezas: conforme, duracion_min: duracion, notas: f.notas.trim() || null,
+      mediciones: f.mediciones.map(m => (m === '' || m == null) ? null : String(m).trim()),
       datos, ...(prevOt ? {} : { creado_por: nombreUsuario }),
       modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString(),
     }
@@ -125,7 +148,8 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
     }).eq('id', lote.id)
 
     setG(false)
-    toast.success(finalizado ? 'Encuadre finalizado ✅ · pasa a Aguj N°2' : 'OT de Encuadre guardada ✅')
+    if (alcanzo && !controlesOk) toast('OT guardada. Marcá los 5 controles en OK para que el lote avance a Aguj N°2.', { icon: '⚠️', duration: 5000 })
+    else toast.success(finalizado ? 'Encuadre finalizado ✅ · pasa a Aguj N°2' : 'OT de Encuadre guardada ✅')
     onClose(); onDone()
   }
 
@@ -184,6 +208,15 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
             </div>
           </Sec>
 
+          {/* Herramental (desplegables del catálogo, como en Corte) */}
+          <Sec t="🔧 Herramental">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+              {HerrSelect({ base: 'disco', label: 'Disco' })}
+              {HerrSelect({ base: 'escuadra', label: 'Escuadra' })}
+              {HerrSelect({ base: 'metro', label: 'Metro / medición' })}
+            </div>
+          </Sec>
+
           {/* Máquina */}
           <Sec t="⚙️ Máquinas usadas (ME6)">
             {maquinas.length === 0 ? (
@@ -196,6 +229,25 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
               </div>
             )}
             <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>A cada máquina tildada se le suman los {conforme || 0} paneles a su historial de uso al guardar.</div>
+          </Sec>
+
+          {/* Controles de calidad (igual que Corte) */}
+          <Sec t="✅ Controles de calidad (5) · marcá OK">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: controlesOk ? '#3dd68c' : '#fb923c' }}>{f.mediciones.filter(m => (m || '').toUpperCase() === 'OK').length}/5</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+              {f.mediciones.map((m, i) => {
+                const ok = (m || '').toUpperCase() === 'OK'
+                return <button key={i} type="button"
+                  onClick={() => setF(s => ({ ...s, mediciones: s.mediciones.map((x, j) => j === i ? (ok ? '' : 'OK') : x) }))}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 4px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font)', background: ok ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', border: `1px solid ${ok ? 'rgba(61,214,140,0.5)' : 'var(--border)'}` }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)' }}>Ctrl {i + 1}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: ok ? '#3dd68c' : 'var(--text3)' }}>{ok ? 'OK ✓' : '—'}</span>
+                </button>
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>El lote no avanza a Aguj N°2 hasta que los 5 controles estén en OK.</div>
           </Sec>
 
           {/* Resultado */}
