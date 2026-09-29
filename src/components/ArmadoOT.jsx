@@ -34,11 +34,12 @@ const FASES = [['aguj1', 'Aguj N°1'], ['alambre', 'Alambre'], ['pegado', 'Pegad
 const TUBOS = Array.from({ length: 12 }, (_, i) => i + 1)
 
 const emptyEst = () => ({ E1: '', E2: '', E3: '', E4: '', E5: '', lote: '' })
+const emptyPersEst = () => ({ E1: [], E2: [], E3: [], E4: [], E5: [] })
 const FDEF = {
   // Una sola fecha de inicio para todo el sector; jornadas de trabajo por día; fecha fin = registro
   fechaInicio: '', fechaFin: '',
   jornadas: [{ fecha: '', hi: '', hf: '' }],
-  personalEst: { E1: [], E2: [], E3: [], E4: [], E5: [] },
+  personalPorDia: {},   // { 'YYYY-MM-DD': { E1:[], E2:[], E3:[], E4:[], E5:[] } } — el personal por estación puede variar por día
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '', maquinasUsadas: [],
   prodDiaria: { E3: [{ fecha: '', cant: '' }], E4: [{ fecha: '', cant: '' }] },  // terminación: cuánto por día
@@ -69,6 +70,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const [g, setG] = useState(false)
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [f, setF] = useState(clone(FDEF))
+  const [diaSel, setDiaSel] = useState('')   // día seleccionado para cargar el personal por estación
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
@@ -105,7 +107,9 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
         fechaInicio: d.fechaInicio ?? ot.data.fecha_inicio ?? '',
         fechaFin: d.fechaFin ?? ot.data.fecha_fin ?? '',
         jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : clone(FDEF.jornadas),
-        personalEst: { ...FDEF.personalEst, ...(d.personalEst || {}) },
+        personalPorDia: d.personalPorDia && typeof d.personalPorDia === 'object'
+          ? d.personalPorDia
+          : (d.personalEst ? { [d.fechaInicio || d.jornadas?.[0]?.fecha || new Date().toISOString().split('T')[0]]: { ...emptyPersEst(), ...d.personalEst } } : {}),
         mechas: d.mechas || clone(FDEF.mechas),
         prodDiaria: { E3: d.prodDiaria?.E3?.length ? d.prodDiaria.E3 : clone(FDEF.prodDiaria.E3), E4: d.prodDiaria?.E4?.length ? d.prodDiaria.E4 : clone(FDEF.prodDiaria.E4) },
         alambres: Array.isArray(d.alambres) && d.alambres.length ? d.alambres : clone(FDEF.alambres),
@@ -125,7 +129,13 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   }
 
   const setD = (path, val) => setF(s => { const n = clone(s); let o = n; const ks = path.split('.'); for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; return n })
-  const togglePers = (est, ap) => setF(s => { const n = clone(s); const arr = n.personalEst[est]; n.personalEst[est] = arr.includes(ap) ? arr.filter(x => x !== ap) : [...arr, ap]; return n })
+  const togglePersDia = (fecha, est, ap) => setF(s => {
+    const n = clone(s)
+    if (!n.personalPorDia[fecha]) n.personalPorDia[fecha] = emptyPersEst()
+    const arr = n.personalPorDia[fecha][est] || []
+    n.personalPorDia[fecha][est] = arr.includes(ap) ? arr.filter(x => x !== ap) : [...arr, ap]
+    return n
+  })
   const toggleTubo = t => setF(s => { const n = clone(s); n.tubos = n.tubos.includes(t) ? n.tubos.filter(x => x !== t) : [...n.tubos, t]; return n })
   const toggleMaquina = id => setF(s => { const n = clone(s); const arr = n.maquinasUsadas || []; n.maquinasUsadas = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]; return n })
   const addProdDia = est => setF(s => { const n = clone(s); n.prodDiaria[est] = [...(n.prodDiaria[est] || []), { fecha: '', cant: '' }]; return n })
@@ -223,8 +233,8 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       if (delta) alAcciones.push({ cod, delta, total: round3(curAlambreAll[cod] || 0) })
     }
 
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalEst: f.personalEst, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, supervisor: f.supervisor || null, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo, insumoDesc: nuevoInsDesc, alambreDesc: nuevoAlDesc }
-    const personalPlano = [...new Set(ESTACIONES.flatMap(e => f.personalEst[e]))]
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalPorDia: f.personalPorDia, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, supervisor: f.supervisor || null, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo, insumoDesc: nuevoInsDesc, alambreDesc: nuevoAlDesc }
+    const personalPlano = [...new Set(Object.values(f.personalPorDia || {}).flatMap(pe => ESTACIONES.flatMap(e => pe[e] || [])))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'armado',
@@ -320,19 +330,36 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
             </div>
           </Sec>
 
-          {/* Personal por estación */}
-          <Sec t="👷 Personal por estación">
-            {ESTACIONES.map(est => (
-              <div key={est} style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 4 }}>{ESTACION_LABEL[est]}</div>
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                  {empleados.map(e => { const sel = f.personalEst[est].includes(e.apodo); return (
-                    <button key={e.apodo} onClick={() => togglePers(est, e.apodo)} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: sel ? '#3dd68c' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(61,214,140,0.45)' : 'var(--border)'}` }}>{e.apodo}</button>
-                  ) })}
+          {/* Personal por estación y por día */}
+          <Sec t="👷 Personal por estación · por día">
+            {(() => {
+              const dias = [...new Set(f.jornadas.map((j, i) => diaJornada(j, i)).filter(Boolean))]
+              const diaAct = dias.includes(diaSel) ? diaSel : (dias[0] || '')
+              const fmtDia = d => { try { return new Date(d + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' }) } catch { return d } }
+              const persEst = f.personalPorDia?.[diaAct] || emptyPersEst()
+              if (!dias.length) return <div style={{ fontSize: 12, color: 'var(--text3)' }}>Cargá primero las jornadas (fechas) en «Tiempos» para asignar el personal por día.</div>
+              return (
+                <>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                    {dias.map(d => { const act = d === diaAct; const n = ESTACIONES.reduce((s, e) => s + (f.personalPorDia?.[d]?.[e]?.length || 0), 0); return (
+                      <button key={d} onClick={() => setDiaSel(d)} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: act ? 'var(--brand-gradient)' : 'var(--surface2)', color: act ? '#fff' : 'var(--text3)', border: act ? '1px solid transparent' : '1px solid var(--border)' }}>📅 {fmtDia(d)}{n ? ` · ${n}` : ''}</button>
+                    ) })}
+                  </div>
                   {empleados.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Cargá empleados en Producción → Empleados.</span>}
-                </div>
-              </div>
-            ))}
+                  {ESTACIONES.map(est => (
+                    <div key={est} style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 4 }}>{ESTACION_LABEL[est]}</div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        {empleados.map(e => { const sel = (persEst[est] || []).includes(e.apodo); return (
+                          <button key={e.apodo} onClick={() => togglePersDia(diaAct, est, e.apodo)} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: sel ? '#3dd68c' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(61,214,140,0.45)' : 'var(--border)'}` }}>{e.apodo}</button>
+                        ) })}
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Elegí el día (arriba) y asigná quién estuvo en cada estación ese día. El personal puede variar de un día a otro.</div>
+                </>
+              )
+            })()}
           </Sec>
 
           {/* Supervisión */}
