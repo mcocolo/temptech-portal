@@ -61,7 +61,9 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
-  const isSuperadmin  = profile?.role === 'superadmin'
+  // Superadmin se marca con la bandera es_superadmin (o el rol legacy 'superadmin').
+  // El rol en la DB queda como 'admin' para que TODAS las políticas RLS (que chequean role='admin') lo habiliten.
+  const isSuperadmin  = profile?.es_superadmin === true || profile?.role === 'superadmin'
   const isAdmin       = profile?.role === 'admin' || isSuperadmin   // superadmin es superconjunto de admin
   const isAdmin2      = profile?.role === 'admin2'
   const isVendedor    = profile?.role === 'vendedor'
