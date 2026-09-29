@@ -233,11 +233,15 @@ export default function CorteOT({ lote, onClose, onDone }) {
     // Solo avanza a la siguiente etapa si están las piezas Y los 5 controles en OK.
     // Firenze (1400w): Corte → Taller · Slim (250/500): Corte → Armado.
     const siguienteCorte = es1400 ? 'taller' : 'armado'
-    const alcanzo = piezas >= (lote.cantidad_actual || lote.cantidad_objetivo)
+    // Completó el objetivo si los paneles conformes + los fallados (NC) cubren el objetivo del lote.
+    const objetivo = lote.cantidad_actual || lote.cantidad_objetivo
+    const alcanzo = piezas > 0 && (piezas + int(f.ct_nc) + int(f.t_nc)) >= objetivo
     const completo = alcanzo && controlesOk
     await supabase.from('produccion_lotes').update({
       avance: { ...(lote.avance || {}), corte: piezas },
       etapa: completo ? siguienteCorte : 'corte', estado: 'en_proceso',
+      // El lote sigue con los paneles conformes cortados (así el sector siguiente recibe la cantidad real)
+      cantidad_actual: piezas > 0 ? piezas : lote.cantidad_actual,
       modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString(),
     }).eq('id', lote.id)
 
