@@ -51,7 +51,60 @@ export default function Maquinas() {
   const [moviendo, setMoviendo] = useState(null)
   const [filtroVida, setFiltroVida] = useState('activo')   // activo | discontinuado | eliminado | todos
   const [filtroSector, setFiltroSector] = useState('')
+  const [recalc, setRecalc] = useState(false)
   const nombreUsuario = profile?.full_name || user?.email || 'Admin'
+
+  // Recalcula los contadores de uso de TODAS las máquinas desde las OT (Alambre genérico + Corte/Encuadre por etapa).
+  // Es la misma reconstrucción que hace Herramental, pero escribe solo la tabla maquinas.
+  async function recalcularUsos() {
+    if (!window.confirm('¿Recalcular los usos de todas las máquinas desde todas las OT (Alambre, Corte y Encuadre)?\nSobrescribe esos contadores con la suma real de las OT.')) return
+    setRecalc(true)
+    try {
+      const [otsArm, otsCor, otsEnc, lotes] = await Promise.all([
+        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,piezas,datos').eq('etapa', 'armado')),
+        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,piezas,tapas,contratapas,datos').eq('etapa', 'corte')),
+        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,piezas,datos').eq('etapa', 'encuadre')),
+        fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo')),
+      ])
+      const loteInfo = Object.fromEntries((lotes || []).map(l => [l.id, l]))
+      const fam = m => m.includes('1400') ? '1400' : m.includes('250') ? '250' : '500'
+      const maq = {}   // usos genéricos (Alambre)
+      const stMaq = {} // usos por etapa (Corte/Encuadre)
+      const add = (obj, id, c, v) => { (obj[id] = obj[id] || {}); obj[id][c] = (obj[id][c] || 0) + (Number(v) || 0) }
+      // Alambre (armado): usos genéricos por familia
+      for (const ot of (otsArm || [])) {
+        const li = loteInfo[ot.lote_id]; if (!li) continue
+        const f = fam(li.modelo || ''), panels = Number(ot.piezas) || 0; if (!(panels > 0)) continue
+        const colM = f === '1400' ? 'usos_1400w' : f === '250' ? 'usos_250w' : 'usos_500w'
+        for (const id of ((ot.datos || {}).maquinasUsadas || [])) add(maq, id, colM, panels)
+      }
+      // Corte: por etapa (250/500 piezas; 1400 tapas→_t, contratapas→_ct)
+      for (const ot of (otsCor || [])) {
+        const li = loteInfo[ot.lote_id]; if (!li) continue
+        const f = fam(li.modelo || ''), piezas = Number(ot.piezas) || 0
+        for (const id of ((ot.datos?.maquinasUsadas) || [])) {
+          if (f === '1400') { add(stMaq, id, 'usos_corte_1400w_t', Number(ot.tapas) || 0); add(stMaq, id, 'usos_corte_1400w_ct', Number(ot.contratapas) || 0) }
+          else add(stMaq, id, f === '250' ? 'usos_corte_250w' : 'usos_corte_500w', piezas)
+        }
+      }
+      // Encuadre: por etapa (250/500 piezas)
+      for (const ot of (otsEnc || [])) {
+        const li = loteInfo[ot.lote_id]; if (!li) continue
+        const f = fam(li.modelo || ''), piezas = Number(ot.piezas) || 0
+        const colE = f === '250' ? 'usos_encuadre_250w' : 'usos_encuadre_500w'
+        for (const id of ((ot.datos || {}).maquinasUsadas || [])) add(stMaq, id, colE, piezas)
+      }
+      const STAGE0 = { usos_corte_250w: 0, usos_corte_500w: 0, usos_corte_1400w_t: 0, usos_corte_1400w_ct: 0, usos_encuadre_250w: 0, usos_encuadre_500w: 0 }
+      const ids = new Set([...Object.keys(maq), ...Object.keys(stMaq)])
+      for (const id of ids) {
+        const u = maq[id] || {}
+        await supabase.from('maquinas').update({ usos_250w: u.usos_250w || 0, usos_500w: u.usos_500w || 0, usos_1400w: u.usos_1400w || 0, ...STAGE0, ...(stMaq[id] || {}) }).eq('id', id)
+      }
+      toast.success('Usos recalculados ✅')
+      cargar()
+    } catch (e) { toast.error('Error: ' + e.message) }
+    setRecalc(false)
+  }
 
   async function cambiarEstadoVida(m, estado) {
     const labels = { activo: 'reactivar', discontinuado: 'discontinuar', eliminado: 'marcar como disposición final (eliminado)' }
@@ -142,6 +195,7 @@ export default function Maquinas() {
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Base de máquinas para mantenimiento · {items.length}</p>
         </div>
         {!readOnly && <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={recalcularUsos} disabled={recalc} title="Recalcula los usos de todas las máquinas desde las OT (Alambre, Corte y Encuadre)" style={{ background: 'var(--surface2)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: recalc ? 'not-allowed' : 'pointer', opacity: recalc ? 0.6 : 1, fontFamily: 'var(--font)' }}>{recalc ? 'Recalculando…' : '🔄 Recalcular usos'}</button>
           <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>
           <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva máquina</button>
         </div>}
