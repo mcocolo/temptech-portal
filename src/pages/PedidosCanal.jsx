@@ -55,6 +55,11 @@ function emptyItem() {
   return { codigo: '', nombre: '', cantidad: 1, precio_unitario: 0 }
 }
 
+// Una entrega de logística: un domicilio con sus propios productos
+function emptyEntrega() {
+  return { direccion: '', localidad: '', zona: '', telefono: '', dni: '', items: [{ codigo: '', nombre: '', cantidad: 1 }] }
+}
+
 // ── Meli-specific: bulk shipment view ──────────────────────────────────────
 
 function MeliCard({ v, cc, onEdit, onDelete, onCambiarEstado, onReenvio }) {
@@ -388,10 +393,8 @@ export default function PedidosCanal() {
   const [fEnvioItems, setFEnvioItems]             = useState([{ codigo: '', nombre: '', cantidad: 1 }]) // logistica/retiro
   const [fEnvioRetiroPersona, setFEnvioRetiroPersona] = useState('')
   // Datos de entrega para Logística (salen en la planilla de Logística Diaria)
-  const [fEnvioDir, setFEnvioDir]         = useState('')
-  const [fEnvioLoc, setFEnvioLoc]         = useState('')
-  const [fEnvioZona, setFEnvioZona]       = useState('')
-  const [fEnvioDni, setFEnvioDni]         = useState('')
+  // Múltiples entregas: cada una es un domicilio con sus propios productos.
+  const [fEntregas, setFEntregas] = useState([emptyEntrega()])
 
   useEffect(() => { cargarCatalogo() }, [])
   useEffect(() => { setBusqueda(''); setFiltro('pendiente'); cargar() }, [canal])
@@ -408,7 +411,14 @@ export default function PedidosCanal() {
     setLoading(false)
   }
 
-  function resetEnvio() { setFTipoEnvio(''); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona(''); setFEnvioDir(''); setFEnvioLoc(''); setFEnvioZona(''); setFEnvioDni('') }
+  function resetEnvio() { setFTipoEnvio(''); setFEnvioEtiquetas([]); setFEnvioItems([{ codigo: '', nombre: '', cantidad: 1 }]); setFEnvioRetiroPersona(''); setFEntregas([emptyEntrega()]) }
+  // Helpers de entregas (logística con múltiples domicilios)
+  const updEntrega    = (gi, field, val) => setFEntregas(prev => prev.map((g, j) => j === gi ? { ...g, [field]: val } : g))
+  const addEntrega    = () => setFEntregas(prev => [...prev, emptyEntrega()])
+  const delEntrega    = (gi) => setFEntregas(prev => prev.filter((_, j) => j !== gi))
+  const updEntregaItem = (gi, ii, patch) => setFEntregas(prev => prev.map((g, j) => j !== gi ? g : { ...g, items: g.items.map((it, k) => k === ii ? { ...it, ...patch } : it) }))
+  const addEntregaItem = (gi) => setFEntregas(prev => prev.map((g, j) => j === gi ? { ...g, items: [...g.items, { codigo: '', nombre: '', cantidad: 1 }] } : g))
+  const delEntregaItem = (gi, ii) => setFEntregas(prev => prev.map((g, j) => j !== gi ? g : { ...g, items: g.items.filter((_, k) => k !== ii) }))
   function abrirNueva() { setEditando(null); setFNroOrden(''); setFNombre(''); setFEmail(''); setFTel(''); setFItems([emptyItem()]); setFObs(''); setFEstado('pendiente'); setFFechaEnvio(''); resetEnvio(); setModal(true) }
   function abrirEditar(v) {
     if (!canModificar) return toast.error('No tenés permiso para editar ventas')
@@ -417,10 +427,23 @@ export default function PedidosCanal() {
     setFFechaEnvio(v.fecha_envio||'')
     setFTipoEnvio(v.tipo_envio||'')
     setFEnvioEtiquetas((v.envio_etiquetas||[]).map(e => typeof e === 'object' && e.url ? { url: e.url, productos: e.productos||[] } : { url: e, productos: [] }))
-    setFEnvioItems(v.tipo_envio && v.tipo_envio !== 'correo' && v.envio_etiquetas?.length ? v.envio_etiquetas : [{ codigo: '', nombre: '', cantidad: 1 }])
+    setFEnvioItems(v.tipo_envio === 'retiro' && v.envio_etiquetas?.length ? v.envio_etiquetas : [{ codigo: '', nombre: '', cantidad: 1 }])
     setFEnvioRetiroPersona(v.envio_retiro_persona||'')
-    const ed = v.envio_datos || {}
-    setFEnvioDir(ed.direccion||''); setFEnvioLoc(ed.localidad||''); setFEnvioZona(ed.zona||''); setFEnvioDni(ed.dni||'')
+    // Entregas de logística: usa v.entregas si existe; si no, arma una sola desde el formato viejo
+    if (v.tipo_envio === 'logistica') {
+      if (Array.isArray(v.entregas) && v.entregas.length) {
+        setFEntregas(v.entregas.map(e => ({
+          direccion: e.direccion||'', localidad: e.localidad||'', zona: e.zona||'', telefono: e.telefono||'', dni: e.dni||'',
+          items: (e.items?.length ? e.items : [{ codigo: '', nombre: '', cantidad: 1 }]).map(i => ({ codigo: i.codigo||'', nombre: i.nombre||'', cantidad: i.cantidad ?? 1 })),
+        })))
+      } else {
+        const ed = v.envio_datos || {}
+        setFEntregas([{
+          direccion: ed.direccion||'', localidad: ed.localidad||'', zona: ed.zona||'', telefono: v.cliente_telefono||'', dni: ed.dni||'',
+          items: (v.envio_etiquetas?.length ? v.envio_etiquetas : [{ codigo: '', nombre: '', cantidad: 1 }]).map(i => ({ codigo: i.codigo||'', nombre: i.nombre||'', cantidad: i.cantidad ?? 1 })),
+        }])
+      }
+    } else setFEntregas([emptyEntrega()])
     setModal(true)
   }
 
@@ -460,9 +483,21 @@ export default function PedidosCanal() {
           envioEtiquetasFinal.push({ url: et.url, productos: et.productos || [] })
         }
       }
-    } else if (fTipoEnvio === 'logistica' || fTipoEnvio === 'retiro') {
+    } else if (fTipoEnvio === 'retiro') {
       envioEtiquetasFinal = fEnvioItems.filter(it => it.codigo || it.nombre)
     }
+
+    // Logística: múltiples entregas (cada domicilio con sus productos)
+    let entregasFinal = null
+    if (fTipoEnvio === 'logistica') {
+      entregasFinal = fEntregas.map(g => ({
+        direccion: g.direccion.trim() || null, localidad: g.localidad.trim() || null, zona: g.zona.trim() || null,
+        telefono: g.telefono.trim() || null, dni: g.dni.trim() || null,
+        items: g.items.filter(it => it.codigo || it.nombre).map(it => ({ codigo: it.codigo || null, nombre: it.nombre || null, cantidad: parseInt(it.cantidad) || 1 })),
+      })).filter(g => g.direccion || g.items.length)
+      envioEtiquetasFinal = entregasFinal.flatMap(g => g.items)   // compat: para vistas que leen envio_etiquetas
+    }
+    const primeraEntrega = entregasFinal?.[0] || null
 
     const payload = {
       canal, nro_orden: fNroOrden.trim()||null,
@@ -471,8 +506,9 @@ export default function PedidosCanal() {
       tipo_envio: fTipoEnvio || null,
       envio_etiquetas: envioEtiquetasFinal,
       envio_retiro_persona: fTipoEnvio === 'retiro' ? (fEnvioRetiroPersona.trim() || null) : null,
-      envio_datos: fTipoEnvio === 'logistica'
-        ? { direccion: fEnvioDir.trim() || null, localidad: fEnvioLoc.trim() || null, zona: fEnvioZona.trim() || null, dni: fEnvioDni.trim() || null }
+      entregas: fTipoEnvio === 'logistica' ? entregasFinal : null,
+      envio_datos: fTipoEnvio === 'logistica' && primeraEntrega
+        ? { direccion: primeraEntrega.direccion, localidad: primeraEntrega.localidad, zona: primeraEntrega.zona, dni: primeraEntrega.dni }
         : null,
       fecha_envio: fFechaEnvio || null,
       usuario_id: user.id,
@@ -659,7 +695,34 @@ export default function PedidosCanal() {
                           })}
                         </div>
                       )}
-                      {(v.tipo_envio === 'logistica' || v.tipo_envio === 'retiro') && etiquetas.length > 0 && (
+                      {v.tipo_envio === 'logistica' && Array.isArray(v.entregas) && v.entregas.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {v.entregas.map((e, i) => (
+                            <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 4 }}>
+                                {v.entregas.length > 1 ? `📍 Entrega ${i + 1} — ` : '📍 '}{e.direccion || 'Sin dirección'}{e.localidad ? `, ${e.localidad}` : ''}{e.zona ? ` · ${e.zona}` : ''}{e.telefono ? ` · 📞 ${e.telefono}` : ''}
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                {(e.items || []).map((it, k) => (
+                                  <span key={k} style={{ fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
+                                    {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}{it.nombre}{it.modelo ? ' ' + it.modelo : ''} ×{it.cantidad}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {v.tipo_envio === 'retiro' && etiquetas.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {etiquetas.map((it, i) => (
+                            <span key={i} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
+                              {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}{it.nombre}{it.modelo ? ' ' + it.modelo : ''} ×{it.cantidad}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {v.tipo_envio === 'logistica' && !(Array.isArray(v.entregas) && v.entregas.length) && etiquetas.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                           {etiquetas.map((it, i) => (
                             <span key={i} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
@@ -1000,45 +1063,15 @@ export default function PedidosCanal() {
                 </div>
               )}
 
-              {/* LOGÍSTICA: items que salen */}
-              {(fTipoEnvio === 'logistica' || fTipoEnvio === 'retiro') && (
+              {/* RETIRO: persona + items que se retiran */}
+              {fTipoEnvio === 'retiro' && (
                 <div>
-                  {fTipoEnvio === 'retiro' && (
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nombre y apellido del que retira *</label>
-                      <input value={fEnvioRetiroPersona} onChange={e => setFEnvioRetiroPersona(e.target.value)} placeholder="Ej: Juan Pérez" style={inputSt} />
-                    </div>
-                  )}
-                  {fTipoEnvio === 'logistica' && (
-                    <div style={{ marginBottom: 14, padding: '12px', background: 'var(--surface2)', border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: cc.color, textTransform: 'uppercase', marginBottom: 10 }}>📍 Datos de entrega (salen en la planilla de Logística)</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Dirección</label>
-                          <input value={fEnvioDir} onChange={e => setFEnvioDir(e.target.value)} placeholder="Calle, número, piso/depto" style={inputSt} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Localidad</label>
-                          <input value={fEnvioLoc} onChange={e => setFEnvioLoc(e.target.value)} placeholder="Localidad" style={inputSt} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Zona</label>
-                          <input value={fEnvioZona} onChange={e => setFEnvioZona(e.target.value)} placeholder="Zona / partido" style={inputSt} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Teléfono</label>
-                          <input value={fTel} onChange={e => setFTel(e.target.value)} placeholder="Teléfono de contacto" style={inputSt} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DNI / CUIT</label>
-                          <input value={fEnvioDni} onChange={e => setFEnvioDni(e.target.value)} placeholder="Opcional" style={inputSt} />
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 8, lineHeight: 1.4 }}>El destinatario es <b>{fNombre.trim() || '(nombre del cliente, arriba)'}</b>. Estos datos aparecen en <b>Logística Diaria</b> al traer la venta a la ruta.</div>
-                    </div>
-                  )}
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nombre y apellido del que retira *</label>
+                    <input value={fEnvioRetiroPersona} onChange={e => setFEnvioRetiroPersona(e.target.value)} placeholder="Ej: Juan Pérez" style={inputSt} />
+                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Items que {fTipoEnvio === 'logistica' ? 'salen por logística' : 'se retiran'}</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Items que se retiran</label>
                     <button onClick={() => setFEnvioItems(prev => [...prev, { codigo: '', nombre: '', cantidad: 1 }])} style={{ fontSize: 11, padding: '3px 12px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px solid ${cc.border}`, fontWeight: 700 }}>+ Agregar</button>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1091,6 +1124,101 @@ export default function PedidosCanal() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* LOGÍSTICA: múltiples entregas (cada domicilio con sus productos) */}
+              {fTipoEnvio === 'logistica' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', lineHeight: 1.4 }}>Cada <b>entrega</b> es un domicilio con sus propios productos. Al traer a <b>Logística Diaria</b>, cada entrega sale como una parada aparte. Destinatario: <b>{fNombre.trim() || '(nombre del cliente, arriba)'}</b>.</div>
+                  {fEntregas.map((g, gi) => (
+                    <div key={gi} style={{ padding: 12, background: 'var(--surface2)', border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: cc.color, textTransform: 'uppercase' }}>📍 Entrega {gi + 1}</div>
+                        {fEntregas.length > 1 && <button onClick={() => delEntrega(gi)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font)' }}>× Quitar entrega</button>}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Dirección</label>
+                          <input value={g.direccion} onChange={e => updEntrega(gi, 'direccion', e.target.value)} placeholder="Calle, número, piso/depto" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Localidad</label>
+                          <input value={g.localidad} onChange={e => updEntrega(gi, 'localidad', e.target.value)} placeholder="Localidad" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Zona</label>
+                          <input value={g.zona} onChange={e => updEntrega(gi, 'zona', e.target.value)} placeholder="Zona / partido" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Teléfono</label>
+                          <input value={g.telefono} onChange={e => updEntrega(gi, 'telefono', e.target.value)} placeholder="Teléfono de contacto" style={inputSt} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DNI / CUIT</label>
+                          <input value={g.dni} onChange={e => updEntrega(gi, 'dni', e.target.value)} placeholder="Opcional" style={inputSt} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0 8px' }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Productos de esta entrega</label>
+                        <button onClick={() => addEntregaItem(gi)} style={{ fontSize: 11, padding: '3px 12px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px solid ${cc.border}`, fontWeight: 700 }}>+ Producto</button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {g.items.map((it, ii) => {
+                          const dropKey = `ent-${gi}-${ii}`
+                          return (
+                            <div key={ii} style={{ display: 'grid', gridTemplateColumns: '1fr 60px auto', gap: 6, alignItems: 'center' }}>
+                              {it.codigo ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: cc.bg, border: `1px solid ${cc.border}`, borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12 }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700 }}>{it.codigo}</span>
+                                  <span style={{ flex: 1, fontWeight: 600, color: 'var(--text)' }}>{it.nombre}</span>
+                                  <button onClick={() => updEntregaItem(gi, ii, { codigo: '', nombre: '' })} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                                </div>
+                              ) : (
+                                <div style={{ position: 'relative' }}>
+                                  <input
+                                    value={it.nombre}
+                                    onChange={e => updEntregaItem(gi, ii, { nombre: e.target.value })}
+                                    onFocus={() => setOpenDropIdxMain(dropKey)}
+                                    onBlur={() => setTimeout(() => setOpenDropIdxMain(null), 150)}
+                                    placeholder="Buscar producto..."
+                                    style={{ ...inputSt, padding: '7px 10px', fontSize: 12, width: '100%', boxSizing: 'border-box' }}
+                                  />
+                                  {openDropIdxMain === dropKey && it.nombre.length >= 1 && (() => {
+                                    const q = it.nombre.toLowerCase()
+                                    const resultados = catalogo.filter(p =>
+                                      (p.codigo || '').toLowerCase().includes(q) ||
+                                      (p.nombre || '').toLowerCase().includes(q) ||
+                                      (p.modelo || '').toLowerCase().includes(q)
+                                    ).slice(0, 8)
+                                    if (!resultados.length) return null
+                                    return (
+                                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 200, maxHeight: 200, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', marginTop: 2 }}>
+                                        {resultados.map(p => (
+                                          <div key={p.codigo} onMouseDown={() => { updEntregaItem(gi, ii, { codigo: p.codigo, nombre: [p.nombre, p.modelo].filter(Boolean).join(' ') }); setOpenDropIdxMain(null) }}
+                                            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: cc.color, fontWeight: 700, minWidth: 76 }}>{p.codigo}</span>
+                                            <span style={{ fontSize: 12 }}>{p.nombre}{p.modelo ? <span style={{ color: 'var(--text3)', marginLeft: 4 }}>{p.modelo}</span> : ''}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )
+                                  })()}
+                                </div>
+                              )}
+                              <input type="number" min="1" value={it.cantidad} onChange={e => updEntregaItem(gi, ii, { cantidad: e.target.value })} style={{ ...inputSt, padding: '7px 8px', fontSize: 12, textAlign: 'center' }} />
+                              {g.items.length > 1
+                                ? <button onClick={() => delEntregaItem(gi, ii)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 20, padding: '0 2px' }}>×</button>
+                                : <span />}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={addEntrega} style={{ alignSelf: 'flex-start', fontSize: 12, padding: '8px 14px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font)', background: cc.bg, color: cc.color, border: `1px dashed ${cc.border}`, fontWeight: 700 }}>+ Agregar entrega (otro domicilio)</button>
                 </div>
               )}
 

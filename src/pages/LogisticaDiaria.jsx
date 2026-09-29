@@ -29,6 +29,7 @@ const EMPTY_FORM = {
   productos: {},
   pedido_id: null,
   venta_id: null,
+  entrega_idx: null,
   repuesto_id: null,
   egreso_garantia_id: null,
   devolucion_id: null,
@@ -185,7 +186,7 @@ export default function LogisticaDiaria() {
     // Pedidos / ventas por asignar (solo admin)
     if (!isChofer) {
       const [{ data: logAsign }, { data: pedidosData }, { data: ventasData }, { data: repuestosData }, { data: descData }, { data: garantiasData }] = await Promise.all([
-        supabase.from('logistica_diaria').select('pedido_id,venta_id,repuesto_id,egreso_garantia_id,devolucion_id'),
+        supabase.from('logistica_diaria').select('pedido_id,venta_id,entrega_idx,repuesto_id,egreso_garantia_id,devolucion_id'),
         supabase.from('pedidos').select('*').in('estado', ['aprobado', 'preparando', 'modificado']).order('created_at', { ascending: false }),
         supabase.from('ventas').select('*').in('tipo_envio', ['correo', 'logistica']).not('estado', 'in', '("entregado","cancelado")').order('created_at', { ascending: false }),
         supabase.from('pedidos_repuestos').select('*').not('estado', 'in', '("enviado","entregado","cancelado")').order('created_at', { ascending: false }),
@@ -194,7 +195,7 @@ export default function LogisticaDiaria() {
       ])
       const descartado = (fuente, id) => (descData || []).some(d => d.fuente === fuente && d.ref_id === String(id))
       const asignadosPedidos = new Set((logAsign || []).map(l => l.pedido_id).filter(Boolean))
-      const asignadosVentas = new Set((logAsign || []).map(l => l.venta_id).filter(Boolean))
+      const asignadosVentas = new Set((logAsign || []).filter(l => l.venta_id).map(l => `${l.venta_id}#${l.entrega_idx ?? 0}`))
       const asignadosRepuestos = new Set((logAsign || []).map(l => l.repuesto_id).filter(Boolean))
       const asignadosGarantia = new Set((logAsign || []).map(l => l.egreso_garantia_id).filter(Boolean))
       const asignadosDevolucion = new Set((logAsign || []).map(l => l.devolucion_id).filter(Boolean))
@@ -207,7 +208,16 @@ export default function LogisticaDiaria() {
         const profsMap = Object.fromEntries((profsData || []).map(p => [p.id, p]))
         setPedidosPendientes(pedidosFiltrados.map(p => ({ ...p, _profile: profsMap[p.distribuidor_id] || null })))
       } else setPedidosPendientes([])
-      setVentasPendientes((ventasData || []).filter(v => !asignadosVentas.has(v.id) && !descartado('venta', v.id)))
+      // Expandir cada venta en una parada por entrega (domicilio). Venta sin split = una sola (idx 0).
+      const ventasExpandidas = (ventasData || []).flatMap(v => {
+        const ents = (v.tipo_envio === 'logistica' && Array.isArray(v.entregas) && v.entregas.length) ? v.entregas : null
+        if (!ents) return [{ venta: v, idx: 0, entrega: null, multi: false }]
+        return ents.map((e, i) => ({ venta: v, idx: i, entrega: e, multi: ents.length > 1 }))
+      }).filter(x => {
+        const refDesc = x.multi ? `${x.venta.id}#${x.idx}` : x.venta.id
+        return !asignadosVentas.has(`${x.venta.id}#${x.idx}`) && !descartado('venta', refDesc)
+      })
+      setVentasPendientes(ventasExpandidas)
 
       // Repuestos: pedidos pendientes que no estén ya en logística (traer los que se entregan por logística propia)
       const repFiltrados = (repuestosData || []).filter(r => !asignadosRepuestos.has(r.id) && !descartado('repuesto', r.id))
@@ -249,23 +259,26 @@ export default function LogisticaDiaria() {
       tipo: item.tipo, nombre: item.nombre || '', direccion: item.direccion || '', localidad: item.localidad || '',
       zona: item.zona || '', telefono: item.telefono || '', email: item.email || '', dni: item.dni || '',
       descripcion: item.descripcion || '', notas: item.notas || '', productos,
-      pedido_id: item.pedido_id || null, venta_id: item.venta_id || null, repuesto_id: item.repuesto_id || null,
+      pedido_id: item.pedido_id || null, venta_id: item.venta_id || null, entrega_idx: item.entrega_idx ?? null, repuesto_id: item.repuesto_id || null,
       egreso_garantia_id: item.egreso_garantia_id || null, devolucion_id: item.devolucion_id || null,
       proveedor_id: item.proveedor_id || null, fecha: item.fecha || '',
     })
     setEditId(item.id); setModalOpen(true)
   }
 
-  function abrirDesdeVenta(venta) {
+  function abrirDesdeVenta(venta, idx = 0, entrega = null) {
     const nombre = venta.cliente_nombre || venta.usuario_nombre || ''
     const productos = {}
-    const fuente = (venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0) ? venta.envio_etiquetas : venta.items || []
+    // Si es una entrega puntual, usa sus productos y domicilio; si no, el formato legacy de la venta
+    const fuente = entrega ? (entrega.items || [])
+      : ((venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0) ? venta.envio_etiquetas : venta.items || [])
     for (const item of fuente) { const col = codigoALogColumna(item.codigo); if (col && item.cantidad > 0) productos[col] = (productos[col] || 0) + item.cantidad }
-    const ed = venta.envio_datos || {}
+    const ed = entrega || venta.envio_datos || {}
     setForm({
       ...EMPTY_FORM, tipo: 'entrega_pt', nombre,
       direccion: ed.direccion || '', localidad: ed.localidad || '', zona: ed.zona || '', dni: ed.dni || '',
-      telefono: venta.cliente_telefono || '', email: venta.cliente_email || '', productos, venta_id: venta.id,
+      telefono: (entrega?.telefono) || venta.cliente_telefono || '', email: venta.cliente_email || '',
+      productos, venta_id: venta.id, entrega_idx: idx,
     })
     setEditId(null); setModalOpen(true)
   }
@@ -356,6 +369,7 @@ export default function LogisticaDiaria() {
       productos: productosArr,
       pedido_id: form.pedido_id || null,
       venta_id: form.venta_id || null,
+      entrega_idx: form.venta_id ? (form.entrega_idx ?? 0) : null,
       repuesto_id: form.repuesto_id || null,
       egreso_garantia_id: form.egreso_garantia_id || null,
       devolucion_id: form.devolucion_id || null,
@@ -744,26 +758,30 @@ export default function LogisticaDiaria() {
                 </div>
               )
             })}
-            {ventasPendientes.map(venta => {
+            {ventasPendientes.map(({ venta, idx, entrega, multi }) => {
               const CANAL_LABEL = { meli: 'Mercado Libre', vo: 'Venta VO', pagina: 'Página Web' }
               const nombreVenta = venta.cliente_nombre || venta.usuario_nombre || '—'
-              const itemsVenta = (venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0) ? venta.envio_etiquetas : venta.items || []
+              const itemsVenta = entrega ? (entrega.items || [])
+                : ((venta.tipo_envio === 'logistica' && (venta.envio_etiquetas || []).length > 0) ? venta.envio_etiquetas : venta.items || [])
+              const refDesc = multi ? `${venta.id}#${idx}` : venta.id
               return (
-                <div key={venta.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div key={`${venta.id}#${idx}`} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>#{venta.id.slice(0, 8).toUpperCase()}</span>
                       <span style={{ fontWeight: 700, fontSize: 13 }}>{nombreVenta}</span>
                       {venta.canal && <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 10 }}>{CANAL_LABEL[venta.canal] || venta.canal}</span>}
+                      {multi && <span style={{ fontSize: 10, fontWeight: 700, color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.35)', padding: '1px 7px', borderRadius: 10 }}>Entrega {idx + 1}</span>}
                     </div>
+                    {entrega?.direccion && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>📍 {entrega.direccion}{entrega.localidad ? `, ${entrega.localidad}` : ''}{entrega.zona ? ` · ${entrega.zona}` : ''}</div>}
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                       {itemsVenta.map((item, i) => (
                         <span key={i} style={{ background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.25)', color: '#3dd68c', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{item.codigo || item.nombre} ×{item.cantidad}</span>
                       ))}
                     </div>
                   </div>
-                  <button onClick={() => abrirDesdeVenta(venta)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
-                  <button onClick={() => descartarTraer('venta', venta.id)} title="Descartar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
+                  <button onClick={() => abrirDesdeVenta(venta, idx, entrega)} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
+                  <button onClick={() => descartarTraer('venta', refDesc)} title="Descartar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>✕</button>
                 </div>
               )
             })}
