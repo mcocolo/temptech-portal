@@ -109,17 +109,24 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
     setG(true)
     const alcanzo = conforme >= target && conforme > 0
     const finalizado = alcanzo && controlesOk   // avanza solo con los 5 controles en OK (igual que Corte)
-    // Máquinas: acreditar paneles a usos por familia (progresivo, reconciliable)
-    const colMaq = es1400 ? 'usos_1400w' : es250 ? 'usos_250w' : 'usos_500w'
+    // Usos de ENCUADRE por familia (250/500): acredita a la máquina y al herramental (disco/escuadra/metro)
+    const colEnc = es250 ? 'usos_encuadre_250w' : 'usos_encuadre_500w'   // encuadre es slim (250/500)
     const prevD = prevOt?.datos || {}
-    const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit } : {}
-    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, conforme]))
-    const nuevoMaq = {}, acciones = []
-    for (const k of new Set([...Object.keys(prevMaq), ...Object.keys(curMaq)])) {
-      const obj = k in curMaq ? curMaq[k] : 0, dlt = obj - int(prevMaq[k])
-      if (dlt) acciones.push({ id: k, delta: dlt }); if (obj) nuevoMaq[k] = obj
+    const targets = [
+      ...(f.maquinasUsadas || []).map(id => ({ tabla: 'maquinas', id })),
+      ...[f.disco_id, f.escuadra_id, f.metro_id].filter(Boolean).map(id => ({ tabla: 'herramental', id })),
+    ]
+    const prevUE = (prevD.usosEncuadre && typeof prevD.usosEncuadre === 'object') ? prevD.usosEncuadre : {}
+    const nuevoUE = {}, acciones = []
+    for (const t of targets) {
+      const key = `${t.tabla}:${t.id}`; nuevoUE[key] = conforme
+      const d = conforme - int(prevUE[key]); if (d) acciones.push({ tabla: t.tabla, id: t.id, delta: d })
     }
-    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, maqCredit: nuevoMaq, disco_id: f.disco_id, escuadra_id: f.escuadra_id, metro_id: f.metro_id, disco_txt: f.disco_txt, escuadra_txt: f.escuadra_txt, metro_txt: f.metro_txt, mediciones: f.mediciones, supervisor: f.supervisor || null }
+    for (const key of Object.keys(prevUE)) {
+      if (key in nuevoUE) continue
+      const [tabla, id] = key.split(':'); if (int(prevUE[key])) acciones.push({ tabla, id, delta: -int(prevUE[key]) })
+    }
+    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, usosEncuadre: nuevoUE, disco_id: f.disco_id, escuadra_id: f.escuadra_id, metro_id: f.metro_id, disco_txt: f.disco_txt, escuadra_txt: f.escuadra_txt, metro_txt: f.metro_txt, mediciones: f.mediciones, supervisor: f.supervisor || null }
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'encuadre',
@@ -133,11 +140,11 @@ export default function EncuadreOT({ lote, onClose, onDone }) {
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
 
-    // Aplicar reconciliación de uso de máquinas
+    // Aplicar usos de Encuadre a máquina y herramental
     for (const a of acciones) {
       try {
-        const { data: mq } = await supabase.from('maquinas').select(`id,${colMaq}`).eq('id', a.id).single()
-        if (mq) await supabase.from('maquinas').update({ [colMaq]: Math.max(0, (mq[colMaq] || 0) + a.delta) }).eq('id', a.id)
+        const { data: row } = await supabase.from(a.tabla).select(`id,${colEnc}`).eq('id', a.id).single()
+        if (row) await supabase.from(a.tabla).update({ [colEnc]: Math.max(0, (row[colEnc] || 0) + a.delta) }).eq('id', a.id)
       } catch (_) { /* no bloquea */ }
     }
 

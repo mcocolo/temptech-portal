@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
 import ImportarCSV from '@/components/ImportarCSV'
+import UsosEtapa from '@/components/UsosEtapa'
 import toast from 'react-hot-toast'
 
 const COLS_CSV = [
@@ -88,48 +89,68 @@ export default function Herramental() {
   const [recalc, setRecalc] = useState(false)
   // Recalcula los contadores de Alambre (agujeros MM, usos TubAl, usos de máquinas) desde los mapas de cada OT
   async function recalcularUsosAlambre() {
-    if (!window.confirm('¿Recalcular los usos de Alambre (mechas MM, tubos TubAl y máquinas) desde todas las OT?\nSobrescribe esos contadores con la suma real de las OT finalizadas.')) return
+    if (!window.confirm('¿Recalcular todos los usos (mechas, tubos, discos y máquinas) desde todas las OT (Corte, Alambre y Encuadre)?\nSobrescribe esos contadores con la suma real de las OT.')) return
     setRecalc(true)
     try {
-      const [ots, lotes] = await Promise.all([
+      const [otsArm, otsCor, otsEnc, lotes] = await Promise.all([
         fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,piezas,datos').eq('etapa', 'armado')),
-        fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo,cantidad_objetivo,cantidad_actual')),
+        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,piezas,tapas,contratapas,disco_id,datos').eq('etapa', 'corte')),
+        fetchAllRows(() => supabase.from('produccion_ot').select('lote_id,piezas,datos').eq('etapa', 'encuadre')),
+        fetchAllRows(() => supabase.from('produccion_lotes').select('id,modelo')),
       ])
       const loteInfo = Object.fromEntries((lotes || []).map(l => [l.id, l]))
-      const col = (modelo, tipo) => { const is1400 = modelo.includes('1400'), is250 = modelo.includes('250')
-        if (tipo === 'aguj') return is1400 ? 'agujeros_1400w' : is250 ? 'agujeros_250w' : 'agujeros_500w'
-        if (tipo === 'tubo') return is1400 ? 'usos_1400w_t' : is250 ? 'usos_250w' : 'usos_500w'
-        return is1400 ? 'usos_1400w' : is250 ? 'usos_250w' : 'usos_500w' }  // máquina
+      const fam = m => m.includes('1400') ? '1400' : m.includes('250') ? '250' : '500'
       const aguj = {}, tubo = {}, maq = {}
       const add = (obj, key, c, v) => { (obj[key] = obj[key] || {}); obj[key][c] = (obj[key][c] || 0) + (Number(v) || 0) }
-      // Reconstruir desde la historia real: cada OT suma sus piezas (paneles hechos) a las mechas/tubos/máquinas que uso
-      for (const ot of (ots || [])) {
+      // Alambre (armado): mechas (agujeros), tubos (usos), máquinas (usos genéricos)
+      for (const ot of (otsArm || [])) {
         const li = loteInfo[ot.lote_id]; if (!li) continue
-        const modelo = li.modelo || '', panels = Number(ot.piezas) || 0
-        if (!(panels > 0)) continue
+        const f = fam(li.modelo || ''), panels = Number(ot.piezas) || 0; if (!(panels > 0)) continue
+        const colA = f === '1400' ? 'agujeros_1400w' : f === '250' ? 'agujeros_250w' : 'agujeros_500w'
+        const colT = f === '1400' ? 'usos_1400w_t' : f === '250' ? 'usos_250w' : 'usos_500w'
+        const colM = f === '1400' ? 'usos_1400w' : f === '250' ? 'usos_250w' : 'usos_500w'
         const d = ot.datos || {}
-        for (const m of (d.mechas || [])) { const l = String(m.lote || '').trim(); if (m.cod && l) add(aguj, `${m.cod}|${l}`, col(modelo, 'aguj'), panels) }
-        for (const t of (d.tubos || [])) add(tubo, String(t), col(modelo, 'tubo'), panels)   // clave = N° de lote de TubAl
-        for (const id of (d.maquinasUsadas || [])) add(maq, id, col(modelo, 'maq'), panels)
+        for (const m of (d.mechas || [])) { const l = String(m.lote || '').trim(); if (m.cod && l) add(aguj, `${m.cod}|${l}`, colA, panels) }
+        for (const t of (d.tubos || [])) add(tubo, String(t), colT, panels)
+        for (const id of (d.maquinasUsadas || [])) add(maq, id, colM, panels)
       }
-      // Herramental: MM* (agujeros) y TubAl* (usos)
+      // Etapas Corte y Encuadre → columnas por etapa (para máquinas y herramental)
+      const stMaq = {}, stHerr = {}
+      const addSt = (tabla, id, c, v) => { const o = tabla === 'maquinas' ? stMaq : stHerr; (o[id] = o[id] || {}); o[id][c] = (o[id][c] || 0) + (Number(v) || 0) }
+      for (const ot of (otsCor || [])) {
+        const li = loteInfo[ot.lote_id]; if (!li) continue
+        const f = fam(li.modelo || ''), piezas = Number(ot.piezas) || 0
+        const targets = [...((ot.datos?.maquinasUsadas) || []).map(id => ['maquinas', id]), ...(ot.disco_id ? [['herramental', ot.disco_id]] : [])]
+        for (const [tabla, id] of targets) {
+          if (f === '1400') { addSt(tabla, id, 'usos_corte_1400w_t', Number(ot.tapas) || 0); addSt(tabla, id, 'usos_corte_1400w_ct', Number(ot.contratapas) || 0) }
+          else addSt(tabla, id, f === '250' ? 'usos_corte_250w' : 'usos_corte_500w', piezas)
+        }
+      }
+      for (const ot of (otsEnc || [])) {
+        const li = loteInfo[ot.lote_id]; if (!li) continue
+        const f = fam(li.modelo || ''), piezas = Number(ot.piezas) || 0
+        const colE = f === '250' ? 'usos_encuadre_250w' : 'usos_encuadre_500w'
+        const d = ot.datos || {}
+        const targets = [...((d.maquinasUsadas) || []).map(id => ['maquinas', id]), ...[d.disco_id, d.escuadra_id, d.metro_id].filter(Boolean).map(id => ['herramental', id])]
+        for (const [tabla, id] of targets) addSt(tabla, id, colE, piezas)
+      }
+      const STAGE0 = { usos_corte_250w: 0, usos_corte_500w: 0, usos_corte_1400w_t: 0, usos_corte_1400w_ct: 0, usos_encuadre_250w: 0, usos_encuadre_500w: 0 }
+      // Escribir herramental: agujeros MM, usos TubAl y columnas por etapa (a TODAS, reseteando)
       const herr = await fetchAllRows(() => supabase.from('herramental').select('id,codigo,lote'))
       for (const h of (herr || [])) {
         const cod = (h.codigo || '').trim()
-        if (/^MM/i.test(cod)) {
-          const a = aguj[`${cod}|${String(h.lote || '').trim()}`] || {}
-          await supabase.from('herramental').update({ agujeros_250w: a.agujeros_250w || 0, agujeros_500w: a.agujeros_500w || 0, agujeros_1400w: a.agujeros_1400w || 0 }).eq('id', h.id)
-        } else if (/^TubAl/i.test(cod)) {
-          const t = tubo[String(h.lote || '').trim()] || {}   // TubAl se distingue por N° de lote
-          await supabase.from('herramental').update({ usos_250w: t.usos_250w || 0, usos_500w: t.usos_500w || 0, usos_1400w_t: t.usos_1400w_t || 0 }).eq('id', h.id)
-        }
+        const upd = { ...STAGE0, ...(stHerr[h.id] || {}) }
+        if (/^MM/i.test(cod)) { const a = aguj[`${cod}|${String(h.lote || '').trim()}`] || {}; upd.agujeros_250w = a.agujeros_250w || 0; upd.agujeros_500w = a.agujeros_500w || 0; upd.agujeros_1400w = a.agujeros_1400w || 0 }
+        else if (/^TubAl/i.test(cod)) { const t = tubo[String(h.lote || '').trim()] || {}; upd.usos_250w = t.usos_250w || 0; upd.usos_500w = t.usos_500w || 0; upd.usos_1400w_t = t.usos_1400w_t || 0 }
+        await supabase.from('herramental').update(upd).eq('id', h.id)
       }
-      // Máquinas: solo las que aparecen en algún mapa
-      for (const id of Object.keys(maq)) {
-        const u = maq[id]
-        await supabase.from('maquinas').update({ usos_250w: u.usos_250w || 0, usos_500w: u.usos_500w || 0, usos_1400w: u.usos_1400w || 0 }).eq('id', id)
+      // Escribir máquinas: usos genéricos (Alambre) + columnas por etapa (a las que aparecen)
+      const idsMaq = new Set([...Object.keys(maq), ...Object.keys(stMaq)])
+      for (const id of idsMaq) {
+        const u = maq[id] || {}
+        await supabase.from('maquinas').update({ usos_250w: u.usos_250w || 0, usos_500w: u.usos_500w || 0, usos_1400w: u.usos_1400w || 0, ...STAGE0, ...(stMaq[id] || {}) }).eq('id', id)
       }
-      toast.success('Usos de Alambre recalculados ✅')
+      toast.success('Usos recalculados ✅')
       cargar()
     } catch (e) { toast.error('Error: ' + e.message) }
     setRecalc(false)
@@ -268,6 +289,8 @@ export default function Herramental() {
                           )}
                         </div>
                         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}><Chips o={h} aguj={aguj} cortes={cortes} usos={usos} /></div>
+                        <UsosEtapa row={h} sectores={g.sectores} compact />
+
                       </div>
                     )
                   })}

@@ -176,18 +176,32 @@ export default function CorteOT({ lote, onClose, onDone }) {
     const cortoSinHojas = (ctOk + int(f.ct_nc) > 0 && hojasCtUsadas === 0) || (tOk + int(f.t_nc) > 0 && hojasTUsadas === 0)
     if (cortoSinHojas && !window.confirm('Cortaste piezas pero dejaste "Hojas usadas" en 0. Si guardás así, NO se descuenta el stock de hojas ni queda el consumo en el historial. ¿Guardar igual?')) return
     setG(true)
-    // Máquinas usadas (ej: ME6): acreditar los paneles cortados a usos por familia (progresivo, reconciliable)
-    const colMaq = es1400 ? 'usos_1400w' : lote.modelo.includes('250') ? 'usos_250w' : 'usos_500w'
-    const prevMaq = (prevOt?.datos?.maqCredit && typeof prevOt.datos.maqCredit === 'object') ? { ...prevOt.datos.maqCredit } : {}
-    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, piezas]))
-    const nuevoMaq = {}, maqAcc = []
-    for (const k of new Set([...Object.keys(prevMaq), ...Object.keys(curMaq)])) {
-      const obj = k in curMaq ? curMaq[k] : 0, dlt = obj - int(prevMaq[k])
-      if (dlt) maqAcc.push({ id: k, delta: dlt }); if (obj) nuevoMaq[k] = obj
+    // Usos de CORTE por etapa: acredita a la MÁQUINA (ej ME6) y al DISCO (herramental), por familia
+    // 250/500 = paneles cortados; 1400 = tapas (T) y contratapas (CT). Reconciliable por (tabla,id,columna).
+    const familyCols = es1400
+      ? [['usos_corte_1400w_t', tOk], ['usos_corte_1400w_ct', ctOk]]
+      : [[lote.modelo.includes('250') ? 'usos_corte_250w' : 'usos_corte_500w', piezas]]
+    const targets = [
+      ...(f.maquinasUsadas || []).map(id => ({ tabla: 'maquinas', id })),
+      ...(f.disco_id ? [{ tabla: 'herramental', id: f.disco_id }] : []),
+    ]
+    const prevUC = (prevOt?.datos?.usosCorte && typeof prevOt.datos.usosCorte === 'object') ? prevOt.datos.usosCorte : {}
+    const nuevoUC = {}, ucAcc = []
+    for (const t of targets) {
+      const key = `${t.tabla}:${t.id}`; nuevoUC[key] = {}
+      for (const [col, obj] of familyCols) {
+        const d = (obj || 0) - int(prevUC[key]?.[col]); nuevoUC[key][col] = obj || 0
+        if (d) ucAcc.push({ tabla: t.tabla, id: t.id, col, delta: d })
+      }
+    }
+    for (const key of Object.keys(prevUC)) {
+      if (nuevoUC[key]) continue
+      const [tabla, id] = key.split(':')
+      for (const [col, amt] of Object.entries(prevUC[key] || {})) if (int(amt)) ucAcc.push({ tabla, id, col, delta: -int(amt) })
     }
     const payload = {
       lote_id: lote.id, etapa: 'corte',
-      datos: { maquinasUsadas: f.maquinasUsadas, maqCredit: nuevoMaq, supervisor: f.supervisor || null },
+      datos: { maquinasUsadas: f.maquinasUsadas, usosCorte: nuevoUC, supervisor: f.supervisor || null },
       fecha_inicio: f.fecha_inicio || null, hora_inicio: f.hora_inicio || null,
       fecha_fin: f.fecha_fin || null, hora_fin: f.hora_fin || null,
       fecha_inicio2: f.fecha_inicio2 || null, hora_inicio2: f.hora_inicio2 || null,
@@ -210,11 +224,11 @@ export default function CorteOT({ lote, onClose, onDone }) {
     const { error } = await supabase.from('produccion_ot').upsert(payload, { onConflict: 'lote_id,etapa' })
     if (error) { setG(false); toast.error('Error: ' + error.message); return }
 
-    // Acreditar uso de máquinas (ME6) por los paneles cortados
-    for (const a of maqAcc) {
+    // Acreditar usos de Corte a máquina y disco (por familia)
+    for (const a of ucAcc) {
       try {
-        const { data: mq } = await supabase.from('maquinas').select(`id,${colMaq}`).eq('id', a.id).single()
-        if (mq) await supabase.from('maquinas').update({ [colMaq]: Math.max(0, (mq[colMaq] || 0) + a.delta) }).eq('id', a.id)
+        const { data: row } = await supabase.from(a.tabla).select(`id,${a.col}`).eq('id', a.id).single()
+        if (row) await supabase.from(a.tabla).update({ [a.col]: Math.max(0, (row[a.col] || 0) + a.delta) }).eq('id', a.id)
       } catch (_) { /* no bloquea */ }
     }
 
