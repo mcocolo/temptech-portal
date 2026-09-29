@@ -478,7 +478,6 @@ export default function Produccion() {
                             let inner
                             if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 15 }} title={`${hecho} u.`}>✓</span>
                             else if (hecho > 0) inner = <span style={{ color: '#fb923c', fontWeight: 800 }} title={`${hecho} de ${target} u.`}>{hecho}/{target}</span>
-                            else if (i === c) inner = <span style={{ color: '#fb923c', fontSize: 20, lineHeight: 1 }} title="En proceso, sin avance cargado">•</span>
                             else inner = <span style={{ color: 'var(--border2)' }}>·</span>
                             return <td key={e.key} style={{ ...td, cursor: puedeClick ? 'pointer' : 'default' }} title={puedeClick ? 'Cargar avance' : undefined}
                               onClick={puedeClick ? () => setAvanceCell({ lote: l, etapa: e.key }) : undefined}>{inner}</td>
