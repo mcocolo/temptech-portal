@@ -462,7 +462,7 @@ export default function Produccion() {
                         <tr key={l.id} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <td style={{ ...td, textAlign: 'left', paddingLeft: 14, fontWeight: 800 }}>{fmtLote(l)}</td>
                           <td style={{ ...td, textAlign: 'left' }}><span style={{ color: etapaColor(l.etapa), fontWeight: 700 }}>{l.modelo}</span>{l.terminacion ? <span style={{ color: '#fb923c' }}> · {l.terminacion}</span> : ''}{l.temporada ? <span style={{ color: 'var(--text3)' }}> · T{l.temporada}</span> : ''}</td>
-                          <td style={td}>{l.cantidad_actual}{l.cantidad_actual !== l.cantidad_objetivo ? <span style={{ color: 'var(--text3)' }}>/{l.cantidad_objetivo}</span> : ''}</td>
+                          <td style={td}>{l.cantidad_objetivo}</td>
                           {columnasProc.map(e => {
                             const fl = flujoDe(l.modelo)
                             if (!fl.includes(e.key)) return <td key={e.key} style={{ ...td, color: 'var(--border)' }} title="No aplica a este modelo">—</td>
