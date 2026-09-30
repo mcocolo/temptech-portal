@@ -385,6 +385,7 @@ function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
                 })}
                 <th style={{ ...th, minWidth: 54 }}>✓</th>
                 <th style={{ ...th, minWidth: 60 }}>HE</th>
+                <th style={{ ...th, minWidth: 80 }} title="Presentismo: sin Ausente / Médico / Examen en el mes">Present.</th>
               </tr>
             </thead>
             <tbody>
@@ -398,6 +399,8 @@ function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
                   heTot += hm(r?.he) || 0
                   return { d, f, r, est }
                 })
+                // Presentismo: cumple si NO tuvo Ausente (A), Médico (M) ni Examen (E) en todo el mes
+                const presente = !celdas.some(c => ['aus', 'med', 'exa'].includes(c.est))
                 return (
                   <tr key={e.id} style={{ borderTop: '1px solid var(--border)' }}>
                     <td style={{ padding: '6px 12px', fontWeight: 700, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }}>
@@ -417,6 +420,7 @@ function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
                     })}
                     <td style={{ textAlign: 'center', fontWeight: 800, color: '#3dd68c', borderLeft: '1px solid var(--border)' }}>{oks}</td>
                     <td style={{ textAlign: 'center', fontWeight: 700, color: heTot > 0 ? '#fbbf24' : 'var(--text3)', borderLeft: '1px solid var(--border)' }}>{fmtHm(heTot) || '—'}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 800, color: presente ? '#3dd68c' : 'var(--border2)', background: presente ? 'rgba(61,214,140,0.12)' : 'transparent', borderLeft: '1px solid var(--border)' }} title={presente ? 'Cumple presentismo' : 'No cumple (tuvo A/M/E)'}>{presente ? 'P' : '·'}</td>
                   </tr>
                 )
               })}
