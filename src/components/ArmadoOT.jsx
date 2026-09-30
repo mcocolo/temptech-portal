@@ -32,6 +32,8 @@ const FALLBACK_INS = [
 ]
 const FASES = [['aguj1', 'Aguj N°1'], ['alambre', 'Alambre'], ['pegado', 'Pegado']]
 const TUBOS = Array.from({ length: 12 }, (_, i) => i + 1)
+// Sello por empleado: cada panel que se alambra lleva el sello de la persona. Números por defecto (editables).
+const SELLOS_DEFAULT = { 'JORGE': '5', 'DANI': '3', 'WILLIAM AGUIRRE': '7', 'JUANCITO 1400': '6', 'MARTIN VELEZ': '8' }
 
 const emptyEst = () => ({ E1: '', E2: '', E3: '', E4: '', E5: '', lote: '' })
 const emptyPersEst = () => ({ E1: [], E2: [], E3: [], E4: [], E5: [] })
@@ -43,6 +45,7 @@ const FDEF = {
   mechas: [{ cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM2', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }, { cod: 'MM3', lote: '', agujeros: '' }],
   tubos: [], maqSil1: '', maqSil2: '', prensaAlambre: '', maquinasUsadas: [],
   prodDiaria: { E3: [{ fecha: '', cant: '' }], E4: [{ fecha: '', cant: '' }] },  // terminación: cuánto por día
+  sellos: [],   // [{ empleado, sello }] — número de sello que lleva cada panel según quién lo alambró
   supervisor: '',
   alambres: [{ cod: '', lote: '', pesoInicial: '', usadoTodo: false, pesoFinal: '' }],  // consumo de alambre por peso (kg)
   insumosEst: {},
@@ -112,6 +115,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
           : (d.personalEst ? { [d.fechaInicio || d.jornadas?.[0]?.fecha || new Date().toISOString().split('T')[0]]: { ...emptyPersEst(), ...d.personalEst } } : {}),
         mechas: d.mechas || clone(FDEF.mechas),
         prodDiaria: { E3: d.prodDiaria?.E3?.length ? d.prodDiaria.E3 : clone(FDEF.prodDiaria.E3), E4: d.prodDiaria?.E4?.length ? d.prodDiaria.E4 : clone(FDEF.prodDiaria.E4) },
+        sellos: Array.isArray(d.sellos) ? d.sellos : [],
         alambres: Array.isArray(d.alambres) && d.alambres.length ? d.alambres : clone(FDEF.alambres),
         insumosEst: { ...(d.insumosEst || {}) },
         prensas: { ...FDEF.prensas, ...(d.prensas || {}) },
@@ -136,6 +140,15 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
     n.personalPorDia[fecha][est] = arr.includes(ap) ? arr.filter(x => x !== ap) : [...arr, ap]
     return n
   })
+  // Sellos por empleado (número que lleva cada panel alambrado)
+  const addSello = () => setF(s => ({ ...s, sellos: [...(s.sellos || []), { empleado: '', sello: '' }] }))
+  const setSello = (i, campo, val) => setF(s => {
+    const n = clone(s); if (!n.sellos) n.sellos = []
+    n.sellos[i][campo] = val
+    if (campo === 'empleado') { const def = SELLOS_DEFAULT[(val || '').trim().toUpperCase()]; if (def && !String(n.sellos[i].sello || '').trim()) n.sellos[i].sello = def }
+    return n
+  })
+  const delSello = i => setF(s => { const n = clone(s); n.sellos = (n.sellos || []).filter((_, j) => j !== i); return n })
   const toggleTubo = t => setF(s => { const n = clone(s); n.tubos = n.tubos.includes(t) ? n.tubos.filter(x => x !== t) : [...n.tubos, t]; return n })
   const toggleMaquina = id => setF(s => { const n = clone(s); const arr = n.maquinasUsadas || []; n.maquinasUsadas = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]; return n })
   const addProdDia = est => setF(s => { const n = clone(s); n.prodDiaria[est] = [...(n.prodDiaria[est] || []), { fecha: '', cant: '' }]; return n })
@@ -233,7 +246,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       if (delta) alAcciones.push({ cod, delta, total: round3(curAlambreAll[cod] || 0) })
     }
 
-    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalPorDia: f.personalPorDia, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, alambres: f.alambres, supervisor: f.supervisor || null, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo, insumoDesc: nuevoInsDesc, alambreDesc: nuevoAlDesc }
+    const datos = { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, jornadas: f.jornadas, personalPorDia: f.personalPorDia, mechas: f.mechas, tubos: f.tubos, maqSil1: f.maqSil1, maqSil2: f.maqSil2, prensaAlambre: f.prensaAlambre, maquinasUsadas: f.maquinasUsadas, prodDiaria: f.prodDiaria, sellos: (f.sellos || []).filter(x => (x.empleado || '').trim() || (x.sello || '').toString().trim()), alambres: f.alambres, supervisor: f.supervisor || null, insumosEst: f.insumosEst, prensas: f.prensas, no_conforme: int(f.no_conforme), extraCods, removedCods, agujCreditF: conforme, agujCredit: nuevoAguj, maqCredit: nuevoMaq, tuboCredit: nuevoTubo, insumoDesc: nuevoInsDesc, alambreDesc: nuevoAlDesc }
     const personalPlano = [...new Set(Object.values(f.personalPorDia || {}).flatMap(pe => ESTACIONES.flatMap(e => pe[e] || [])))]
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
@@ -360,6 +373,24 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
                 </>
               )
             })()}
+          </Sec>
+
+          {/* Sellos por empleado */}
+          <Sec t="🏷 Sellos por empleado (cada panel lleva el sello de quien lo alambra)">
+            <datalist id="empleados-sellos-list">
+              {empleados.map(e => <option key={e.apodo} value={e.apodo}>{e.nombre ? `${e.apodo} · ${e.nombre}` : e.apodo}</option>)}
+            </datalist>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(f.sellos || []).map((row, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px auto', gap: 8, alignItems: 'center' }}>
+                  <input list="empleados-sellos-list" value={row.empleado || ''} onChange={e => setSello(i, 'empleado', e.target.value)} placeholder="Buscar empleado..." style={iSt} />
+                  <input value={row.sello || ''} onChange={e => setSello(i, 'sello', e.target.value)} placeholder="N° de sello" style={{ ...iSt, textAlign: 'center' }} />
+                  <button onClick={() => delSello(i)} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 18 }}>×</button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addSello} style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontFamily: 'var(--font)', marginTop: 6 }}>+ Agregar empleado / sello</button>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Al elegir un empleado con sello conocido (Jorge 5, Dani 3, William Aguirre 7, Juancito 1400 6, Martin Velez 8) se completa solo. Podés editarlo.</div>
           </Sec>
 
           {/* Supervisión */}
