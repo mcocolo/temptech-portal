@@ -298,7 +298,10 @@ export default function IngresoEgresoPT() {
       updated_at: new Date().toISOString(),
     }).eq('id', ventaSel.id)
 
-    toast.success('✅ Egreso registrado — venta marcada como Enviada')
+    // Ya se entregó (retiro/pickup): sacarla de Logística Diaria — borra la parada vinculada si existía
+    await supabase.from('logistica_diaria').delete().eq('venta_id', ventaSel.id)
+
+    toast.success('✅ Egreso registrado — venta entregada y quitada de Logística')
     setConfirmandoVenta(false)
     setModalVenta(false); setVentaSel(null); setVItems([]); setVNroRemito(''); setVArchivosRemito([])
     setEditModeVenta(false); setVBusqAdd('')
