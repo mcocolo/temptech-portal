@@ -60,7 +60,8 @@ const Sec = ({ t, children }) => <div><div style={{ fontSize: 11, fontWeight: 70
 export default function ArmadoOT({ lote, onClose, onDone }) {
   const { user, profile } = useAuth()
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
-  const target = lote.cantidad_actual || lote.cantidad_objetivo
+  // Lo que hay que trabajar en Alambre = lo que entregó Corte (no el cantidad_actual, que un parcial pudo pisar)
+  const target = lote.avance?.corte || lote.cantidad_actual || lote.cantidad_objetivo
   const [empleados, setEmpleados] = useState([])
   const [insumosCat, setInsumosCat] = useState(FALLBACK_INS)
   const [allInsumos, setAllInsumos] = useState([])   // todos los insumos directos (para buscar/agregar)
@@ -291,12 +292,15 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
       } catch (_) { /* no bloquea */ }
     }
 
-    // Actualizar el lote: avance de armado = conforme; si completó, pasa a Encuadre
+    // Actualizar el lote: avance de armado = conforme; si completó, pasa a Encuadre.
+    // Parcial: NO se pisa la cantidad del lote (queda la base que vino de Corte); solo al completar
+    // el cantidad_actual pasa a ser el conforme (los buenos que siguen a Encuadre).
     const completo = conforme >= target && conforme > 0
+    const baseEntrada = lote.avance?.corte || lote.cantidad_objetivo || lote.cantidad_actual
     await supabase.from('produccion_lotes').update({
       avance: { ...(lote.avance || {}), armado: conforme },
       etapa: completo ? 'encuadre' : 'armado', estado: 'en_proceso',
-      cantidad_actual: conforme > 0 ? conforme : lote.cantidad_actual,
+      cantidad_actual: completo && conforme > 0 ? conforme : baseEntrada,
       modificado_por: nombreUsuario, modificado_por_at: new Date().toISOString(),
     }).eq('id', lote.id)
 
