@@ -467,13 +467,16 @@ export default function Produccion() {
                             const fl = flujoDe(l.modelo)
                             if (!fl.includes(e.key)) return <td key={e.key} style={{ ...td, color: 'var(--border)' }} title="No aplica a este modelo">—</td>
                             const c = fl.indexOf(l.etapa), i = fl.indexOf(e.key)
-                            const target = l.cantidad_actual
+                            // Denominador = lo que esta etapa RECIBIÓ: el conforme de la etapa anterior (la 1ª recibe la cantidad del lote).
+                            const prevKey = i > 0 ? fl[i - 1] : null
+                            const recibido = (prevKey && l.avance && l.avance[prevKey] != null) ? l.avance[prevKey] : (l.cantidad_objetivo || l.cantidad_actual)
+                            const target = recibido
                             const raw = (l.avance && l.avance[e.key] != null) ? l.avance[e.key] : null
                             const esTerminado = l.etapa === 'terminado'
                             const pasada = esTerminado || i < c
                             const hecho = raw != null ? raw : (pasada ? target : 0)
-                            // Completa solo si el lote está terminado, o la etapa pasó sin avance parcial cargado, o el avance alcanzó el total
-                            const completa = esTerminado || (pasada && raw == null) || (hecho >= target && hecho > 0)
+                            // Completa: lote terminado, o el conforme alcanzó lo recibido. Si hizo menos (ej: 399 de 400), muestra 399/400.
+                            const completa = esTerminado || (hecho >= target && hecho > 0)
                             const puedeClick = !readOnly && i <= c
                             let inner
                             if (completa) inner = <span style={{ color: '#3dd68c', fontWeight: 800, fontSize: 15 }} title={`${hecho} u.`}>✓</span>
