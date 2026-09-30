@@ -91,7 +91,7 @@ export default function CorteOT({ lote, onClose, onDone }) {
     ])
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     setHerr(h.data || [])
-    setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || x.sectores.includes('Corte')))
+    setEmpleados((e.data || []).filter(x => (x.sectores || []).includes('Corte')))
     setMaquinas((mq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida) && (m.sectores || []).includes('Corte')))
     setPulmon(pl.data || [])
     if (ot.data) {
