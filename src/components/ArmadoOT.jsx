@@ -164,7 +164,9 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
   const totalAlambre = (f.alambres || []).reduce((s, a) => s + consumoAlambre(a), 0)
   const setInsEst = (cod, col, val) => setF(s => { const n = clone(s); if (!n.insumosEst[cod]) n.insumosEst[cod] = emptyEst(); n.insumosEst[cod][col] = val; return n })
 
-  const conforme = int(f.conforme)
+  // Conforme (OK) = suma automática de lo cargado en cada prensa (P1..P4), para evitar errores de cuenta manual
+  const sumPrensas = ['P1', 'P2', 'P3', 'P4'].reduce((s, p) => s + int(f.prensas?.[p]?.cant), 0)
+  const conforme = sumPrensas
   // Día de cada jornada: la primera usa la Fecha de Inicio; las siguientes su propia fecha
   const diaJornada = (j, i) => (i === 0 ? (j.fecha || f.fechaInicio) : (j.fecha || f.fechaInicio))
   const duracion = f.jornadas.reduce((sum, j, i) => { const dia = diaJornada(j, i); return sum + (calcularDuracion(dia, j.hi, dia, j.hf, pausas) || 0) }, 0) || null
@@ -574,7 +576,7 @@ export default function ArmadoOT({ lote, onClose, onDone }) {
           {/* Conformidad */}
           <Sec t="✅ Resultado">
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div><label style={lbl}>Conforme (OK)</label><input type="number" value={f.conforme} onChange={e => setD('conforme', e.target.value)} placeholder="0" style={{ ...iSt, width: 110 }} /></div>
+              <div><label style={lbl}>Conforme (OK) · auto de prensas</label><input type="number" value={conforme} readOnly title="Se suma solo de las cantidades cargadas en las prensas (P1..P4)" style={{ ...iSt, width: 150, background: 'var(--surface)', color: '#3dd68c', fontWeight: 800, cursor: 'not-allowed' }} /></div>
               <div><label style={lbl}>No conforme</label><input type="number" value={f.no_conforme} onChange={e => setD('no_conforme', e.target.value)} placeholder="0" style={{ ...iSt, width: 110, borderColor: int(f.no_conforme) > 0 ? 'rgba(255,85,119,0.5)' : 'var(--border)' }} /></div>
               <div><div style={lbl}>Objetivo</div><div style={{ fontSize: 20, fontWeight: 800, color: conforme >= target ? '#3dd68c' : '#fb923c' }}>{conforme} / {target}</div></div>
             </div>
