@@ -429,7 +429,7 @@ export default function Produccion() {
             (!fTemporada || String(l.temporada) === String(fTemporada)) &&
             (!q || String(l.numero).includes(q) || fmtLote(l).toLowerCase().includes(q) || (l.terminacion || '').toLowerCase().includes(q))
           )
-          const th = { padding: '8px 6px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textAlign: 'center' }
+          const th = { padding: '8px 6px', fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textAlign: 'center', position: 'sticky', top: 54, zIndex: 5, background: 'var(--surface)' }
           const td = { padding: '7px 6px', fontSize: 12, borderBottom: '1px solid var(--border)', textAlign: 'center' }
           return (
             <div>
