@@ -488,7 +488,7 @@ const fmtMonto = n => new Intl.NumberFormat('es-AR', { style: 'currency', curren
 export function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ empleado_id: '', fecha: new Date().toISOString().slice(0, 10), monto: '', comentario: '' })
+  const [form, setForm] = useState({ empleado_id: '', fecha: new Date().toISOString().slice(0, 10), periodo: new Date().toISOString().slice(0, 7), monto: '', comentario: '' })
   const [guardando, setGuardando] = useState(false)
   const [verSaldados, setVerSaldados] = useState(false)
 
@@ -507,11 +507,11 @@ export function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
     const monto = parseFloat(String(form.monto).replace(',', '.')) || 0
     if (monto === 0 && !form.comentario.trim()) return toast.error('Cargá un monto o un comentario')
     setGuardando(true)
-    const { error } = await supabase.from('vales_empleados').insert({ empleado_id: form.empleado_id, fecha: form.fecha, monto, comentario: form.comentario.trim() || null, creado_por: usuario })
+    const { error } = await supabase.from('vales_empleados').insert({ empleado_id: form.empleado_id, fecha: form.fecha, periodo: form.periodo || (form.fecha || '').slice(0, 7), monto, comentario: form.comentario.trim() || null, creado_por: usuario })
     setGuardando(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('Vale registrado ✅')
-    setForm(f => ({ empleado_id: f.empleado_id, fecha: new Date().toISOString().slice(0, 10), monto: '', comentario: '' }))
+    setForm(f => ({ empleado_id: f.empleado_id, fecha: new Date().toISOString().slice(0, 10), periodo: f.periodo, monto: '', comentario: '' }))
     cargar()
   }
   async function eliminar(id) {
@@ -560,6 +560,7 @@ export function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
               </div>
               <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Comentario (plata, producto, lo que pidieron…)</label><input value={form.comentario} onChange={e => setForm(f => ({ ...f, comentario: e.target.value }))} placeholder="Ej: adelanto, 1 par de zapatos, mercadería…" style={iSt} /></div>
               <div><label style={lbl}>Fecha *</label><input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
+              <div><label style={lbl}>Mes del sueldo *</label><input type="month" value={form.periodo} onChange={e => setForm(f => ({ ...f, periodo: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} title="Mes al que se le descuenta/computa este vale" /></div>
               <div><label style={lbl}>Monto $</label><input type="number" step="any" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0" style={{ ...iSt, width: 120 }} /></div>
               <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', height: 38 }}>➕ Registrar</button>
             </div>

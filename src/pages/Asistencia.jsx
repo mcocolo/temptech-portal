@@ -36,6 +36,7 @@ const mesActual = () => hoyStr().slice(0, 7)
 const diasDelMes = ym => { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate() }
 const addMes = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
 const NOM_MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+const fmtMonto = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(Number(n) || 0)
 
 export default function Asistencia() {
   const { isAdmin, isAdmin2, isMantenimiento, isSuperadmin, user, profile } = useAuth()
@@ -334,17 +335,30 @@ function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
   const examenEn = (empId, f) => examenes.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const [mes, setMes] = useState(mesActual())
   const [regs, setRegs] = useState({}) // 'empId|fecha' -> registro
+  const [valesEmp, setValesEmp] = useState({}) // empId -> total de vales del mes
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let vivo = true
     setLoading(true)
     const desde = `${mes}-01`, hasta = `${mes}-${String(diasDelMes(mes)).padStart(2, '0')}`
-    supabase.from('asistencias').select('*').gte('fecha', desde).lte('fecha', hasta).then(({ data }) => {
+    Promise.all([
+      supabase.from('asistencias').select('*').gte('fecha', desde).lte('fecha', hasta),
+      supabase.from('vales_empleados').select('empleado_id,monto,periodo,fecha'),
+    ]).then(([asis, vales]) => {
       if (!vivo) return
       const map = {}
-      for (const r of (data || [])) map[`${r.empleado_id}|${r.fecha}`] = r
-      setRegs(map); setLoading(false)
+      for (const r of (asis.data || [])) map[`${r.empleado_id}|${r.fecha}`] = r
+      setRegs(map)
+      // Vales del mes: por periodo (YYYY-MM); si no tiene periodo, por el mes de la fecha
+      const vmap = {}
+      for (const v of (vales.data || [])) {
+        const per = v.periodo || (v.fecha || '').slice(0, 7)
+        if (per !== mes) continue
+        vmap[v.empleado_id] = (vmap[v.empleado_id] || 0) + (Number(v.monto) || 0)
+      }
+      setValesEmp(vmap)
+      setLoading(false)
     })
     return () => { vivo = false }
   }, [mes])
@@ -386,6 +400,7 @@ function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
                 <th style={{ ...th, minWidth: 54 }}>✓</th>
                 <th style={{ ...th, minWidth: 60 }}>HE</th>
                 <th style={{ ...th, minWidth: 80 }} title="Presentismo: sin Ausente / Médico / Examen en el mes">Present.</th>
+                <th style={{ ...th, minWidth: 100 }} title="Total de vales de este mes">Vales $</th>
               </tr>
             </thead>
             <tbody>
@@ -421,6 +436,7 @@ function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
                     <td style={{ textAlign: 'center', fontWeight: 800, color: '#3dd68c', borderLeft: '1px solid var(--border)' }}>{oks}</td>
                     <td style={{ textAlign: 'center', fontWeight: 700, color: heTot > 0 ? '#fbbf24' : 'var(--text3)', borderLeft: '1px solid var(--border)' }}>{fmtHm(heTot) || '—'}</td>
                     <td style={{ textAlign: 'center', fontWeight: 800, color: presente ? '#3dd68c' : 'var(--border2)', background: presente ? 'rgba(61,214,140,0.12)' : 'transparent', borderLeft: '1px solid var(--border)' }} title={presente ? 'Cumple presentismo' : 'No cumple (tuvo A/M/E)'}>{presente ? 'P' : '·'}</td>
+                    <td style={{ textAlign: 'right', padding: '0 10px', fontWeight: 700, color: (valesEmp[e.id] || 0) > 0 ? '#fbbf24' : 'var(--text3)', borderLeft: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{(valesEmp[e.id] || 0) > 0 ? fmtMonto(valesEmp[e.id]) : '—'}</td>
                   </tr>
                 )
               })}
