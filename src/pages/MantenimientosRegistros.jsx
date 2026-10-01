@@ -146,8 +146,8 @@ export default function MantenimientosRegistros() {
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: venc ? '#ff5577' : '#fb923c', background: venc ? 'rgba(255,85,119,0.12)' : 'rgba(251,146,60,0.12)', border: `1px solid ${venc ? 'rgba(255,85,119,0.4)' : 'rgba(251,146,60,0.4)'}`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>{venc ? `Vencido hace ${Math.abs(d)} día${Math.abs(d) !== 1 ? 's' : ''}` : d === 0 ? 'Hoy' : `En ${d} día${d !== 1 ? 's' : ''}`}</span>
                 <span style={{ fontWeight: 700 }}>{maqNombre(m.maquina_id) || m.objeto || '—'}</span>
-                <span style={{ color: 'var(--text3)' }}>· {tipoCfg(m.tipo).label} · próximo {fmtF(m.proximo)}</span>
-                {!readOnly && <button onClick={() => { setForm({ ...EMPTY, tipo: m.tipo, maquina_id: m.maquina_id || '', objeto: m.objeto || '' }); setEditId(null); setMaqBusca(''); setModal(true) }} style={{ marginLeft: 'auto', background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Registrar realizado</button>}
+                <span style={{ color: 'var(--text3)' }}>· <b style={{ color: '#3dd68c' }}>Preventivo</b> · próximo {fmtF(m.proximo)}</span>
+                {!readOnly && <button onClick={() => { setForm({ ...EMPTY, tipo: 'preventivo', maquina_id: m.maquina_id || '', objeto: m.objeto || '' }); setEditId(null); setMaqBusca(''); setModal(true) }} style={{ marginLeft: 'auto', background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Registrar realizado</button>}
               </div>
             ) })}
           </div>
