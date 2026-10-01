@@ -64,6 +64,11 @@ export default function CorteOT({ lote, onClose, onDone }) {
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
+  const [medidasDB, setMedidasDB] = useState({})
+  // Medidas objetivo de tapa/contratapa para 1400w (editables en 📐 Medidas; fallback al default)
+  const tctObjetivo = (lote.modelo || '').includes('1400')
+    ? { t: medidasDB.corte_1400w_t || '560x560mm', ct: medidasDB.corte_1400w_ct || '558x558mm' }
+    : (MEDIDAS_TCT[lote.modelo] || null)
   const [f, setF] = useState({
     disco_id: '', cinta_id: '', pie_id: '',
     disco_txt: '', cinta_txt: '', pie_txt: '', herramental_cambio: '',
@@ -81,14 +86,16 @@ export default function CorteOT({ lote, onClose, onDone }) {
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
-    const [h, e, ot, pl, pau, mq] = await Promise.all([
+    const [h, e, ot, pl, pau, mq, med] = await Promise.all([
       supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'corte').maybeSingle(),
       supabase.from('produccion_pulmon').select('*').eq('modelo', lote.modelo).eq('estado', 'OK'),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
       supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
+      supabase.from('medidas_encuadre').select('clave,valor'),
     ])
+    if (med.data?.length) setMedidasDB(Object.fromEntries(med.data.map(r => [r.clave, r.valor])))
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
     setHerr(h.data || [])
     setEmpleados((e.data || []).filter(x => (x.sectores || []).includes('Corte')))
@@ -434,8 +441,8 @@ export default function CorteOT({ lote, onClose, onDone }) {
           <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>📦 Corte de tapas (T) y contratapas (CT) · 8 piezas por hoja</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {ladoCard({ tit: 'Contratapas (CT) · MPSTD6', color: '#3dd68c', hojasKey: 'hojas_ct', okKey: 'ct_ok', ncKey: 'ct_nc', tomarKey: 'tomar_pulmon_ct', loteKey: 'lote_ct', loteLabel: 'Lote MPSTD6', objetivo: MEDIDAS_TCT[lote.modelo]?.ct, rinde: hojasCtUsadas * 8, merma: mermaCt, disp: maxTakeCt })}
-              {ladoCard({ tit: `Tapas (T) · ${insumoTapa || '—'}`, color: '#7b9fff', hojasKey: 'hojas_t', okKey: 't_ok', ncKey: 't_nc', tomarKey: 'tomar_pulmon_t', loteKey: 'lote_t', loteLabel: `Lote ${insumoTapa || 'hoja'}`, objetivo: MEDIDAS_TCT[lote.modelo]?.t, rinde: hojasTUsadas * 8, merma: mermaT, disp: maxTakeT,
+              {ladoCard({ tit: 'Contratapas (CT) · MPSTD6', color: '#3dd68c', hojasKey: 'hojas_ct', okKey: 'ct_ok', ncKey: 'ct_nc', tomarKey: 'tomar_pulmon_ct', loteKey: 'lote_ct', loteLabel: 'Lote MPSTD6', objetivo: tctObjetivo?.ct, rinde: hojasCtUsadas * 8, merma: mermaCt, disp: maxTakeCt })}
+              {ladoCard({ tit: `Tapas (T) · ${insumoTapa || '—'}`, color: '#7b9fff', hojasKey: 'hojas_t', okKey: 't_ok', ncKey: 't_nc', tomarKey: 'tomar_pulmon_t', loteKey: 'lote_t', loteLabel: `Lote ${insumoTapa || 'hoja'}`, objetivo: tctObjetivo?.t, rinde: hojasTUsadas * 8, merma: mermaT, disp: maxTakeT,
                 extra: <><label style={{ ...lbl, marginTop: 8 }}>Hoja de la tapa</label><input value={f.insumo_tapa} onChange={e => setF(s => ({ ...s, insumo_tapa: e.target.value }))} placeholder="Ej: SIMMTG6" style={iSt} /></> })}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>

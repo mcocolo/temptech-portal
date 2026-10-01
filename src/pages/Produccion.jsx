@@ -7,6 +7,7 @@ import CorteOT from '@/components/CorteOT'
 import ArmadoOT from '@/components/ArmadoOT'
 import TallerOT from '@/components/TallerOT'
 import EncuadreOT from '@/components/EncuadreOT'
+import MedidasModal from '@/components/MedidasModal'
 import toast from 'react-hot-toast'
 
 // Modelos y rendimiento (cantidad de lote por defecto y hojas MPSTD6 que consume)
@@ -79,7 +80,7 @@ const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid v
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
 
 export default function Produccion() {
-  const { isAdmin, isAdmin2, isProceso, isMantenimiento, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, isProceso, isMantenimiento, isSuperadmin, user, profile } = useAuth()
   const navigate = useNavigate()
   const [lotes, setLotes] = useState([])
   const [partes, setPartes] = useState([])
@@ -104,6 +105,7 @@ export default function Produccion() {
   const [fTemporada, setFTemporada] = useState('')
   const [fFamilia, setFFamilia] = useState('1400')   // '1400' | 'otros' (procesos distintos)
   const [accesosOpen, setAccesosOpen] = useState(false)
+  const [medidasOpen, setMedidasOpen] = useState(false)
   const [pulmonOpen, setPulmonOpen] = useState(false)
 
   const nombreUsuario = profile?.full_name || user?.email || 'Producción'
@@ -305,6 +307,9 @@ export default function Produccion() {
           <button onClick={() => setPulmonOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📦 Pulmón / NC</button>
           {puedeGestionar && (
             <button onClick={() => setAccesosOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>👤 Accesos</button>
+          )}
+          {isSuperadmin && (
+            <button onClick={() => setMedidasOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📐 Medidas</button>
           )}
           {puedeGestionar && (
             <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo lote</button>
@@ -565,6 +570,7 @@ export default function Produccion() {
 
       {/* ACCESOS DE PROCESO (admin) */}
       {accesosOpen && puedeGestionar && <ProcesoAccesosModal onClose={() => setAccesosOpen(false)} />}
+      {medidasOpen && <MedidasModal puedeEditar={isSuperadmin} onClose={() => setMedidasOpen(false)} />}
 
       {/* PULMÓN / NC (semielaborados) */}
       {pulmonOpen && <PulmonModal editable={puedeGestionar} onClose={() => setPulmonOpen(false)} />}
