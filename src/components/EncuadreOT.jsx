@@ -17,7 +17,7 @@ function calcularDuracion(hi, hf, breaks = DEFAULT_BREAKS) {
   return Math.max(0, mins)
 }
 const fmtDur = m => m == null ? '—' : `${Math.floor(m / 60)}h ${m % 60}m`
-const MEDIDAS_DEF = { '250w': '291x591 mm', '500w': '591x591 mm', '1400w_tapa': '560x560 mm', '1400w_contratapa': '558x558 mm' }
+const MEDIDAS_DEF = { '250w': '290x590 mm', '500w': '590x590 mm', '1400w_tapa': '560x560 mm', '1400w_contratapa': '558x558 mm' }
 const clone = o => JSON.parse(JSON.stringify(o))
 
 const Sec = ({ t, children }) => <div><div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', marginBottom: 8 }}>{t}</div>{children}</div>
