@@ -520,6 +520,13 @@ export function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
     if (error) { toast.error('Error: ' + error.message); return }
     setItems(prev => prev.filter(x => x.id !== id))
   }
+  async function cambiarMes(id, periodo) {
+    if (!periodo) return
+    const { error } = await supabase.from('vales_empleados').update({ periodo }).eq('id', id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    setItems(prev => prev.map(x => x.id === id ? { ...x, periodo } : x))
+    toast.success('Mes actualizado ✅')
+  }
   async function saldarEmpleado(empId, pendientes) {
     if (!pendientes.length) return
     if (!window.confirm(`¿Marcar como saldados (descontados del sueldo) los ${pendientes.length} vale(s) pendientes de ${nombreDe(empId)}?`)) return
@@ -594,6 +601,9 @@ export function ValesModal({ empleados, puedeEditar, usuario, onClose }) {
                           <span style={{ color: 'var(--text3)', width: 58, flexShrink: 0 }}>{fmtF(v.fecha)}</span>
                           <span style={{ fontWeight: 800, color: v.saldado ? 'var(--text3)' : '#3dd68c', minWidth: 90 }}>{fmtMonto(v.monto)}</span>
                           <span style={{ flex: 1, color: 'var(--text2)' }}>{v.comentario || '—'}{v.saldado ? <span style={{ color: 'var(--text3)' }}> · saldado {v.saldado_fecha ? fmtF(v.saldado_fecha) : ''}</span> : ''}</span>
+                          {puedeEditar
+                            ? <input type="month" value={v.periodo || (v.fecha || '').slice(0, 7)} onChange={e => cambiarMes(v.id, e.target.value)} title="Mes del sueldo al que corresponde" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text2)', fontSize: 11, padding: '3px 6px', colorScheme: 'dark', flexShrink: 0, fontFamily: 'var(--font)' }} />
+                            : <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>{v.periodo || (v.fecha || '').slice(0, 7)}</span>}
                           {puedeEditar && <button onClick={() => eliminar(v.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>🗑</button>}
                         </div>
                       ))}
