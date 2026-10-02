@@ -1561,6 +1561,8 @@ export default function IngresoEgresoPT() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace' }}>#{String(it.id).slice(0,8).toUpperCase()}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(167,139,250,0.12)', color: '#b39dfa', padding: '1px 8px', borderRadius: 20 }}>GARANTÍA</span>
+                      {/^correo/i.test(it.tipo_envio || '') && <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', padding: '1px 8px', borderRadius: 20 }}>📬 Correo Argentino / Andreani</span>}
+                      {/^log/i.test(it.tipo_envio || '') && <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', padding: '1px 8px', borderRadius: 20 }}>🚛 Logística</span>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#fb923c', fontFamily: 'monospace', background: 'rgba(251,146,60,0.1)', padding: '2px 6px', borderRadius: 4 }}>{it.codigo}</span>
