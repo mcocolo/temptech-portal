@@ -21,6 +21,21 @@ const T = {
   radius: '10px', radiusLg: '16px',
 }
 
+// Normaliza un teléfono argentino a formato wa.me (54 9 + área + número)
+function waNum(raw) {
+  let d = String(raw || '').replace(/\D/g, '')
+  if (!d) return ''
+  if (d.startsWith('54')) { let r = d.slice(2).replace(/^0/, ''); if (!r.startsWith('9')) r = '9' + r; return '54' + r }
+  d = d.replace(/^0/, '').replace(/^15/, '')
+  return '549' + d
+}
+// Abre WhatsApp (web/app) con el mensaje y el número del cliente listos para enviar
+function abrirWhatsApp(telefono, texto) {
+  const num = waNum(telefono)
+  if (!num) { alert('Este caso no tiene teléfono cargado. Agregá el número para poder enviar por WhatsApp.'); return }
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(texto || '')}`, '_blank')
+}
+
 const STATUS_CONFIG = {
   'Ingresado':  { color: T.blue,   bg: T.blueDim,                     label: 'Ingresado' },
   'pendiente':  { color: T.yellow, bg: T.yellowDim,                    label: 'Pendiente' },
@@ -50,6 +65,7 @@ function Btn({ children, onClick, disabled, variant = 'ghost' }) {
     warn:    { bg: T.yellowDim,color: T.yellow,   border: `1px solid ${T.yellow}40` },
     orange:  { bg: 'rgba(251,146,60,0.12)', color: T.orange, border: `1px solid rgba(251,146,60,0.35)` },
     teal:    { bg: 'rgba(45,212,191,0.12)', color: T.teal,   border: `1px solid rgba(45,212,191,0.35)` },
+    green:   { bg: 'rgba(37,211,102,0.14)', color: '#25D366', border: `1px solid rgba(37,211,102,0.45)` },
   }
   const v = variants[variant] || variants.ghost
   return (
@@ -505,10 +521,11 @@ function PanelEnvio({ item, tipo, onClose, onGuardar }) {
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <Btn variant={isDevolucion ? 'orange' : isService ? 'teal' : 'primary'} onClick={handleGuardar} disabled={subiendo}>
           {subiendo ? 'Subiendo archivos...' : 'Guardar y enviar email'}
         </Btn>
+        <Btn variant="green" onClick={() => abrirWhatsApp(item.telefono, textoEmail)}>📲 Enviar por WhatsApp</Btn>
         <Btn onClick={onClose}>Cancelar</Btn>
       </div>
     </div>
@@ -553,11 +570,15 @@ function PanelNotificarService({ item, onClose, onGuardar }) {
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <Btn variant="teal" onClick={() => {
           if (!fechaVisita) { alert('Seleccioná la fecha de visita'); return }
           onGuardar({ fechaVisita, textoEmail })
         }}>Guardar y enviar email</Btn>
+        <Btn variant="green" onClick={() => {
+          if (!fechaVisita) { alert('Seleccioná la fecha de visita'); return }
+          abrirWhatsApp(item.telefono, textoEmail)
+        }}>📲 Enviar por WhatsApp</Btn>
         <Btn onClick={onClose}>Cancelar</Btn>
       </div>
     </div>
