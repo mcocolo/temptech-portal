@@ -63,6 +63,17 @@ function waLink(tel) {
   else d = '549' + d
   return `https://wa.me/${d}`
 }
+// Abre WhatsApp con un aviso ya escrito al cliente de la parada (día + domicilio)
+function avisoWhatsApp(item) {
+  const wa = waLink(item.telefono)
+  if (!wa) { alert('Esta parada no tiene teléfono cargado. Agregalo en la parada (✏️) para poder avisar.'); return }
+  const fechaLarga = f => { try { return new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) } catch { return f } }
+  const nombre = (item.nombre || '').trim().split(' ')[0] || ''
+  const cuando = item.fecha ? `el ${fechaLarga(item.fecha)}` : 'en los próximos días'
+  const donde = item.direccion ? ` por ${item.direccion}${item.localidad ? `, ${item.localidad}` : ''}` : ' por tu domicilio'
+  const msg = `Hola${nombre ? ' ' + nombre : ''}, te escribimos de TEMPTECH. Te avisamos que ${cuando} vamos a pasar${donde}. Por favor, procurá que haya alguien en el domicilio para recibirnos. ¡Muchas gracias!`
+  window.open(`${wa}?text=${encodeURIComponent(msg)}`, '_blank')
+}
 
 // Extrae el código de caso (DEV-…, RMA-…, etc.) de un texto
 function codigoCaso(texto) {
@@ -889,6 +900,7 @@ export default function LogisticaDiaria() {
                         {item.telefono && (() => { const wa = waLink(item.telefono); return wa
                           ? <a href={wa} target="_blank" rel="noreferrer" title="Abrir WhatsApp" style={{ color: '#25D366', textDecoration: 'none', fontWeight: 600 }}>💬 {item.telefono}</a>
                           : <span>📞 {item.telefono}</span> })()}
+                        {item.telefono && <button onClick={() => avisoWhatsApp(item)} title="Enviar aviso por WhatsApp (día y domicilio)" style={{ background: 'rgba(37,211,102,0.14)', color: '#25D366', border: '1px solid rgba(37,211,102,0.45)', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📲 Avisar</button>}
                       </div>
                       {item.descripcion && item.nombre && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>📝 {item.descripcion}</div>}
                       {prodsCon.length > 0 && (
