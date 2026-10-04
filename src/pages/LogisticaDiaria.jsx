@@ -411,7 +411,28 @@ export default function LogisticaDiaria() {
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success('Asignada a la ruta ✅')
     setAsignar(prev => { const n = { ...prev }; delete n[item.id]; return n })
+    // Aviso automático por WhatsApp al asignar (una sola vez por parada, si tiene teléfono)
+    notificarWhatsAppAuto({ ...item, fecha: f })
     cargar()
+  }
+
+  // Envía el aviso de WhatsApp automático (Meta Cloud API vía Edge Function). No bloquea la asignación.
+  async function notificarWhatsAppAuto(item) {
+    if (!item?.telefono || item?.notificado_wa_at) return
+    const fechaLarga = (() => { try { return new Date(item.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) } catch { return item.fecha } })()
+    const nombre = (item.nombre || '').trim().split(' ')[0] || 'Cliente'
+    const direccion = item.direccion ? `${item.direccion}${item.localidad ? ', ' + item.localidad : ''}` : 'tu domicilio'
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-aviso', { body: { telefono: item.telefono, nombre, fecha: fechaLarga, direccion } })
+      if (error || (data && data.ok === false)) {
+        toast(`No se pudo enviar el WhatsApp automático${data?.error ? ': ' + data.error : ''}. Podés usar 📲 Avisar.`, { icon: '⚠️', duration: 5000 })
+        return
+      }
+      await supabase.from('logistica_diaria').update({ notificado_wa_at: new Date().toISOString() }).eq('id', item.id)
+      toast.success('Aviso de WhatsApp enviado 📲')
+    } catch (e) {
+      toast(`WhatsApp automático no disponible. Usá 📲 Avisar.`, { icon: '⚠️', duration: 4000 })
+    }
   }
 
   async function desasignar(item) {
