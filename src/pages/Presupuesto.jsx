@@ -227,7 +227,7 @@ export default function Presupuesto() {
   }
 
   async function guardarPresupuesto() {
-    const { error } = await supabase.from('presupuestos').insert({
+    const { data, error } = await supabase.from('presupuestos').insert({
       created_by_id: user?.id || null,
       created_by_nombre: profile?.full_name || profile?.razon_social || user?.email || null,
       distribuidor_id: (isAdmin && distSeleccionado && distSeleccionado !== 'manual') ? distSeleccionado.id : null,
@@ -242,9 +242,12 @@ export default function Presupuesto() {
       total_neto: total,
       total: totalConIVA,
       notas: notas.trim() || null,
-    })
-    if (error) toast.error('El presupuesto se generó pero no se pudo registrar: ' + error.message)
+    }).select('numero').single()
+    if (error) { toast.error('El presupuesto se generó pero no se pudo registrar: ' + error.message); return null }
+    return data?.numero ?? null
   }
+  // Nombre del PDF: "Presupuesto N°X - Empresa"
+  const tituloPresupuesto = numero => `Presupuesto${numero ? ' N°' + numero : ''} - ${getNombreCliente()}`
 
   // Genera el documento (PDF/Excel/email) y registra el presupuesto en la base
   async function generar(tipo) {   // tipo: 'pdf' | 'excel' | 'email'
@@ -252,12 +255,15 @@ export default function Presupuesto() {
     if (tipo === 'email' && !clienteEmail.trim()) { toast.error('Ingresá el email del cliente'); return }
     setGuardando(true)
     try {
-      if (tipo === 'pdf') imprimirPresupuesto(exportPayload())
-      else if (tipo === 'excel') exportarPresupuestoExcel(exportPayload())
-      await guardarPresupuesto()
+      // Guardar primero para obtener el N° y usarlo en el nombre del archivo
+      const numero = await guardarPresupuesto()
+      const titulo = tituloPresupuesto(numero)
+      if (tipo === 'pdf') imprimirPresupuesto({ ...exportPayload(), titulo })
+      else if (tipo === 'excel') exportarPresupuestoExcel({ ...exportPayload(), titulo })
       if (tipo === 'email') {
         await enviarPresupuestoPorEmail({
           to: clienteEmail.trim(),
+          numero,
           clienteNombre: getNombreCliente(),
           clienteCuitDni: clienteCuitDni.trim(),
           clienteDireccion: clienteDireccion.trim(),
@@ -272,7 +278,7 @@ export default function Presupuesto() {
         })
         toast.success('Presupuesto enviado por email ✅')
       } else {
-        toast.success('Presupuesto generado y registrado ✅')
+        toast.success(`Presupuesto${numero ? ' N°' + numero : ''} generado y registrado ✅`)
       }
     } catch (e) {
       toast.error((tipo === 'email' ? 'No se pudo enviar el email: ' : 'Error: ') + (e?.message || e))

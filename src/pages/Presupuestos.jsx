@@ -39,6 +39,7 @@ export default function Presupuestos() {
       incluirIVA: p.incluir_iva,
       total: p.total,
       ivaMonto: p.iva_monto,
+      titulo: `Presupuesto${p.numero ? ' N°' + p.numero : ''} - ${p.cliente_nombre || ''}`,
     })
   }
 
@@ -52,6 +53,7 @@ export default function Presupuestos() {
     try {
       await enviarPresupuestoPorEmail({
         to,
+        numero: p.numero,
         clienteNombre: p.cliente_nombre,
         clienteCuitDni: p.cliente_cuit_dni || '',
         clienteDireccion: p.cliente_direccion || '',
@@ -76,6 +78,7 @@ export default function Presupuestos() {
 
   const q = busqueda.trim().toLowerCase()
   const filtrados = !q ? items : items.filter(p =>
+    String(p.numero ?? '').includes(q) ||
     (p.cliente_nombre || '').toLowerCase().includes(q) ||
     (p.cliente_cuit_dni || '').toLowerCase().includes(q) ||
     (p.cliente_email || '').toLowerCase().includes(q) ||
@@ -97,7 +100,7 @@ export default function Presupuestos() {
 
       <input
         type="text"
-        placeholder="🔍 Buscar por cliente, CUIT/DNI, email, localidad o quién lo hizo..."
+        placeholder="🔍 Buscar por N°, cliente/empresa, CUIT/DNI, email, localidad o quién lo hizo..."
         value={busqueda}
         onChange={e => setBusqueda(e.target.value)}
         style={{ width: '100%', maxWidth: 460, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 14px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', marginBottom: 20 }}
@@ -125,6 +128,7 @@ export default function Presupuestos() {
                   <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 15 }}>{isOpen ? '▾' : '▸'}</span>
+                      {p.numero != null && <span style={{ fontSize: 11, fontWeight: 800, color: '#7b9fff', background: 'rgba(74,108,247,0.12)', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 6, padding: '1px 8px', fontFamily: 'monospace' }}>N°{p.numero}</span>}
                       {p.cliente_nombre}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>

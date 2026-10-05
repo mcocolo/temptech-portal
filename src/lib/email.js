@@ -29,7 +29,7 @@ export async function enviarPresupuestoPorEmail(p) {
         ivaMonto: p.ivaMonto,
         total: p.total,
         notas: p.notas || '',
-        attachment: { filename: 'Presupuesto-TEMPTECH.pdf', content: pdfBase64 },
+        attachment: { filename: `${`Presupuesto${p.numero ? ' N°' + p.numero : ''} - ${p.clienteNombre || 'TEMPTECH'}`.replace(/[\\/:*?"<>|]/g, '').trim()}.pdf`, content: pdfBase64 },
       },
     },
   })
