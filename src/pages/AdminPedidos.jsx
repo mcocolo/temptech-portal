@@ -1279,7 +1279,7 @@ export default function AdminPedidos() {
         </div>
       </div>
 
-      {deudaOpen && <DeudaModal formatPrecio={formatPrecio} onClose={() => setDeudaOpen(false)} />}
+      {deudaOpen && <DeudaModal formatPrecio={formatPrecio} onClose={() => setDeudaOpen(false)} onAbrirPedido={(id) => { setFiltro('todos'); setBusqueda(String(id).slice(0, 8)); setDeudaOpen(false); window.scrollTo(0, 0) }} />}
 
       {/* Filtros */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 24, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1963,7 +1963,7 @@ export default function AdminPedidos() {
 }
 
 // Estado de deuda: pedidos entregados o pendientes de pago (sin finalizar) agrupados por distribuidor
-function DeudaModal({ formatPrecio, onClose }) {
+function DeudaModal({ formatPrecio, onClose, onAbrirPedido }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -2044,7 +2044,7 @@ function DeudaModal({ formatPrecio, onClose }) {
                             <td colSpan={4} style={{ padding: '4px 16px 12px', background: 'var(--surface2)' }}>
                               {r.pedidos.map(p => (
                                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                                  <span style={{ fontFamily: 'monospace', color: '#7b9fff' }}>#{String(p.id).slice(0, 8).toUpperCase()}</span>
+                                  <span onClick={() => onAbrirPedido?.(p.id)} title="Abrir pedido" style={{ fontFamily: 'monospace', color: '#7b9fff', cursor: 'pointer', textDecoration: 'underline' }}>#{String(p.id).slice(0, 8).toUpperCase()}</span>
                                   <span style={{ color: p.estado === 'pendiente_pago' ? '#ffd166' : '#38bdf8' }}>{p.estado === 'pendiente_pago' ? 'Pendiente pago' : 'Entregado'}</span>
                                   <span style={{ color: 'var(--text3)' }}>{fF(p.fecha_entrega || p.created_at)}</span>
                                   <span style={{ fontWeight: 700 }}>{formatPrecio(Number(p.total) || 0)}</span>
