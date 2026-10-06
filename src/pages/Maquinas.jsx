@@ -31,7 +31,7 @@ const COLS_CSV = [
   { key: 'anio_ingreso', label: 'Año Ingreso' }, { key: 'anio_salida', label: 'Año Salida' },
   { key: 'motivo', label: 'Motivo' }, { key: 'observaciones', label: 'Observaciones' },
 ]
-const EMPTY = { ...Object.fromEntries(CAMPOS.map(([k]) => [k, k === 'sectores' ? [] : ''])), estado: 'Operativa', foto_url: '' }
+const EMPTY = { ...Object.fromEntries(CAMPOS.map(([k]) => [k, k === 'sectores' ? [] : ''])), estado: 'Operativa', foto_url: '', fotos: [] }
 
 const estColor = e => { const s = (e || '').toLowerCase(); if (/(no funciona|fuera)/.test(s)) return '#ff5577'; if (/(manten)/.test(s)) return '#fb923c'; if (/(funciona|operativa|ok)/.test(s)) return '#3dd68c'; return 'var(--text3)' }
 
@@ -150,23 +150,34 @@ export default function Maquinas() {
     const f = {}
     for (const [k] of CAMPOS) f[k] = k === 'sectores' ? (Array.isArray(m.sectores) ? m.sectores : []) : (m[k] ?? '')
     f.estado = m.estado || 'Operativa'; f.foto_url = m.foto_url || ''
+    f.fotos = Array.isArray(m.fotos) && m.fotos.length ? m.fotos.filter(Boolean) : (m.foto_url ? [m.foto_url] : [])
     setForm(f); setEditId(m.id); setModalOpen(true)
   }
 
-  async function subirFoto(file) {
-    if (!file) return
+  // Sube una o varias fotos y las agrega a la lista
+  async function subirFoto(files) {
+    const lista = Array.from(files || []).filter(Boolean)
+    if (!lista.length) return
     setSubiendo(true)
-    const ext = file.name.split('.').pop()
-    const path = `maquinas/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-    const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
-    if (error) { toast.error('Error al subir: ' + error.message); setSubiendo(false); return }
-    const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
-    setForm(f => ({ ...f, foto_url: publicUrl })); setSubiendo(false); toast.success('Foto subida ✅')
+    const nuevas = []
+    for (const file of lista) {
+      const ext = file.name.split('.').pop()
+      const path = `maquinas/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
+      if (error) { toast.error('Error al subir: ' + error.message); continue }
+      const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
+      nuevas.push(publicUrl)
+    }
+    if (nuevas.length) setForm(f => { const fotos = [...(f.fotos || []), ...nuevas]; return { ...f, fotos, foto_url: f.foto_url || fotos[0] } })
+    setSubiendo(false)
+    if (nuevas.length) toast.success(`${nuevas.length} foto${nuevas.length !== 1 ? 's' : ''} subida${nuevas.length !== 1 ? 's' : ''} ✅`)
   }
+  const quitarFoto = url => setForm(f => { const fotos = (f.fotos || []).filter(x => x !== url); return { ...f, fotos, foto_url: fotos[0] || '' } })
 
   async function guardar() {
     if (!String(form.nombre || '').trim()) return toast.error('Ingresá el equipo')
-    const p = { estado: form.estado || 'Operativa', foto_url: form.foto_url || null, sectores: form.sectores || [] }
+    const fotos = (form.fotos || []).filter(Boolean)
+    const p = { estado: form.estado || 'Operativa', fotos, foto_url: fotos[0] || form.foto_url || null, sectores: form.sectores || [] }
     for (const [k] of CAMPOS) { if (k === 'sectores') continue; p[k] = String(form[k] ?? '').trim() || null }
     setGuardando(true)
     const { error } = editId ? await supabase.from('maquinas').update(p).eq('id', editId) : await supabase.from('maquinas').insert(p)
@@ -256,7 +267,11 @@ export default function Maquinas() {
                 </div>
                 {isExp && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px', background: 'rgba(0,0,0,0.12)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px 16px' }}>
-                    {m.foto_url && <img src={m.foto_url} alt="" onClick={() => window.open(m.foto_url, '_blank')} style={{ gridColumn: '1 / -1', maxWidth: 220, height: 150, objectFit: 'contain', background: 'rgba(0,0,0,0.2)', borderRadius: 8, border: '1px solid var(--border)', cursor: 'zoom-in' }} />}
+                    {(() => { const gal = (Array.isArray(m.fotos) && m.fotos.length ? m.fotos : (m.foto_url ? [m.foto_url] : [])).filter(Boolean); return gal.length > 0 && (
+                      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {gal.map((url, i) => <img key={i} src={url} alt="" onClick={() => window.open(url, '_blank')} style={{ maxWidth: 220, height: 150, objectFit: 'contain', background: 'rgba(0,0,0,0.2)', borderRadius: 8, border: '1px solid var(--border)', cursor: 'zoom-in' }} />)}
+                      </div>
+                    ) })()}
                     {[['N°', m.numero], ['Voltaje', m.voltaje], ['Potencia', m.potencia], ['Servicio', m.servicio], ['Proveedor', m.proveedor], ['Repuestos', m.repuestos], ['Año ingreso', m.anio_ingreso], ['Año salida', m.anio_salida], ['Motivo', m.motivo], ['Descripción', m.descripcion], ['Observaciones', m.observaciones]].map(([l, v]) => v ? (
                       <div key={l}><div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>{l}</div><div style={{ fontSize: 13, color: 'var(--text2)' }}>{v}</div></div>
                     ) : null)}
@@ -299,12 +314,16 @@ export default function Maquinas() {
               </div>
               <div><label style={lbl}>Estado</label><input value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))} placeholder="Operativa / Funciona / En mantenimiento / NO FUNCIONA..." style={iSt} /></div>
               <div>
-                <label style={lbl}>Foto</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {form.foto_url ? (
-                    <div style={{ position: 'relative' }}><img src={form.foto_url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} /><button onClick={() => setForm(f => ({ ...f, foto_url: '' }))} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ff5577', border: 'none', color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1 }}>×</button></div>
-                  ) : <div style={{ width: 72, height: 72, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 22 }}>📷</div>}
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendo ? 'not-allowed' : 'pointer', opacity: subiendo ? 0.6 : 1 }}>{subiendo ? '⏳ Subiendo...' : '📁 Subir foto'}<input type="file" accept="image/*" style={{ display: 'none' }} disabled={subiendo} onChange={e => subirFoto(e.target.files?.[0])} /></label>
+                <label style={lbl}>Fotos</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  {(form.fotos || []).map(url => (
+                    <div key={url} style={{ position: 'relative' }}>
+                      <img src={url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                      <button onClick={() => quitarFoto(url)} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ff5577', border: 'none', color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1 }}>×</button>
+                    </div>
+                  ))}
+                  {(form.fotos || []).length === 0 && <div style={{ width: 72, height: 72, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 22 }}>📷</div>}
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendo ? 'not-allowed' : 'pointer', opacity: subiendo ? 0.6 : 1 }}>{subiendo ? '⏳ Subiendo...' : '📁 Agregar foto(s)'}<input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={subiendo} onChange={e => subirFoto(e.target.files)} /></label>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
