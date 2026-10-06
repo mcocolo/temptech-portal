@@ -34,7 +34,26 @@ export default function DevolucionesDistribuidores() {
   const [fNotas, setFNotas] = useState('')
   const [fFecha, setFFecha] = useState('')
   const [fModo, setFModo] = useState('fabrica')
+  const [fAdjuntos, setFAdjuntos] = useState([])   // [{url, nombre}]
+  const [subiendoAdj, setSubiendoAdj] = useState(false)
   const [creando, setCreando] = useState(false)
+
+  async function subirAdjuntos(files) {
+    const lista = Array.from(files || []).filter(Boolean)
+    if (!lista.length) return
+    setSubiendoAdj(true)
+    const nuevas = []
+    for (const file of lista) {
+      const ext = file.name.split('.').pop()
+      const path = `devdist/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('devoluciones').upload(path, file, { upsert: true })
+      if (error) { toast.error('Error al subir: ' + error.message); continue }
+      const { data: { publicUrl } } = supabase.storage.from('devoluciones').getPublicUrl(path)
+      nuevas.push({ url: publicUrl, nombre: file.name })
+    }
+    if (nuevas.length) setFAdjuntos(prev => [...prev, ...nuevas])
+    setSubiendoAdj(false)
+  }
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
@@ -65,7 +84,7 @@ export default function DevolucionesDistribuidores() {
   }
 
   async function abrirNueva() {
-    setFDistId(esDist ? (user?.id || '') : ''); setFItems([emptyItem()]); setFNotas(''); setFFecha(''); setFModo('fabrica'); setModal(true)
+    setFDistId(esDist ? (user?.id || '') : ''); setFItems([emptyItem()]); setFNotas(''); setFFecha(''); setFModo('fabrica'); setFAdjuntos([]); setModal(true)
     if (!esDist && !distribuidores.length) {
       const { data } = await supabase.from('profiles').select('id,full_name,razon_social,email').eq('user_type', 'distributor').order('razon_social')
       setDistribuidores(data || [])
@@ -89,7 +108,7 @@ export default function DevolucionesDistribuidores() {
     setCreando(true)
     const { error } = await supabase.from('devoluciones_distribuidor').insert({
       distribuidor_id: distId, origen: esDist ? 'distribuidor' : 'admin', items, notas: fNotas.trim() || null,
-      fecha_devolucion: fFecha || null, modo_entrega: fModo,
+      fecha_devolucion: fFecha || null, modo_entrega: fModo, adjuntos: fAdjuntos,
       estado: 'pendiente', creado_por: nombreUsuario,
     })
     setCreando(false)
@@ -109,6 +128,15 @@ export default function DevolucionesDistribuidores() {
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success(revisado ? 'Marcada como revisada ✅' : 'Reabierta')
     setRows(prev => prev.map(r => r.id === row.id ? { ...r, estado: revisado ? 'revisado' : 'pendiente', revisado_por: revisado ? nombreUsuario : null, revisado_at: revisado ? new Date().toISOString() : null } : r))
+    // Avisar al distribuidor (campanita) cuando se marca revisada
+    if (revisado && row.distribuidor_id) {
+      await supabase.from('notificaciones').insert({
+        user_id: row.distribuidor_id, tipo: 'pedido',
+        titulo: '✓ Devolución revisada',
+        mensaje: `Tu devolución ${row.codigo ? row.codigo + ' ' : ''}fue revisada en fábrica.`,
+        url: '/devoluciones-distribuidores', link: '/devoluciones-distribuidores',
+      })
+    }
   }
 
   if (!isAdmin && !isAdmin2 && !esDist) return null
@@ -199,6 +227,15 @@ export default function DevolucionesDistribuidores() {
                   {items.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Sin ítems.</span>}
                 </div>
                 {r.notas && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text2)' }}>📝 {r.notas}</div>}
+                {Array.isArray(r.adjuntos) && r.adjuntos.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {r.adjuntos.map((a, i) => (
+                      <a key={i} href={a.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#7b9fff', textDecoration: 'none', background: 'rgba(74,108,247,0.1)', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '3px 10px' }}>
+                        {/\.(png|jpe?g|webp|gif)$/i.test(a.url) ? '🖼️' : '📄'} {a.nombre || `Adjunto ${i + 1}`}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -259,6 +296,19 @@ export default function DevolucionesDistribuidores() {
                 </div>
               </div>
               {fModo === 'logistica' && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: -6, lineHeight: 1.4 }}>La retiramos nosotros → aparece en <b>Logística Diaria</b> para traer.</div>}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Fotos / Remito (opcional)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  {fAdjuntos.map((a, i) => (
+                    <div key={i} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px 5px 8px', fontSize: 11 }}>
+                      {/\.(png|jpe?g|webp|gif)$/i.test(a.url) ? <img src={a.url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4 }} /> : <span>📄</span>}
+                      <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nombre || 'archivo'}</span>
+                      <button onClick={() => setFAdjuntos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>×</button>
+                    </div>
+                  ))}
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendoAdj ? 'not-allowed' : 'pointer', opacity: subiendoAdj ? 0.6 : 1 }}>{subiendoAdj ? '⏳ Subiendo…' : '📎 Adjuntar foto/remito'}<input type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }} disabled={subiendoAdj} onChange={e => subirAdjuntos(e.target.files)} /></label>
+                </div>
+              </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Notas (opcional)</label>
                 <textarea value={fNotas} onChange={e => setFNotas(e.target.value)} rows={2} placeholder="Motivo, aclaraciones…" style={{ ...inputSt, resize: 'vertical' }} />
