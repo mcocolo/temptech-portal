@@ -25,7 +25,7 @@ const EMPTY_FORM = {
   tipo: 'entrega_pt',
   nombre: '', direccion: '', localidad: '', zona: '',
   telefono: '', email: '', dni: '',
-  descripcion: '', notas: '',
+  descripcion: '', notas: '', notas_1400: '',
   productos: {},
   pedido_id: null,
   venta_id: null,
@@ -79,6 +79,25 @@ function avisoWhatsApp(item) {
 function codigoCaso(texto) {
   const m = String(texto || '').match(/\b([A-Z]{2,}-[0-9A-Za-z-]+)\b/)
   return m ? m[1] : null
+}
+
+// Terminación/color de un panel 1400w Firenze a partir de su código (F1400XXX)
+const COLOR_1400 = { BCO: 'Blanco', MTG: 'Mármol Traviatta Gris', PCL: 'Piedra Cantera Luna', MV: 'Madera Veteada', PA: 'Piedra Azteca', MB: 'Madera Blanca', PR: 'Piedra Romana', MCO: 'Mármol Calacatta Ocre' }
+function color1400(codigo) {
+  const m = String(codigo || '').toUpperCase().match(/^F1400([A-Z]+)/)
+  if (!m) return ''
+  return COLOR_1400[m[1]] || m[1]
+}
+// De una lista de items {codigo}, arma el texto de terminaciones 1400w (únicas)
+function detalle1400De(items) {
+  const cols = [...new Set((items || []).map(it => color1400(it.codigo)).filter(Boolean))]
+  return cols.join(', ')
+}
+// Busca un color 1400w conocido dentro de un texto libre (nombre/modelo del caso)
+function detalle1400Texto(text) {
+  const t = String(text || '').toLowerCase()
+  const hit = Object.values(COLOR_1400).find(v => t.includes(v.toLowerCase()))
+  return hit || ''
 }
 
 // Productos de una parada; si no tiene cargados, los infiere del detalle (garantías viejas)
@@ -269,7 +288,7 @@ export default function LogisticaDiaria() {
     setForm({
       tipo: item.tipo, nombre: item.nombre || '', direccion: item.direccion || '', localidad: item.localidad || '',
       zona: item.zona || '', telefono: item.telefono || '', email: item.email || '', dni: item.dni || '',
-      descripcion: item.descripcion || '', notas: item.notas || '', productos,
+      descripcion: item.descripcion || '', notas: item.notas || '', notas_1400: item.notas_1400 || '', productos,
       pedido_id: item.pedido_id || null, venta_id: item.venta_id || null, entrega_idx: item.entrega_idx ?? null, repuesto_id: item.repuesto_id || null,
       egreso_garantia_id: item.egreso_garantia_id || null, devolucion_id: item.devolucion_id || null,
       proveedor_id: item.proveedor_id || null, fecha: item.fecha || '',
@@ -289,6 +308,7 @@ export default function LogisticaDiaria() {
       ...EMPTY_FORM, tipo: 'entrega_pt', nombre,
       direccion: ed.direccion || '', localidad: ed.localidad || '', zona: ed.zona || '', dni: ed.dni || '',
       telefono: (entrega?.telefono) || venta.cliente_telefono || '', email: venta.cliente_email || '',
+      notas_1400: detalle1400De(fuente),
       productos, venta_id: venta.id, entrega_idx: idx,
     })
     setEditId(null); setModalOpen(true)
@@ -298,7 +318,7 @@ export default function LogisticaDiaria() {
     const nombre = pedido._profile?.razon_social || pedido._profile?.full_name || ''
     const productos = {}
     for (const item of (pedido.items || [])) { const col = codigoALogColumna(item.codigo); if (col && item.cantidad > 0) productos[col] = (productos[col] || 0) + item.cantidad }
-    setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, productos, pedido_id: pedido.id })
+    setForm({ ...EMPTY_FORM, tipo: 'entrega_pt', nombre, notas_1400: detalle1400De(pedido.items), productos, pedido_id: pedido.id })
     setEditId(null); setModalOpen(true)
   }
 
@@ -335,6 +355,7 @@ export default function LogisticaDiaria() {
       ...EMPTY_FORM, tipo: 'cambio_garantia', nombre,
       direccion: direccion || '', localidad: rec.localidad || '', telefono: rec.telefono || '', email: rec.email || '',
       descripcion: `Entregar: ${g.nombre}${g.cantidad ? ` ×${g.cantidad}` : ''}${rec.motivo ? ` · ${rec.motivo}` : ''}`,
+      notas_1400: color1400(g.codigo) || (/1400/.test(`${g.nombre || ''} ${g.modelo || ''}`) ? detalle1400Texto(`${g.nombre || ''} ${g.modelo || ''}`) : ''),
       productos, egreso_garantia_id: g.id, devolucion_id: rec.id || null,
     })
     setEditId(null); setModalOpen(true)
@@ -377,6 +398,7 @@ export default function LogisticaDiaria() {
       dni: form.dni.trim() || null,
       descripcion: form.descripcion.trim() || null,
       notas: form.notas.trim() || null,
+      notas_1400: form.notas_1400.trim() || null,
       productos: productosArr,
       pedido_id: form.pedido_id || null,
       venta_id: form.venta_id || null,
@@ -630,6 +652,8 @@ export default function LogisticaDiaria() {
       const t = TIPOS[item.tipo]
       const cambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo) ? 'SI' : ''
       const detalle = item.nombre && item.descripcion ? `<div class="det">${esc(item.descripcion)}</div>` : ''
+      // Terminación 1400w (la columna 1400w no discrimina el color) — se resalta en el detalle
+      const det1400 = item.notas_1400 ? `<div class="det" style="color:#c2560f;font-weight:700">🎨 1400w: ${esc(item.notas_1400)}</div>` : ''
       // Ocultar la "Falla: ..." del caso en la hoja de ruta (no la necesita el chofer)
       const notasVis = (item.notas && !/^\s*falla\s*:/i.test(item.notas)) ? item.notas : ''
       const prodsItem = paradaProductos(item)
@@ -640,7 +664,7 @@ export default function LogisticaDiaria() {
       return `<tr>
         <td class="num">${i + 1}</td>
         <td class="c" style="font-size:9px">${esc(t?.label || item.tipo)}</td>
-        <td><b>${esc(item.nombre || item.descripcion || '')}</b>${detalle}</td>
+        <td><b>${esc(item.nombre || item.descripcion || '')}</b>${detalle}${det1400}</td>
         <td>${esc(item.direccion || '')}</td>
         <td>${esc(item.localidad || '')}</td>
         <td class="c">${esc(item.zona || '')}</td>
@@ -654,6 +678,13 @@ export default function LogisticaDiaria() {
     const totales = {}
     grupo.forEach(it => paradaProductos(it).forEach(p => { if (p.cantidad > 0) totales[p.label] = (totales[p.label] || 0) + p.cantidad }))
     const resumen = Object.entries(totales).map(([l, c]) => `${esc(l)} &times;${c}`).join(' &nbsp;·&nbsp; ')
+    // Detalle de terminaciones 1400w por parada (para no confundir colores)
+    const det1400Grupo = grupo
+      .filter(it => it.notas_1400 && paradaProductos(it).some(p => p.codigo === 'F1400BCO' && p.cantidad > 0))
+      .map(it => `${esc(it.nombre || it.descripcion || '—')} &rarr; <b>${esc(it.notas_1400)}</b>`)
+    const resumen1400 = det1400Grupo.length
+      ? `<div class="resumen"><b>1400w por entrega:</b> ${det1400Grupo.join(' &nbsp;·&nbsp; ')}</div>`
+      : ''
     return `<div class="ruta">
       <h2>TEMPTECH — Logística</h2>
       <p class="sub"><b>${esc(camNombre)}</b> &nbsp;·&nbsp; Chofer: <span class="chofer">${esc(chofer || '—')}</span> &nbsp;·&nbsp; ${fechaDisplay} &nbsp;·&nbsp; ${grupo.length} parada${grupo.length !== 1 ? 's' : ''}</p>
@@ -666,6 +697,7 @@ export default function LogisticaDiaria() {
         <tbody>${filas}</tbody>
       </table>
       ${resumen ? `<div class="resumen"><b>Total a cargar:</b> ${resumen}</div>` : ''}
+      ${resumen1400}
     </div>`
   }
 
@@ -1252,6 +1284,15 @@ export default function LogisticaDiaria() {
                       )
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Terminación 1400w (la columna 1400w no discrimina el color) */}
+              {(form.productos?.['F1400BCO'] > 0 || form.notas_1400) && (
+                <div>
+                  <label style={lblSt}>Terminación 1400w (color)</label>
+                  <input value={form.notas_1400} onChange={e => setForm(p => ({ ...p, notas_1400: e.target.value }))} placeholder="Ej: Mármol Traviatta Gris (MTG), Blanco…" style={iSt} />
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Se completa solo desde el producto. Aparece en el detalle de la parada y en el pie "Total a cargar" de la planilla.</div>
                 </div>
               )}
 
