@@ -13,8 +13,9 @@ const FILTROS = [['pendiente', 'Por revisar'], ['revisado', 'Revisadas'], ['entr
 const emptyItem = () => ({ codigo: '', nombre: '', modelo: '', cantidad: 1 })
 
 export default function DevolucionesDistribuidores() {
-  const { isAdmin, isAdmin2, user, profile } = useAuth()
-  const nombreUsuario = profile?.full_name || user?.email || 'Admin'
+  const { isAdmin, isAdmin2, isDistributor, user, profile } = useAuth()
+  const esDist = isDistributor && !isAdmin && !isAdmin2   // distribuidor cargando sus propias devoluciones
+  const nombreUsuario = profile?.full_name || profile?.razon_social || user?.email || 'Usuario'
 
   const [rows, setRows] = useState([])
   const [perfiles, setPerfiles] = useState({})
@@ -38,9 +39,11 @@ export default function DevolucionesDistribuidores() {
   useEffect(() => { cargar() }, [])
   async function cargar() {
     setLoading(true)
-    const data = await fetchAllRows(() =>
-      supabase.from('devoluciones_distribuidor').select('*').order('created_at', { ascending: false })
-    )
+    const data = await fetchAllRows(() => {
+      let q = supabase.from('devoluciones_distribuidor').select('*').order('created_at', { ascending: false })
+      if (esDist && user) q = q.eq('distribuidor_id', user.id)   // el distribuidor solo ve las propias
+      return q
+    })
     const list = data || []
     setRows(list)
     const ids = [...new Set(list.map(r => r.distribuidor_id).filter(Boolean))]
@@ -62,8 +65,8 @@ export default function DevolucionesDistribuidores() {
   }
 
   async function abrirNueva() {
-    setFDistId(''); setFItems([emptyItem()]); setFNotas(''); setFFecha(''); setFModo('fabrica'); setModal(true)
-    if (!distribuidores.length) {
+    setFDistId(esDist ? (user?.id || '') : ''); setFItems([emptyItem()]); setFNotas(''); setFFecha(''); setFModo('fabrica'); setModal(true)
+    if (!esDist && !distribuidores.length) {
       const { data } = await supabase.from('profiles').select('id,full_name,razon_social,email').eq('user_type', 'distributor').order('razon_social')
       setDistribuidores(data || [])
     }
@@ -79,12 +82,13 @@ export default function DevolucionesDistribuidores() {
   }
 
   async function crearDevolucion() {
-    if (!fDistId) return toast.error('Elegí un distribuidor')
+    const distId = esDist ? user?.id : fDistId
+    if (!distId) return toast.error('Elegí un distribuidor')
     const items = fItems.filter(i => i.codigo && (parseInt(i.cantidad) || 0) > 0).map(i => ({ codigo: i.codigo, nombre: i.nombre, modelo: i.modelo, cantidad: parseInt(i.cantidad) }))
     if (!items.length) return toast.error('Agregá al menos un producto con cantidad')
     setCreando(true)
     const { error } = await supabase.from('devoluciones_distribuidor').insert({
-      distribuidor_id: fDistId, origen: 'admin', items, notas: fNotas.trim() || null,
+      distribuidor_id: distId, origen: esDist ? 'distribuidor' : 'admin', items, notas: fNotas.trim() || null,
       fecha_devolucion: fFecha || null, modo_entrega: fModo,
       estado: 'pendiente', creado_por: nombreUsuario,
     })
@@ -107,7 +111,7 @@ export default function DevolucionesDistribuidores() {
     setRows(prev => prev.map(r => r.id === row.id ? { ...r, estado: revisado ? 'revisado' : 'pendiente', revisado_por: revisado ? nombreUsuario : null, revisado_at: revisado ? new Date().toISOString() : null } : r))
   }
 
-  if (!isAdmin && !isAdmin2) return null
+  if (!isAdmin && !isAdmin2 && !esDist) return null
 
   // Dos dimensiones independientes: Revisión (revisada/no) y Entrega de la reposición (entregada/no)
   const esEntregado = r => !!entregadoMap[r.id]
@@ -130,8 +134,8 @@ export default function DevolucionesDistribuidores() {
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>Devoluciones Distribuidores</h1>
-          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Mercadería que el distribuidor devuelve (ingresa) — para revisar. La carga el distribuidor o vos en su nombre.</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800 }}>{esDist ? 'Devolver mercadería' : 'Devoluciones Distribuidores'}</h1>
+          <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>{esDist ? 'Cargá la mercadería que vas a devolver (RMA). Podés poner todos los modelos y cantidades en una misma devolución. Queda pendiente de revisión en fábrica.' : 'Mercadería que el distribuidor devuelve (ingresa) — para revisar. La carga el distribuidor o vos en su nombre.'}</p>
         </div>
         <button onClick={abrirNueva} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nueva devolución</button>
       </div>
@@ -145,8 +149,8 @@ export default function DevolucionesDistribuidores() {
             </button>
           ))}
         </div>
-        <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar distribuidor…"
-          style={{ ...inputSt, maxWidth: 260, padding: '8px 12px' }} />
+        {!esDist && <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar distribuidor…"
+          style={{ ...inputSt, maxWidth: 260, padding: '8px 12px' }} />}
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>{filtradas.length} devolución(es)</span>
       </div>
 
@@ -180,9 +184,11 @@ export default function DevolucionesDistribuidores() {
                       {revisado && r.revisado_por ? <span style={{ color: '#3dd68c' }}> · revisada por {r.revisado_por}</span> : ''}
                     </div>
                   </div>
-                  {revisado
-                    ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
-                    : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
+                  {esDist
+                    ? <span style={{ fontSize: 11, fontWeight: 700, color: revisado ? '#3dd68c' : '#fb923c', background: revisado ? 'rgba(61,214,140,0.12)' : 'rgba(251,146,60,0.12)', border: `1px solid ${revisado ? 'rgba(61,214,140,0.35)' : 'rgba(251,146,60,0.35)'}`, borderRadius: 20, padding: '4px 12px', flexShrink: 0 }}>{revisado ? '✓ Revisada por fábrica' : '⏳ Pendiente de revisión'}</span>
+                    : (revisado
+                      ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
+                      : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>)}
                 </div>
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {items.map((i, idx) => (
@@ -208,13 +214,15 @@ export default function DevolucionesDistribuidores() {
               <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Distribuidor *</label>
-                <select value={fDistId} onChange={e => setFDistId(e.target.value)} style={{ ...inputSt, cursor: 'pointer' }}>
-                  <option value="">Elegí un distribuidor…</option>
-                  {distribuidores.map(d => <option key={d.id} value={d.id}>{d.razon_social || d.full_name || d.email}</option>)}
-                </select>
-              </div>
+              {!esDist && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Distribuidor *</label>
+                  <select value={fDistId} onChange={e => setFDistId(e.target.value)} style={{ ...inputSt, cursor: 'pointer' }}>
+                    <option value="">Elegí un distribuidor…</option>
+                    {distribuidores.map(d => <option key={d.id} value={d.id}>{d.razon_social || d.full_name || d.email}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Productos que devuelve</label>
