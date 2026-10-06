@@ -514,8 +514,8 @@ export default function AdminEgresoDevoluciones() {
                     <>
                       <span style={{ fontSize: 12, color: '#fb923c', fontStyle: 'italic', flex: 1 }}>📦 En preparación — listo para marcar como enviado</span>
                       <button onClick={() => cambiarEstado(it.id, 'pendiente')}
-                        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                        ↩ Pendiente
+                        style={{ background: 'rgba(255,209,102,0.12)', border: '1px solid rgba(255,209,102,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#ffd166', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                        ↩ Volver a Pendiente
                       </button>
                       <button onClick={() => cambiarEstado(it.id, 'enviado')}
                         style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#38bdf8', cursor: 'pointer', fontFamily: 'var(--font)' }}>
@@ -537,7 +537,7 @@ export default function AdminEgresoDevoluciones() {
                             ↩ Preparando
                           </button>
                           <button onClick={() => cambiarEstado(it.id, 'pendiente')}
-                            style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                            style={{ background: 'rgba(255,209,102,0.12)', border: '1px solid rgba(255,209,102,0.4)', borderRadius: 'var(--radius)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: '#ffd166', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                             ↩ Pendiente
                           </button>
                         </>
