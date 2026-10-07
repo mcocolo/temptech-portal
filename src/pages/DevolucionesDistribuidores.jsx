@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchAllRows } from '@/lib/fetchAll'
+import ProcesarRmaModal from '@/components/ProcesarRmaModal'
 import toast from 'react-hot-toast'
 
 function formatFecha(d) {
@@ -25,6 +26,8 @@ export default function DevolucionesDistribuidores() {
   const [busqueda, setBusqueda] = useState('')
   const [guardando, setGuardando] = useState(null)
   const [entregadoMap, setEntregadoMap] = useState({})   // devdist_id -> true si su pedido de reposición ya salió
+  const [procesarRow, setProcesarRow] = useState(null)   // devolución a reacondicionar
+  const [costosMap, setCostosMap] = useState({})         // devdist_id -> costo total reacondicionamiento
 
   // Modal "Nueva devolución" (admin en nombre de un distribuidor)
   const [modal, setModal] = useState(false)
@@ -83,9 +86,15 @@ export default function DevolucionesDistribuidores() {
         if (p.devdist_id && (p.estado === 'entregado' || p.estado === 'finalizado' || p.stock_descontado)) map[p.devdist_id] = true
       }
       setEntregadoMap(map)
-    } else setEntregadoMap({})
+      // Costos de reacondicionamiento por devolución
+      const { data: cst } = await supabase.from('rma_costos').select('ref_id,costo_total').eq('origen', 'distribuidor').in('ref_id', devIds)
+      const cmap = {}
+      for (const c of (cst || [])) if (c.ref_id) cmap[c.ref_id] = (cmap[c.ref_id] || 0) + (Number(c.costo_total) || 0)
+      setCostosMap(cmap)
+    } else { setEntregadoMap({}); setCostosMap({}) }
     setLoading(false)
   }
+  const fmtCosto = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(Number(n) || 0)
 
   async function cargarCatalogoYDist() {
     if (!esDist && !distribuidores.length) {
@@ -251,6 +260,7 @@ export default function DevolucionesDistribuidores() {
                       <span style={{ fontSize: 10, fontWeight: 700, color: r.modo_entrega === 'logistica' ? '#22d3ee' : 'var(--text3)', background: r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.12)' : 'var(--surface2)', border: `1px solid ${r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.35)' : 'var(--border)'}`, borderRadius: 20, padding: '2px 9px' }}>{r.modo_entrega === 'logistica' ? '🚛 Logística' : '🏭 En fábrica'}</span>
                       {revisado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Revisada</span>}
                       {entregado && <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 20, padding: '2px 10px' }}>✅ Entregado (repuesta)</span>}
+                      {costosMap[r.id] > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#e879f9', background: 'rgba(232,121,249,0.12)', border: '1px solid rgba(232,121,249,0.35)', borderRadius: 20, padding: '2px 10px' }}>🧰 Costo {fmtCosto(costosMap[r.id])}</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
                       {r.fecha_devolucion ? <>Devolución {formatFecha(r.fecha_devolucion)} · </> : ''}Cargada {formatFecha(r.created_at)} · {totalUnid} u.
@@ -262,6 +272,7 @@ export default function DevolucionesDistribuidores() {
                     ? <span style={{ fontSize: 11, fontWeight: 700, color: revisado ? '#3dd68c' : '#fb923c', background: revisado ? 'rgba(61,214,140,0.12)' : 'rgba(251,146,60,0.12)', border: `1px solid ${revisado ? 'rgba(61,214,140,0.35)' : 'rgba(251,146,60,0.35)'}`, borderRadius: 20, padding: '4px 12px', flexShrink: 0 }}>{revisado ? '✓ Revisada por fábrica' : '⏳ Pendiente de revisión'}</span>
                     : (
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button onClick={() => setProcesarRow(r)} title="Procesar / reacondicionar" style={{ background: 'rgba(232,121,249,0.1)', color: '#e879f9', border: '1px solid rgba(232,121,249,0.35)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🧰 Procesar</button>
                         <button onClick={() => abrirEditar(r)} title="Editar" style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️ Editar</button>
                         {isSuperadmin && <button onClick={() => eliminar(r)} title="Eliminar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>}
                         {revisado
@@ -390,6 +401,8 @@ export default function DevolucionesDistribuidores() {
           </div>
         </div>
       )}
+
+      {procesarRow && <ProcesarRmaModal origen="distribuidor" refId={procesarRow.id} refCodigo={procesarRow.codigo} items={procesarRow.items || []} onClose={() => setProcesarRow(null)} onDone={cargar} />}
     </div>
   )
 }
