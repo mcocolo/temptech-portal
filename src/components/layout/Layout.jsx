@@ -36,7 +36,6 @@ const NAV = [
   { label: 'Mis Preventas',    icon: Package,         path: '/mis-preventas', isDistributor: true },
   { label: 'Mis Reportes',     icon: BarChart2,       path: '/reportes',      isDistributor: true },
   { label: 'Mis Devoluciones', icon: RotateCcw,       path: '/devoluciones',  isDistributor: true },
-  { label: 'Devolver mercadería', icon: RotateCcw,    path: '/devoluciones-distribuidores', isDistributor: true },
   { label: 'Mi Perfil',        icon: User,            path: '/mi-perfil',     isDistributor: true },
 ]
 

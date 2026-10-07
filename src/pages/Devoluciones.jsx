@@ -7,6 +7,8 @@ import { es } from 'date-fns/locale'
 
 const STATUS_CFG = {
   pendiente: { label: 'Pendiente',  color: '#ffd166', bg: 'rgba(255,209,102,0.12)', border: 'rgba(255,209,102,0.35)' },
+  revisado:  { label: 'Revisada por fábrica', color: '#3dd68c', bg: 'rgba(61,214,140,0.12)', border: 'rgba(61,214,140,0.35)' },
+  migrado:   { label: 'En Dev. Distribuidores', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)' },
   aprobado:  { label: 'Aprobado',   color: '#3dd68c', bg: 'rgba(61,214,140,0.12)',  border: 'rgba(61,214,140,0.35)' },
   recibido:  { label: 'Recibido',   color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  border: 'rgba(56,189,248,0.35)' },
   rechazado: { label: 'Rechazado',  color: '#ff5577', bg: 'rgba(255,85,119,0.12)',  border: 'rgba(255,85,119,0.35)' },
@@ -37,6 +39,26 @@ export default function Devoluciones() {
   const [items, setItems] = useState([emptyItem()])
   const [creando, setCreando] = useState(false)
   const [distId, setDistId] = useState('')
+  const [modo, setModo] = useState('fabrica')
+  const [adjuntos, setAdjuntos] = useState([])   // [{url, nombre}]
+  const [subiendoAdj, setSubiendoAdj] = useState(false)
+
+  async function subirAdjuntos(files) {
+    const lista = Array.from(files || []).filter(Boolean)
+    if (!lista.length) return
+    setSubiendoAdj(true)
+    const nuevas = []
+    for (const file of lista) {
+      const ext = file.name.split('.').pop()
+      const path = `devdist/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('devoluciones').upload(path, file, { upsert: true })
+      if (error) { toast.error('Error al subir: ' + error.message); continue }
+      const { data: { publicUrl } } = supabase.storage.from('devoluciones').getPublicUrl(path)
+      nuevas.push({ url: publicUrl, nombre: file.name })
+    }
+    if (nuevas.length) setAdjuntos(prev => [...prev, ...nuevas])
+    setSubiendoAdj(false)
+  }
 
   // Devolución pendiente (mercadería que el distribuidor devuelve, para revisión del admin)
   const [modalPend, setModalPend] = useState(false)
@@ -72,7 +94,7 @@ export default function Devoluciones() {
   async function cargar() {
     if (!user) return
     setLoading(true)
-    let q = supabase.from('devoluciones').select('*').not('distribuidor_id', 'is', null).order('created_at', { ascending: false })
+    let q = supabase.from('devoluciones_distribuidor').select('*').order('created_at', { ascending: false })
     if (!isAdmin && !isAdmin2) q = q.eq('distribuidor_id', user.id)
     const { data, error } = await q
     if (error) toast.error('Error al cargar')
@@ -109,27 +131,31 @@ export default function Devoluciones() {
     if (validItems.length === 0) return toast.error('Agregá al menos un producto')
     if ((isAdmin || isAdmin2) && !distId) return toast.error('Seleccioná un distribuidor')
     setCreando(true)
-    const { error } = await supabase.from('devoluciones').insert({
+    const { error } = await supabase.from('devoluciones_distribuidor').insert({
       distribuidor_id: (isAdmin || isAdmin2) ? distId : user.id,
+      origen: (isAdmin || isAdmin2) ? 'admin' : 'distribuidor',
       estado: 'pendiente',
       tipo,
-      items: validItems,
       pedido_referencia: referencia.trim() || null,
+      items: validItems,
       notas: notas.trim() || null,
+      modo_entrega: modo,
+      adjuntos,
+      creado_por: profile?.razon_social || profile?.full_name || user?.email || null,
     })
     setCreando(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('✅ Orden de devolución enviada')
+    toast.success('✅ Devolución enviada — queda para revisión')
     setModal(false)
-    setTipo('falla'); setReferencia(''); setNotas(''); setItems([emptyItem()]); setDistId('')
+    setTipo('falla'); setReferencia(''); setNotas(''); setItems([emptyItem()]); setDistId(''); setModo('fabrica'); setAdjuntos([])
     cargar()
 
-    // Notificación para admin
+    // Notificación para admin (va a Devoluciones Distribuidores)
     await supabase.from('notificaciones').insert({
       tipo: 'pedido',
       titulo: '↩️ Nueva devolución',
-      mensaje: `${profile?.razon_social || profile?.full_name || user.email} generó una orden de devolución (${TIPO_CFG[tipo]?.label})`,
-      url: '/admin-devoluciones',
+      mensaje: `${profile?.razon_social || profile?.full_name || user.email} cargó una devolución (${TIPO_CFG[tipo]?.label})`,
+      url: '/devoluciones-distribuidores', link: '/devoluciones-distribuidores',
     })
   }
 
@@ -144,12 +170,6 @@ export default function Devoluciones() {
           <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 13 }}>Generá y seguí tus órdenes de devolución</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {isDistributor && (
-            <button onClick={() => setModalPend(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.4)', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, color: '#a78bfa', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              ↩ Devolución pendiente
-            </button>
-          )}
           <button onClick={() => setModal(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 'var(--radius)', padding: '9px 20px', fontSize: 13, fontWeight: 700, color: '#fb923c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
             + Nueva devolución
@@ -354,6 +374,32 @@ export default function Devoluciones() {
                   style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(251,146,60,0.08)', border: '1px dashed rgba(251,146,60,0.4)', borderRadius: 'var(--radius)', padding: '7px 16px', fontSize: 12, fontWeight: 600, color: '#fb923c', cursor: 'pointer', fontFamily: 'var(--font)' }}>
                   + Agregar otro producto
                 </button>
+              </div>
+
+              {/* Modo de entrega */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>¿Cómo la entregás?</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[{ k: 'fabrica', label: '🏭 La llevo a fábrica' }, { k: 'logistica', label: '🚛 Que la retiren' }].map(op => (
+                    <button key={op.k} type="button" onClick={() => setModo(op.k)}
+                      style={{ flex: 1, padding: '9px 6px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: modo === op.k ? 'rgba(74,108,247,0.15)' : 'var(--surface2)', color: modo === op.k ? '#7b9fff' : 'var(--text3)', border: `1px solid ${modo === op.k ? 'rgba(74,108,247,0.5)' : 'var(--border)'}` }}>{op.label}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fotos / Remito */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Fotos / Remito (opcional)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  {adjuntos.map((a, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px 5px 8px', fontSize: 11 }}>
+                      {/\.(png|jpe?g|webp|gif)$/i.test(a.url) ? <img src={a.url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4 }} /> : <span>📄</span>}
+                      <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nombre || 'archivo'}</span>
+                      <button onClick={() => setAdjuntos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>×</button>
+                    </div>
+                  ))}
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendoAdj ? 'not-allowed' : 'pointer', opacity: subiendoAdj ? 0.6 : 1 }}>{subiendoAdj ? '⏳ Subiendo…' : '📎 Adjuntar foto/remito'}<input type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }} disabled={subiendoAdj} onChange={e => subirAdjuntos(e.target.files)} /></label>
+                </div>
               </div>
 
               {/* Notas */}

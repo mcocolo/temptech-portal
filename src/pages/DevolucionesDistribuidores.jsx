@@ -10,6 +10,7 @@ function formatFecha(d) {
 }
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 const FILTROS = [['pendiente', 'Por revisar'], ['revisado', 'Revisadas'], ['entregado', 'Entregadas'], ['todos', 'Todas']]
+const MOTIVO_CFG = { falla: { label: '🔴 Falla / Defecto', color: '#ff5577' }, cambio: { label: '🔄 Cambio', color: '#38bdf8' }, exceso: { label: '📦 Exceso de stock', color: '#fb923c' } }
 const emptyItem = () => ({ codigo: '', nombre: '', modelo: '', cantidad: 1 })
 
 export default function DevolucionesDistribuidores() {
@@ -202,6 +203,7 @@ export default function DevolucionesDistribuidores() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {r.codigo && <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'monospace', color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 6, padding: '2px 8px' }}>{r.codigo}</span>}
                       <span style={{ fontSize: 15, fontWeight: 800 }}>🏪 {nombre}</span>
+                      {r.tipo && MOTIVO_CFG[r.tipo] && <span style={{ fontSize: 10, fontWeight: 700, color: MOTIVO_CFG[r.tipo].color, background: `${MOTIVO_CFG[r.tipo].color}1f`, border: `1px solid ${MOTIVO_CFG[r.tipo].color}55`, borderRadius: 20, padding: '2px 9px' }}>{MOTIVO_CFG[r.tipo].label}</span>}
                       <span style={{ fontSize: 10, fontWeight: 700, color: r.origen === 'admin' ? '#7b9fff' : '#a78bfa', background: r.origen === 'admin' ? 'rgba(74,108,247,0.12)' : 'rgba(167,139,250,0.12)', border: `1px solid ${r.origen === 'admin' ? 'rgba(74,108,247,0.35)' : 'rgba(167,139,250,0.35)'}`, borderRadius: 20, padding: '2px 9px' }}>Cargada por {r.creado_por || (r.origen === 'admin' ? 'admin' : 'distribuidor')}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: r.modo_entrega === 'logistica' ? '#22d3ee' : 'var(--text3)', background: r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.12)' : 'var(--surface2)', border: `1px solid ${r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.35)' : 'var(--border)'}`, borderRadius: 20, padding: '2px 9px' }}>{r.modo_entrega === 'logistica' ? '🚛 Logística' : '🏭 En fábrica'}</span>
                       {revisado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Revisada</span>}
@@ -209,6 +211,7 @@ export default function DevolucionesDistribuidores() {
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
                       {r.fecha_devolucion ? <>Devolución {formatFecha(r.fecha_devolucion)} · </> : ''}Cargada {formatFecha(r.created_at)} · {totalUnid} u.
+                      {r.pedido_referencia ? <> · 📋 Ref. pedido <span style={{ fontFamily: 'monospace', color: '#7b9fff' }}>{r.pedido_referencia}</span></> : ''}
                       {revisado && r.revisado_por ? <span style={{ color: '#3dd68c' }}> · revisada por {r.revisado_por}</span> : ''}
                     </div>
                   </div>
