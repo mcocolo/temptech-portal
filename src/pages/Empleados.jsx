@@ -43,6 +43,7 @@ export default function Empleados() {
   const [charlasOpen, setCharlasOpen] = useState(false)
   const [valesOpen, setValesOpen] = useState(false)
   const [examenOpen, setExamenOpen] = useState(false)
+  const [vacOpen, setVacOpen] = useState(false)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -159,6 +160,7 @@ export default function Empleados() {
           <button onClick={() => setCharlasOpen(true)} style={{ background: 'var(--surface2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💬 Charlas</button>
           <button onClick={() => setSuspOpen(true)} style={{ background: 'var(--surface2)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🚫 Suspensiones</button>
           {isAdmin && <button onClick={() => setExamenOpen(true)} style={{ background: 'var(--surface2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📚 Días de examen</button>}
+          <button onClick={() => setVacOpen(true)} style={{ background: 'var(--surface2)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🏖️ Vacaciones</button>
           {!readOnly && <button onClick={() => setImportOpen(true)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>📥 Importar CSV</button>}
           {!readOnly && <button onClick={abrirNuevo} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Nuevo empleado</button>}
         </div>
@@ -168,6 +170,7 @@ export default function Empleados() {
       {charlasOpen && <CharlasModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setCharlasOpen(false)} onChange={recargarRegistros} />}
       {valesOpen && esDuenoVales && <ValesModal empleados={items} puedeEditar={true} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setValesOpen(false)} />}
       {examenOpen && isAdmin && <ExamenesModal empleados={items} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setExamenOpen(false)} onChange={recargarRegistros} />}
+      {vacOpen && <VacacionesModal empleados={items} puedeEditar={!readOnly} usuario={profile?.full_name || user?.email || 'Admin'} onClose={() => setVacOpen(false)} onChange={recargarRegistros} />}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <input type="text" placeholder="🔍 Buscar por apodo, nombre, apellido o CUIL..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...iSt, maxWidth: 420 }} />
@@ -385,6 +388,97 @@ function SuspensionesModal({ empleados, puedeEditar, usuario, onClose, onChange 
                     <div style={{ fontSize: 12, color: 'var(--text3)' }}>{fmtF(s.fecha)}{s.fecha_hasta && s.fecha_hasta !== s.fecha ? ` → ${fmtF(s.fecha_hasta)}` : ''} · <b style={{ color: '#fb923c' }}>{s.dias} día{s.dias !== 1 ? 's' : ''}</b>{s.motivo ? ` · ${s.motivo}` : ''}{s.creado_por ? <span style={{ color: 'var(--text3)' }}> · cargó {s.creado_por}</span> : ''}</div>
                   </div>
                   {puedeEditar && <button onClick={() => eliminar(s.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VacacionesModal({ empleados, puedeEditar, usuario, onClose, onChange }) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ empleado_id: '', notas: '', desde: new Date().toISOString().slice(0, 10), hasta: new Date().toISOString().slice(0, 10) })
+  const [guardando, setGuardando] = useState(false)
+
+  const dias = contarDiasHabiles(form.desde, form.hasta)
+  const anioSel = (form.desde || '').slice(0, 4)
+
+  useEffect(() => { cargar() }, [])
+  async function cargar() {
+    setLoading(true)
+    const { data } = await supabase.from('vacaciones').select('*').order('fecha', { ascending: false })
+    setItems(data || [])
+    setLoading(false)
+  }
+  const nombreDe = id => { const e = empleados.find(x => x.id === id); return e ? `${e.apodo}${e.nombre || e.apellido ? ` · ${[e.nombre, e.apellido].filter(Boolean).join(' ')}` : ''}` : '—' }
+  const fmtF = f => f ? new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+  const tomadosAnio = (empId, anio) => items.filter(v => v.empleado_id === empId && String(v.fecha || '').slice(0, 4) === String(anio)).reduce((s, v) => s + (Number(v.dias) || 0), 0)
+
+  async function agregar() {
+    if (!form.empleado_id) return toast.error('Elegí el empleado')
+    if (!form.desde || !form.hasta) return toast.error('Elegí las fechas desde y hasta')
+    if (form.hasta < form.desde) return toast.error('"Hasta" no puede ser anterior a "Desde"')
+    if (dias <= 0) return toast.error('El rango no tiene días hábiles')
+    setGuardando(true)
+    const { error } = await supabase.from('vacaciones').insert({ empleado_id: form.empleado_id, notas: form.notas.trim() || null, fecha: form.desde, fecha_hasta: form.hasta, dias, creado_por: usuario })
+    setGuardando(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Vacaciones registradas ✅')
+    setForm(f => ({ empleado_id: f.empleado_id, notas: '', desde: new Date().toISOString().slice(0, 10), hasta: new Date().toISOString().slice(0, 10) }))
+    cargar(); onChange && onChange()
+  }
+  async function eliminar(id) {
+    if (!window.confirm('¿Eliminar este registro de vacaciones?')) return
+    const { error } = await supabase.from('vacaciones').delete().eq('id', id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    setItems(prev => prev.filter(x => x.id !== id)); onChange && onChange()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 720, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>🏖️ Vacaciones</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          {puedeEditar && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 8, alignItems: 'end', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px', marginBottom: 14 }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={lbl}>Empleado *</label>
+                <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
+                  <option value="">Elegí un empleado…</option>
+                  {empleados.map(e => <option key={e.id} value={e.id}>{e.apodo} · {[e.nombre, e.apellido].filter(Boolean).join(' ')}</option>)}
+                </select>
+              </div>
+              {form.empleado_id && <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text2)' }}>Tomados en <b>{anioSel}</b>: <b style={{ color: '#3dd68c' }}>{tomadosAnio(form.empleado_id, anioSel)} día(s) hábiles</b> · con este registro quedarían <b style={{ color: '#3dd68c' }}>{tomadosAnio(form.empleado_id, anioSel) + dias}</b></div>}
+              <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Notas</label><input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" style={iSt} /></div>
+              <div><label style={lbl}>Desde *</label><input type="date" value={form.desde} onChange={e => setForm(f => ({ ...f, desde: e.target.value, hasta: f.hasta && f.hasta < e.target.value ? e.target.value : f.hasta }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
+              <div><label style={lbl}>Hasta *</label><input type="date" min={form.desde} value={form.hasta} onChange={e => setForm(f => ({ ...f, hasta: e.target.value }))} style={{ ...iSt, colorScheme: 'dark' }} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', flexDirection: 'column' }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: '#3dd68c' }}>{dias}</span>
+                <span style={{ fontSize: 10, color: 'var(--text3)' }}>día{dias !== 1 ? 's' : ''} hábil{dias !== 1 ? 'es' : ''}</span>
+              </div>
+              <button onClick={agregar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', height: 38 }}>➕ Registrar</button>
+            </div>
+          )}
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Cargando…</div>
+          ) : items.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Sin vacaciones registradas.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.map(v => (
+                <div key={v.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{nombreDe(v.empleado_id)} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>· {String(v.fecha || '').slice(0, 4)}: {tomadosAnio(v.empleado_id, String(v.fecha || '').slice(0, 4))} días en el año</span></div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>{fmtF(v.fecha)}{v.fecha_hasta && v.fecha_hasta !== v.fecha ? ` → ${fmtF(v.fecha_hasta)}` : ''} · <b style={{ color: '#3dd68c' }}>{v.dias} día{v.dias !== 1 ? 's' : ''}</b>{v.notas ? ` · ${v.notas}` : ''}{v.creado_por ? <span style={{ color: 'var(--text3)' }}> · cargó {v.creado_por}</span> : ''}</div>
+                  </div>
+                  {puedeEditar && <button onClick={() => eliminar(v.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '5px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>}
                 </div>
               ))}
             </div>
