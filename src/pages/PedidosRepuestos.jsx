@@ -41,6 +41,21 @@ export default function PedidosRepuestos() {
   const [envioEmpresa, setEnvioEmpresa] = useState('Correo Argentino')
   const [envioTracking, setEnvioTracking] = useState('')
   const [envioGuiaFile, setEnvioGuiaFile] = useState(null)
+  const [preciosEdit, setPreciosEdit] = useState({})   // { [pedidoId]: { [i]: precio } }
+  const [guardandoPrecios, setGuardandoPrecios] = useState(null)
+
+  const precioItem = (p, i, item) => { const e = preciosEdit[p.id]?.[i]; return e === undefined || e === '' ? (Number(item.precio_tecnico) || 0) : (parseFloat(e) || 0) }
+  const setPrecioItem = (pid, i, val) => setPreciosEdit(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [i]: val } }))
+  async function guardarPrecios(p) {
+    setGuardandoPrecios(p.id)
+    const nuevos = (p.items || []).map((item, i) => ({ ...item, precio_tecnico: precioItem(p, i, item) }))
+    const { error } = await supabase.from('pedidos_repuestos').update({ items: nuevos, updated_at: new Date().toISOString() }).eq('id', p.id)
+    setGuardandoPrecios(null)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Precios actualizados ✅')
+    setPedidos(prev => prev.map(x => x.id === p.id ? { ...x, items: nuevos } : x))
+    setPreciosEdit(prev => { const n = { ...prev }; delete n[p.id]; return n })
+  }
   const [subiendoGuia, setSubiendoGuia] = useState(false)
 
   // Eliminar
@@ -328,23 +343,41 @@ export default function PedidosRepuestos() {
                     {/* Items */}
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 8 }}>Ítems solicitados</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                        {(p.items || []).map((item, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface2)', borderRadius: 6, padding: '8px 12px', fontSize: 13 }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', minWidth: 80 }}>{item.codigo}</span>
-                            <span style={{ flex: 1 }}>{item.descripcion}</span>
-                            <span style={{ fontWeight: 700 }}>×{item.cantidad} {item.unidad}</span>
-                            {item.precio_tecnico > 0 && (
-                              <span style={{ color: '#2dd4bf', fontWeight: 700, minWidth: 80, textAlign: 'right' }}>{formatPrecio(item.precio_tecnico * item.cantidad)}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {totalPedido > 0 && (
-                        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', fontSize: 13, fontWeight: 700, color: '#2dd4bf' }}>
-                          Total: {formatPrecio(totalPedido)}
-                        </div>
-                      )}
+                      {(() => {
+                        const editable = !['entregado', 'cancelado', 'rechazado'].includes(p.estado)
+                        const totalEdit = (p.items || []).reduce((s, it, i) => s + precioItem(p, i, it) * (it.cantidad || 0), 0)
+                        const hayCambios = !!preciosEdit[p.id] && Object.keys(preciosEdit[p.id]).length > 0
+                        return (
+                          <>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              {(p.items || []).map((item, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface2)', borderRadius: 6, padding: '8px 12px', fontSize: 13 }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', minWidth: 80 }}>{item.codigo}</span>
+                                  <span style={{ flex: 1 }}>{item.descripcion}</span>
+                                  <span style={{ fontWeight: 700 }}>×{item.cantidad} {item.unidad}</span>
+                                  {editable ? (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>$</span>
+                                      <input type="number" step="any" min="0"
+                                        value={preciosEdit[p.id]?.[i] ?? (item.precio_tecnico ?? 0)}
+                                        onChange={e => setPrecioItem(p.id, i, e.target.value)}
+                                        title="Precio unitario"
+                                        style={{ ...inputSt, width: 90, padding: '5px 8px', textAlign: 'right', color: '#2dd4bf', fontWeight: 700 }} />
+                                      <span style={{ fontSize: 10, color: 'var(--text3)' }}>c/u</span>
+                                    </span>
+                                  ) : (item.precio_tecnico > 0 && (
+                                    <span style={{ color: '#2dd4bf', fontWeight: 700, minWidth: 80, textAlign: 'right' }}>{formatPrecio(item.precio_tecnico * item.cantidad)}</span>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+                              {editable && hayCambios && <button onClick={() => guardarPrecios(p)} disabled={guardandoPrecios === p.id} style={{ background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.4)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>{guardandoPrecios === p.id ? 'Guardando…' : '💲 Guardar precios'}</button>}
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#2dd4bf' }}>Total: {formatPrecio(totalEdit)}</span>
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
 
                     {/* Notas del solicitante */}
