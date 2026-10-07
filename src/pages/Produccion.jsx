@@ -450,6 +450,24 @@ export default function Produccion() {
                 </select>
                 <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>{filtrados.length} lotes</span>
               </div>
+              {/* Pendientes por etapa: lotes esperando iniciar cada sector */}
+              {(() => {
+                const SHORT = { corte: 'Corte', armado: 'Alambre', encuadre: 'Encuadre', aguj2: 'Aguj N°2', enduido_lija: 'Enduido+Lija', pintura: 'Pintura', taller: 'Taller' }
+                const chips = columnasProc.map((e, i) => {
+                  const n = filtrados.filter(l => l.etapa === e.key || (i === 0 && l.etapa === 'por_iniciar')).length
+                  return { key: e.key, label: SHORT[e.key] || e.label, color: e.color, n }
+                })
+                return (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                    {chips.map(c => (
+                      <div key={c.key} title={`Lotes pendientes de ${c.label}`} style={{ display: 'flex', alignItems: 'center', gap: 8, background: c.n > 0 ? `${c.color}14` : 'var(--surface2)', border: `1px solid ${c.n > 0 ? c.color + '55' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '7px 12px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: c.n > 0 ? c.color : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Pend. {c.label}</span>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: c.n > 0 ? c.color : 'var(--text3)' }}>{c.n}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
               <div style={{ overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
