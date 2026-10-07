@@ -799,8 +799,13 @@ export default function LogisticaDiaria() {
       {/* Pedidos / ventas por traer a ruta — solo admin */}
       {editaPlanilla && (pedidosPendientes.length > 0 || ventasPendientes.length > 0 || repuestosPendientes.length > 0 || garantiasPendientes.length > 0) && (
         <div style={{ marginBottom: 24, background: 'rgba(74,108,247,0.04)', border: '1px solid rgba(74,108,247,0.2)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
-            🚚 Traer a logística ({pedidosPendientes.length + ventasPendientes.length + repuestosPendientes.length + garantiasPendientes.length})
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+              🚚 Traer a logística ({pedidosPendientes.length + ventasPendientes.length + repuestosPendientes.length + garantiasPendientes.length})
+            </span>
+            {[['📦 Pedidos', pedidosPendientes.length, '#7b9fff'], ['🛒 Ventas', ventasPendientes.length, '#3dd68c'], ['🔧 Repuestos', repuestosPendientes.length, '#2dd4bf'], ['🛠 Cambio Garantía', garantiasPendientes.length, '#fb923c']].filter(([, n]) => n > 0).map(([l, n, c]) => (
+              <span key={l} style={{ fontSize: 10, fontWeight: 700, color: c, background: `${c}1a`, border: `1px solid ${c}55`, borderRadius: 20, padding: '2px 9px' }}>{l}: {n}</span>
+            ))}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pedidosPendientes.map(pedido => {
