@@ -981,7 +981,15 @@ export default function Insumos() {
                 </div>
                 {form.uso_rma && (
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Costo unitario ($)</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Costo unitario ($)</label>
+                      {form.es_repuesto && form.precio_tecnico !== '' && form.precio_tecnico != null && (
+                        <button type="button" onClick={() => setForm(p => ({ ...p, costo: p.precio_tecnico }))}
+                          style={{ fontSize: 11, fontWeight: 700, color: '#2dd4bf', background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                          ⧉ Copiar precio de servicio técnico (${form.precio_tecnico})
+                        </button>
+                      )}
+                    </div>
                     <input type="number" step="any" min="0" value={form.costo} onChange={e => setForm(p => ({ ...p, costo: e.target.value }))} placeholder="Ej: 1200" style={inputSt} />
                   </div>
                 )}
