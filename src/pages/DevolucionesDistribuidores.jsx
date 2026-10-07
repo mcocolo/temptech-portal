@@ -87,9 +87,9 @@ export default function DevolucionesDistribuidores() {
       }
       setEntregadoMap(map)
       // Costos de reacondicionamiento por devolución
-      const { data: cst } = await supabase.from('rma_costos').select('ref_id,costo_total').eq('origen', 'distribuidor').in('ref_id', devIds)
+      const { data: cst } = await supabase.from('rma_costos').select('ref_id,costo_total,cobrado').eq('origen', 'distribuidor').in('ref_id', devIds)
       const cmap = {}
-      for (const c of (cst || [])) if (c.ref_id) cmap[c.ref_id] = (cmap[c.ref_id] || 0) + (Number(c.costo_total) || 0)
+      for (const c of (cst || [])) if (c.ref_id) { const e = cmap[c.ref_id] || { costo: 0, cobrado: 0 }; e.costo += Number(c.costo_total) || 0; e.cobrado += Number(c.cobrado) || 0; cmap[c.ref_id] = e }
       setCostosMap(cmap)
     } else { setEntregadoMap({}); setCostosMap({}) }
     setLoading(false)
@@ -260,7 +260,7 @@ export default function DevolucionesDistribuidores() {
                       <span style={{ fontSize: 10, fontWeight: 700, color: r.modo_entrega === 'logistica' ? '#22d3ee' : 'var(--text3)', background: r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.12)' : 'var(--surface2)', border: `1px solid ${r.modo_entrega === 'logistica' ? 'rgba(34,211,238,0.35)' : 'var(--border)'}`, borderRadius: 20, padding: '2px 9px' }}>{r.modo_entrega === 'logistica' ? '🚛 Logística' : '🏭 En fábrica'}</span>
                       {revisado && <span style={{ fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 10px' }}>✓ Revisada</span>}
                       {entregado && <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 20, padding: '2px 10px' }}>✅ Entregado (repuesta)</span>}
-                      {costosMap[r.id] > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#e879f9', background: 'rgba(232,121,249,0.12)', border: '1px solid rgba(232,121,249,0.35)', borderRadius: 20, padding: '2px 10px' }}>🧰 Costo {fmtCosto(costosMap[r.id])}</span>}
+                      {costosMap[r.id] && <span style={{ fontSize: 11, fontWeight: 700, color: '#e879f9', background: 'rgba(232,121,249,0.12)', border: '1px solid rgba(232,121,249,0.35)', borderRadius: 20, padding: '2px 10px' }}>🧰 Costo {fmtCosto(costosMap[r.id].costo)}{costosMap[r.id].cobrado > 0 ? ` · cobrado ${fmtCosto(costosMap[r.id].cobrado)}` : ' · absorbido'}</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
                       {r.fecha_devolucion ? <>Devolución {formatFecha(r.fecha_devolucion)} · </> : ''}Cargada {formatFecha(r.created_at)} · {totalUnid} u.

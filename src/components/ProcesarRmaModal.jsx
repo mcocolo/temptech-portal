@@ -26,6 +26,9 @@ export default function ProcesarRmaModal({ origen, refId, refCodigo, items = [],
   const [opsSel, setOpsSel] = useState({})         // { [opId]: true }
   const [buscar, setBuscar] = useState('')
   const [notas, setNotas] = useState('')
+  const [paga, setPaga] = useState('absorbido')     // 'cliente' | 'absorbido'
+  const [cobrado, setCobrado] = useState('')         // monto facturado al cliente
+  const [cobradoTouched, setCobradoTouched] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => { cargar() }, [])
@@ -52,6 +55,7 @@ export default function ProcesarRmaModal({ origen, refId, refCodigo, items = [],
   const opsLista = operaciones.filter(o => opsSel[o.id])
   const totOperaciones = opsLista.reduce((s, o) => s + (Number(o.costo) || 0), 0)
   const costoTotal = totMateriales + totOperaciones
+  const cobradoFinal = paga === 'cliente' ? (cobradoTouched ? (parseFloat(cobrado) || 0) : costoTotal) : 0
 
   const q = buscar.trim().toLowerCase()
   const sugeridos = q ? insumos.filter(i => !materiales.some(m => m.insumo_id === i.id) && ((i.codigo || '').toLowerCase().includes(q) || (i.descripcion || '').toLowerCase().includes(q))).slice(0, 8) : []
@@ -83,7 +87,7 @@ export default function ProcesarRmaModal({ origen, refId, refCodigo, items = [],
         panel_codigo: reingreso && panel ? panel.codigo : null, reingreso, cantidad: reingreso ? cant : 0,
         materiales: materiales.filter(m => m.cantidad > 0).map(m => ({ codigo: m.codigo, nombre: m.nombre, cantidad: m.cantidad, costo_unit: m.costo, subtotal: m.costo * m.cantidad })),
         operaciones: opsLista.map(o => ({ nombre: o.nombre, costo: Number(o.costo) || 0 })),
-        costo_total: costoTotal, notas: notas.trim() || null, usuario: nombreUsuario,
+        costo_total: costoTotal, cobrado: cobradoFinal, paga, notas: notas.trim() || null, usuario: nombreUsuario,
       })
       toast.success('Reacondicionamiento registrado ✅')
       onDone && onDone()
@@ -167,13 +171,31 @@ export default function ProcesarRmaModal({ origen, refId, refCodigo, items = [],
               )}
             </div>
 
+            {/* ¿Quién paga? */}
+            <div>
+              <label style={lbl}>¿Quién paga la reparación?</label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[['absorbido', '🏭 Lo absorbemos (no se cobra)'], ['cliente', '💰 Lo paga el cliente/distribuidor']].map(([k, l]) => (
+                  <button key={k} type="button" onClick={() => setPaga(k)} style={{ flex: 1, minWidth: 180, padding: '9px 10px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: paga === k ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: paga === k ? '#3dd68c' : 'var(--text3)', border: `1px solid ${paga === k ? 'rgba(61,214,140,0.45)' : 'var(--border)'}` }}>{l}</button>
+                ))}
+              </div>
+              {paga === 'cliente' && (
+                <div style={{ marginTop: 8 }}>
+                  <label style={lbl}>Monto a cobrar ($)</label>
+                  <input type="number" step="any" min="0" value={cobradoTouched ? cobrado : costoTotal} onChange={e => { setCobradoTouched(true); setCobrado(e.target.value) }} style={iSt} />
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>Por defecto = costo. Podés cobrar más (margen) o menos.</div>
+                </div>
+              )}
+            </div>
+
             <div><label style={lbl}>Notas (opcional)</label><input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Observaciones" style={iSt} /></div>
 
             {/* Totales */}
             <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text3)' }}><span>Materiales</span><span>{fmt(totMateriales)}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text3)' }}><span>Operaciones</span><span>{fmt(totOperaciones)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#e879f9', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}><span>Costo total</span><span>{fmt(costoTotal)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15, color: '#e879f9', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}><span>Nos cuesta</span><span>{fmt(costoTotal)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 14, color: cobradoFinal > 0 ? '#3dd68c' : 'var(--text3)' }}><span>Se cobra</span><span>{fmt(cobradoFinal)}</span></div>
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
