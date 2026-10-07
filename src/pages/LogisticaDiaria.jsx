@@ -127,6 +127,9 @@ export default function LogisticaDiaria() {
   const [pedidosPendientes, setPedidosPendientes] = useState([])
   const [ventasPendientes, setVentasPendientes] = useState([])
   const [repuestosPendientes, setRepuestosPendientes] = useState([])
+  const [repPickerOpen, setRepPickerOpen] = useState(false)
+  const [repPickerList, setRepPickerList] = useState([])
+  const [repPickerLoading, setRepPickerLoading] = useState(false)
   const [garantiasPendientes, setGarantiasPendientes] = useState([])
   const [choferInput, setChoferInput] = useState({})     // { camionetaId: nombre }
   const [asignar, setAsignar] = useState({})             // { itemId: { fecha, camioneta_id } }
@@ -329,6 +332,21 @@ export default function LogisticaDiaria() {
     const { error } = await supabase.from('logistica_descartes').insert({ fuente, ref_id: String(id) })
     if (error) { toast.error('Error: ' + error.message); return }
     cargar()
+  }
+
+  // Selector manual de pedidos de repuesto pendientes para traer a la ruta (aunque no aparezcan en la sugerencia)
+  async function abrirRepPicker() {
+    setRepPickerOpen(true); setRepPickerLoading(true)
+    const [{ data: reps }, { data: asign }] = await Promise.all([
+      supabase.from('pedidos_repuestos').select('*').in('estado', ['pendiente', 'aprobado', 'modificado']).order('created_at', { ascending: false }),
+      supabase.from('logistica_diaria').select('repuesto_id').not('repuesto_id', 'is', null),
+    ])
+    const yaParada = new Set((asign || []).map(a => a.repuesto_id))
+    const ids = [...new Set((reps || []).map(r => r.tecnico_id).filter(Boolean))]
+    let profMap = {}
+    if (ids.length) { const { data: profs } = await supabase.from('profiles').select('id,domicilio,localidad,telefono').in('id', ids); profMap = Object.fromEntries((profs || []).map(p => [p.id, p])) }
+    setRepPickerList((reps || []).filter(r => !yaParada.has(r.id)).map(r => ({ ...r, _profile: profMap[r.tecnico_id] || null })))
+    setRepPickerLoading(false)
   }
 
   function abrirDesdeRepuesto(r) {
@@ -793,6 +811,10 @@ export default function LogisticaDiaria() {
               {t.emoji} + {t.label}
             </button>
           ))}
+          <button onClick={abrirRepPicker}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+            🔧 + Repuesto
+          </button>
         </div>
       )}
 
@@ -1331,6 +1353,46 @@ export default function LogisticaDiaria() {
 
       {/* ── MODAL información importante de vehículos ── */}
       {!isChofer && infoOpen && <InfoVehiculosModal camionetas={camionetas} puedeEditar={isAdmin} onClose={() => setInfoOpen(false)} onChange={cargar} />}
+
+      {repPickerOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 640, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>🔧 Traer un pedido de repuesto a la ruta</div>
+              <button onClick={() => setRepPickerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              {repPickerLoading ? (
+                <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Cargando…</div>
+              ) : repPickerList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>No hay pedidos de repuesto pendientes para traer.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {repPickerList.map(r => {
+                    const nombre = r.razon_social || r.tecnico_nombre || r.tecnico_email || 'Repuestos'
+                    return (
+                      <div key={r.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7b9fff', background: 'rgba(74,108,247,0.1)', padding: '2px 7px', borderRadius: 4 }}>#{r.id.slice(0, 8).toUpperCase()}</span>
+                            <span style={{ fontWeight: 700, fontSize: 13 }}>{nombre}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: r.estado === 'aprobado' ? '#3dd68c' : '#ffd166', background: r.estado === 'aprobado' ? 'rgba(61,214,140,0.12)' : 'rgba(255,209,102,0.12)', border: `1px solid ${r.estado === 'aprobado' ? 'rgba(61,214,140,0.35)' : 'rgba(255,209,102,0.35)'}`, padding: '1px 7px', borderRadius: 10, textTransform: 'capitalize' }}>{r.estado}</span>
+                            {r.envio_empresa && <span style={{ fontSize: 10, color: 'var(--text3)' }}>· {r.envio_empresa}</span>}
+                          </div>
+                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                            {(r.items || []).map((it, i) => <span key={i} style={{ background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.25)', color: '#2dd4bf', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{it.codigo || it.descripcion} ×{it.cantidad}</span>)}
+                          </div>
+                        </div>
+                        <button onClick={() => { abrirDesdeRepuesto(r); setRepPickerOpen(false) }} style={{ background: 'rgba(74,108,247,0.1)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.35)', borderRadius: 'var(--radius)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 }}>➕ Traer</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
