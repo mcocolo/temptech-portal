@@ -62,6 +62,7 @@ export default function Insumos() {
   const [busqueda, setBusqueda] = useState('')
   const [filtroSector, setFiltroSector] = useState('')
   const [filtroModelo, setFiltroModelo] = useState('')
+  const [filtroRepuesto, setFiltroRepuesto] = useState(false)
   const [filtroDisc, setFiltroDisc] = useState('activos')   // activos | discontinuados | todos
   const [expandido, setExpandido] = useState(null)
 
@@ -458,6 +459,7 @@ export default function Insumos() {
     if (filtroDisc === 'discontinuados' && !ins.discontinuado) return false
     if (filtroSector && !ins.sectores?.includes(filtroSector)) return false
     if (filtroModelo && ins.modelo !== filtroModelo) return false
+    if (filtroRepuesto && !ins.es_repuesto) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
       return ins.codigo.toLowerCase().includes(q) || ins.descripcion.toLowerCase().includes(q) || (ins.proveedor_nombre || '').toLowerCase().includes(q)
@@ -569,6 +571,11 @@ export default function Insumos() {
               </button>
             )
           })}
+          <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+          <button onClick={() => setFiltroRepuesto(v => !v)}
+            style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroRepuesto ? 'rgba(45,212,191,0.18)' : 'var(--surface2)', color: filtroRepuesto ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${filtroRepuesto ? 'rgba(45,212,191,0.5)' : 'var(--border)'}` }}>
+            🔩 Repuestos
+          </button>
         </div>
       </div>
 
