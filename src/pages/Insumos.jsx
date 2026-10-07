@@ -27,8 +27,8 @@ const UNIDADES = ['unidades', 'kg', 'litros', 'metros', 'rollos', 'cajas', 'pare
 
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 
-const MODELOS = ['Slim', 'Firenze', 'Slim/Firenze']
-const MODELO_COLOR = { Slim: '#7b9fff', Firenze: '#fb923c', 'Slim/Firenze': '#a78bfa' }
+const MODELOS = ['Slim', 'Firenze', 'Slim/Firenze', 'Calefones-Calderas', 'Anafes']
+const MODELO_COLOR = { Slim: '#7b9fff', Firenze: '#fb923c', 'Slim/Firenze': '#a78bfa', 'Calefones-Calderas': '#2dd4bf', 'Anafes': '#f59e0b' }
 
 const EMPTY_FORM = {
   codigo: '', descripcion: '', unidad: 'unidades',
