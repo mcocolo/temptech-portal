@@ -14,7 +14,7 @@ const MOTIVO_CFG = { falla: { label: '🔴 Falla / Defecto', color: '#ff5577' },
 const emptyItem = () => ({ codigo: '', nombre: '', modelo: '', cantidad: 1 })
 
 export default function DevolucionesDistribuidores() {
-  const { isAdmin, isAdmin2, isDistributor, user, profile } = useAuth()
+  const { isAdmin, isAdmin2, isDistributor, isSuperadmin, user, profile } = useAuth()
   const esDist = isDistributor && !isAdmin && !isAdmin2   // distribuidor cargando sus propias devoluciones
   const nombreUsuario = profile?.full_name || profile?.razon_social || user?.email || 'Usuario'
 
@@ -30,11 +30,14 @@ export default function DevolucionesDistribuidores() {
   const [modal, setModal] = useState(false)
   const [distribuidores, setDistribuidores] = useState([])
   const [catalogo, setCatalogo] = useState([])
+  const [editId, setEditId] = useState(null)
   const [fDistId, setFDistId] = useState('')
   const [fItems, setFItems] = useState([emptyItem()])
   const [fNotas, setFNotas] = useState('')
   const [fFecha, setFFecha] = useState('')
   const [fModo, setFModo] = useState('fabrica')
+  const [fTipo, setFTipo] = useState('')
+  const [fRef, setFRef] = useState('')
   const [fAdjuntos, setFAdjuntos] = useState([])   // [{url, nombre}]
   const [subiendoAdj, setSubiendoAdj] = useState(false)
   const [creando, setCreando] = useState(false)
@@ -84,8 +87,26 @@ export default function DevolucionesDistribuidores() {
     setLoading(false)
   }
 
+  async function cargarCatalogoYDist() {
+    if (!esDist && !distribuidores.length) {
+      const { data } = await supabase.from('profiles').select('id,full_name,razon_social,email').eq('user_type', 'distributor').order('razon_social')
+      setDistribuidores(data || [])
+    }
+    if (!catalogo.length) {
+      const { data } = await supabase.from('precios').select('codigo,nombre,modelo,categoria').order('nombre')
+      setCatalogo(data || [])
+    }
+  }
+  function abrirEditar(row) {
+    setEditId(row.id); setFDistId(row.distribuidor_id || '')
+    setFItems((row.items || []).length ? row.items.map(i => ({ ...i })) : [emptyItem()])
+    setFNotas(row.notas || ''); setFFecha(row.fecha_devolucion || ''); setFModo(row.modo_entrega || 'fabrica')
+    setFTipo(row.tipo || ''); setFRef(row.pedido_referencia || ''); setFAdjuntos(Array.isArray(row.adjuntos) ? row.adjuntos : [])
+    setModal(true); cargarCatalogoYDist()
+  }
+
   async function abrirNueva() {
-    setFDistId(esDist ? (user?.id || '') : ''); setFItems([emptyItem()]); setFNotas(''); setFFecha(''); setFModo('fabrica'); setFAdjuntos([]); setModal(true)
+    setEditId(null); setFDistId(esDist ? (user?.id || '') : ''); setFItems([emptyItem()]); setFNotas(''); setFFecha(''); setFModo('fabrica'); setFTipo(''); setFRef(''); setFAdjuntos([]); setModal(true)
     if (!esDist && !distribuidores.length) {
       const { data } = await supabase.from('profiles').select('id,full_name,razon_social,email').eq('user_type', 'distributor').order('razon_social')
       setDistribuidores(data || [])
@@ -107,15 +128,24 @@ export default function DevolucionesDistribuidores() {
     const items = fItems.filter(i => i.codigo && (parseInt(i.cantidad) || 0) > 0).map(i => ({ codigo: i.codigo, nombre: i.nombre, modelo: i.modelo, cantidad: parseInt(i.cantidad) }))
     if (!items.length) return toast.error('Agregá al menos un producto con cantidad')
     setCreando(true)
-    const { error } = await supabase.from('devoluciones_distribuidor').insert({
-      distribuidor_id: distId, origen: esDist ? 'distribuidor' : 'admin', items, notas: fNotas.trim() || null,
+    const payload = {
+      items, notas: fNotas.trim() || null, tipo: fTipo || null, pedido_referencia: fRef.trim() || null,
       fecha_devolucion: fFecha || null, modo_entrega: fModo, adjuntos: fAdjuntos,
-      estado: 'pendiente', creado_por: nombreUsuario,
-    })
+    }
+    const { error } = editId
+      ? await supabase.from('devoluciones_distribuidor').update(payload).eq('id', editId)
+      : await supabase.from('devoluciones_distribuidor').insert({ ...payload, distribuidor_id: distId, origen: esDist ? 'distribuidor' : 'admin', estado: 'pendiente', creado_por: nombreUsuario })
     setCreando(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('Devolución cargada ✅')
-    setModal(false); cargar()
+    toast.success(editId ? 'Devolución actualizada ✅' : 'Devolución cargada ✅')
+    setModal(false); setEditId(null); cargar()
+  }
+  async function eliminar(row) {
+    if (!window.confirm(`¿Eliminar esta devolución${row.codigo ? ' ' + row.codigo : ''}? No se puede deshacer.`)) return
+    const { error } = await supabase.from('devoluciones_distribuidor').delete().eq('id', row.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Devolución eliminada')
+    setRows(prev => prev.filter(r => r.id !== row.id))
   }
 
   async function marcarRevisado(row, revisado) {
@@ -232,6 +262,8 @@ export default function DevolucionesDistribuidores() {
                     ? <span style={{ fontSize: 11, fontWeight: 700, color: revisado ? '#3dd68c' : '#fb923c', background: revisado ? 'rgba(61,214,140,0.12)' : 'rgba(251,146,60,0.12)', border: `1px solid ${revisado ? 'rgba(61,214,140,0.35)' : 'rgba(251,146,60,0.35)'}`, borderRadius: 20, padding: '4px 12px', flexShrink: 0 }}>{revisado ? '✓ Revisada por fábrica' : '⏳ Pendiente de revisión'}</span>
                     : (
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button onClick={() => abrirEditar(r)} title="Editar" style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️ Editar</button>
+                        {isSuperadmin && <button onClick={() => eliminar(r)} title="Eliminar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 'var(--radius)', padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>}
                         {revisado
                           ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button>
                           : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
@@ -270,7 +302,7 @@ export default function DevolucionesDistribuidores() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>➕ Nueva devolución pendiente</div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{editId ? '✏️ Editar devolución' : '➕ Nueva devolución pendiente'}</div>
               <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -283,6 +315,20 @@ export default function DevolucionesDistribuidores() {
                   </select>
                 </div>
               )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Motivo</label>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    {Object.entries(MOTIVO_CFG).map(([k, c]) => (
+                      <button key={k} type="button" onClick={() => setFTipo(fTipo === k ? '' : k)} style={{ flex: 1, padding: '8px 4px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: fTipo === k ? `${c.color}26` : 'var(--surface2)', color: fTipo === k ? c.color : 'var(--text3)', border: `1px solid ${fTipo === k ? c.color + '88' : 'var(--border)'}` }}>{c.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>N° pedido de referencia</label>
+                  <input value={fRef} onChange={e => setFRef(e.target.value)} placeholder="Ej: 5D3449AD" style={inputSt} />
+                </div>
+              </div>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>Productos que devuelve</label>
@@ -337,7 +383,7 @@ export default function DevolucionesDistribuidores() {
                 <textarea value={fNotas} onChange={e => setFNotas(e.target.value)} rows={2} placeholder="Motivo, aclaraciones…" style={{ ...inputSt, resize: 'vertical' }} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={crearDevolucion} disabled={creando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: creando ? 'not-allowed' : 'pointer', opacity: creando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{creando ? 'Guardando…' : '✓ Cargar devolución'}</button>
+                <button onClick={crearDevolucion} disabled={creando} style={{ flex: 1, background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: creando ? 'not-allowed' : 'pointer', opacity: creando ? 0.7 : 1, fontFamily: 'var(--font)' }}>{creando ? 'Guardando…' : editId ? '✓ Guardar cambios' : '✓ Cargar devolución'}</button>
                 <button onClick={() => setModal(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
