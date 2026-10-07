@@ -142,8 +142,21 @@ export default function DevolucionesDistribuidores() {
 
   if (!isAdmin && !isAdmin2 && !esDist) return null
 
+  async function marcarEntregado(row, val) {
+    setGuardando(row.id)
+    const { error } = await supabase.from('devoluciones_distribuidor').update({
+      entregado_manual: val,
+      entregado_at: val ? new Date().toISOString() : null,
+      entregado_por: val ? nombreUsuario : null,
+    }).eq('id', row.id)
+    setGuardando(null)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(val ? 'Marcada como entregada ✅' : 'Entrega reabierta')
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, entregado_manual: val } : r))
+  }
+
   // Dos dimensiones independientes: Revisión (revisada/no) y Entrega de la reposición (entregada/no)
-  const esEntregado = r => !!entregadoMap[r.id]
+  const esEntregado = r => !!entregadoMap[r.id] || r.entregado_manual === true
   const esRevisada = r => r.estado === 'revisado'
   const q = busqueda.trim().toLowerCase()
   const filtradas = rows.filter(r => {
@@ -217,9 +230,16 @@ export default function DevolucionesDistribuidores() {
                   </div>
                   {esDist
                     ? <span style={{ fontSize: 11, fontWeight: 700, color: revisado ? '#3dd68c' : '#fb923c', background: revisado ? 'rgba(61,214,140,0.12)' : 'rgba(251,146,60,0.12)', border: `1px solid ${revisado ? 'rgba(61,214,140,0.35)' : 'rgba(251,146,60,0.35)'}`, borderRadius: 20, padding: '4px 12px', flexShrink: 0 }}>{revisado ? '✓ Revisada por fábrica' : '⏳ Pendiente de revisión'}</span>
-                    : (revisado
-                      ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>↩ Reabrir</button>
-                      : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>)}
+                    : (
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {revisado
+                          ? <button onClick={() => marcarRevisado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button>
+                          : <button onClick={() => marcarRevisado(r, true)} disabled={guardando === r.id} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>{guardando === r.id ? '…' : '✓ Marcar revisada'}</button>}
+                        {r.entregado_manual
+                          ? <button onClick={() => marcarEntregado(r, false)} disabled={guardando === r.id} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir entrega</button>
+                          : (!entregado && <button onClick={() => marcarEntregado(r, true)} disabled={guardando === r.id} title="Marcar entregada sin tocar stock (reposición ya hecha)" style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✅ Marcar entregada</button>)}
+                      </div>
+                    )}
                 </div>
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {items.map((i, idx) => (
