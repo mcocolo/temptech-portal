@@ -35,6 +35,7 @@ const EMPTY_FORM = {
   proveedor_nombre: '', proveedor_direccion: '', proveedor_telefono: '', proveedor_horario: '', proveedor_contacto: '',
   sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '', tamano_envase: '',
   es_repuesto: false, precio_tecnico: '',
+  uso_rma: false, costo: '',
   imagen_url: '',
   es_kit: false, componentes: [],
 }
@@ -63,6 +64,8 @@ export default function Insumos() {
   const [filtroSector, setFiltroSector] = useState('')
   const [filtroModelo, setFiltroModelo] = useState('')
   const [filtroRepuesto, setFiltroRepuesto] = useState(false)
+  const [filtroRma, setFiltroRma] = useState(false)
+  const [opsOpen, setOpsOpen] = useState(false)
   const [filtroDisc, setFiltroDisc] = useState('activos')   // activos | discontinuados | todos
   const [expandido, setExpandido] = useState(null)
 
@@ -199,6 +202,7 @@ export default function Insumos() {
       proveedor_contacto: ins.proveedor_contacto || '',
       sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
+      uso_rma: ins.uso_rma || false, costo: ins.costo ?? '',
       imagen_url: ins.imagen_url || '',
       es_kit: ins.es_kit || false, componentes: ins.componentes || [],
     })
@@ -214,6 +218,7 @@ export default function Insumos() {
       proveedor_contacto: ins.proveedor_contacto || '',
       sectores: ins.sectores || [], stock_actual: 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
+      uso_rma: ins.uso_rma || false, costo: ins.costo ?? '',
       imagen_url: ins.imagen_url || '',
       es_kit: ins.es_kit || false, componentes: ins.componentes || [],
     })
@@ -284,6 +289,8 @@ export default function Insumos() {
       tamano_envase: parseFloat(form.tamano_envase) || null,
       es_repuesto: form.es_repuesto,
       precio_tecnico: form.es_repuesto ? (parseFloat(form.precio_tecnico) || null) : null,
+      uso_rma: form.uso_rma,
+      costo: form.uso_rma ? (parseFloat(form.costo) || null) : (parseFloat(form.costo) || null),
       imagen_url: form.imagen_url || null,
       es_kit: form.es_kit,
       componentes: form.es_kit ? form.componentes : [],
@@ -460,6 +467,7 @@ export default function Insumos() {
     if (filtroSector && !ins.sectores?.includes(filtroSector)) return false
     if (filtroModelo && ins.modelo !== filtroModelo) return false
     if (filtroRepuesto && !ins.es_repuesto) return false
+    if (filtroRma && !ins.uso_rma) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
       return ins.codigo.toLowerCase().includes(q) || ins.descripcion.toLowerCase().includes(q) || (ins.proveedor_nombre || '').toLowerCase().includes(q)
@@ -487,6 +495,10 @@ export default function Insumos() {
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
             <History size={15} /> Historial
           </button>
+          {!soloLectura && <button onClick={() => setOpsOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(232,121,249,0.1)', border: '1px solid rgba(232,121,249,0.35)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: '#e879f9', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            🧾 Costos de operaciones
+          </button>}
           {!soloLectura && <button onClick={() => setImportOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
             <Upload size={15} /> Importar CSV
@@ -576,6 +588,10 @@ export default function Insumos() {
             style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroRepuesto ? 'rgba(45,212,191,0.18)' : 'var(--surface2)', color: filtroRepuesto ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${filtroRepuesto ? 'rgba(45,212,191,0.5)' : 'var(--border)'}` }}>
             🔩 Repuestos
           </button>
+          <button onClick={() => setFiltroRma(v => !v)}
+            style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroRma ? 'rgba(232,121,249,0.18)' : 'var(--surface2)', color: filtroRma ? '#e879f9' : 'var(--text3)', border: `1px solid ${filtroRma ? 'rgba(232,121,249,0.5)' : 'var(--border)'}` }}>
+            🧰 RMA
+          </button>
         </div>
       </div>
 
@@ -605,6 +621,7 @@ export default function Insumos() {
                         <span key={s} style={{ fontSize: 10, background: `${color}15`, border: `1px solid ${color}30`, color, borderRadius: 3, padding: '1px 6px' }}>{s}</span>
                       ))}
                       {ins.es_repuesto && <span style={{ fontSize: 10, background: 'rgba(45,212,191,0.15)', border: '1px solid rgba(45,212,191,0.4)', color: '#2dd4bf', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🔩 Repuesto</span>}
+                      {ins.uso_rma && <span style={{ fontSize: 10, background: 'rgba(232,121,249,0.15)', border: '1px solid rgba(232,121,249,0.4)', color: '#e879f9', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🧰 RMA{ins.costo ? ` · $${ins.costo}` : ''}</span>}
                       {ins.es_kit && <span style={{ fontSize: 10, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🔧 Kit ({(ins.componentes||[]).length})</span>}
                       {ins.discontinuado && <span style={{ fontSize: 10, background: 'rgba(139,152,169,0.15)', border: '1px solid rgba(139,152,169,0.4)', color: '#8b98a9', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>🚫 Discontinuado</span>}
                     </div>
@@ -950,6 +967,26 @@ export default function Insumos() {
                 )}
               </div>
 
+              {/* Uso en Devoluciones / RMA + costo */}
+              <div style={{ background: form.uso_rma ? 'rgba(232,121,249,0.06)' : 'var(--surface2)', border: `1px solid ${form.uso_rma ? 'rgba(232,121,249,0.35)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '14px 16px', transition: 'all .2s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: form.uso_rma ? 12 : 0 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: form.uso_rma ? '#e879f9' : 'var(--text2)' }}>🧰 Se usa en Devoluciones / RMA</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Disponible para consumir al reacondicionar una devolución (caja, bolsa, cable…)</div>
+                  </div>
+                  <div onClick={() => setForm(p => ({ ...p, uso_rma: !p.uso_rma }))}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: form.uso_rma ? '#e879f9' : 'var(--surface3)', cursor: 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0 }}>
+                    <div style={{ position: 'absolute', top: 3, left: form.uso_rma ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                  </div>
+                </div>
+                {form.uso_rma && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Costo unitario ($)</label>
+                    <input type="number" step="any" min="0" value={form.costo} onChange={e => setForm(p => ({ ...p, costo: e.target.value }))} placeholder="Ej: 1200" style={inputSt} />
+                  </div>
+                )}
+              </div>
+
               {/* Kit / Conjunto armado */}
               <div style={{ background: form.es_kit ? 'rgba(251,191,36,0.06)' : 'var(--surface2)', border: `1px solid ${form.es_kit ? 'rgba(251,191,36,0.35)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '14px 16px', transition: 'all .2s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: form.es_kit ? 14 : 0 }}>
@@ -1258,6 +1295,79 @@ export default function Insumos() {
       })()}
 
       {importOpen && <ImportarCSV titulo={titulo} tabla="insumos" columnas={COLS_CSV_INS} fijos={{ tipo, es_kit: false, componentes: [] }} onClose={() => setImportOpen(false)} onDone={cargar} />}
+      {opsOpen && <OperacionesRmaModal onClose={() => setOpsOpen(false)} />}
+    </div>
+  )
+}
+
+// Editor de la tabla de costos de OPERACIONES de RMA (mano de obra: Pintar, Reparar, etc.)
+function OperacionesRmaModal({ onClose }) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ nombre: '', costo: '' })
+  const [guardando, setGuardando] = useState(false)
+  const [editId, setEditId] = useState(null)
+
+  useEffect(() => { cargar() }, [])
+  async function cargar() {
+    setLoading(true)
+    const { data } = await supabase.from('operaciones_rma').select('*').order('nombre')
+    setItems(data || [])
+    setLoading(false)
+  }
+  async function guardar() {
+    if (!form.nombre.trim()) return toast.error('Ingresá el nombre de la operación')
+    setGuardando(true)
+    const payload = { nombre: form.nombre.trim(), costo: parseFloat(form.costo) || 0 }
+    const { error } = editId
+      ? await supabase.from('operaciones_rma').update(payload).eq('id', editId)
+      : await supabase.from('operaciones_rma').insert(payload)
+    setGuardando(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success(editId ? 'Operación actualizada ✅' : 'Operación agregada ✅')
+    setForm({ nombre: '', costo: '' }); setEditId(null); cargar()
+  }
+  async function eliminar(id) {
+    if (!window.confirm('¿Eliminar esta operación?')) return
+    const { error } = await supabase.from('operaciones_rma').delete().eq('id', id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    setItems(prev => prev.filter(x => x.id !== id))
+  }
+  const fmtMonto = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(Number(n) || 0)
+  const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>🧾 Costos de operaciones (RMA / Service)</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12 }}>Mano de obra / procesos que no son un insumo puntual (Pintar, Reparar Taller, etc.). Se usan al costear una devolución o service.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px auto', gap: 8, alignItems: 'end', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px', marginBottom: 14 }}>
+            <div><label style={lbl}>Operación *</label><input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Pintar / Reparar Taller" style={inputSt} /></div>
+            <div><label style={lbl}>Costo $</label><input type="number" step="any" value={form.costo} onChange={e => setForm(f => ({ ...f, costo: e.target.value }))} placeholder="0" style={inputSt} /></div>
+            <button onClick={guardar} disabled={guardando} style={{ background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', height: 38 }}>{editId ? '✓ Guardar' : '➕ Agregar'}</button>
+          </div>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Cargando…</div>
+          ) : items.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text3)' }}>Sin operaciones cargadas.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {items.map(op => (
+                <div key={op.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{op.nombre}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#e879f9' }}>{fmtMonto(op.costo)}</span>
+                  <button onClick={() => { setEditId(op.id); setForm({ nombre: op.nombre, costo: op.costo ?? '' }) }} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>
+                  <button onClick={() => eliminar(op.id)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
