@@ -252,10 +252,8 @@ export default function LogisticaDiaria() {
       })
       setVentasPendientes(ventasExpandidas)
 
-      // Repuestos: pedidos pendientes que no estén ya en logística (traer los que se entregan por logística propia)
-      // Solo van a la planilla los de "Logística Propia" (los que todavía no definieron envío también); correo/andreani salen por envío, no por la ruta
-      const esRepLogistica = r => !r.envio_empresa || /log.*propia/i.test(r.envio_empresa)
-      const repFiltrados = (repuestosData || []).filter(r => esRepLogistica(r) && !asignadosRepuestos.has(r.id) && !descartado('repuesto', r.id))
+      // Repuestos: TODOS los pedidos pendientes que no estén ya cargados como parada aparecen para traer.
+      const repFiltrados = (repuestosData || []).filter(r => !asignadosRepuestos.has(r.id))
       if (repFiltrados.length > 0) {
         const ids = [...new Set(repFiltrados.map(r => r.tecnico_id).filter(Boolean))]
         const { data: profsRep } = await supabase.from('profiles').select('id,domicilio,localidad,telefono').in('id', ids)
