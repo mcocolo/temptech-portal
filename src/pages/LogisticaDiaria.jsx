@@ -1297,7 +1297,7 @@ export default function LogisticaDiaria() {
               </div>
 
               {/* Productos */}
-              {conProductos && (
+              {conProductos && !form.repuesto_id && (
                 <div>
                   <label style={lblSt}>Productos</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))', gap: 8 }}>

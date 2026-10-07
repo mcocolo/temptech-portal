@@ -119,7 +119,11 @@ export default function PedidosRepuestos() {
     }).eq('id', pedidoId)
     setSubiendoGuia(false)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('Datos de envío guardados ✅')
+    // Si es Logística Propia, que vuelva a aparecer en "Traer a logística" (limpiamos un descarte previo)
+    if (/log.*propia/i.test(envioEmpresa || '')) {
+      await supabase.from('logistica_descartes').delete().eq('fuente', 'repuesto').eq('ref_id', String(pedidoId))
+    }
+    toast.success(/log.*propia/i.test(envioEmpresa || '') ? 'Guardado ✅ · va a Logística Diaria para traer' : 'Datos de envío guardados ✅')
     setEnvioGuiaFile(null)
     setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, envio_empresa: envioEmpresa, envio_tracking: envioTracking.trim() || null, envio_guia_url: guiaUrl } : p))
     if (envioTracking.trim()) cambiarEstado(pedidoId, 'enviado')
