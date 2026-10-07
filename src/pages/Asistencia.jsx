@@ -45,6 +45,7 @@ export default function Asistencia() {
   const [empleados, setEmpleados] = useState([])
   const [susp, setSusp] = useState([]) // suspensiones (para marcar SUSPENDIDO)
   const [examenes, setExamenes] = useState([]) // días de examen (para marcar EXAMEN)
+  const [vacaciones, setVacaciones] = useState([]) // vacaciones (para marcar VACACIONES)
   const [regs, setRegs] = useState({}) // empleado_id -> registro
   const [reporteOpen, setReporteOpen] = useState(false)
   const [examenGestion, setExamenGestion] = useState(false)
@@ -63,18 +64,21 @@ export default function Asistencia() {
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargarRegs() }, [fecha, isAdmin, isAdmin2, isMantenimiento])
 
   async function cargarEmpleados() {
-    const [data, s, ex] = await Promise.all([
+    const [data, s, ex, vac] = await Promise.all([
       fetchAllRows(() => supabase.from('empleados').select('id,apodo,nombre,apellido,sector,fecha_ingreso,fecha_egreso1,fecha_ingreso2,fecha_egreso2').order('apodo')),
       supabase.from('suspensiones').select('empleado_id,fecha,fecha_hasta,dias'),
       supabase.from('dias_examen').select('empleado_id,fecha,fecha_hasta'),
+      supabase.from('vacaciones').select('empleado_id,fecha,fecha_hasta,dias'),
     ])
     setEmpleados(data || [])
     setSusp(s.data || [])
     setExamenes(ex.data || [])
+    setVacaciones(vac.data || [])
   }
-  // ¿El empleado está suspendido / de examen en la fecha? (rango desde..hasta inclusive)
+  // ¿El empleado está suspendido / de examen / de vacaciones en la fecha? (rango desde..hasta inclusive)
   const suspendidoEn = (empId, f) => susp.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const examenEn = (empId, f) => examenes.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
+  const vacacionEn = (empId, f) => vacaciones.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   async function cargarRegs() {
     setLoading(true)
     const { data } = await supabase.from('asistencias').select('*').eq('fecha', fecha)
@@ -169,7 +173,7 @@ export default function Asistencia() {
           </div>
         </div>
       </div>
-      {reporteOpen && <ReporteModal empleados={empleados} susp={susp} examenes={examenes} onClose={() => setReporteOpen(false)} />}
+      {reporteOpen && <ReporteModal empleados={empleados} susp={susp} examenes={examenes} vacaciones={vacaciones} onClose={() => setReporteOpen(false)} />}
       {examenGestion && <ExamenesModal empleados={empleados} usuario={usuario} onClose={() => setExamenGestion(false)} onChange={cargarEmpleados} />}
       {valesOpen && esDuenoVales && <ValesModal empleados={empleados} puedeEditar={true} usuario={usuario} onClose={() => setValesOpen(false)} />}
 
@@ -204,7 +208,7 @@ export default function Asistencia() {
       </div>
 
       {vista === 'mes' ? (
-        <VistaMes lista={lista} susp={susp} examenes={examenes} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
+        <VistaMes lista={lista} susp={susp} examenes={examenes} vacaciones={vacaciones} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
       ) : loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando…</div>
       ) : lista.length === 0 ? (
@@ -251,6 +255,18 @@ export default function Asistencia() {
                     </td>
                     <td colSpan={6} style={{ padding: '8px 12px', textAlign: 'left' }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.14)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 20, padding: '4px 12px' }}>📚 EXAMEN</span>
+                    </td>
+                  </tr>
+                )
+                // Vacaciones: fila bloqueada mostrando VACACIONES
+                if (vacacionEn(e.id, fecha)) return (
+                  <tr key={e.id} style={{ borderTop: '1px solid var(--border)', background: 'rgba(61,214,140,0.06)' }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ fontWeight: 700 }}>{e.apodo}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</div>
+                    </td>
+                    <td colSpan={6} style={{ padding: '8px 12px', textAlign: 'left' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#3dd68c', background: 'rgba(61,214,140,0.14)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 20, padding: '4px 12px' }}>🏖️ VACACIONES</span>
                     </td>
                   </tr>
                 )
@@ -328,11 +344,13 @@ const MARCA = {
   med:        { txt: 'M', color: '#a78bfa', bg: 'rgba(167,139,250,0.14)', label: 'Médico' },
   sus:        { txt: 'S', color: '#ff5577', bg: 'rgba(255,85,119,0.14)', label: 'Suspendido' },
   exa:        { txt: 'E', color: '#38bdf8', bg: 'rgba(56,189,248,0.14)', label: 'Examen' },
+  vac:        { txt: 'V', color: '#3dd68c', bg: 'rgba(61,214,140,0.14)', label: 'Vacaciones' },
   incompleto: { txt: '·', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', label: 'Incompleto' },
 }
-function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
+function VistaMes({ lista, susp = [], examenes = [], vacaciones = [], onAbrirDia }) {
   const suspendidoEn = (empId, f) => susp.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const examenEn = (empId, f) => examenes.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
+  const vacacionEn = (empId, f) => vacaciones.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const [mes, setMes] = useState(mesActual())
   const [regs, setRegs] = useState({}) // 'empId|fecha' -> registro
   const [valesEmp, setValesEmp] = useState({}) // empId -> total de vales del mes
@@ -409,7 +427,7 @@ function VistaMes({ lista, susp = [], examenes = [], onAbrirDia }) {
                 const celdas = dias.map(d => {
                   const f = fechaDe(d)
                   const r = regs[`${e.id}|${f}`]
-                  const est = suspendidoEn(e.id, f) ? 'sus' : examenEn(e.id, f) ? 'exa' : (r?.medico ? 'med' : estadoDia(r, f))
+                  const est = suspendidoEn(e.id, f) ? 'sus' : examenEn(e.id, f) ? 'exa' : vacacionEn(e.id, f) ? 'vac' : (r?.medico ? 'med' : estadoDia(r, f))
                   if (est === 'ok') oks++
                   heTot += hm(r?.he) || 0
                   return { d, f, r, est }
@@ -458,7 +476,7 @@ function diasHabilesInter(a1, a2, b1, b2) {
   return n
 }
 
-function ReporteModal({ empleados, susp, examenes, onClose }) {
+function ReporteModal({ empleados, susp, examenes, vacaciones = [], onClose }) {
   const [modo, setModo] = useState('mes') // 'mes' | 'anio'
   const [periodo, setPeriodo] = useState(mesActual())
   const [anio, setAnio] = useState(String(new Date().getFullYear()))
@@ -489,7 +507,8 @@ function ReporteModal({ empleados, susp, examenes, onClose }) {
     }
     const exa = examenes.filter(x => x.empleado_id === e.id).reduce((s, x) => s + diasHabilesInter(x.fecha, x.fecha_hasta || x.fecha, rango.desde, rango.hasta), 0)
     const sus = susp.filter(x => x.empleado_id === e.id).reduce((s, x) => s + diasHabilesInter(x.fecha, x.fecha_hasta || x.fecha, rango.desde, rango.hasta), 0)
-    return { e, tarde, aus, med, exa, sus, tot: tarde + aus + med + exa + sus }
+    const vac = vacaciones.filter(x => x.empleado_id === e.id).reduce((s, x) => s + diasHabilesInter(x.fecha, x.fecha_hasta || x.fecha, rango.desde, rango.hasta), 0)
+    return { e, tarde, aus, med, exa, sus, vac, tot: tarde + aus + med + exa + sus + vac }
   }).filter(f => f.tot > 0).sort((a, b) => b.tot - a.tot)
 
   const totCol = k => filas.reduce((s, f) => s + f[k], 0)
@@ -525,9 +544,10 @@ function ReporteModal({ empleados, susp, examenes, onClose }) {
                     <th style={{ ...th2, color: '#a78bfa' }}>Médico</th>
                     <th style={{ ...th2, color: '#38bdf8' }}>Examen</th>
                     <th style={{ ...th2, color: '#ff5577' }}>Suspensión</th>
+                    <th style={{ ...th2, color: '#3dd68c' }}>Vacaciones</th>
                   </tr></thead>
                   <tbody>
-                    {filas.map(({ e, tarde, aus, med, exa, sus }) => (
+                    {filas.map(({ e, tarde, aus, med, exa, sus, vac }) => (
                       <tr key={e.id}>
                         <td style={{ ...td2, textAlign: 'left', fontWeight: 700 }}>{e.apodo} <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</span></td>
                         <td style={{ ...td2, fontWeight: 700, color: tarde ? '#fb923c' : 'var(--border2)' }}>{tarde || '·'}</td>
@@ -535,6 +555,7 @@ function ReporteModal({ empleados, susp, examenes, onClose }) {
                         <td style={{ ...td2, fontWeight: 700, color: med ? '#a78bfa' : 'var(--border2)' }}>{med || '·'}</td>
                         <td style={{ ...td2, fontWeight: 700, color: exa ? '#38bdf8' : 'var(--border2)' }}>{exa || '·'}</td>
                         <td style={{ ...td2, fontWeight: 700, color: sus ? '#ff5577' : 'var(--border2)' }}>{sus || '·'}</td>
+                        <td style={{ ...td2, fontWeight: 700, color: vac ? '#3dd68c' : 'var(--border2)' }}>{vac || '·'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -545,6 +566,7 @@ function ReporteModal({ empleados, susp, examenes, onClose }) {
                     <td style={{ ...td2, fontWeight: 800, color: '#a78bfa' }}>{totCol('med')}</td>
                     <td style={{ ...td2, fontWeight: 800, color: '#38bdf8' }}>{totCol('exa')}</td>
                     <td style={{ ...td2, fontWeight: 800, color: '#ff5577' }}>{totCol('sus')}</td>
+                    <td style={{ ...td2, fontWeight: 800, color: '#3dd68c' }}>{totCol('vac')}</td>
                   </tr></tfoot>
                 </table>
               </div>
