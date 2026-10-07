@@ -31,6 +31,7 @@ export default function Repuestos() {
   const [repuestos, setRepuestos] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
+  const [filtroCat, setFiltroCat] = useState('')   // '', 'paneles', 'calefones', 'anafes'
 
   // Carrito
   const [carrito, setCarrito] = useState({}) // { id: cantidad }
@@ -165,6 +166,9 @@ export default function Repuestos() {
   const filtrados = repuestos.filter(r => {
     if (subTab === 'individual' && r.es_kit) return false
     if (subTab === 'kit' && !r.es_kit) return false
+    if (filtroCat === 'paneles' && !['Slim', 'Firenze', 'Slim/Firenze'].includes(r.modelo)) return false
+    if (filtroCat === 'calefones' && r.modelo !== 'Calefones-Calderas') return false
+    if (filtroCat === 'anafes' && r.modelo !== 'Anafes') return false
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
     return r.codigo.toLowerCase().includes(q) || r.descripcion.toLowerCase().includes(q)
@@ -221,7 +225,7 @@ export default function Repuestos() {
               }}>{label}</button>
             ))}
           </div>
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 14 }}>
             <input
               type="text"
               placeholder="🔍 Buscar por código o descripción..."
@@ -229,6 +233,11 @@ export default function Repuestos() {
               onChange={e => setBusqueda(e.target.value)}
               style={{ ...inputSt, maxWidth: 420 }}
             />
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+            {[['', 'Todos'], ['paneles', '🔥 Paneles Calefactores'], ['calefones', '💧 Calefones-Calderas'], ['anafes', '🍳 Anafes']].map(([v, l]) => (
+              <button key={v} onClick={() => setFiltroCat(v)} style={{ padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroCat === v ? 'rgba(45,212,191,0.18)' : 'var(--surface2)', color: filtroCat === v ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${filtroCat === v ? 'rgba(45,212,191,0.5)' : 'var(--border)'}` }}>{l}</button>
+            ))}
           </div>
 
           {loading ? (

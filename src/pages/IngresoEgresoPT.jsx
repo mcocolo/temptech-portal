@@ -381,10 +381,11 @@ export default function IngresoEgresoPT() {
     // Guardar saldo pendiente (requiere columna items_pendientes)
     await supabase.from('pedidos').update({ items_pendientes: newPending }).eq('id', pedidoSel.id)
 
-    // Si el pedido repone una devolución pendiente y salió completo, dejamos la marca de entrega
-    // (la pantalla de Devoluciones la muestra como "Entregada"; la revisión es independiente).
-    if (isComplete && pedidoSel.concepto === 'devoluciones_pendientes' && pedidoSel.devdist_id) {
+    // Si el pedido repone/está vinculado a una devolución de distribuidor, al salir del stock
+    // la marcamos "Entregada" en su pantalla (fijo, no depende de recalcular). La revisión es aparte.
+    if (pedidoSel.devdist_id) {
       await supabase.from('devoluciones_distribuidor').update({
+        entregado_manual: true, entregado_at: new Date().toISOString(), entregado_por: profile?.full_name || user?.email || 'Admin',
         resuelto_por: profile?.full_name || user?.email || 'Admin', resuelto_at: new Date().toISOString(),
       }).eq('id', pedidoSel.devdist_id)
     }

@@ -537,8 +537,9 @@ export default function AdminPedidos() {
     if (error) { toast.error('Error: ' + error.message); return }
     // La devolución vinculada se marca "Entregada" en su pantalla mirando este pedido
     // (no tocamos su estado de revisión, que es independiente). Solo dejamos la marca de fecha.
-    if (pedido.concepto === 'devoluciones_pendientes' && pedido.devdist_id) {
+    if (pedido.devdist_id) {
       await supabase.from('devoluciones_distribuidor').update({
+        entregado_manual: true, entregado_at: new Date().toISOString(), entregado_por: profile?.full_name || user?.email || 'Admin',
         resuelto_por: profile?.full_name || user?.email || 'Admin', resuelto_at: new Date().toISOString(),
       }).eq('id', pedido.devdist_id)
     }
