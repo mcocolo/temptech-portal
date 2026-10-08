@@ -14,10 +14,15 @@ const TIPOS = {
   llevar_insumo:   { label: 'Llevar Insumo',     color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)',  border: 'rgba(45,212,191,0.35)',  emoji: '📤' },
   retiro_service:  { label: 'Retiro Service',    color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.35)', emoji: '🔧' },
   retiro_items:    { label: 'Retiro de Items',   color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.35)', emoji: '📋' },
+  repuesto:        { label: 'Repuestos',         color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)',  border: 'rgba(45,212,191,0.35)',  emoji: '🔧' },
 }
+// Tipos que se crean manualmente desde los botones de arriba (Repuesto viene del selector, no es un botón manual)
+const TIPOS_MANUALES = Object.keys(TIPOS).filter(k => k !== 'repuesto')
+// Config de tipo para mostrar: una parada vinculada a un repuesto se muestra como "Repuestos" aunque su tipo guardado sea otro
+const tipoCfgDe = item => (item && item.repuesto_id) ? TIPOS.repuesto : (TIPOS[item?.tipo] || null)
 
 // Tipos que llevan lista de productos + datos de cliente
-const TIPOS_CON_PRODUCTOS = ['entrega_pt', 'cambio_producto', 'cambio_garantia']
+const TIPOS_CON_PRODUCTOS = ['entrega_pt', 'cambio_producto', 'cambio_garantia', 'repuesto']
 
 const ZONAS = ['Zona CABA 1', 'Zona CABA 2', 'Zona norte', 'Zona sur 1', 'Zona sur 2', 'Zona oeste', 'Zona GBA']
 
@@ -352,7 +357,7 @@ export default function LogisticaDiaria() {
     const items = (r.items || []).map(i => `${i.codigo || i.descripcion || ''} x${i.cantidad}`).filter(Boolean).join(', ')
     const prof = r._profile || {}
     setForm({
-      ...EMPTY_FORM, tipo: 'entrega_pt', nombre,
+      ...EMPTY_FORM, tipo: 'repuesto', nombre,
       descripcion: items ? `Repuestos: ${items}` : 'Repuestos',
       telefono: prof.telefono || '', direccion: prof.domicilio || '', localidad: prof.localidad || '',
       email: r.tecnico_email || '', repuesto_id: r.id,
@@ -667,7 +672,7 @@ export default function LogisticaDiaria() {
     const YELLOW = new Set(['C500STV1', 'F1400BCO'])
     const thProd = PRODUCTOS_LOG.map(p => `<th class="${YELLOW.has(p.codigo) ? 'y' : ''}" style="width:26px">${esc(p.label)}</th>`).join('')
     const filas = grupo.map((item, i) => {
-      const t = TIPOS[item.tipo]
+      const t = tipoCfgDe(item)
       const cambio = ['cambio_garantia', 'cambio_producto'].includes(item.tipo) ? 'SI' : ''
       const detalle = item.nombre && item.descripcion ? `<div class="det">${esc(item.descripcion)}</div>` : ''
       // Terminación 1400w (la columna 1400w no discrimina el color) — se resalta en el detalle
@@ -803,12 +808,12 @@ export default function LogisticaDiaria() {
       {/* Botones de tipo — solo admin */}
       {editaPlanilla && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {Object.entries(TIPOS).map(([key, t]) => (
+          {TIPOS_MANUALES.map((key) => { const t = TIPOS[key]; return (
             <button key={key} onClick={() => abrirNuevo(key)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: t.bg, color: t.color, border: `1px solid ${t.border}`, borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
               {t.emoji} + {t.label}
             </button>
-          ))}
+          ) })}
           <button onClick={abrirRepPicker}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
             🔧 + Repuesto
@@ -952,7 +957,7 @@ export default function LogisticaDiaria() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {porAsignar.map(item => {
-              const t = TIPOS[item.tipo]
+              const t = tipoCfgDe(item)
               const prodsCon = paradaProductos(item)
               const a = asignar[item.id] || {}
               const isDel = confirmDel === item.id
@@ -1752,7 +1757,7 @@ function ReporteKmModal({ onClose }) {
 
 // ── Fila de parada (dentro de una ruta) ──
 function ParadaRow({ item, idx, grupo, isChofer, puedeConfirmar, onMover, onSetOrden, onEditar, onConfirmar, onDesasignar, confirmDel, setConfirmDel, onEliminar, readOnly }) {
-  const t = TIPOS[item.tipo]
+  const t = tipoCfgDe(item)
   const prodsCon = paradaProductos(item)
   const isDel = confirmDel === item.id
   return (
