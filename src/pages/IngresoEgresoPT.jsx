@@ -151,6 +151,10 @@ export default function IngresoEgresoPT() {
 
   // Tab: Egreso Devoluciones (egresos_garantia pendientes)
   const [egresosGarantia, setEgresosGarantia]           = useState([])
+  const [repEgreso, setRepEgreso]                       = useState([])
+  const [loadingRepEgreso, setLoadingRepEgreso]         = useState(false)
+  const [stockRep, setStockRep]                         = useState({})   // codigo insumo -> stock_actual
+  const [confirmandoRep, setConfirmandoRep]             = useState(null)
   const [loadingEgresosGar, setLoadingEgresosGar]       = useState(false)
   const [modalEgresoGar, setModalEgresoGar]             = useState(false)
   const [egresoGarSel, setEgresoGarSel]                 = useState(null)
@@ -209,6 +213,7 @@ export default function IngresoEgresoPT() {
   useEffect(() => { if (view === 'pedidos') cargarPedidos() }, [view])
   useEffect(() => { if (CANAL_VIEWS.includes(view)) cargarVentas(CANAL_KEYS[view]) }, [view])
   useEffect(() => { if (view === 'egreso-dev') cargarEgresosGarantia() }, [view])
+  useEffect(() => { if (view === 'egreso-repuestos') cargarRepEgreso() }, [view])
   useEffect(() => { if (view === 'dev-entrada') cargarDevGarantia() }, [view])
   useEffect(() => { if (view === 'prestamos') cargarPrestamos() }, [view])
 
@@ -455,6 +460,43 @@ export default function IngresoEgresoPT() {
       .order('created_at', { ascending: false })
     setEgresosGarantia(data || [])
     setLoadingEgresosGar(false)
+  }
+
+  async function cargarRepEgreso() {
+    setLoadingRepEgreso(true)
+    const { data } = await supabase.from('pedidos_repuestos').select('*')
+      .not('estado', 'in', '("cancelado","rechazado")')
+      .order('created_at', { ascending: false })
+    const pend = (data || []).filter(p => !p.stock_descontado)
+    setRepEgreso(pend)
+    // Stock actual de los insumos involucrados
+    const cods = [...new Set(pend.flatMap(p => (p.items || []).map(i => i.codigo).filter(Boolean)))]
+    if (cods.length) {
+      const { data: ins } = await supabase.from('insumos').select('codigo,stock_actual').in('codigo', cods)
+      setStockRep(Object.fromEntries((ins || []).map(i => [i.codigo, i.stock_actual])))
+    } else setStockRep({})
+    setLoadingRepEgreso(false)
+  }
+
+  async function registrarEgresoRepuesto(ped) {
+    if (!window.confirm(`¿Registrar egreso de este pedido de repuestos? Se descuenta el stock de los insumos.`)) return
+    setConfirmandoRep(ped.id)
+    const round3 = n => Math.round((Number(n) || 0) * 1000) / 1000
+    try {
+      for (const it of (ped.items || [])) {
+        const cant = parseInt(it.cantidad) || 0
+        if (!it.codigo || cant <= 0) continue
+        const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', it.codigo).limit(1)
+        const row = ins?.[0]
+        if (!row) continue
+        await supabase.from('insumos').update({ stock_actual: round3((row.stock_actual || 0) - cant), updated_at: new Date().toISOString() }).eq('id', row.id)
+        await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: 'egreso', cantidad: cant, sector: 'Repuestos', motivo: `Egreso repuesto · Pedido #${String(ped.id).slice(0, 8).toUpperCase()} · ${ped.tecnico_nombre || ped.razon_social || ''}`.trim(), usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email })
+      }
+      await supabase.from('pedidos_repuestos').update({ stock_descontado: true, estado: ped.estado === 'pendiente' || ped.estado === 'aprobado' ? 'enviado' : ped.estado, updated_at: new Date().toISOString() }).eq('id', ped.id)
+      toast.success('Egreso de repuestos registrado · stock descontado ✅')
+      setRepEgreso(prev => prev.filter(p => p.id !== ped.id))
+    } catch (e) { toast.error('Error: ' + (e?.message || e)) }
+    setConfirmandoRep(null)
   }
 
   async function cargarDevGarantia() {
@@ -1148,6 +1190,7 @@ export default function IngresoEgresoPT() {
           { v: 'egreso-pagina', icon: <ArrowUpCircle size={13} />, label: 'Egreso Página', color: '#7b9fff' },
           { v: 'egreso-vo',     icon: <ArrowUpCircle size={13} />, label: 'Egreso VO',     color: '#a78bfa' },
           { v: 'egreso-dev',    icon: <ArrowUpCircle size={13} />, label: 'Egreso Dev.',  color: '#fb923c' },
+          { v: 'egreso-repuestos', icon: <ArrowUpCircle size={13} />, label: 'Egreso Repuestos', color: '#2dd4bf' },
           { v: 'dev-entrada',   icon: <ArrowDownCircle size={13} />, label: 'Dev. Entrada', color: '#38bdf8' },
           { v: 'prestamos',     icon: <Briefcase size={13} />,   label: 'Préstamos',    color: '#34d399' },
           { v: 'historial',     icon: <History size={13} />,     label: 'Historial' },
@@ -1621,6 +1664,49 @@ export default function IngresoEgresoPT() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      ) : view === 'egreso-repuestos' ? (
+        /* EGRESO REPUESTOS (pedidos_repuestos sin stock descontado) */
+        <div>
+          {loadingRepEgreso ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>
+          ) : repEgreso.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)', fontSize: 14 }}>No hay pedidos de repuestos pendientes de egreso.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {repEgreso.map(ped => {
+                const nombre = ped.tecnico_nombre || ped.razon_social || ped.tecnico_email || 'Repuestos'
+                const items = (ped.items || []).filter(i => (i.cantidad || 0) > 0)
+                return (
+                  <div key={ped.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#7b9fff', fontFamily: 'monospace' }}>#{String(ped.id).slice(0, 8).toUpperCase()}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.35)', padding: '1px 8px', borderRadius: 20 }}>🔧 REPUESTO</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--surface2)', border: '1px solid var(--border)', padding: '1px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{ped.estado}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{nombre}</span>
+                        {ped.envio_empresa && <span style={{ fontSize: 10, color: 'var(--text3)' }}>· {ped.envio_empresa}</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        {items.map((it, i) => {
+                          const stk = stockRep[it.codigo]
+                          const falta = typeof stk === 'number' && stk < (it.cantidad || 0)
+                          return <span key={i} style={{ background: 'var(--surface2)', border: `1px solid ${falta ? 'rgba(255,85,119,0.4)' : 'var(--border)'}`, borderRadius: 6, padding: '3px 10px', fontSize: 11 }}>
+                            <b style={{ fontFamily: 'monospace', color: '#7b9fff' }}>{it.codigo}</b> {it.descripcion} · <b>×{it.cantidad}</b> <span style={{ color: falta ? '#ff5577' : 'var(--text3)' }}>(stk {stk ?? '—'})</span>
+                          </span>
+                        })}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{ped.created_at ? new Date(ped.created_at).toLocaleDateString('es-AR') : ''}</div>
+                    <button onClick={() => registrarEgresoRepuesto(ped)} disabled={confirmandoRep === ped.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.4)', borderRadius: 'var(--radius)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                      <ArrowUpCircle size={13} /> {confirmandoRep === ped.id ? 'Procesando…' : 'Registrar egreso'}
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
