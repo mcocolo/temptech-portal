@@ -722,6 +722,7 @@ export default function AdminReclamos({ openTracking } = {}) {
   const [editandoId, setEditandoId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [editArchivos, setEditArchivos] = useState({ comprobantes: [], imagenes: [] })
+  const [editExistentes, setEditExistentes] = useState({ comprobantes: [], imagenes: [] })
   const [supervisionAbierto, setSupervisionAbierto] = useState(null)  // item abierto para cargar
   const [supervisionVer, setSupervisionVer] = useState(null)           // item para ver resultado
   const [panelStockAbierto, setPanelStockAbierto] = useState(null)     // { id, tipo } | null
@@ -1043,6 +1044,10 @@ export default function AdminReclamos({ openTracking } = {}) {
       fecha_compra: item.fecha_compra ? item.fecha_compra.slice(0, 10) : '',
     })
     setEditArchivos({ comprobantes: [], imagenes: [] })
+    setEditExistentes({
+      comprobantes: item.comprobantes_urls?.length > 0 ? [...item.comprobantes_urls] : (item.comprobante_url ? [item.comprobante_url] : []),
+      imagenes: item.imagenes_producto_urls?.length > 0 ? [...item.imagenes_producto_urls] : (item.imagen_producto_url ? [item.imagen_producto_url] : []),
+    })
     setEditandoId(item.id)
   }
 
@@ -1062,8 +1067,14 @@ export default function AdminReclamos({ openTracking } = {}) {
     }
     const nuevosComprobantes = await uploadExtra(editArchivos.comprobantes, 'comprobantes')
     const nuevasImagenes = await uploadExtra(editArchivos.imagenes, 'imagenes')
-    const comprobantes_urls = [...(item.comprobantes_urls || []), ...nuevosComprobantes]
-    const imagenes_producto_urls = [...(item.imagenes_producto_urls || []), ...nuevasImagenes]
+    const comprobantes_urls = [...editExistentes.comprobantes, ...nuevosComprobantes]
+    const imagenes_producto_urls = [...editExistentes.imagenes, ...nuevasImagenes]
+    // Borrar del storage las fotos quitadas en la edición
+    const originalComp = item.comprobantes_urls?.length > 0 ? item.comprobantes_urls : (item.comprobante_url ? [item.comprobante_url] : [])
+    const originalImg = item.imagenes_producto_urls?.length > 0 ? item.imagenes_producto_urls : (item.imagen_producto_url ? [item.imagen_producto_url] : [])
+    const quitadas = [...originalComp, ...originalImg].filter(u => !comprobantes_urls.includes(u) && !imagenes_producto_urls.includes(u))
+    const paths = quitadas.map(u => { const m = u.match(/\/devoluciones\/(.+)$/); return m ? decodeURIComponent(m[1]) : null }).filter(Boolean)
+    if (paths.length > 0) { try { await supabase.storage.from('devoluciones').remove(paths) } catch {} }
     const { error } = await supabase.from('devoluciones').update({
       nombre_apellido: editForm.nombre_apellido,
       email: editForm.email,
@@ -1086,6 +1097,7 @@ export default function AdminReclamos({ openTracking } = {}) {
     }).eq('id', item.id)
     if (error) { alert('Error al guardar los cambios'); return }
     setEditArchivos({ comprobantes: [], imagenes: [] })
+    setEditExistentes({ comprobantes: [], imagenes: [] })
     setEditandoId(null)
     await cargar()
   }
@@ -1897,19 +1909,39 @@ ${item.notas ? `<div class="section"><div class="section-title">Historial de not
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
                           <div>
-                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Adjuntar comprobantes</label>
+                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Comprobantes</label>
+                            {editExistentes.comprobantes.length > 0 && (
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                                {editExistentes.comprobantes.map((url, i) => (
+                                  <div key={i} style={{ position: 'relative' }}>
+                                    <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}`, display: 'block' }} onError={e => { e.currentTarget.style.opacity = 0.3 }} /></a>
+                                    <button type="button" onClick={() => setEditExistentes(p => ({ ...p, comprobantes: p.comprobantes.filter(u => u !== url) }))} title="Eliminar" style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ff5577', color: '#fff', border: 'none', fontSize: 11, lineHeight: 1, cursor: 'pointer', fontWeight: 700 }}>×</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <input type="file" multiple accept="image/*,application/pdf" onChange={e => setEditArchivos(p => ({ ...p, comprobantes: Array.from(e.target.files) }))} style={{ fontSize: 12, color: T.text2 }} />
-                            {editArchivos.comprobantes.length > 0 && <div style={{ fontSize: 11, color: T.text3, marginTop: 4 }}>{editArchivos.comprobantes.length} archivo(s) seleccionado(s)</div>}
+                            {editArchivos.comprobantes.length > 0 && <div style={{ fontSize: 11, color: T.text3, marginTop: 4 }}>{editArchivos.comprobantes.length} archivo(s) para agregar</div>}
                           </div>
                           <div>
-                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Adjuntar fotos del producto</label>
+                            <label style={{ fontSize: 10, color: T.text3, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Fotos del producto</label>
+                            {editExistentes.imagenes.length > 0 && (
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                                {editExistentes.imagenes.map((url, i) => (
+                                  <div key={i} style={{ position: 'relative' }}>
+                                    <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}`, display: 'block' }} onError={e => { e.currentTarget.style.opacity = 0.3 }} /></a>
+                                    <button type="button" onClick={() => setEditExistentes(p => ({ ...p, imagenes: p.imagenes.filter(u => u !== url) }))} title="Eliminar" style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ff5577', color: '#fff', border: 'none', fontSize: 11, lineHeight: 1, cursor: 'pointer', fontWeight: 700 }}>×</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <input type="file" multiple accept="image/*" onChange={e => setEditArchivos(p => ({ ...p, imagenes: Array.from(e.target.files) }))} style={{ fontSize: 12, color: T.text2 }} />
-                            {editArchivos.imagenes.length > 0 && <div style={{ fontSize: 11, color: T.text3, marginTop: 4 }}>{editArchivos.imagenes.length} foto(s) seleccionada(s)</div>}
+                            {editArchivos.imagenes.length > 0 && <div style={{ fontSize: 11, color: T.text3, marginTop: 4 }}>{editArchivos.imagenes.length} foto(s) para agregar</div>}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <Btn variant="primary" onClick={() => guardarEdicion(item)}>💾 Guardar cambios</Btn>
-                          <Btn onClick={() => { setEditandoId(null); setEditArchivos({ comprobantes: [], imagenes: [] }) }}>Cancelar</Btn>
+                          <Btn onClick={() => { setEditandoId(null); setEditArchivos({ comprobantes: [], imagenes: [] }); setEditExistentes({ comprobantes: [], imagenes: [] }) }}>Cancelar</Btn>
                         </div>
                       </div>
                     )}

@@ -2506,6 +2506,7 @@ export default function IngresoEgresoPT() {
                   {ventaDetalle.cliente_email && <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>{ventaDetalle.cliente_email}</div>}
                   {ventaDetalle.cliente_telefono && <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>📞 {ventaDetalle.cliente_telefono}</div>}
                   {ventaDetalle.nro_orden && <div style={{ fontSize: 13, color: vc, fontWeight: 600, marginTop: 4 }}>Orden: {ventaDetalle.nro_orden}</div>}
+                  {ventaDetalle.created_at && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>🗓 Cargada: {new Date(ventaDetalle.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}
                 </div>
 
                 {/* Productos */}
@@ -2569,8 +2570,37 @@ export default function IngresoEgresoPT() {
                       </div>
                     )}
 
-                    {/* Productos logística */}
-                    {ventaDetalle.tipo_envio !== 'correo' && Array.isArray(ventaDetalle.envio_etiquetas) && ventaDetalle.envio_etiquetas.length > 0 && (
+                    {/* Entregas / domicilios logística */}
+                    {ventaDetalle.tipo_envio === 'logistica' && (() => {
+                      const entregas = Array.isArray(ventaDetalle.entregas) && ventaDetalle.entregas.length > 0
+                        ? ventaDetalle.entregas
+                        : (ventaDetalle.envio_datos ? [{ ...ventaDetalle.envio_datos, telefono: ventaDetalle.cliente_telefono, items: ventaDetalle.envio_etiquetas || [] }] : [])
+                      if (entregas.length === 0) return null
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                          {entregas.map((e, i) => (
+                            <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                              {entregas.length > 1 && <div style={{ fontSize: 11, fontWeight: 700, color: vc, marginBottom: 4 }}>📍 Entrega {i + 1}</div>}
+                              {e.direccion && <div style={{ fontSize: 13, fontWeight: 600 }}>{e.direccion}</div>}
+                              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                                {[e.localidad, e.provincia, e.zona && `Zona ${e.zona}`, e.codigo_postal && `CP ${e.codigo_postal}`].filter(Boolean).join(' · ')}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                                {[e.telefono && `📞 ${e.telefono}`, e.dni && `DNI ${e.dni}`].filter(Boolean).join(' · ')}
+                              </div>
+                              {Array.isArray(e.items) && e.items.length > 0 && (
+                                <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>
+                                  {e.items.map(it => `${it.codigo || ''} ${it.nombre || ''} ×${it.cantidad || 1}`).filter(s => s.trim()).join(' · ')}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+
+                    {/* Productos retiro en fábrica */}
+                    {ventaDetalle.tipo_envio === 'retiro' && Array.isArray(ventaDetalle.envio_etiquetas) && ventaDetalle.envio_etiquetas.length > 0 && (
                       <div style={{ fontSize: 12, color: 'var(--text3)' }}>
                         {ventaDetalle.envio_etiquetas.map(it => `${it.codigo || ''} ×${it.cantidad}`).filter(Boolean).join(' · ')}
                       </div>
