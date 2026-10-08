@@ -29,7 +29,7 @@ function formatPrecio(n) {
 }
 
 export default function PedidosRepuestos() {
-  const { isAdmin, isAdmin2 } = useAuth()
+  const { isAdmin, isAdmin2, user, profile } = useAuth()
   const [pedidos, setPedidos]           = useState([])
   const [loading, setLoading]           = useState(true)
   const [pedidoAbierto, setPedidoAbierto] = useState(null)
@@ -87,8 +87,31 @@ export default function PedidosRepuestos() {
   async function cambiarEstado(id, estado) {
     const { error } = await supabase.from('pedidos_repuestos').update({ estado, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { toast.error('Error al cambiar estado'); return }
-    toast.success('Estado actualizado')
     setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado } : p))
+    // Al enviar/entregar, descontar el stock de los repuestos (insumos) una sola vez y dejar movimiento
+    if ((estado === 'enviado' || estado === 'entregado')) {
+      const ped = pedidos.find(p => p.id === id)
+      if (ped && !ped.stock_descontado) await descontarStockRepuesto(ped)
+      else toast.success('Estado actualizado')
+    } else toast.success('Estado actualizado')
+  }
+
+  async function descontarStockRepuesto(ped) {
+    const round3 = n => Math.round((Number(n) || 0) * 1000) / 1000
+    let ok = 0
+    for (const it of (ped.items || [])) {
+      const cant = parseInt(it.cantidad) || 0
+      if (!it.codigo || cant <= 0) continue
+      const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('codigo', it.codigo).limit(1)
+      const row = ins?.[0]
+      if (!row) continue
+      await supabase.from('insumos').update({ stock_actual: round3((row.stock_actual || 0) - cant), updated_at: new Date().toISOString() }).eq('id', row.id)
+      await supabase.from('movimientos_insumos').insert({ insumo_id: row.id, tipo: 'egreso', cantidad: cant, sector: 'Repuestos', motivo: `Pedido repuesto #${String(ped.id).slice(0, 8).toUpperCase()} · ${ped.tecnico_nombre || ped.razon_social || ''}`.trim(), usuario_id: user?.id, usuario_nombre: profile?.full_name || user?.email })
+      ok++
+    }
+    await supabase.from('pedidos_repuestos').update({ stock_descontado: true }).eq('id', ped.id)
+    setPedidos(prev => prev.map(p => p.id === ped.id ? { ...p, stock_descontado: true } : p))
+    toast.success(ok > 0 ? `Enviado · stock descontado (${ok} ítem${ok !== 1 ? 's' : ''}) ✅` : 'Estado actualizado (sin ítems para descontar)')
   }
 
   async function guardarNotasAdmin(id) {
@@ -336,6 +359,7 @@ export default function PedidosRepuestos() {
                       {totalPedido > 0 && <> · <strong style={{ color: 'var(--text2)' }}>{formatPrecio(totalPedido)}</strong></>}
                       {' · '}{new Date(p.created_at).toLocaleDateString('es-AR')}
                     </span>
+                    {p.stock_descontado && <span style={{ fontSize: 10, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.12)', border: '1px solid rgba(61,214,140,0.35)', borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>✓ Stock descontado</span>}
                     <span style={{ fontSize: 16, color: 'var(--text3)' }}>{abierto ? '▲' : '▼'}</span>
                   </div>
                 </div>
