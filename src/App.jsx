@@ -39,6 +39,7 @@ import MisPreventas from '@/pages/MisPreventas'
 import AdminReportes from '@/pages/AdminReportes'
 import Presupuesto from '@/pages/Presupuesto'
 import Presupuestos from '@/pages/Presupuestos'
+import InformacionRelevante from '@/pages/InformacionRelevante'
 import Repuestos from '@/pages/Repuestos'
 import VideosTecnicos from '@/pages/VideosTecnicos'
 import PedidosRepuestos from '@/pages/PedidosRepuestos'
@@ -103,6 +104,7 @@ function AppRoutes() {
               <Route path="/distribuidores" element={<Distribuidores />} />
               <Route path="/presupuesto" element={<Presupuesto />} />
               <Route path="/presupuestos" element={<Presupuestos />} />
+              <Route path="/informacion-relevante" element={<InformacionRelevante />} />
               <Route path="/pedidos" element={<Pedidos />} />
               <Route path="/admin-pedidos" element={<AdminPedidos />} />
               <Route path="/admin-precios" element={<AdminPrecios />} />

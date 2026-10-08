@@ -9,7 +9,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin, Cog, Clock
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin, Cog, Clock, Info
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -61,6 +61,7 @@ const ADMIN_NAV = [
   { label: 'Proveedores',        icon: Box,        path: '/proveedores',        isAdmin: true },
   { label: 'Reportes',           icon: BarChart2,  path: '/reportes',           isAdmin: true },
   { label: 'Presupuestos',       icon: ClipboardList, path: '/presupuestos',    isAdmin: true },
+  { label: 'Información Relevante', icon: Info,        path: '/informacion-relevante', isAdmin: true },
   { section: 'PostVenta' },
   { label: 'Servicios Técnicos', icon: Wrench, path: '/admin-tecnicos', isAdmin: true },
   { label: 'Videos Técnicos',   icon: Video, path: '/videos-tecnicos', isAdmin: true },
@@ -101,6 +102,7 @@ const ADMIN2_NAV = [
   { label: 'Ingreso / Egreso PT', icon: BarChart2,     path: '/ingreso-egreso-pt', isAdmin: true },
   { label: 'Logística Diaria',   icon: Truck,         path: '/logistica',         isAdmin: true },
   { label: 'Proveedores',        icon: Box,           path: '/proveedores',       isAdmin: true },
+  { label: 'Información Relevante', icon: Info,        path: '/informacion-relevante', isAdmin: true },
   { label: 'Ingreso en Tránsito', icon: Archive, isAdmin: true, submenu: 'transito', children: [
     { label: 'Mercado Libre', icon: ShoppingBag, path: '/ingreso-transito/meli' },
     { label: 'Página Web',    icon: Globe,       path: '/ingreso-transito/pagina' },
@@ -159,6 +161,8 @@ const NAV_MANTENIMIENTO = [
     { label: 'Herramental', icon: Wrench, path: '/produccion/herramental' },
     { label: 'Registros', icon: ClipboardList, path: '/mantenimiento/registros' },
   ]},
+  { section: 'Consultas' },
+  { label: 'Información Relevante', icon: Info, path: '/informacion-relevante' },
 ]
 
 // Nav para Servicio Técnico
