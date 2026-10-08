@@ -918,10 +918,24 @@ export default function AdminReclamos({ openTracking } = {}) {
       camioneta_id: null,
     }
     try {
-      const { data: existentes } = await supabase.from('logistica_diaria').select('id').eq('devolucion_id', item.id).limit(1)
+      const { data: existentes } = await supabase.from('logistica_diaria').select('id,estado_entrega').eq('devolucion_id', item.id).limit(1)
       if (existentes && existentes.length) {
+        const ex = existentes[0]
         // No pisamos productos ya cargados/editados a mano; solo tipo y fecha
-        await supabase.from('logistica_diaria').update({ tipo: payload.tipo, fecha: payload.fecha }).eq('id', existentes[0].id)
+        const upd = { tipo: payload.tipo, fecha: payload.fecha }
+        // Si la parada anterior ya fue entregada/recibida, es un VIAJE NUEVO:
+        // la reabrimos como pendiente y la devolvemos a "Por asignar".
+        if (ex.estado_entrega) {
+          upd.estado_entrega = null
+          upd.entregado_at = null
+          upd.chofer_nombre = null
+          upd.camioneta_id = null
+          upd.chofer_asignado = null
+          upd.chofer_id = null
+          upd.notificado_wa_at = null
+          upd.fecha = null
+        }
+        await supabase.from('logistica_diaria').update(upd).eq('id', ex.id)
       } else {
         await supabase.from('logistica_diaria').insert({ ...payload, orden: 0 })
       }
