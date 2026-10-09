@@ -27,13 +27,21 @@ const UNIDADES = ['unidades', 'kg', 'litros', 'metros', 'rollos', 'cajas', 'pare
 
 const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
 
-const MODELOS = ['Slim', 'Firenze', 'Slim/Firenze', 'Calefones-Calderas', 'Anafes']
+// Líneas de producto y sus modelos (el insumo se asocia a una Línea y, opcionalmente, a un Modelo de esa línea)
+const LINEAS = ['Panel Calefactor', 'Calefones-Calderas', 'Anafes']
+const MODELOS_POR_LINEA = {
+  'Panel Calefactor': ['250w', '250w TS', '250w TD', '500w', '500w TS', '500w TD', '500w MB', '1400w BL', '1400w PA', '1400w PR', '1400w MTG', '1400w PCL', '1400w MCO', '1400w SMART', '1400w MB'],
+  'Calefones-Calderas': ['One', 'Nova', 'Pulse 18Kw', 'Pulse 24Kw', 'Core 220V', 'Core 380V'],
+  'Anafes': ['K40010', 'K40011', 'DT4', 'DT4W', 'K1002', 'K2002', 'DT4-1'],
+}
+const LINEA_COLOR = { 'Panel Calefactor': '#7b9fff', 'Calefones-Calderas': '#2dd4bf', 'Anafes': '#f59e0b' }
+// Compat: colores de modelos/líneas legacy para badges de datos viejos
 const MODELO_COLOR = { Slim: '#7b9fff', Firenze: '#fb923c', 'Slim/Firenze': '#a78bfa', 'Calefones-Calderas': '#2dd4bf', 'Anafes': '#f59e0b' }
 
 const EMPTY_FORM = {
   codigo: '', descripcion: '', unidad: 'unidades',
   proveedor_nombre: '', proveedor_direccion: '', proveedor_telefono: '', proveedor_horario: '', proveedor_contacto: '',
-  sectores: [], stock_actual: 0, stock_minimo: 0, modelo: '', tamano_envase: '',
+  sectores: [], stock_actual: 0, stock_minimo: 0, linea: '', modelo: '', tamano_envase: '',
   es_repuesto: false, precio_tecnico: '',
   uso_rma: false, costo: '',
   imagen_url: '',
@@ -63,6 +71,7 @@ export default function Insumos() {
   const [busqueda, setBusqueda] = useState('')
   const [filtroSector, setFiltroSector] = useState('')
   const [filtroModelo, setFiltroModelo] = useState('')
+  const [filtroLinea, setFiltroLinea] = useState('')
   const [filtroRepuesto, setFiltroRepuesto] = useState(false)
   const [filtroRma, setFiltroRma] = useState(false)
   const [opsOpen, setOpsOpen] = useState(false)
@@ -200,7 +209,7 @@ export default function Insumos() {
       proveedor_nombre: ins.proveedor_nombre || '', proveedor_direccion: ins.proveedor_direccion || '',
       proveedor_telefono: ins.proveedor_telefono || '', proveedor_horario: ins.proveedor_horario || '',
       proveedor_contacto: ins.proveedor_contacto || '',
-      sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
+      sectores: ins.sectores || [], stock_actual: ins.stock_actual || 0, stock_minimo: ins.stock_minimo || 0, linea: ins.linea || '', modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
       uso_rma: ins.uso_rma || false, costo: ins.costo ?? '',
       imagen_url: ins.imagen_url || '',
@@ -216,7 +225,7 @@ export default function Insumos() {
       proveedor_nombre: ins.proveedor_nombre || '', proveedor_direccion: ins.proveedor_direccion || '',
       proveedor_telefono: ins.proveedor_telefono || '', proveedor_horario: ins.proveedor_horario || '',
       proveedor_contacto: ins.proveedor_contacto || '',
-      sectores: ins.sectores || [], stock_actual: 0, stock_minimo: ins.stock_minimo || 0, modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
+      sectores: ins.sectores || [], stock_actual: 0, stock_minimo: ins.stock_minimo || 0, linea: ins.linea || '', modelo: ins.modelo || '', tamano_envase: ins.tamano_envase ?? '',
       es_repuesto: ins.es_repuesto || false, precio_tecnico: ins.precio_tecnico || '',
       uso_rma: ins.uso_rma || false, costo: ins.costo ?? '',
       imagen_url: ins.imagen_url || '',
@@ -466,6 +475,7 @@ export default function Insumos() {
     if (filtroDisc === 'discontinuados' && !ins.discontinuado) return false
     if (filtroSector && !ins.sectores?.includes(filtroSector)) return false
     if (filtroModelo && ins.modelo !== filtroModelo) return false
+    if (filtroLinea && ins.linea !== filtroLinea) return false
     if (filtroRepuesto && !ins.es_repuesto) return false
     if (filtroRma && !ins.uso_rma) return false
     if (busqueda) {
@@ -569,20 +579,36 @@ export default function Insumos() {
             <button key={v} onClick={() => setFiltroDisc(v)} style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroDisc === v ? (v === 'discontinuados' ? 'rgba(139,152,169,0.2)' : `${color}20`) : 'var(--surface2)', color: filtroDisc === v ? (v === 'discontinuados' ? '#8b98a9' : color) : 'var(--text3)', border: `1px solid ${filtroDisc === v ? (v === 'discontinuados' ? 'rgba(139,152,169,0.5)' : color + '50') : 'var(--border)'}` }}>{l}</button>
           ))}
           <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-          <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 2 }}>Modelo:</span>
-          <button onClick={() => setFiltroModelo('')}
-            style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !filtroModelo ? 'rgba(255,255,255,0.1)' : 'var(--surface2)', color: !filtroModelo ? 'var(--text)' : 'var(--text3)', border: !filtroModelo ? '1px solid var(--border)' : '1px solid var(--border)' }}>
-            Todos
+          <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 2 }}>Línea:</span>
+          <button onClick={() => { setFiltroLinea(''); setFiltroModelo('') }}
+            style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !filtroLinea ? 'rgba(255,255,255,0.1)' : 'var(--surface2)', color: !filtroLinea ? 'var(--text)' : 'var(--text3)', border: '1px solid var(--border)' }}>
+            Todas
           </button>
-          {MODELOS.map(m => {
-            const mc = MODELO_COLOR[m]
+          {LINEAS.map(l => {
+            const lc = LINEA_COLOR[l]
             return (
-              <button key={m} onClick={() => setFiltroModelo(m === filtroModelo ? '' : m)}
-                style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroModelo === m ? `${mc}20` : 'var(--surface2)', color: filtroModelo === m ? mc : 'var(--text3)', border: filtroModelo === m ? `1px solid ${mc}50` : '1px solid var(--border)' }}>
-                {m}
+              <button key={l} onClick={() => { setFiltroLinea(l === filtroLinea ? '' : l); setFiltroModelo('') }}
+                style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroLinea === l ? `${lc}20` : 'var(--surface2)', color: filtroLinea === l ? lc : 'var(--text3)', border: filtroLinea === l ? `1px solid ${lc}50` : '1px solid var(--border)' }}>
+                {l}
               </button>
             )
           })}
+          {filtroLinea && (MODELOS_POR_LINEA[filtroLinea] || []).length > 0 && (
+            <>
+              <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+              <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 2 }}>Modelo:</span>
+              <button onClick={() => setFiltroModelo('')}
+                style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !filtroModelo ? 'rgba(255,255,255,0.1)' : 'var(--surface2)', color: !filtroModelo ? 'var(--text)' : 'var(--text3)', border: '1px solid var(--border)' }}>
+                Todos
+              </button>
+              {(MODELOS_POR_LINEA[filtroLinea] || []).map(m => (
+                <button key={m} onClick={() => setFiltroModelo(m === filtroModelo ? '' : m)}
+                  style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroModelo === m ? `${color}20` : 'var(--surface2)', color: filtroModelo === m ? color : 'var(--text3)', border: filtroModelo === m ? `1px solid ${color}50` : '1px solid var(--border)' }}>
+                  {m}
+                </button>
+              ))}
+            </>
+          )}
           <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
           <button onClick={() => setFiltroRepuesto(v => !v)}
             style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroRepuesto ? 'rgba(45,212,191,0.18)' : 'var(--surface2)', color: filtroRepuesto ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${filtroRepuesto ? 'rgba(45,212,191,0.5)' : 'var(--border)'}` }}>
@@ -616,7 +642,8 @@ export default function Insumos() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{ins.descripcion}</div>
                     <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                      {ins.modelo && (() => { const mc = MODELO_COLOR[ins.modelo] || '#888'; return <span style={{ fontSize: 10, background: `${mc}20`, border: `1px solid ${mc}40`, color: mc, borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>{ins.modelo}</span> })()}
+                      {ins.linea && (() => { const lc = LINEA_COLOR[ins.linea] || '#888'; return <span style={{ fontSize: 10, background: `${lc}20`, border: `1px solid ${lc}40`, color: lc, borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>{ins.linea}</span> })()}
+                      {ins.modelo && (() => { const mc = LINEA_COLOR[ins.linea] || MODELO_COLOR[ins.modelo] || '#888'; return <span style={{ fontSize: 10, background: `${mc}12`, border: `1px solid ${mc}30`, color: mc, borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>{ins.modelo}</span> })()}
                       {(ins.sectores || []).map(s => (
                         <span key={s} style={{ fontSize: 10, background: `${color}15`, border: `1px solid ${color}30`, color, borderRadius: 3, padding: '1px 6px' }}>{s}</span>
                       ))}
@@ -869,25 +896,44 @@ export default function Insumos() {
                 <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>Si lo cargás, al hacer Ingreso/Egreso podés poner cantidad de envases y se convierte a {form.unidad} (y viceversa).</div>
               </div>
 
-              {/* Modelo */}
+              {/* Línea */}
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Modelo</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Línea</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setForm(p => ({ ...p, modelo: '' }))}
-                    style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !form.modelo ? `${color}20` : 'var(--surface2)', color: !form.modelo ? color : 'var(--text3)', border: !form.modelo ? `1px solid ${color}50` : '1px solid var(--border)' }}>
+                  <button type="button" onClick={() => setForm(p => ({ ...p, linea: '', modelo: '' }))}
+                    style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !form.linea ? `${color}20` : 'var(--surface2)', color: !form.linea ? color : 'var(--text3)', border: !form.linea ? `1px solid ${color}50` : '1px solid var(--border)' }}>
                     Sin definir
                   </button>
-                  {MODELOS.map(m => {
-                    const mc = MODELO_COLOR[m]
+                  {LINEAS.map(l => {
+                    const lc = LINEA_COLOR[l]
                     return (
-                      <button key={m} type="button" onClick={() => setForm(p => ({ ...p, modelo: m }))}
-                        style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: form.modelo === m ? `${mc}20` : 'var(--surface2)', color: form.modelo === m ? mc : 'var(--text3)', border: form.modelo === m ? `1px solid ${mc}50` : '1px solid var(--border)' }}>
-                        {m}
+                      <button key={l} type="button" onClick={() => setForm(p => ({ ...p, linea: l, modelo: (MODELOS_POR_LINEA[l] || []).includes(p.modelo) ? p.modelo : '' }))}
+                        style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: form.linea === l ? `${lc}20` : 'var(--surface2)', color: form.linea === l ? lc : 'var(--text3)', border: form.linea === l ? `1px solid ${lc}50` : '1px solid var(--border)' }}>
+                        {l}
                       </button>
                     )
                   })}
                 </div>
               </div>
+
+              {/* Modelo (depende de la línea) */}
+              {form.linea && (MODELOS_POR_LINEA[form.linea] || []).length > 0 && (
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Modelo <span style={{ color: LINEA_COLOR[form.linea], textTransform: 'none' }}>· {form.linea}</span></label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => setForm(p => ({ ...p, modelo: '' }))}
+                      style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !form.modelo ? `${color}20` : 'var(--surface2)', color: !form.modelo ? color : 'var(--text3)', border: !form.modelo ? `1px solid ${color}50` : '1px solid var(--border)' }}>
+                      Sin definir
+                    </button>
+                    {(MODELOS_POR_LINEA[form.linea] || []).map(m => (
+                      <button key={m} type="button" onClick={() => setForm(p => ({ ...p, modelo: m }))}
+                        style={{ padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: form.modelo === m ? `${color}20` : 'var(--surface2)', color: form.modelo === m ? color : 'var(--text3)', border: form.modelo === m ? `1px solid ${color}50` : '1px solid var(--border)' }}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Sectores */}
               <div>
