@@ -24,6 +24,7 @@ export default function InformacionRelevante() {
   const [busqueda, setBusqueda] = useState('')
   const [filtroFabrica, setFiltroFabrica] = useState('')
   const [filtroVehiculo, setFiltroVehiculo] = useState('')
+  const [ordenFecha, setOrdenFecha] = useState('desc')   // 'desc' = más nuevas primero
   const [flota, setFlota] = useState([])   // camionetas activas
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
@@ -83,11 +84,14 @@ export default function InformacionRelevante() {
   // Filtro por fábrica + vehículo + buscador flexible
   let base = filtroFabrica ? items.filter(n => n.fabrica === filtroFabrica) : items
   if (filtroVehiculo) base = base.filter(n => Array.isArray(n.vehiculos) && n.vehiculos.includes(filtroVehiculo))
+  const porFecha = (a, b) => ordenFecha === 'desc'
+    ? new Date(b.updated_at) - new Date(a.updated_at)
+    : new Date(a.updated_at) - new Date(b.updated_at)
   const qTokens = tokens(busqueda)
-  const resultados = (qTokens.length === 0 ? base : base
+  const resultados = (qTokens.length === 0 ? [...base].sort(porFecha) : base
     .map(n => { const texto = norm(`${n.titulo} ${n.contenido} ${n.tags || ''} ${n.fabrica || ''} ${(n.vehiculos || []).join(' ')}`); const score = qTokens.filter(t => texto.includes(t)).length; return { n, score } })
     .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score || porFecha(a.n, b.n))
     .map(x => x.n))
 
   const fmtF = d => { try { return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) } catch { return '' } }
@@ -120,6 +124,10 @@ export default function InformacionRelevante() {
             </button>
           )
         })}
+        <button onClick={() => setOrdenFecha(o => o === 'desc' ? 'asc' : 'desc')} title="Cambiar orden por fecha"
+          style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)' }}>
+          {ordenFecha === 'desc' ? '↓ Más nuevas' : '↑ Más viejas'}
+        </button>
       </div>
 
       {vehiculosFiltro.length > 0 && (
