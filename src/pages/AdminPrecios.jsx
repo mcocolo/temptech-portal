@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import toast from 'react-hot-toast'
-import { Upload, RefreshCw, FileText, Check, AlertTriangle } from 'lucide-react'
+import { Upload, RefreshCw, FileText, Check, AlertTriangle, Download } from 'lucide-react'
+import { generarListaPreciosPDF } from '@/utils/listaPreciosPdf'
 
 function formatPrecio(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(n)
@@ -130,6 +131,26 @@ export default function AdminPrecios() {
     cargar()
   }
 
+  // Genera el PDF de la categoría con los precios y condiciones actuales (datos vivos)
+  async function descargarPDFCategoria(cat) {
+    const productos = precios
+      .filter(p => p.categoria === cat)
+      .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '') || (a.modelo || '').localeCompare(b.modelo || ''))
+    if (productos.length === 0) return toast.error('No hay productos cargados en esta categoría')
+    try {
+      const doc = await generarListaPreciosPDF({
+        titulo: CATEGORIAS[cat] || cat,
+        productos,
+        condiciones: condiciones[cat] || '',
+        fecha: new Date().toLocaleDateString('es-AR'),
+      })
+      const nombre = `Lista-Precios-${(CATEGORIAS[cat] || cat).replace(/[^\w]+/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`
+      doc.save(nombre)
+    } catch (e) {
+      toast.error('Error al generar el PDF: ' + (e?.message || e))
+    }
+  }
+
   function handleArchivo(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -255,10 +276,31 @@ export default function AdminPrecios() {
           </div>
           {isAdmin && (
             <button onClick={() => setModalLista(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(123,159,255,0.1)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 'var(--radius)', padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              <Upload size={12} /> Agregar lista
+              <Upload size={12} /> Agregar lista (PDF manual)
             </button>
           )}
         </div>
+
+        {/* PDFs generados automáticamente desde los precios y condiciones actuales */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: '#3dd68c', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            ⚡ Generar PDF siempre actualizado <span style={{ color: 'var(--text3)', fontWeight: 400, textTransform: 'none' }}>— se arma al instante con los precios y condiciones de abajo</span>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {Object.entries(CATEGORIAS).map(([cat, label]) => {
+              const n = precios.filter(p => p.categoria === cat).length
+              return (
+                <button key={cat} onClick={() => descargarPDFCategoria(cat)} disabled={n === 0}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: n === 0 ? 'var(--surface2)' : 'rgba(61,214,140,0.1)', border: `1px solid ${n === 0 ? 'var(--border)' : 'rgba(61,214,140,0.35)'}`, borderRadius: 'var(--radius)', padding: '10px 18px', color: n === 0 ? 'var(--text3)' : '#3dd68c', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 700, cursor: n === 0 ? 'not-allowed' : 'pointer' }}>
+                  <Download size={16} /> {label}
+                  <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>{n} prod.</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {(listasPrecios.length > 0) && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' }}>PDFs cargados a mano</div>}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {listasPrecios.map(lista => (
             <div key={lista.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -273,7 +315,7 @@ export default function AdminPrecios() {
               )}
             </div>
           ))}
-          {listasPrecios.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sin listas cargadas aún.</div>}
+          {listasPrecios.length === 0 && <div style={{ fontSize: 12, color: 'var(--text3)' }}>No hay PDFs cargados a mano. Usá los botones de arriba para generar la lista actualizada.</div>}
         </div>
       </div>
 
