@@ -1822,6 +1822,7 @@ function ParadaRow({ item, idx, grupo, isChofer, puedeConfirmar, onMover, onSetO
             ? <a href={wa} target="_blank" rel="noreferrer" title="Abrir WhatsApp" style={{ color: '#25D366', textDecoration: 'none', fontWeight: 600 }}>💬 {item.telefono}</a>
             : <span>📞 {item.telefono}</span> })()}
           {item.dni && <span style={{ color: 'var(--text2)' }}>DNI: {item.dni}</span>}
+          {item.email && <span>✉️ {item.email}</span>}
         </div>
         {item.descripcion && item.nombre && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>📝 {item.descripcion}</div>}
         {item.notas_1400 && <div style={{ fontSize: 12, fontWeight: 700, color: '#fb923c', marginTop: 6 }}>🎨 1400w: {item.notas_1400}</div>}

@@ -722,15 +722,26 @@ export default function PedidosCanal() {
                           ))}
                         </div>
                       )}
-                      {v.tipo_envio === 'logistica' && !(Array.isArray(v.entregas) && v.entregas.length) && etiquetas.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                          {etiquetas.map((it, i) => (
-                            <span key={i} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
-                              {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}{it.nombre}{it.modelo ? ' ' + it.modelo : ''} ×{it.cantidad}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {v.tipo_envio === 'logistica' && !(Array.isArray(v.entregas) && v.entregas.length) && (etiquetas.length > 0 || v.envio_datos) && (() => {
+                        const ed = v.envio_datos || {}
+                        const dir = [ed.direccion, ed.localidad, ed.provincia].filter(Boolean).join(', ')
+                        return (
+                          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
+                            {(dir || ed.zona || ed.telefono || v.cliente_telefono || ed.dni) && (
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: etiquetas.length ? 6 : 0 }}>
+                                📍 {dir || 'Sin dirección'}{ed.zona ? ` · ${ed.zona}` : ''}{(ed.telefono || v.cliente_telefono) ? ` · 📞 ${ed.telefono || v.cliente_telefono}` : ''}{ed.dni ? ` · DNI ${ed.dni}` : ''}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                              {etiquetas.map((it, i) => (
+                                <span key={i} style={{ fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px' }}>
+                                  {it.codigo && <span style={{ fontFamily: 'monospace', color: cc.color, marginRight: 4 }}>{it.codigo}</span>}{it.nombre}{it.modelo ? ' ' + it.modelo : ''} ×{it.cantidad}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })()}
