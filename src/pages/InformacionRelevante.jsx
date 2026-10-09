@@ -23,22 +23,28 @@ export default function InformacionRelevante() {
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtroFabrica, setFiltroFabrica] = useState('')
+  const [filtroVehiculo, setFiltroVehiculo] = useState('')
+  const [flota, setFlota] = useState([])   // camionetas activas
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ titulo: '', contenido: '', tags: '', fabrica: '', adjuntos: [] })
+  const [form, setForm] = useState({ titulo: '', contenido: '', tags: '', fabrica: '', adjuntos: [], vehiculos: [] })
   const [guardando, setGuardando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
 
   useEffect(() => { if (isAdmin || isAdmin2 || isMantenimiento) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
   async function cargar() {
     setLoading(true)
-    const data = await fetchAllRows(() => supabase.from('info_relevante').select('*').order('updated_at', { ascending: false }))
+    const [data, flotaRes] = await Promise.all([
+      fetchAllRows(() => supabase.from('info_relevante').select('*').order('updated_at', { ascending: false })),
+      supabase.from('camionetas').select('nombre,patente,activa').eq('activa', true).order('nombre'),
+    ])
     setItems(data || [])
+    setFlota((flotaRes.data || []).map(c => c.nombre).filter(Boolean))
     setLoading(false)
   }
 
-  function abrirNueva() { setEditId(null); setForm({ titulo: '', contenido: '', tags: '', fabrica: '', adjuntos: [] }); setModal(true) }
-  function abrirEditar(n) { setEditId(n.id); setForm({ titulo: n.titulo || '', contenido: n.contenido || '', tags: n.tags || '', fabrica: n.fabrica || '', adjuntos: Array.isArray(n.adjuntos) ? n.adjuntos : [] }); setModal(true) }
+  function abrirNueva() { setEditId(null); setForm({ titulo: '', contenido: '', tags: '', fabrica: '', adjuntos: [], vehiculos: [] }); setModal(true) }
+  function abrirEditar(n) { setEditId(n.id); setForm({ titulo: n.titulo || '', contenido: n.contenido || '', tags: n.tags || '', fabrica: n.fabrica || '', adjuntos: Array.isArray(n.adjuntos) ? n.adjuntos : [], vehiculos: Array.isArray(n.vehiculos) ? n.vehiculos : [] }); setModal(true) }
   async function subirAdjunto(file) {
     if (!file) return
     setSubiendo(true)
@@ -53,7 +59,7 @@ export default function InformacionRelevante() {
   async function guardar() {
     if (!form.titulo.trim() || !form.contenido.trim()) return toast.error('Completá título y contenido')
     setGuardando(true)
-    const payload = { titulo: form.titulo.trim(), contenido: form.contenido.trim(), tags: form.tags.trim() || null, fabrica: form.fabrica || null, adjuntos: form.adjuntos || [], updated_at: new Date().toISOString() }
+    const payload = { titulo: form.titulo.trim(), contenido: form.contenido.trim(), tags: form.tags.trim() || null, fabrica: form.fabrica || null, adjuntos: form.adjuntos || [], vehiculos: form.vehiculos || [], updated_at: new Date().toISOString() }
     const { error } = editId
       ? await supabase.from('info_relevante').update(payload).eq('id', editId)
       : await supabase.from('info_relevante').insert({ ...payload, created_by: nombreUsuario })
@@ -71,11 +77,15 @@ export default function InformacionRelevante() {
 
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
 
-  // Filtro por fábrica + buscador flexible (puntúa por cuántas palabras de la búsqueda aparecen)
-  const base = filtroFabrica ? items.filter(n => n.fabrica === filtroFabrica) : items
+  // Vehículos para filtrar: los de la flota + los que ya aparecen en notas
+  const vehiculosFiltro = Array.from(new Set([...flota, ...items.flatMap(n => Array.isArray(n.vehiculos) ? n.vehiculos : [])])).sort()
+
+  // Filtro por fábrica + vehículo + buscador flexible
+  let base = filtroFabrica ? items.filter(n => n.fabrica === filtroFabrica) : items
+  if (filtroVehiculo) base = base.filter(n => Array.isArray(n.vehiculos) && n.vehiculos.includes(filtroVehiculo))
   const qTokens = tokens(busqueda)
   const resultados = (qTokens.length === 0 ? base : base
-    .map(n => { const texto = norm(`${n.titulo} ${n.contenido} ${n.tags || ''} ${n.fabrica || ''}`); const score = qTokens.filter(t => texto.includes(t)).length; return { n, score } })
+    .map(n => { const texto = norm(`${n.titulo} ${n.contenido} ${n.tags || ''} ${n.fabrica || ''} ${(n.vehiculos || []).join(' ')}`); const score = qTokens.filter(t => texto.includes(t)).length; return { n, score } })
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .map(x => x.n))
@@ -112,6 +122,22 @@ export default function InformacionRelevante() {
         })}
       </div>
 
+      {vehiculosFiltro.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+          <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 2 }}>🚚 Vehículo:</span>
+          <button onClick={() => setFiltroVehiculo('')}
+            style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', background: !filtroVehiculo ? 'rgba(255,255,255,0.1)' : 'var(--surface2)', color: !filtroVehiculo ? 'var(--text)' : 'var(--text3)', border: '1px solid var(--border)' }}>
+            Todos
+          </button>
+          {vehiculosFiltro.map(v => (
+            <button key={v} onClick={() => setFiltroVehiculo(v === filtroVehiculo ? '' : v)}
+              style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: filtroVehiculo === v ? 'rgba(123,159,255,0.18)' : 'var(--surface2)', color: filtroVehiculo === v ? '#7b9fff' : 'var(--text3)', border: `1px solid ${filtroVehiculo === v ? 'rgba(123,159,255,0.5)' : 'var(--border)'}` }}>
+              🚚 {v}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando…</div>
       ) : items.length === 0 ? (
@@ -127,6 +153,7 @@ export default function InformacionRelevante() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: '#7b9fff' }}>{n.titulo}</div>
                     {n.fabrica && (() => { const fc = FABRICA_COLOR[n.fabrica] || '#888'; return <span style={{ fontSize: 10, fontWeight: 700, color: fc, background: `${fc}1a`, border: `1px solid ${fc}55`, borderRadius: 20, padding: '2px 9px' }}>🏭 {n.fabrica}</span> })()}
+                    {Array.isArray(n.vehiculos) && n.vehiculos.map(v => <span key={v} style={{ fontSize: 10, fontWeight: 700, color: '#7b9fff', background: 'rgba(123,159,255,0.12)', border: '1px solid rgba(123,159,255,0.4)', borderRadius: 20, padding: '2px 9px' }}>🚚 {v}</span>)}
                   </div>
                   <div style={{ fontSize: 14, color: 'var(--text2)', marginTop: 4, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{n.contenido}</div>
                   {Array.isArray(n.adjuntos) && n.adjuntos.length > 0 && (
@@ -177,6 +204,21 @@ export default function InformacionRelevante() {
                     </button>
                   )})}
                 </div>
+              </div>
+              <div>
+                <label style={lbl}>Vehículos (opcional)</label>
+                {flota.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>No hay vehículos activos en la flota. Cargalos en Logística → Camionetas y choferes.</div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {flota.map(v => { const sel = form.vehiculos.includes(v); return (
+                      <button key={v} type="button" onClick={() => setForm(f => ({ ...f, vehiculos: sel ? f.vehiculos.filter(x => x !== v) : [...f.vehiculos, v] }))}
+                        style={{ padding: '6px 14px', borderRadius: 'var(--radius)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(123,159,255,0.18)' : 'var(--surface2)', color: sel ? '#7b9fff' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(123,159,255,0.5)' : 'var(--border)'}` }}>
+                        {sel ? '✓ ' : ''}🚚 {v}
+                      </button>
+                    )})}
+                  </div>
+                )}
               </div>
               <div>
                 <label style={lbl}>Fotos (opcional)</label>
