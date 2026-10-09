@@ -31,7 +31,7 @@ const inputSt = { width: '100%', background: 'var(--surface2)', border: '1px sol
 const LINEAS = ['Panel Calefactor', 'Calefones-Calderas', 'Anafes']
 const MODELOS_POR_LINEA = {
   'Panel Calefactor': ['250w', '250w TS', '250w TD', '500w', '500w TS', '500w TD', '500w MB', '1400w BL', '1400w PA', '1400w PR', '1400w MTG', '1400w PCL', '1400w MCO', '1400w SMART', '1400w MB'],
-  'Calefones-Calderas': ['One', 'Nova', 'Pulse 18Kw', 'Pulse 24Kw', 'Core 220V', 'Core 380V'],
+  'Calefones-Calderas': ['One (KF70SIL)', 'Nova (FE150)', 'Pulse 18Kw (FM318BL)', 'Pulse 24Kw (FM324BL)', 'Core 220V (BF14EBL)', 'Core 380V (BF323EBL)'],
   'Anafes': ['K40010', 'K40011', 'DT4', 'DT4W', 'K1002', 'K2002', 'DT4-1'],
 }
 const LINEA_COLOR = { 'Panel Calefactor': '#7b9fff', 'Calefones-Calderas': '#2dd4bf', 'Anafes': '#f59e0b' }
