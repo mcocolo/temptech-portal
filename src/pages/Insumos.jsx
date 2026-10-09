@@ -984,10 +984,16 @@ export default function Insumos() {
                   ) : (
                     <div style={{ width: 72, height: 72, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 22 }}>📷</div>
                   )}
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendoImg ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', opacity: subiendoImg ? 0.6 : 1 }}>
-                    {subiendoImg ? '⏳ Subiendo...' : '📁 Subir imagen'}
-                    <input type="file" accept="image/*" style={{ display: 'none' }} disabled={subiendoImg} onChange={e => subirImagen(e.target.files?.[0])} />
-                  </label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `${color}18`, border: `1px solid ${color}50`, borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 700, color, cursor: subiendoImg ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', opacity: subiendoImg ? 0.6 : 1 }}>
+                      {subiendoImg ? '⏳ Subiendo...' : '📷 Tomar foto'}
+                      <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} disabled={subiendoImg} onChange={e => subirImagen(e.target.files?.[0])} />
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendoImg ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)', opacity: subiendoImg ? 0.6 : 1 }}>
+                      {subiendoImg ? '⏳ Subiendo...' : '📁 Subir imagen'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} disabled={subiendoImg} onChange={e => subirImagen(e.target.files?.[0])} />
+                    </label>
+                  </div>
                 </div>
               </div>
 
