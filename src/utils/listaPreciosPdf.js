@@ -1,18 +1,18 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
-
-const NAVY = [37, 55, 77]
+const NAVY = [23, 42, 77]       // barra de encabezado
 const TEXT = [40, 45, 55]
 const GRAY = [120, 128, 140]
-const LINE = [228, 230, 235]
+const LINE = [200, 205, 212]
 
 function fmtARS(n) {
-  return '$ ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)
+  if (n == null || n === '') return ''
+  return '$ ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0)
 }
 
 async function fetchImageDataURL(url) {
+  if (!url) return null
   try {
     const res = await fetch(url)
     if (!res.ok) return null
@@ -28,82 +28,136 @@ async function fetchImageDataURL(url) {
   }
 }
 
-// Genera el PDF de una lista de precios a partir de los datos vivos.
-//  { titulo, productos: [{codigo, nombre, modelo, precio}], condiciones: 'texto', fecha }
-export async function generarListaPreciosPDF({ titulo, productos, condiciones, fecha }) {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+function fechaLarga(d) {
+  try {
+    return (d || new Date()).toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+  } catch { return new Date().toLocaleDateString('es-AR') }
+}
+
+// Genera el PDF de la lista de precios replicando el formato del Excel.
+//  { titulo, productos, bannerUrl, mostrarCostos, mostrarFijacion, fecha }
+//  productos: [{ negocio, codigo, producto, modelo_lista|modelo, costo_siva, costo_civa, ean, peso, medidas, fijacion, precio, disponibilidad, imagen_url }]
+export async function generarListaPreciosPDF({ titulo, productos = [], bannerUrl, mostrarCostos = true, mostrarFijacion = true, fecha }) {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' })
   const W = doc.internal.pageSize.getWidth()
   const H = doc.internal.pageSize.getHeight()
-  const M = 40
-  let y = 48
+  const M = 24
 
-  // Logo
-  const logo = await fetchImageDataURL(LOGO_URL)
-  if (logo) {
-    try {
-      const props = doc.getImageProperties(logo)
-      const h = 30
-      const w = props.width * (h / props.height)
-      doc.addImage(logo, 'PNG', M, y - 22, w, h)
-    } catch {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...NAVY)
-      doc.text('TEMPTECH', M, y)
+  // Precargar imágenes (banner + productos)
+  const banner = await fetchImageDataURL(bannerUrl)
+  const imgMap = {}
+  await Promise.all(productos.filter(p => p.imagen_url).map(async p => {
+    imgMap[p.codigo] = await fetchImageDataURL(p.imagen_url)
+  }))
+
+  // Columnas dinámicas según categoría
+  const cols = [
+    { key: 'negocio', header: 'Negocio' },
+    { key: 'codigo', header: 'Codigo' },
+    { key: 'producto', header: 'Producto' },
+    { key: 'modelo', header: 'Modelo' },
+    ...(mostrarCostos ? [{ key: 'costo_siva', header: 'Costo S/IVA' }, { key: 'costo_civa', header: 'Costo C/IVA' }] : []),
+    { key: 'ean', header: 'Codigo EAN' },
+    { key: 'peso', header: 'Peso' },
+    { key: 'medidas', header: 'Medidas' },
+    { key: 'imagen', header: 'Imágenes' },
+    ...(mostrarFijacion ? [{ key: 'fijacion', header: 'Fijación' }] : []),
+    { key: 'pvp', header: 'PVP' },
+    { key: 'disponibilidad', header: 'Disponibilidad' },
+  ]
+  const imgColIndex = cols.findIndex(c => c.key === 'imagen')
+
+  const body = productos.map(p => cols.map(c => {
+    switch (c.key) {
+      case 'negocio': return p.negocio || ''
+      case 'codigo': return p.codigo || ''
+      case 'producto': return p.producto || p.nombre || ''
+      case 'modelo': return p.modelo_lista || p.modelo || ''
+      case 'costo_siva': return fmtARS(p.costo_siva)
+      case 'costo_civa': return fmtARS(p.costo_civa)
+      case 'ean': return p.ean || ''
+      case 'peso': return p.peso || ''
+      case 'medidas': return p.medidas || ''
+      case 'imagen': return ''
+      case 'fijacion': return p.fijacion || ''
+      case 'pvp': return fmtARS(p.precio)
+      case 'disponibilidad': return p.disponibilidad || 'NORMAL'
+      default: return ''
     }
-  } else {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...NAVY)
-    doc.text('TEMPTECH', M, y)
+  }))
+
+  // Encabezado (barra navy + wordmark) y banner, repetido en cada página
+  function drawHeader() {
+    doc.setFillColor(...NAVY)
+    doc.rect(0, 0, W, 48, 'F')
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(255, 255, 255)
+    doc.text('TEMPTECH', W / 2, 31, { align: 'center' })
   }
 
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY)
-  doc.text('LISTA DE PRECIOS', W - M, y - 12, { align: 'right' })
-  doc.text(fecha || new Date().toLocaleDateString('es-AR'), W - M, y, { align: 'right' })
+  const headerBottom = 48
+  let bannerH = 0
+  if (banner) {
+    try {
+      const props = doc.getImageProperties(banner)
+      bannerH = Math.min(150, (W - 0) * (props.height / props.width))
+    } catch { bannerH = 0 }
+  }
 
-  y += 18
-  doc.setDrawColor(...LINE); doc.line(M, y, W - M, y)
-  y += 24
+  drawHeader()
+  if (banner && bannerH > 0) {
+    try { doc.addImage(banner, 'JPEG', 0, headerBottom, W, bannerH) } catch {}
+  }
+  let startY = headerBottom + bannerH + 6
+  // Fecha
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...TEXT)
+  doc.text(fechaLarga(fecha), W / 2, startY + 8, { align: 'center' })
+  startY += 16
 
-  // Título de la categoría
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...NAVY)
-  doc.text(titulo || 'Lista de Precios', M, y)
-  y += 16
-
-  // Tabla de productos
-  const body = (productos || []).map(p => [
-    p.codigo || '',
-    `${p.nombre || ''}${p.modelo ? ` ${p.modelo}` : ''}`.trim(),
-    fmtARS(p.precio),
-  ])
   autoTable(doc, {
-    startY: y,
-    head: [['Código', 'Producto', 'Precio']],
+    startY,
+    head: [cols.map(c => c.header)],
     body,
     theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 6, textColor: TEXT, lineColor: LINE, lineWidth: 0.5 },
-    headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
-    alternateRowStyles: { fillColor: [248, 249, 251] },
+    styles: { fontSize: 6.5, cellPadding: 3, textColor: TEXT, lineColor: LINE, lineWidth: 0.5, valign: 'middle', overflow: 'linebreak', minCellHeight: 34 },
+    headStyles: { fillColor: [235, 237, 240], textColor: NAVY, fontStyle: 'bold', halign: 'center', fontSize: 6.5, lineColor: LINE, lineWidth: 0.5 },
+    bodyStyles: { halign: 'center' },
     columnStyles: {
-      0: { cellWidth: 100, fontStyle: 'bold' },
-      2: { halign: 'right', cellWidth: 110 },
+      [cols.findIndex(c => c.key === 'producto')]: { halign: 'left' },
+      [cols.findIndex(c => c.key === 'modelo')]: { halign: 'left', fontStyle: 'bold' },
+      ...(mostrarCostos ? { [cols.findIndex(c => c.key === 'costo_siva')]: { halign: 'right', fontStyle: 'bold' }, [cols.findIndex(c => c.key === 'costo_civa')]: { halign: 'right', fontStyle: 'bold' } } : {}),
+      [cols.findIndex(c => c.key === 'pvp')]: { halign: 'right', fontStyle: 'bold', textColor: NAVY },
+      [imgColIndex]: { cellWidth: 44 },
     },
-    margin: { left: M, right: M },
+    margin: { left: M, right: M, top: headerBottom + bannerH + 24 },
+    // Repintar encabezado/banner en páginas nuevas
+    didDrawPage: () => { drawHeader(); if (banner && bannerH > 0) { try { doc.addImage(banner, 'JPEG', 0, headerBottom, W, bannerH) } catch {} } },
+    // Dibujar la miniatura del producto en su celda
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === imgColIndex) {
+        const cod = productos[data.row.index]?.codigo
+        const img = cod && imgMap[cod]
+        if (img) {
+          const pad = 2
+          const cw = data.cell.width - pad * 2
+          const ch = data.cell.height - pad * 2
+          try {
+            const props = doc.getImageProperties(img)
+            const ratio = Math.min(cw / props.width, ch / props.height)
+            const w = props.width * ratio
+            const h = props.height * ratio
+            const x = data.cell.x + (data.cell.width - w) / 2
+            const y = data.cell.y + (data.cell.height - h) / 2
+            doc.addImage(img, props.fileType || 'PNG', x, y, w, h)
+          } catch {}
+        }
+      }
+    },
   })
-  y = doc.lastAutoTable.finalY + 20
 
-  // Condiciones
-  if (condiciones) {
-    const wrapped = doc.splitTextToSize(String(condiciones), W - 2 * M)
-    const needed = wrapped.length * 12 + 40
-    if (y + needed > H - M) { doc.addPage(); y = 48 }
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY)
-    doc.text('Condiciones comerciales', M, y); y += 15
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAY)
-    doc.text(wrapped, M, y); y += wrapped.length * 12 + 10
-  }
-
-  // Pie
-  if (y > H - M) { doc.addPage(); y = 48 }
-  doc.setFontSize(8); doc.setTextColor(...GRAY)
-  doc.text('Precios sujetos a modificación sin previo aviso y a disponibilidad de stock.', M, H - 28)
+  let y = doc.lastAutoTable.finalY + 14
+  if (y > H - M) { doc.addPage(); y = M }
+  doc.setFontSize(7); doc.setTextColor(...GRAY)
+  doc.text('Precios sujetos a modificación sin previo aviso y a disponibilidad de stock.', M, y)
 
   return doc
 }

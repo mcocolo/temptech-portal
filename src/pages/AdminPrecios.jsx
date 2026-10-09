@@ -61,6 +61,9 @@ export default function AdminPrecios() {
   const [preview, setPreview] = useState(null)   // { filas, errores }
   const [subiendo, setSubiendo] = useState(false)
   const [editando, setEditando] = useState(null) // { codigo, precio, nombre, modelo }
+  const [detalle, setDetalle] = useState(null)   // producto completo en edición (modal)
+  const [guardandoDet, setGuardandoDet] = useState(false)
+  const [subiendoFotoDet, setSubiendoFotoDet] = useState(false)
   const [modalNuevo, setModalNuevo] = useState(false)
   const [nuevoForm, setNuevoForm] = useState({ codigo: '', nombre: '', modelo: '', precio: '', categoria: 'paneles_calefactores', ean: '' })
   const [guardandoNuevo, setGuardandoNuevo] = useState(false)
@@ -76,6 +79,8 @@ export default function AdminPrecios() {
 
   // Condiciones comerciales por categoría
   const [condiciones, setCondiciones] = useState({})
+  const [banners, setBanners] = useState({})   // { categoria: banner_url }
+  const [subiendoBanner, setSubiendoBanner] = useState('')
   const [condOpen, setCondOpen] = useState(false)
   const [condForm, setCondForm] = useState({})
   const [condSaving, setCondSaving] = useState(false)
@@ -85,7 +90,7 @@ export default function AdminPrecios() {
   async function cargar() {
     setLoading(true)
     const [preciosRes, listasRes, condRes] = await Promise.all([
-      supabase.from('precios').select('*').order('categoria').order('nombre'),
+      supabase.from('precios').select('*').order('categoria').order('orden', { nullsFirst: false }).order('nombre'),
       supabase.from('listas_precios').select('*').order('created_at'),
       supabase.from('condiciones_precios').select('*'),
     ])
@@ -93,6 +98,7 @@ export default function AdminPrecios() {
     else setPrecios(preciosRes.data || [])
     setListasPrecios(listasRes.data || [])
     setCondiciones(Object.fromEntries((condRes.data || []).map(c => [c.categoria, c.texto || ''])))
+    setBanners(Object.fromEntries((condRes.data || []).map(c => [c.categoria, c.banner_url || ''])))
     setLoading(false)
   }
 
@@ -131,24 +137,43 @@ export default function AdminPrecios() {
     cargar()
   }
 
-  // Genera el PDF de la categoría con los precios y condiciones actuales (datos vivos)
+  // Genera el PDF de la categoría con los precios/datos actuales (datos vivos), igual al Excel
   async function descargarPDFCategoria(cat) {
     const productos = precios
       .filter(p => p.categoria === cat)
-      .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '') || (a.modelo || '').localeCompare(b.modelo || ''))
+      .sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999) || (a.nombre || '').localeCompare(b.nombre || ''))
     if (productos.length === 0) return toast.error('No hay productos cargados en esta categoría')
+    const tid = toast.loading('Generando PDF…')
     try {
       const doc = await generarListaPreciosPDF({
         titulo: CATEGORIAS[cat] || cat,
         productos,
-        condiciones: condiciones[cat] || '',
-        fecha: new Date().toLocaleDateString('es-AR'),
+        bannerUrl: banners[cat] || '',
+        mostrarCostos: true,
+        mostrarFijacion: cat !== 'anafes',   // Anafes no lleva columna Fijación
+        fecha: new Date(),
       })
       const nombre = `Lista-Precios-${(CATEGORIAS[cat] || cat).replace(/[^\w]+/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`
       doc.save(nombre)
+      toast.success('PDF generado ✅', { id: tid })
     } catch (e) {
-      toast.error('Error al generar el PDF: ' + (e?.message || e))
+      toast.error('Error al generar el PDF: ' + (e?.message || e), { id: tid })
     }
+  }
+
+  async function subirBanner(cat, file) {
+    if (!file) return
+    setSubiendoBanner(cat)
+    const ext = file.name.split('.').pop()
+    const path = `listas-precios/banner-${cat}-${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
+    if (upErr) { toast.error('Error al subir banner: ' + upErr.message); setSubiendoBanner(''); return }
+    const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
+    const { error } = await supabase.from('condiciones_precios').upsert({ categoria: cat, banner_url: publicUrl, updated_at: new Date().toISOString() }, { onConflict: 'categoria' })
+    setSubiendoBanner('')
+    if (error) { toast.error('Error al guardar banner: ' + error.message); return }
+    setBanners(prev => ({ ...prev, [cat]: publicUrl }))
+    toast.success('Banner actualizado ✅')
   }
 
   function handleArchivo(e) {
@@ -208,6 +233,50 @@ export default function AdminPrecios() {
     toast.success('Producto actualizado ✅')
     setEditando(null)
     cargar()
+  }
+
+  const numOrNull = v => { if (v === '' || v == null) return null; const n = parseFloat(String(v).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? null : n }
+
+  async function guardarDetalle() {
+    if (!detalle) return
+    if (!detalle.nombre?.trim()) { toast.error('El nombre no puede estar vacío'); return }
+    setGuardandoDet(true)
+    const { error } = await supabase.from('precios').update({
+      nombre: detalle.nombre.trim(),
+      producto: detalle.producto?.trim() || null,
+      modelo: detalle.modelo?.trim() || '',
+      modelo_lista: detalle.modelo_lista?.trim() || null,
+      negocio: detalle.negocio?.trim() || null,
+      categoria: detalle.categoria,
+      ean: detalle.ean?.trim() || null,
+      precio: numOrNull(detalle.precio) ?? 0,
+      costo_siva: numOrNull(detalle.costo_siva),
+      costo_civa: numOrNull(detalle.costo_civa),
+      peso: detalle.peso?.trim() || null,
+      medidas: detalle.medidas?.trim() || null,
+      fijacion: detalle.fijacion?.trim() || null,
+      disponibilidad: detalle.disponibilidad?.trim() || 'NORMAL',
+      imagen_url: detalle.imagen_url || null,
+      updated_at: new Date().toISOString(),
+    }).eq('codigo', detalle.codigo)
+    setGuardandoDet(false)
+    if (error) { toast.error('Error al guardar: ' + error.message); return }
+    toast.success('Producto actualizado ✅')
+    setDetalle(null)
+    cargar()
+  }
+
+  async function subirFotoDetalle(file) {
+    if (!file) return
+    setSubiendoFotoDet(true)
+    const ext = file.name.split('.').pop()
+    const path = `listas-precios/prod-${(detalle?.codigo || 'x').replace(/[^\w-]/g, '')}-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('Imagenes').upload(path, file, { upsert: true })
+    if (error) { toast.error('Error al subir: ' + error.message); setSubiendoFotoDet(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('Imagenes').getPublicUrl(path)
+    setDetalle(prev => ({ ...prev, imagen_url: publicUrl }))
+    setSubiendoFotoDet(false)
+    toast.success('Foto subida ✅')
   }
 
   async function guardarNuevoProducto() {
@@ -290,11 +359,19 @@ export default function AdminPrecios() {
             {Object.entries(CATEGORIAS).map(([cat, label]) => {
               const n = precios.filter(p => p.categoria === cat).length
               return (
-                <button key={cat} onClick={() => descargarPDFCategoria(cat)} disabled={n === 0}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: n === 0 ? 'var(--surface2)' : 'rgba(61,214,140,0.1)', border: `1px solid ${n === 0 ? 'var(--border)' : 'rgba(61,214,140,0.35)'}`, borderRadius: 'var(--radius)', padding: '10px 18px', color: n === 0 ? 'var(--text3)' : '#3dd68c', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 700, cursor: n === 0 ? 'not-allowed' : 'pointer' }}>
-                  <Download size={16} /> {label}
-                  <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>{n} prod.</span>
-                </button>
+                <div key={cat} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
+                  <button onClick={() => descargarPDFCategoria(cat)} disabled={n === 0}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, background: n === 0 ? 'transparent' : 'rgba(61,214,140,0.12)', border: `1px solid ${n === 0 ? 'var(--border)' : 'rgba(61,214,140,0.4)'}`, borderRadius: 'var(--radius)', padding: '9px 16px', color: n === 0 ? 'var(--text3)' : '#3dd68c', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 700, cursor: n === 0 ? 'not-allowed' : 'pointer' }}>
+                    <Download size={16} /> {label}
+                    <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>{n} prod.</span>
+                  </button>
+                  {isAdmin && (
+                    <label style={{ fontSize: 10, color: banners[cat] ? '#3dd68c' : 'var(--text3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {subiendoBanner === cat ? '⏳ Subiendo banner…' : banners[cat] ? '🖼 Cambiar banner de portada' : '🖼 Subir banner de portada'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) subirBanner(cat, e.target.files[0]); e.target.value = '' }} />
+                    </label>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -595,14 +672,23 @@ export default function AdminPrecios() {
                           </button>
                         </div>
                       ) : isAdmin ? (
-                        <button
-                          onClick={() => setEditando({ codigo: p.codigo, precio: p.precio.toString(), nombre: p.nombre, modelo: p.modelo || '', categoria: p.categoria })}
-                          style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#7b9fff'; e.currentTarget.style.color = '#7b9fff' }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text3)' }}
-                        >
-                          Editar
-                        </button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => setEditando({ codigo: p.codigo, precio: p.precio.toString(), nombre: p.nombre, modelo: p.modelo || '', categoria: p.categoria })}
+                            style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#7b9fff'; e.currentTarget.style.color = '#7b9fff' }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text3)' }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => setDetalle({ ...p, precio: p.precio != null ? String(p.precio) : '', costo_siva: p.costo_siva != null ? String(p.costo_siva) : '', costo_civa: p.costo_civa != null ? String(p.costo_civa) : '' })}
+                            title="Editar todos los datos (para el PDF)"
+                            style={{ background: 'rgba(123,159,255,0.1)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}
+                          >
+                            Detalle
+                          </button>
+                        </div>
                       ) : null}
                     </td>
                   </tr>
@@ -612,6 +698,68 @@ export default function AdminPrecios() {
           </div>
         </div>
       )}
+
+      {/* MODAL DETALLE COMPLETO (para el PDF) */}
+      {detalle && (() => {
+        const iSt = { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
+        const lSt = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: 4, letterSpacing: '0.5px' }
+        const set = (k, v) => setDetalle(prev => ({ ...prev, [k]: v }))
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>📝 Detalle — <span style={{ fontFamily: 'monospace', color: '#7b9fff' }}>{detalle.codigo}</span></div>
+                <button onClick={() => setDetalle(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+              </div>
+              <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div><label style={lSt}>Negocio</label><input value={detalle.negocio || ''} onChange={e => set('negocio', e.target.value)} placeholder="CALEFACCION / Climatizacion Agua / Anafes" style={iSt} /></div>
+                  <div><label style={lSt}>Categoría</label>
+                    <select value={detalle.categoria} onChange={e => set('categoria', e.target.value)} style={iSt}>
+                      {Object.entries(CATEGORIAS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div><label style={lSt}>Producto</label><input value={detalle.producto || ''} onChange={e => set('producto', e.target.value)} placeholder="Panel Calefactor Slim" style={iSt} /></div>
+                  <div><label style={lSt}>Modelo (en el PDF)</label><input value={detalle.modelo_lista || ''} onChange={e => set('modelo_lista', e.target.value)} placeholder="One 3,5/5,5/7Kw 220V Silver" style={iSt} /></div>
+                  <div><label style={lSt}>Código EAN</label><input value={detalle.ean || ''} onChange={e => set('ean', e.target.value)} style={iSt} /></div>
+                  <div><label style={lSt}>Disponibilidad</label><input value={detalle.disponibilidad || ''} onChange={e => set('disponibilidad', e.target.value)} placeholder="NORMAL" style={iSt} /></div>
+                  <div><label style={lSt}>Costo S/IVA</label><input value={detalle.costo_siva || ''} onChange={e => set('costo_siva', e.target.value)} placeholder="39293.46" style={iSt} /></div>
+                  <div><label style={lSt}>Costo C/IVA</label><input value={detalle.costo_civa || ''} onChange={e => set('costo_civa', e.target.value)} placeholder="47545.08" style={iSt} /></div>
+                  <div><label style={{ ...lSt, color: '#3dd68c' }}>PVP (precio de venta)</label><input value={detalle.precio || ''} onChange={e => set('precio', e.target.value)} placeholder="69365.55" style={{ ...iSt, borderColor: 'rgba(61,214,140,0.4)' }} /></div>
+                  <div><label style={lSt}>Peso</label><input value={detalle.peso || ''} onChange={e => set('peso', e.target.value)} placeholder="5kg" style={iSt} /></div>
+                  <div><label style={lSt}>Medidas / Volumen</label><input value={detalle.medidas || ''} onChange={e => set('medidas', e.target.value)} placeholder="230*230*72mm / 0,010 m3" style={iSt} /></div>
+                  <div><label style={lSt}>Fijación</label><input value={detalle.fijacion || ''} onChange={e => set('fijacion', e.target.value)} placeholder="Pared / Patas" style={iSt} /></div>
+                </div>
+                <div>
+                  <label style={lSt}>Foto del producto (para el PDF)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {detalle.imagen_url ? (
+                      <div style={{ position: 'relative' }}>
+                        <img src={detalle.imagen_url} alt="" style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }} />
+                        <button onClick={() => set('imagen_url', '')} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ff5577', border: 'none', color: '#fff', fontSize: 11, cursor: 'pointer' }}>×</button>
+                      </div>
+                    ) : <div style={{ width: 64, height: 64, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)', fontSize: 20 }}>📷</div>}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(123,159,255,0.12)', border: '1px solid rgba(123,159,255,0.4)', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, color: '#7b9fff', cursor: subiendoFotoDet ? 'not-allowed' : 'pointer' }}>
+                        {subiendoFotoDet ? '⏳ Subiendo…' : '📷 Tomar foto'}
+                        <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} disabled={subiendoFotoDet} onChange={e => subirFotoDetalle(e.target.files?.[0])} />
+                      </label>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: subiendoFotoDet ? 'not-allowed' : 'pointer' }}>
+                        {subiendoFotoDet ? '⏳ Subiendo…' : '📁 Subir imagen'}
+                        <input type="file" accept="image/*" style={{ display: 'none' }} disabled={subiendoFotoDet} onChange={e => subirFotoDetalle(e.target.files?.[0])} />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={guardarDetalle} disabled={guardandoDet} style={{ flex: 1, background: 'var(--brand-gradient, #7b9fff)', color: '#fff', border: 'none', borderRadius: 8, padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardandoDet ? 'not-allowed' : 'pointer', opacity: guardandoDet ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardandoDet ? 'Guardando…' : '✓ Guardar'}</button>
+                  <button onClick={() => setDetalle(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* MODAL AGREGAR PRODUCTO */}
       {modalNuevo && (
