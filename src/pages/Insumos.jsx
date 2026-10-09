@@ -478,7 +478,7 @@ export default function Insumos() {
   const bajosStock = insumos.filter(i => !i.discontinuado && (i.stock_actual || 0) <= (i.stock_minimo || 0))
 
   if (!isAdmin && !isAdmin2 && !isMantenimiento) return null
-  const soloLectura = isMantenimiento   // mantenimiento ve pero no edita
+  const soloLectura = false   // admin, admin2 y mantenimiento pueden agregar/gestionar insumos (eliminar sigue siendo solo admin)
 
   return (
     <div style={{ animation: 'fadeUp 0.35s ease' }}>
