@@ -9,7 +9,7 @@ import {
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
   Shield, Bell, Package, Users, Store, ShoppingCart, Tags,
   ShoppingBag, Wrench, Check, Ruler, BarChart2, Globe, Truck,
-  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin, Cog, Clock, Info, Wallet
+  Factory, ChevronDown, ChevronRight, Layers, Box, RotateCcw, User, Archive, MapPin, Cog, Clock, Info, Wallet, ClipboardCheck
 } from 'lucide-react'
 
 const LOGO_URL = 'https://edddvxqlvwgexictsnmn.supabase.co/storage/v1/object/public/Imagenes/Imagen-Corporativa/Temptech_LogoHorizontal.png'
@@ -18,6 +18,7 @@ const NAV = [
   { section: 'Principal' },
   { label: 'Panel',             icon: LayoutDashboard, path: '/dashboard' },
   { label: 'Novedades',         icon: Newspaper,       path: '/novedades' },
+  { label: 'Requerimientos',    icon: ClipboardCheck,  path: '/requerimientos', isInterno: true },
   { section: 'Comunidad' },
   { label: 'Service / Garantía', icon: AlertTriangle,   path: '/reclamos' },
   { section: 'Recursos' },
@@ -137,6 +138,7 @@ const NAV_ADMIN2 = [
   { section: 'Principal' },
   { label: 'Panel',             icon: LayoutDashboard, path: '/dashboard' },
   { label: 'Novedades',         icon: Newspaper,       path: '/novedades' },
+  { label: 'Requerimientos',    icon: ClipboardCheck,  path: '/requerimientos' },
   { section: 'Recursos' },
   { label: 'Videos',            icon: Video,           path: '/videos' },
   { label: 'Manuales',          icon: BookOpen,        path: '/manuales' },
@@ -155,6 +157,8 @@ const NAV_PROCESO = [
 
 // Nav para Mantenimiento: ve Producción (solo lectura) y edita Mantenimiento
 const NAV_MANTENIMIENTO = [
+  { section: 'Principal' },
+  { label: 'Requerimientos', icon: ClipboardCheck, path: '/requerimientos' },
   { section: 'Producción' },
   { label: 'Producción', icon: Factory, submenu: 'produccion', children: [
     { label: 'Tablero de Producción', icon: Factory, path: '/produccion/tablero' },
@@ -318,6 +322,7 @@ export default function Layout({ children }) {
 
   const baseNav = NAV.filter(item =>
     (!item.isDistributor || isDistributor || isAdmin) &&
+    (!item.isInterno || isAdmin || isAdmin2 || isMantenimiento) &&
     // El admin ya tiene "Reportes" en su propio menú — evitar duplicado
     !(item.path === '/reportes' && isAdmin)
   )
