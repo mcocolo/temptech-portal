@@ -13,15 +13,21 @@ const num = v => { if (v === '' || v == null) return 0; const n = parseFloat(Str
 const hoyISO = () => new Date().toISOString().slice(0, 10)
 
 export default function CajaDiaria() {
-  const { isAdmin, isAdmin2, user, profile } = useAuth()
-  const puede = isAdmin || isAdmin2
+  const { isAdmin, isAdmin2, isMantenimiento, user, profile } = useAuth()
+  const puede = isAdmin || isAdmin2 || isMantenimiento
   const nombreUsuario = profile?.full_name || profile?.razon_social || user?.email || 'Usuario'
 
   const [cajas, setCajas] = useState([])
   const [gastos, setGastos] = useState([])
+  const [reposiciones, setReposiciones] = useState([])
   const [empleados, setEmpleados] = useState([])
   const [loading, setLoading] = useState(true)
   const [expand, setExpand] = useState(null)
+
+  // Modal reposición
+  const [modalRepo, setModalRepo] = useState(null)   // caja_id
+  const [repoForm, setRepoForm] = useState({ monto: '', fecha: hoyISO(), nota: '' })
+  const [guardandoRepo, setGuardandoRepo] = useState(false)
 
   // Modal caja
   const [modalCaja, setModalCaja] = useState(false)
@@ -36,20 +42,23 @@ export default function CajaDiaria() {
   const [guardandoGasto, setGuardandoGasto] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
 
-  useEffect(() => { if (puede) cargar() }, [isAdmin, isAdmin2])
+  useEffect(() => { if (puede) cargar() }, [isAdmin, isAdmin2, isMantenimiento])
   async function cargar() {
     setLoading(true)
-    const [cj, gs, emp] = await Promise.all([
+    const [cj, gs, rp, emp] = await Promise.all([
       fetchAllRows(() => supabase.from('caja_diaria').select('*').order('created_at', { ascending: false })),
-      fetchAllRows(() => supabase.from('caja_gastos').select('*').order('fecha', { ascending: false })),
+      fetchAllRows(() => supabase.from('gastos').select('*').not('caja_id', 'is', null).order('fecha', { ascending: false })),
+      fetchAllRows(() => supabase.from('caja_reposiciones').select('*').order('fecha', { ascending: false })),
       fetchAllRows(() => supabase.from('empleados').select('id,apodo,nombre,apellido').order('apodo')),
     ])
-    setCajas(cj || []); setGastos(gs || []); setEmpleados(emp || [])
+    setCajas(cj || []); setGastos(gs || []); setReposiciones(rp || []); setEmpleados(emp || [])
     setLoading(false)
   }
 
   const nombreEmp = e => e ? `${e.apodo}${e.nombre || e.apellido ? ` (${[e.nombre, e.apellido].filter(Boolean).join(' ')})` : ''}` : ''
   const gastadoDe = cajaId => gastos.filter(g => g.caja_id === cajaId).reduce((s, g) => s + Number(g.monto || 0), 0)
+  const repuestoDe = cajaId => reposiciones.filter(r => r.caja_id === cajaId).reduce((s, r) => s + Number(r.monto || 0), 0)
+  const disponibleDe = c => Number(c.monto_asignado || 0) + repuestoDe(c.id)
 
   // ---- Caja ----
   function abrirNuevaCaja() { setEditCajaId(null); setCajaForm({ empleado_id: '', concepto: '', monto_asignado: '', fecha: hoyISO() }); setModalCaja(true) }
@@ -116,6 +125,7 @@ export default function CajaDiaria() {
     setGuardandoGasto(true)
     const payload = {
       caja_id: modalGasto,
+      medio_pago: 'caja',
       fecha: gastoForm.fecha || hoyISO(),
       descripcion: gastoForm.descripcion.trim(),
       monto: num(gastoForm.monto),
@@ -124,8 +134,8 @@ export default function CajaDiaria() {
       comprobante_url: gastoForm.comprobante_url || null,
     }
     const { error } = editGastoId
-      ? await supabase.from('caja_gastos').update(payload).eq('id', editGastoId)
-      : await supabase.from('caja_gastos').insert({ ...payload, created_by: nombreUsuario })
+      ? await supabase.from('gastos').update(payload).eq('id', editGastoId)
+      : await supabase.from('gastos').insert({ ...payload, created_by: nombreUsuario })
     setGuardandoGasto(false)
     if (error) { toast.error('Error: ' + error.message); return }
     toast.success(editGastoId ? 'Gasto actualizado ✅' : 'Gasto cargado ✅')
@@ -133,14 +143,35 @@ export default function CajaDiaria() {
   }
   async function eliminarGasto(g) {
     if (!window.confirm('¿Eliminar este gasto?')) return
-    const { error } = await supabase.from('caja_gastos').delete().eq('id', g.id)
+    const { error } = await supabase.from('gastos').delete().eq('id', g.id)
     if (error) { toast.error('Error: ' + error.message); return }
     setGastos(prev => prev.filter(x => x.id !== g.id))
   }
 
+  // ---- Reposición ----
+  function abrirRepo(cajaId) { setRepoForm({ monto: '', fecha: hoyISO(), nota: '' }); setModalRepo(cajaId) }
+  async function guardarRepo() {
+    if (num(repoForm.monto) <= 0) return toast.error('Ingresá el monto a reponer')
+    setGuardandoRepo(true)
+    const { error } = await supabase.from('caja_reposiciones').insert({
+      caja_id: modalRepo, monto: num(repoForm.monto), fecha: repoForm.fecha || hoyISO(),
+      nota: repoForm.nota.trim() || null, created_by: nombreUsuario,
+    })
+    setGuardandoRepo(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Reposición registrada ✅')
+    setModalRepo(null); cargar()
+  }
+  async function eliminarRepo(r) {
+    if (!window.confirm('¿Eliminar esta reposición?')) return
+    const { error } = await supabase.from('caja_reposiciones').delete().eq('id', r.id)
+    if (error) { toast.error('Error: ' + error.message); return }
+    setReposiciones(prev => prev.filter(x => x.id !== r.id))
+  }
+
   if (!puede) return null
 
-  const totalAsig = cajas.reduce((s, c) => s + Number(c.monto_asignado || 0), 0)
+  const totalAsig = cajas.reduce((s, c) => s + disponibleDe(c), 0)
   const totalGast = gastos.reduce((s, g) => s + Number(g.monto || 0), 0)
 
   return (
@@ -155,7 +186,7 @@ export default function CajaDiaria() {
 
       {/* Resumen */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-        {[['Asignado total', totalAsig, '#7b9fff'], ['Gastado total', totalGast, '#fb923c'], ['Saldo total', totalAsig - totalGast, '#3dd68c']].map(([l, v, c]) => (
+        {[['Disponible total', totalAsig, '#7b9fff'], ['Gastado total', totalGast, '#fb923c'], ['Saldo total', totalAsig - totalGast, '#3dd68c']].map(([l, v, c]) => (
           <div key={l} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
             <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{l}</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: c, marginTop: 4 }}>{fmt(v)}</div>
@@ -171,8 +202,11 @@ export default function CajaDiaria() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {cajas.map(c => {
             const gast = gastadoDe(c.id)
-            const saldo = Number(c.monto_asignado || 0) - gast
+            const repu = repuestoDe(c.id)
+            const disp = Number(c.monto_asignado || 0) + repu
+            const saldo = disp - gast
             const misGastos = gastos.filter(g => g.caja_id === c.id)
+            const misRepos = reposiciones.filter(r => r.caja_id === c.id)
             const abierta = c.estado !== 'cerrada'
             const isExp = expand === c.id
             return (
@@ -187,7 +221,7 @@ export default function CajaDiaria() {
                     {c.concepto && <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>{c.concepto}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ textAlign: 'right' }}><div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Asignado</div><div style={{ fontSize: 14, fontWeight: 700 }}>{fmt(c.monto_asignado)}</div></div>
+                    <div style={{ textAlign: 'right' }}><div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Disponible</div><div style={{ fontSize: 14, fontWeight: 700 }}>{fmt(disp)}{repu > 0 && <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}> ({fmt(c.monto_asignado)}+{fmt(repu)})</span>}</div></div>
                     <div style={{ textAlign: 'right' }}><div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Gastado</div><div style={{ fontSize: 14, fontWeight: 700, color: '#fb923c' }}>{fmt(gast)}</div></div>
                     <div style={{ textAlign: 'right' }}><div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase' }}>Saldo</div><div style={{ fontSize: 15, fontWeight: 800, color: saldo < 0 ? '#ff5577' : '#3dd68c' }}>{fmt(saldo)}</div></div>
                     <span style={{ fontSize: 18, color: 'var(--text3)' }}>{isExp ? '▴' : '▾'}</span>
@@ -198,10 +232,22 @@ export default function CajaDiaria() {
                   <div style={{ borderTop: '1px solid var(--border)', padding: '14px 18px' }}>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                       {abierta && <button onClick={() => abrirNuevoGasto(c.id, c.empleado_nombre)} style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➕ Agregar gasto</button>}
+                      {abierta && <button onClick={() => abrirRepo(c.id)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>💰 Reponer</button>}
                       <button onClick={() => abrirEditarCaja(c)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️ Editar caja</button>
                       <button onClick={() => toggleEstadoCaja(c)} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>{abierta ? '🔒 Cerrar' : '🔓 Reabrir'}</button>
                       {isAdmin && <button onClick={() => eliminarCaja(c)} style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 8, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑 Eliminar</button>}
                     </div>
+
+                    {misRepos.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                        {misRepos.map(r => (
+                          <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#3dd68c', background: 'rgba(61,214,140,0.1)', border: '1px solid rgba(61,214,140,0.3)', borderRadius: 20, padding: '3px 10px' }}>
+                            💰 +{fmt(r.monto)} · {fmtF(r.fecha)}{r.nota ? ` · ${r.nota}` : ''}
+                            <button onClick={() => eliminarRepo(r)} title="Eliminar reposición" style={{ background: 'none', border: 'none', color: '#ff5577', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {misGastos.length === 0 ? (
                       <div style={{ fontSize: 13, color: 'var(--text3)', padding: '10px 0' }}>Sin gastos cargados.</div>
@@ -258,6 +304,29 @@ export default function CajaDiaria() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={guardarCaja} disabled={guardandoCaja} style={{ flex: 1, background: 'var(--brand-gradient, #7b9fff)', color: '#fff', border: 'none', borderRadius: 8, padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardandoCaja ? 'not-allowed' : 'pointer', opacity: guardandoCaja ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardandoCaja ? 'Guardando…' : editCajaId ? '✓ Guardar' : '✓ Crear caja'}</button>
                 <button onClick={() => setModalCaja(false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal reposición */}
+      {modalRepo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 420 }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#3dd68c' }}>💰 Reponer caja</div>
+              <button onClick={() => setModalRepo(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div><label style={lbl}>Monto a reponer *</label><input value={repoForm.monto} onChange={e => setRepoForm(f => ({ ...f, monto: e.target.value }))} placeholder="Ej: 20000" style={iSt} autoFocus /></div>
+                <div><label style={lbl}>Fecha</label><input type="date" value={repoForm.fecha} onChange={e => setRepoForm(f => ({ ...f, fecha: e.target.value }))} style={iSt} /></div>
+              </div>
+              <div><label style={lbl}>Nota (opcional)</label><input value={repoForm.nota} onChange={e => setRepoForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ej: Reposición semanal" style={iSt} /></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={guardarRepo} disabled={guardandoRepo} style={{ flex: 1, background: 'linear-gradient(135deg, #3dd68c, #22c55e)', color: '#fff', border: 'none', borderRadius: 8, padding: '11px', fontSize: 14, fontWeight: 700, cursor: guardandoRepo ? 'not-allowed' : 'pointer', opacity: guardandoRepo ? 0.7 : 1, fontFamily: 'var(--font)' }}>{guardandoRepo ? 'Guardando…' : '✓ Reponer'}</button>
+                <button onClick={() => setModalRepo(null)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '11px 18px', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
               </div>
             </div>
           </div>
