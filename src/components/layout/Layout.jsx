@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { setOcultarPrecios } from '@/utils/precioGuard'
 import CotizacionPopup from '@/components/CotizacionPopup'
+import RequerimientosPopup from '@/components/RequerimientosPopup'
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, Video,
   BookOpen, Newspaper, ClipboardList, LogOut, Menu, X,
@@ -355,6 +356,7 @@ export default function Layout({ children }) {
 
       {/* Pop-up semanal de cotización del dólar (solo admin principal) */}
       <CotizacionPopup />
+      <RequerimientosPopup />
 
       {/* Mobile overlay */}
       {sidebarOpen && (
