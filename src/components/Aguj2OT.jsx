@@ -34,8 +34,12 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
   const [f, setF] = useState({
     jornadas: [{ fecha: new Date().toISOString().split('T')[0], hi: '', hf: '' }],
     personal: [], maquinasUsadas: [], herramientas: [], supervisor: '',
-    ok: '', no_conforme: '', notas: '',
+    prodDiaria: [{ fecha: new Date().toISOString().split('T')[0], cant: '' }],
+    no_conforme: '', notas: '',
   })
+  const addProdDia = () => setF(s => ({ ...s, prodDiaria: [...(s.prodDiaria || []), { fecha: '', cant: '' }] }))
+  const setProdDia = (i, campo, val) => setF(s => { const n = clone(s); n.prodDiaria[i][campo] = val; return n })
+  const delProdDia = i => setF(s => { const n = clone(s); n.prodDiaria = n.prodDiaria.filter((_, j) => j !== i); if (!n.prodDiaria.length) n.prodDiaria = [{ fecha: '', cant: '' }]; return n })
 
   useEffect(() => { cargar() }, [])
   async function cargar() {
@@ -47,10 +51,10 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
     ])
     if (pau.data && pau.data.length) setPausas(pau.data.map(p => [hm(p.desde), hm(p.hasta)]).filter(x => x[0] != null && x[1] != null))
-    setEmpleados((e.data || []).filter(x => !(x.sectores || []).length || (x.sectores || []).includes('Aguj2')))
+    setEmpleados((e.data || []).filter(x => (x.sectores || []).includes('Aguj N°2')))
     const maqAct = (mq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida))
-    setMaquinas(maqAct.filter(m => (m.sectores || []).includes('Aguj2')))
-    setHerr((h.data || []).filter(x => !(x.sectores || []).length || (x.sectores || []).includes('Aguj2')))
+    setMaquinas(maqAct.filter(m => (m.sectores || []).includes('Aguj N°2')))
+    setHerr((h.data || []).filter(x => (x.sectores || []).includes('Aguj N°2')))
     if (ot.data) {
       setPrevOt(ot.data)
       const d = ot.data.datos || {}
@@ -59,7 +63,8 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
         jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : s.jornadas,
         personal: d.personal || [], maquinasUsadas: d.maquinasUsadas || [], herramientas: d.herramientas || [],
         supervisor: d.supervisor || '',
-        ok: ot.data.piezas ?? d.ok ?? '', no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
+        prodDiaria: Array.isArray(d.prodDiaria) && d.prodDiaria.length ? d.prodDiaria : (ot.data.piezas ? [{ fecha: ot.data.fecha_inicio || s.prodDiaria[0].fecha, cant: ot.data.piezas }] : s.prodDiaria),
+        no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
       }))
     }
   }
@@ -71,7 +76,7 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
   const addJornada = () => setF(s => ({ ...s, jornadas: [...s.jornadas, { fecha: '', hi: '', hf: '' }] }))
   const delJornada = i => setF(s => ({ ...s, jornadas: s.jornadas.length > 1 ? s.jornadas.filter((_, j) => j !== i) : s.jornadas }))
 
-  const conforme = int(f.ok)
+  const conforme = (f.prodDiaria || []).reduce((s, r) => s + int(r.cant), 0)
   const duracion = f.jornadas.reduce((sum, j) => sum + (calcularDuracion(j.hi, j.hf, pausas) || 0), 0) || null
 
   async function guardar() {
@@ -88,7 +93,7 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
     for (const t of targets) { const key = `${t.tabla}:${t.id}`; nuevoU[key] = conforme; const d = conforme - int(prevU[key]); if (d) acciones.push({ tabla: t.tabla, id: t.id, delta: d }) }
     for (const key of Object.keys(prevU)) { if (key in nuevoU) continue; const [tabla, id] = key.split(':'); if (int(prevU[key])) acciones.push({ tabla, id, delta: -int(prevU[key]) }) }
 
-    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, herramientas: f.herramientas, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, usosAguj2: nuevoU }
+    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, herramientas: f.herramientas, prodDiaria: f.prodDiaria, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, usosAguj2: nuevoU }
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'aguj2',
@@ -152,7 +157,7 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
               {empleados.map(e => { const sel = f.personal.includes(e.apodo); return (
                 <button key={e.apodo} onClick={() => togglePers(e.apodo)} style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(61,214,140,0.15)' : 'var(--surface2)', color: sel ? '#3dd68c' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(61,214,140,0.45)' : 'var(--border)'}` }}>{e.apodo}</button>
               ) })}
-              {empleados.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Asigná empleados al sector Aguj2.</span>}
+              {empleados.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Asigná empleados al sector Aguj N°2.</span>}
             </div>
           </Sec>
 
@@ -165,7 +170,7 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
 
           <Sec t="⚙️ Máquinas usadas (Aguj2-01, MMD4, MMD6)">
             {maquinas.length === 0 ? (
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>Cargá las máquinas en <b>Mantenimiento → Máquinas</b> con el sector "Aguj2" (Aguj2-01, MMD4, MMD6).</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>Cargá las máquinas en <b>Mantenimiento → Máquinas</b> con el sector "Aguj N°2".</div>
             ) : (
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                 {maquinas.map(m => { const sel = (f.maquinasUsadas || []).includes(m.id); const et = m.codigo || m.sigla || m.nombre; return (
@@ -186,13 +191,24 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
             </Sec>
           )}
 
+          <Sec t="📅 Cantidad hecha por día">
+            {(f.prodDiaria || []).map((r, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                <input type="date" value={r.fecha} onChange={e => setProdDia(i, 'fecha', e.target.value)} style={{ ...iSt, maxWidth: 170 }} />
+                <input type="number" value={r.cant} onChange={e => setProdDia(i, 'cant', e.target.value)} placeholder="cantidad" style={{ ...iSt, maxWidth: 130 }} />
+                <button onClick={() => delProdDia(i)} title="Quitar" style={{ background: 'rgba(255,85,119,0.06)', color: '#ff5577', border: '1px solid rgba(255,85,119,0.25)', borderRadius: 6, padding: '6px 9px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>🗑</button>
+              </div>
+            ))}
+            <button onClick={addProdDia} style={{ background: 'var(--surface2)', color: 'var(--text2)', border: '1px dashed var(--border)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>+ Agregar día</button>
+          </Sec>
+
           <Sec t="✅ Resultado">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <div><label style={lbl}>Conforme (OK)</label><input type="number" value={f.ok} onChange={e => setF(s => ({ ...s, ok: e.target.value }))} placeholder="0" style={iSt} /></div>
+              <div><label style={lbl}>Conforme (total por día)</label><div style={{ fontSize: 15, fontWeight: 800, color: '#3dd68c', padding: '8px 0' }}>{conforme}</div></div>
               <div><label style={lbl}>No conforme</label><input type="number" value={f.no_conforme} onChange={e => setF(s => ({ ...s, no_conforme: e.target.value }))} placeholder="0" style={iSt} /></div>
               <div><label style={lbl}>Objetivo</label><div style={{ fontSize: 15, fontWeight: 800, color: conforme >= target && conforme > 0 ? '#3dd68c' : 'var(--text)', padding: '8px 0' }}>{conforme} / {target}</div></div>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Al llegar al objetivo, el lote pasa a <b>Enduido + Lija</b>.</div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>El conforme se suma de las cantidades por día. Al llegar al objetivo, el lote pasa a <b>Enduido + Lija</b>.</div>
           </Sec>
 
           <div><label style={lbl}>Notas</label><textarea value={f.notas} onChange={e => setF(s => ({ ...s, notas: e.target.value }))} rows={2} style={{ ...iSt, resize: 'vertical' }} /></div>
