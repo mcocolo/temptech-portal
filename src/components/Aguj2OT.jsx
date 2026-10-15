@@ -27,16 +27,20 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
 
   const [empleados, setEmpleados] = useState([])
   const [maquinas, setMaquinas] = useState([])
-  const [herr, setHerr] = useState([])
+  const [herrLotes, setHerrLotes] = useState({})   // codigo -> { nombre, lotes: [] }
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [prevOt, setPrevOt] = useState(null)
   const [g, setG] = useState(false)
   const [f, setF] = useState({
     jornadas: [{ fecha: new Date().toISOString().split('T')[0], hi: '', hf: '' }],
-    personal: [], maquinasUsadas: [], herramientas: [], supervisor: '',
+    personal: [], maquinasUsadas: [], mechas: [], supervisor: '',   // mechas: [{ cod, lote }]
     prodDiaria: [{ fecha: new Date().toISOString().split('T')[0], cant: '' }],
     no_conforme: '', notas: '',
   })
+  const colAguj = (lote.modelo || '').includes('1400') ? 'agujeros_1400w' : (lote.modelo || '').includes('250') ? 'agujeros_250w' : 'agujeros_500w'
+  const colMaq = (lote.modelo || '').includes('1400') ? 'usos_1400w' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
+  const mechaSel = (cod, l) => f.mechas.some(m => m.cod === cod && m.lote === l)
+  const toggleMecha = (cod, l) => setF(s => { const has = s.mechas.some(m => m.cod === cod && m.lote === l); return { ...s, mechas: has ? s.mechas.filter(m => !(m.cod === cod && m.lote === l)) : [...s.mechas, { cod, lote: l }] } })
   const addProdDia = () => setF(s => ({ ...s, prodDiaria: [...(s.prodDiaria || []), { fecha: '', cant: '' }] }))
   const setProdDia = (i, campo, val) => setF(s => { const n = clone(s); n.prodDiaria[i][campo] = val; return n })
   const delProdDia = i => setF(s => { const n = clone(s); n.prodDiaria = n.prodDiaria.filter((_, j) => j !== i); if (!n.prodDiaria.length) n.prodDiaria = [{ fecha: '', cant: '' }]; return n })
@@ -46,7 +50,7 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
     const [e, mq, h, ot, pau] = await Promise.all([
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
-      supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
+      supabase.from('herramental').select('codigo,nombre,lote,sectores,estado_vida').eq('activo', true).order('nombre'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'aguj2').maybeSingle(),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
     ])
@@ -54,14 +58,23 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
     setEmpleados((e.data || []).filter(x => (x.sectores || []).includes('Aguj N°2')))
     const maqAct = (mq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida))
     setMaquinas(maqAct.filter(m => (m.sectores || []).includes('Aguj N°2')))
-    setHerr((h.data || []).filter(x => (x.sectores || []).includes('Aguj N°2')))
+    // Mechas del sector Aguj N°2, agrupadas por código con sus lotes
+    const lm = {}
+    for (const x of (h.data || [])) {
+      if (['discontinuado', 'eliminado'].includes(x.estado_vida)) continue
+      if (!(x.sectores || []).includes('Aguj N°2') || !x.codigo || !x.lote) continue
+      const c = String(x.codigo).trim()
+      if (!lm[c]) lm[c] = { nombre: x.nombre || c, lotes: [] }
+      const l = String(x.lote).trim(); if (!lm[c].lotes.includes(l)) lm[c].lotes.push(l)
+    }
+    setHerrLotes(lm)
     if (ot.data) {
       setPrevOt(ot.data)
       const d = ot.data.datos || {}
       setF(s => ({
         ...s,
         jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : s.jornadas,
-        personal: d.personal || [], maquinasUsadas: d.maquinasUsadas || [], herramientas: d.herramientas || [],
+        personal: d.personal || [], maquinasUsadas: d.maquinasUsadas || [], mechas: Array.isArray(d.mechas) ? d.mechas.filter(m => m && m.cod && m.lote) : [],
         supervisor: d.supervisor || '',
         prodDiaria: Array.isArray(d.prodDiaria) && d.prodDiaria.length ? d.prodDiaria : (ot.data.piezas ? [{ fecha: ot.data.fecha_inicio || s.prodDiaria[0].fecha, cant: ot.data.piezas }] : s.prodDiaria),
         no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
@@ -71,7 +84,6 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
 
   const togglePers = ap => setF(s => ({ ...s, personal: s.personal.includes(ap) ? s.personal.filter(x => x !== ap) : [...s.personal, ap] }))
   const toggleMaquina = id => setF(s => { const arr = s.maquinasUsadas || []; return { ...s, maquinasUsadas: arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id] } })
-  const toggleHerr = id => setF(s => { const arr = s.herramientas || []; return { ...s, herramientas: arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id] } })
   const setJornada = (i, campo, val) => setF(s => { const n = clone(s); n.jornadas[i][campo] = val; return n })
   const addJornada = () => setF(s => ({ ...s, jornadas: [...s.jornadas, { fecha: '', hi: '', hf: '' }] }))
   const delJornada = i => setF(s => ({ ...s, jornadas: s.jornadas.length > 1 ? s.jornadas.filter((_, j) => j !== i) : s.jornadas }))
@@ -82,18 +94,25 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
   async function guardar() {
     setG(true)
     const alcanzo = conforme >= target && conforme > 0
-    const COL = 'usos_aguj2'
     const prevD = prevOt?.datos || {}
-    const targets = [
-      ...(f.maquinasUsadas || []).map(id => ({ tabla: 'maquinas', id })),
-      ...(f.herramientas || []).map(id => ({ tabla: 'herramental', id })),
-    ]
-    const prevU = (prevD.usosAguj2 && typeof prevD.usosAguj2 === 'object') ? prevD.usosAguj2 : {}
-    const nuevoU = {}, acciones = []
-    for (const t of targets) { const key = `${t.tabla}:${t.id}`; nuevoU[key] = conforme; const d = conforme - int(prevU[key]); if (d) acciones.push({ tabla: t.tabla, id: t.id, delta: d }) }
-    for (const key of Object.keys(prevU)) { if (key in nuevoU) continue; const [tabla, id] = key.split(':'); if (int(prevU[key])) acciones.push({ tabla, id, delta: -int(prevU[key]) }) }
+    // Reconciliar créditos: mechas → agujeros_<modelo> (por codigo+lote); máquinas → usos_<modelo> (por id)
+    const objUso = conforme   // progresivo: cuenta los paneles hechos, esté o no finalizado
+    const prevAguj = (prevD.mechasCredit && typeof prevD.mechasCredit === 'object') ? { ...prevD.mechasCredit } : {}
+    const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit } : {}
+    const curAguj = Object.fromEntries((f.mechas || []).filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, objUso]))
+    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, objUso]))
+    const acciones = []
+    const nuevoAguj = {}, nuevoMaq = {}
+    for (const k of new Set([...Object.keys(prevAguj), ...Object.keys(curAguj)])) {
+      const obj = k in curAguj ? curAguj[k] : 0, d = obj - int(prevAguj[k]); const [cod, l] = k.split('|')
+      if (d) acciones.push({ t: 'herr', cod, lote: l, col: colAguj, delta: d }); if (obj) nuevoAguj[k] = obj
+    }
+    for (const k of new Set([...Object.keys(prevMaq), ...Object.keys(curMaq)])) {
+      const obj = k in curMaq ? curMaq[k] : 0, d = obj - int(prevMaq[k])
+      if (d) acciones.push({ t: 'maq', id: k, col: colMaq, delta: d }); if (obj) nuevoMaq[k] = obj
+    }
 
-    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, herramientas: f.herramientas, prodDiaria: f.prodDiaria, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, usosAguj2: nuevoU }
+    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, mechas: f.mechas, prodDiaria: f.prodDiaria, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, mechasCredit: nuevoAguj, maqCredit: nuevoMaq }
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'aguj2',
@@ -108,8 +127,15 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
 
     for (const a of acciones) {
       try {
-        const { data: row } = await supabase.from(a.tabla).select(`id,${COL}`).eq('id', a.id).single()
-        if (row) await supabase.from(a.tabla).update({ [COL]: Math.max(0, (row[COL] || 0) + a.delta) }).eq('id', a.id)
+        if (a.t === 'maq') {
+          const { data: mq } = await supabase.from('maquinas').select(`id,${a.col}`).eq('id', a.id).single()
+          if (mq) await supabase.from('maquinas').update({ [a.col]: Math.max(0, (mq[a.col] || 0) + a.delta) }).eq('id', a.id)
+        } else {
+          let query = supabase.from('herramental').select(`id,${a.col}`).eq('codigo', a.cod)
+          if (a.lote != null) query = query.eq('lote', a.lote)
+          const { data: hr } = await query.limit(1)
+          if (hr?.[0]) await supabase.from('herramental').update({ [a.col]: Math.max(0, (hr[0][a.col] || 0) + a.delta) }).eq('id', hr[0].id)
+        }
       } catch (_) { /* no bloquea */ }
     }
 
@@ -181,15 +207,25 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
             <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>A cada máquina tildada se le suman los {conforme || 0} paneles a su historial de uso al guardar.</div>
           </Sec>
 
-          {herr.length > 0 && (
-            <Sec t="🔧 Herramental (mechas)">
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                {herr.map(h => { const sel = (f.herramientas || []).includes(h.id); return (
-                  <button key={h.id} onClick={() => toggleHerr(h.id)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(45,212,191,0.15)' : 'var(--surface2)', color: sel ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(45,212,191,0.45)' : 'var(--border)'}` }}>{h.nombre}{h.codigo ? ` · ${h.codigo}` : ''}</button>
-                ) })}
+          <Sec t="🔩 Mechas usadas (elegí los lotes)">
+            {Object.keys(herrLotes).length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>Cargá las mechas (MMD4, MMD6) con su lote en <b>Herramental</b>, sector "Aguj N°2".</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Object.entries(herrLotes).map(([cod, info]) => (
+                  <div key={cod}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }}>{info.nombre} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· {cod}</span></div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {info.lotes.map(l => { const sel = mechaSel(cod, l); return (
+                        <button key={l} onClick={() => toggleMecha(cod, l)} style={{ padding: '4px 11px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(45,212,191,0.15)' : 'var(--surface2)', color: sel ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(45,212,191,0.45)' : 'var(--border)'}` }}>{sel ? '✓ ' : ''}Lote {l}</button>
+                      ) })}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </Sec>
-          )}
+            )}
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>A cada mecha/lote tildada se le suman los <b>{conforme || 0} agujeros</b> (= paneles) en Herramental al guardar.</div>
+          </Sec>
 
           <Sec t="📅 Cantidad hecha por día">
             {(f.prodDiaria || []).map((r, i) => (
