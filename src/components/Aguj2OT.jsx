@@ -177,7 +177,7 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
           </Sec>
 
           {herr.length > 0 && (
-            <Sec t="🔧 Herramental">
+            <Sec t="🔧 Herramental (mechas)">
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                 {herr.map(h => { const sel = (f.herramientas || []).includes(h.id); return (
                   <button key={h.id} onClick={() => toggleHerr(h.id)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(45,212,191,0.15)' : 'var(--surface2)', color: sel ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(45,212,191,0.45)' : 'var(--border)'}` }}>{h.nombre}{h.codigo ? ` · ${h.codigo}` : ''}</button>
