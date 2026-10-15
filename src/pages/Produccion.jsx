@@ -7,6 +7,8 @@ import CorteOT from '@/components/CorteOT'
 import ArmadoOT from '@/components/ArmadoOT'
 import TallerOT from '@/components/TallerOT'
 import EncuadreOT from '@/components/EncuadreOT'
+import Aguj2OT from '@/components/Aguj2OT'
+import EnduidoLijaOT from '@/components/EnduidoLijaOT'
 import MedidasModal from '@/components/MedidasModal'
 import toast from 'react-hot-toast'
 
@@ -98,6 +100,8 @@ export default function Produccion() {
   const [armadoLote, setArmadoLote] = useState(null)   // lote cuya OT de Armado se está cargando
   const [tallerLote, setTallerLote] = useState(null)   // lote 1400w cuya OT de Taller se está cargando
   const [encuadreLote, setEncuadreLote] = useState(null)   // lote cuya OT de Encuadre se está cargando
+  const [aguj2Lote, setAguj2Lote] = useState(null)         // lote cuya OT de Aguj N°2 se está cargando
+  const [enduidoLote, setEnduidoLote] = useState(null)     // lote cuya OT de Enduido + Lija se está cargando
   const [expandido, setExpandido] = useState(null)
   const [vista, setVista] = useState('tablero')        // tablero | listado
   const [busqueda, setBusqueda] = useState('')
@@ -378,6 +382,8 @@ export default function Produccion() {
                             {!esFirenze(lote.modelo) && !['por_iniciar', 'corte', 'terminado'].includes(lote.etapa) && <button onClick={() => setArmadoLote(lote)} style={btn('#a78bfa')}>🧵 {lote.etapa === 'armado' ? 'OT Alambre' : 'Alambre'}</button>}
                             {lote.etapa === 'taller' && esFirenze(lote.modelo) && <button onClick={() => setTallerLote(lote)} style={btn('#22d3ee')}>🛠 OT Taller</button>}
                             {!esFirenze(lote.modelo) && ['encuadre', 'aguj2', 'enduido_lija', 'pintura'].includes(lote.etapa) && <button onClick={() => setEncuadreLote(lote)} style={btn('#3dd68c')}>📐 {lote.etapa === 'encuadre' ? 'OT Encuadre' : 'Encuadre'}</button>}
+                            {!esFirenze(lote.modelo) && ['aguj2', 'enduido_lija', 'pintura'].includes(lote.etapa) && <button onClick={() => setAguj2Lote(lote)} style={btn('#a78bfa')}>🕳 {lote.etapa === 'aguj2' ? 'OT Aguj N°2' : 'Aguj N°2'}</button>}
+                            {!esFirenze(lote.modelo) && ['enduido_lija', 'pintura'].includes(lote.etapa) && <button onClick={() => setEnduidoLote(lote)} style={btn('#fbbf24')}>🎨 {lote.etapa === 'enduido_lija' ? 'OT Enduido + Lija' : 'Enduido + Lija'}</button>}
                             {puedeGestionar && lote.etapa !== 'por_iniciar' && <button onClick={() => retrocederEtapa(lote)} style={btn('var(--text3)')} title="Volver a la etapa anterior">← Volver</button>}
                             {lote.etapa !== 'por_iniciar' && lote.etapa !== 'terminado' && (
                               <>
@@ -585,6 +591,8 @@ export default function Produccion() {
       {/* OT DE TALLER (1400w / Firenze) */}
       {tallerLote && <TallerOT lote={tallerLote} onClose={() => setTallerLote(null)} onDone={cargar} />}
       {encuadreLote && <EncuadreOT lote={encuadreLote} onClose={() => setEncuadreLote(null)} onDone={cargar} />}
+      {aguj2Lote && <Aguj2OT lote={aguj2Lote} onClose={() => setAguj2Lote(null)} onDone={cargar} />}
+      {enduidoLote && <EnduidoLijaOT lote={enduidoLote} onClose={() => setEnduidoLote(null)} onDone={cargar} />}
 
       {/* ACCESOS DE PROCESO (admin) */}
       {accesosOpen && puedeGestionar && <ProcesoAccesosModal onClose={() => setAccesosOpen(false)} />}
