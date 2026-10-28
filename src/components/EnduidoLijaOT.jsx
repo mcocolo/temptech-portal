@@ -51,7 +51,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
       supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
-      supabase.from('insumos').select('id,codigo,nombre,unidad,stock_actual,sectores').order('nombre'),
+      supabase.from('insumos').select('id,codigo,descripcion,unidad,stock_actual,sectores').order('descripcion'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'enduido_lija').maybeSingle(),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
     ])
@@ -62,7 +62,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
     setHerr((h.data || []).filter(x => (x.sectores || []).includes('Enduido+Lija')))
     // Insumos candidatos: los que digan "enduido" primero; si no hay, todos
     const todosIns = ins.data || []
-    const enduidoIns = todosIns.filter(x => `${x.nombre || ''} ${x.codigo || ''}`.toLowerCase().includes('enduido'))
+    const enduidoIns = todosIns.filter(x => `${x.descripcion || ''} ${x.codigo || ''}`.toLowerCase().includes('enduido'))
     setInsumos(enduidoIns.length ? enduidoIns : todosIns)
     const defEnd = enduidoIns[0]?.id || ''
     if (ot.data) {
@@ -232,7 +232,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
                 <label style={lbl}>Enduido</label>
                 <select value={f.enduido_id || ''} onChange={e => setF(s => ({ ...s, enduido_id: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
                   <option value="">— Elegir insumo —</option>
-                  {insumos.map(i => <option key={i.id} value={i.id}>{i.nombre}{i.codigo ? ` · ${i.codigo}` : ''} — stock: {round3(i.stock_actual)}{i.unidad ? ` ${i.unidad}` : ''}</option>)}
+                  {insumos.map(i => <option key={i.id} value={i.id}>{i.descripcion}{i.codigo ? ` · ${i.codigo}` : ''} — stock: {round3(i.stock_actual)}{i.unidad ? ` ${i.unidad}` : ''}</option>)}
                 </select>
               </div>
               <div><label style={lbl}>Consumo (Kg)</label><input type="number" step="any" value={f.enduido_kg} onChange={e => setF(s => ({ ...s, enduido_kg: e.target.value }))} placeholder="Ej: 12.5" style={iSt} /></div>
