@@ -65,7 +65,9 @@ export default function Requerimientos() {
     if (error) { toast.error('Error: ' + error.message); return }
     setItems(prev => prev.filter(x => x.id !== r.id))
   }
+  // Solo el creador (o un admin) puede dar por cumplido / reabrir
   async function marcarCumplido(r, cumplido) {
+    if (r.created_by_id !== miId && !isAdmin) return toast.error('Solo quien lo solicitó puede darlo por cumplido')
     const payload = cumplido
       ? { estado: 'cumplido', respondido_por: nombreUsuario, respondido_at: new Date().toISOString(), updated_at: new Date().toISOString() }
       : { estado: 'pendiente', updated_at: new Date().toISOString() }
@@ -73,13 +75,15 @@ export default function Requerimientos() {
     if (error) { toast.error('Error: ' + error.message); return }
     cargar()
   }
-  async function guardarRespuesta(r) {
-    const { error } = await supabase.from('requerimientos').update({
-      respuesta: respTexto.trim() || null, respondido_por: nombreUsuario, respondido_at: new Date().toISOString(),
-      estado: 'cumplido', updated_at: new Date().toISOString(),
-    }).eq('id', r.id)
+  // Agregar un mensaje al hilo (creador o destinatarios). NO cambia el estado.
+  async function enviarMensaje(r) {
+    const txt = respTexto.trim()
+    if (!txt) return
+    const msg = { autor: nombreUsuario, autor_id: miId, texto: txt, fecha: new Date().toISOString() }
+    const mensajes = [...(Array.isArray(r.mensajes) ? r.mensajes : []), msg]
+    const { error } = await supabase.from('requerimientos').update({ mensajes, updated_at: new Date().toISOString() }).eq('id', r.id)
     if (error) { toast.error('Error: ' + error.message); return }
-    toast.success('Respuesta enviada ✅')
+    toast.success('Mensaje enviado ✅')
     setRespAbierto(null); setRespTexto(''); cargar()
   }
 
@@ -133,13 +137,23 @@ export default function Requerimientos() {
                       ))}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>De: {r.created_by || '—'} · {fmtF(r.created_at)}</div>
-                    {r.respuesta && (
-                      <div style={{ marginTop: 10, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: '#3dd68c', textTransform: 'uppercase', marginBottom: 3 }}>Respuesta</div>
-                        <div style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>{r.respuesta}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>{r.respondido_por} · {fmtF(r.respondido_at)}</div>
-                      </div>
-                    )}
+                    {(() => {
+                      const hilo = [
+                        ...(r.respuesta ? [{ autor: r.respondido_por, autor_id: null, texto: r.respuesta, fecha: r.respondido_at }] : []),
+                        ...(Array.isArray(r.mensajes) ? r.mensajes : []),
+                      ]
+                      if (hilo.length === 0) return null
+                      return (
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {hilo.map((m, i) => { const yo = m.autor_id === miId; return (
+                            <div key={i} style={{ background: yo ? 'rgba(123,159,255,0.08)' : 'var(--surface2)', border: `1px solid ${yo ? 'rgba(123,159,255,0.3)' : 'var(--border)'}`, borderRadius: 8, padding: '8px 12px', alignSelf: yo ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
+                              <div style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{m.texto}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>{m.autor || '—'}{yo ? ' (vos)' : ''} · {fmtF(m.fecha)}</div>
+                            </div>
+                          ) })}
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {mio && <button onClick={() => abrirEditar(r)} style={{ background: 'rgba(74,108,247,0.08)', color: '#7b9fff', border: '1px solid rgba(74,108,247,0.3)', borderRadius: 6, padding: '4px 9px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>✏️</button>}
@@ -147,26 +161,27 @@ export default function Requerimientos() {
                   </div>
                 </div>
 
-                {/* Acciones del destinatario */}
-                {paraMi && !cumplido && (
+                {/* Acciones: cualquiera del hilo (creador o destinatario) puede escribir; solo el creador cumple */}
+                {(mio || paraMi) && !cumplido && (
                   <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                     {respAbierto === r.id ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <textarea value={respTexto} onChange={e => setRespTexto(e.target.value)} rows={2} placeholder="Escribí tu respuesta (ej: 12 baldes conformes, 3 no conformes)…" style={{ ...iSt, resize: 'vertical' }} autoFocus />
+                        <textarea value={respTexto} onChange={e => setRespTexto(e.target.value)} rows={2} placeholder={mio ? 'Escribí un mensaje para el/los destinatario(s)…' : 'Escribí tu respuesta (ej: 12 conformes, 3 no conformes)…'} style={{ ...iSt, resize: 'vertical' }} autoFocus />
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => guardarRespuesta(r)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Responder y cumplir</button>
+                          <button onClick={() => enviarMensaje(r)} style={{ background: 'rgba(123,159,255,0.12)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>➤ Enviar mensaje</button>
                           <button onClick={() => { setRespAbierto(null); setRespTexto('') }} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
                         </div>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button onClick={() => { setRespAbierto(r.id); setRespTexto(r.respuesta || '') }} style={{ background: 'rgba(123,159,255,0.12)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✍️ Responder</button>
-                        <button onClick={() => marcarCumplido(r, true)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Marcar cumplido</button>
+                        <button onClick={() => { setRespAbierto(r.id); setRespTexto('') }} style={{ background: 'rgba(123,159,255,0.12)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✍️ {mio ? 'Escribir' : 'Responder'}</button>
+                        {(mio || isAdmin) && <button onClick={() => marcarCumplido(r, true)} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Marcar cumplido</button>}
+                        {!mio && !isAdmin && <span style={{ fontSize: 11, color: 'var(--text3)', alignSelf: 'center' }}>Solo quien lo solicitó puede darlo por cumplido.</span>}
                       </div>
                     )}
                   </div>
                 )}
-                {cumplido && (mio || paraMi) && <div style={{ marginTop: 10 }}><button onClick={() => marcarCumplido(r, false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 12px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button></div>}
+                {cumplido && (mio || isAdmin) && <div style={{ marginTop: 10 }}><button onClick={() => marcarCumplido(r, false)} style={{ background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 12px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>↩ Reabrir</button></div>}
               </div>
             )
           })}
