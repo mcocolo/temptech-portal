@@ -33,11 +33,12 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
   const [insumos, setInsumos] = useState([])
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [prevOt, setPrevOt] = useState(null)
+  const [insLotes, setInsLotes] = useState({})   // insumo_id -> [lotes de ingreso]
   const [g, setG] = useState(false)
   const [f, setF] = useState({
     jornadas: [{ fecha: new Date().toISOString().split('T')[0], hi: '', hf: '' }],
     personal: [], maquinasUsadas: [], herramientas: [], supervisor: '',
-    enduido_id: '', enduido_kg: '',
+    enduido_id: '', enduido_lote: '', enduido_kg: '',
     prodDiaria: [{ fecha: new Date().toISOString().split('T')[0], cant: '' }],
     no_conforme: '', notas: '',
   })
@@ -63,8 +64,17 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
     // Insumos candidatos: los que digan "enduido" primero; si no hay, todos
     const todosIns = ins.data || []
     const enduidoIns = todosIns.filter(x => `${x.descripcion || ''} ${x.codigo || ''}`.toLowerCase().includes('enduido'))
-    setInsumos(enduidoIns.length ? enduidoIns : todosIns)
+    const cand = enduidoIns.length ? enduidoIns : todosIns
+    setInsumos(cand)
     const defEnd = enduidoIns[0]?.id || ''
+    // Lotes disponibles de cada insumo candidato (desde los ingresos registrados)
+    const ids = cand.map(x => x.id)
+    if (ids.length) {
+      const { data: movs } = await supabase.from('movimientos_insumos').select('insumo_id,lote,tipo').eq('tipo', 'ingreso').in('insumo_id', ids)
+      const lm = {}
+      for (const m of (movs || [])) { if (!m.lote) continue; const k = m.insumo_id; (lm[k] = lm[k] || []); const l = String(m.lote).trim(); if (l && !lm[k].includes(l)) lm[k].push(l) }
+      setInsLotes(lm)
+    }
     if (ot.data) {
       setPrevOt(ot.data)
       const d = ot.data.datos || {}
@@ -73,7 +83,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
         jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : s.jornadas,
         personal: d.personal || [], maquinasUsadas: d.maquinasUsadas || [], herramientas: d.herramientas || [],
         supervisor: d.supervisor || '',
-        enduido_id: d.enduido_id || defEnd, enduido_kg: d.enduido_kg ?? '',
+        enduido_id: d.enduido_id || defEnd, enduido_lote: d.enduido_lote || '', enduido_kg: d.enduido_kg ?? '',
         prodDiaria: Array.isArray(d.prodDiaria) && d.prodDiaria.length ? d.prodDiaria : (ot.data.piezas ? [{ fecha: ot.data.fecha_inicio || s.prodDiaria[0].fecha, cant: ot.data.piezas }] : s.prodDiaria),
         no_conforme: d.no_conforme ?? '', notas: ot.data.notas || '',
       }))
@@ -106,7 +116,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
     for (const t of targets) { const key = `${t.tabla}:${t.id}`; nuevoU[key] = conforme; const d = conforme - int(prevU[key]); if (d) acciones.push({ tabla: t.tabla, id: t.id, delta: d }) }
     for (const key of Object.keys(prevU)) { if (key in nuevoU) continue; const [tabla, id] = key.split(':'); if (int(prevU[key])) acciones.push({ tabla, id, delta: -int(prevU[key]) }) }
 
-    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, herramientas: f.herramientas, prodDiaria: f.prodDiaria, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, usosEnduidoLija: nuevoU, enduido_id: f.enduido_id || null, enduido_kg: numf(f.enduido_kg) }
+    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, herramientas: f.herramientas, prodDiaria: f.prodDiaria, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, usosEnduidoLija: nuevoU, enduido_id: f.enduido_id || null, enduido_lote: f.enduido_lote || null, enduido_kg: numf(f.enduido_kg) }
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'enduido_lija',
@@ -132,20 +142,22 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
       const prevEndKg = round3(prevD.enduido_kg)
       const curEndId = f.enduido_id || null
       const curEndKg = round3(numf(f.enduido_kg))
-      const descEnd = async (insId, delta) => {
+      const descEnd = async (insId, delta, loteIns) => {
         if (!insId || !delta) return
         const { data: ins } = await supabase.from('insumos').select('id,stock_actual').eq('id', insId).limit(1)
         const row = ins?.[0]; if (!row) return
         await supabase.from('insumos').update({ stock_actual: round3((row.stock_actual || 0) - delta), updated_at: new Date().toISOString() }).eq('id', insId)
-        await supabase.from('movimientos_insumos').insert({ insumo_id: insId, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: round3(Math.abs(delta)), sector: 'Lija', motivo: `OT Enduido + Lija · Lote #${lote.numero}`, usuario_id: user?.id, usuario_nombre: nombreUsuario })
+        await supabase.from('movimientos_insumos').insert({ insumo_id: insId, tipo: delta > 0 ? 'egreso' : 'ingreso', cantidad: round3(Math.abs(delta)), sector: 'Lija', motivo: `OT Enduido + Lija · Lote #${lote.numero}`, lote: loteIns || null, usuario_id: user?.id, usuario_nombre: nombreUsuario })
       }
+      const prevEndLote = prevD.enduido_lote || null
+      const curEndLote = f.enduido_lote || null
       if (prevEndId && prevEndId !== curEndId) {
         // Cambió el insumo: devuelve lo descontado al anterior y descuenta todo al nuevo
-        if (prevEndKg) await descEnd(prevEndId, -prevEndKg)
-        if (curEndKg) await descEnd(curEndId, curEndKg)
+        if (prevEndKg) await descEnd(prevEndId, -prevEndKg, prevEndLote)
+        if (curEndKg) await descEnd(curEndId, curEndKg, curEndLote)
       } else if (curEndId) {
         const delta = round3(curEndKg - prevEndKg)
-        if (delta) await descEnd(curEndId, delta)
+        if (delta) await descEnd(curEndId, delta, curEndLote)
       }
     } catch (_) { /* no bloquea */ }
 
@@ -227,17 +239,29 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
           )}
 
           <Sec t="🪣 Insumo · Enduido (consumo en Kg)">
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, alignItems: 'end' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, alignItems: 'end' }}>
               <div>
                 <label style={lbl}>Enduido</label>
-                <select value={f.enduido_id || ''} onChange={e => setF(s => ({ ...s, enduido_id: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
+                <select value={f.enduido_id || ''} onChange={e => setF(s => ({ ...s, enduido_id: e.target.value, enduido_lote: '' }))} style={{ ...iSt, cursor: 'pointer' }}>
                   <option value="">— Elegir insumo —</option>
                   {insumos.map(i => <option key={i.id} value={i.id}>{i.descripcion}{i.codigo ? ` · ${i.codigo}` : ''} — stock: {round3(i.stock_actual)}{i.unidad ? ` ${i.unidad}` : ''}</option>)}
                 </select>
               </div>
+              <div>
+                <label style={lbl}>Lote</label>
+                {(() => { const lotes = insLotes[f.enduido_id] || []; return lotes.length > 0 ? (
+                  <select value={f.enduido_lote || ''} onChange={e => setF(s => ({ ...s, enduido_lote: e.target.value }))} style={{ ...iSt, cursor: 'pointer' }}>
+                    <option value="">— Sin lote —</option>
+                    {lotes.map(l => <option key={l} value={l}>{l}</option>)}
+                    {f.enduido_lote && !lotes.includes(f.enduido_lote) && <option value={f.enduido_lote}>{f.enduido_lote}</option>}
+                  </select>
+                ) : (
+                  <input value={f.enduido_lote || ''} onChange={e => setF(s => ({ ...s, enduido_lote: e.target.value }))} placeholder="Lote (opcional)" style={iSt} />
+                ) })()}
+              </div>
               <div><label style={lbl}>Consumo (Kg)</label><input type="number" step="any" value={f.enduido_kg} onChange={e => setF(s => ({ ...s, enduido_kg: e.target.value }))} placeholder="Ej: 12.5" style={iSt} /></div>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Se descuentan los Kg del stock del insumo al guardar (si editás, ajusta la diferencia).</div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Se descuentan los Kg del stock del insumo al guardar (si editás, ajusta la diferencia). El lote sale de los ingresos cargados del insumo.</div>
           </Sec>
 
           <Sec t="📅 Cantidad hecha por día">
