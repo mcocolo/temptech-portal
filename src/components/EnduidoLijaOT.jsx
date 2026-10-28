@@ -29,7 +29,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
 
   const [empleados, setEmpleados] = useState([])
   const [maquinas, setMaquinas] = useState([])
-  const [herr, setHerr] = useState([])
+  const [herrLotes, setHerrLotes] = useState({})   // codigo -> { nombre, lotes: [] } (llanas)
   const [insumos, setInsumos] = useState([])
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [prevOt, setPrevOt] = useState(null)
@@ -37,11 +37,14 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
   const [g, setG] = useState(false)
   const [f, setF] = useState({
     jornadas: [{ fecha: new Date().toISOString().split('T')[0], hi: '', hf: '' }],
-    personal: [], maquinasUsadas: [], herramientas: [], supervisor: '',
+    personal: [], maquinasUsadas: [], llanas: [], supervisor: '',   // llanas: [{ cod, lote }]
     enduido_id: '', enduido_lote: '', enduido_kg: '',
     prodDiaria: [{ fecha: new Date().toISOString().split('T')[0], cant: '' }],
     no_conforme: '', notas: '',
   })
+  const colUsos = (lote.modelo || '').includes('1400') ? 'usos_1400w_t' : (lote.modelo || '').includes('250') ? 'usos_250w' : 'usos_500w'
+  const llanaSel = (cod, l) => f.llanas.some(m => m.cod === cod && m.lote === l)
+  const toggleLlana = (cod, l) => setF(s => { const has = s.llanas.some(m => m.cod === cod && m.lote === l); return { ...s, llanas: has ? s.llanas.filter(m => !(m.cod === cod && m.lote === l)) : [...s.llanas, { cod, lote: l }] } })
   const addProdDia = () => setF(s => ({ ...s, prodDiaria: [...(s.prodDiaria || []), { fecha: '', cant: '' }] }))
   const setProdDia = (i, campo, val) => setF(s => { const n = clone(s); n.prodDiaria[i][campo] = val; return n })
   const delProdDia = i => setF(s => { const n = clone(s); n.prodDiaria = n.prodDiaria.filter((_, j) => j !== i); if (!n.prodDiaria.length) n.prodDiaria = [{ fecha: '', cant: '' }]; return n })
@@ -51,7 +54,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
     const [e, mq, h, ins, ot, pau] = await Promise.all([
       supabase.from('empleados').select('apodo,nombre,sectores').eq('activo', true).order('apodo'),
       supabase.from('maquinas').select('id,nombre,codigo,sigla,sectores,estado_vida').order('nombre'),
-      supabase.from('herramental').select('*').eq('activo', true).order('nombre'),
+      supabase.from('herramental').select('codigo,nombre,lote,sectores,estado_vida').eq('activo', true).order('nombre'),
       supabase.from('insumos').select('id,codigo,descripcion,unidad,stock_actual,sectores').order('descripcion'),
       supabase.from('produccion_ot').select('*').eq('lote_id', lote.id).eq('etapa', 'enduido_lija').maybeSingle(),
       supabase.from('pausas_produccion').select('desde,hasta,activo').eq('activo', true),
@@ -60,7 +63,16 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
     setEmpleados((e.data || []).filter(x => (x.sectores || []).includes('Enduido+Lija')))
     const maqAct = (mq.data || []).filter(m => !['discontinuado', 'eliminado'].includes(m.estado_vida))
     setMaquinas(maqAct.filter(m => (m.sectores || []).includes('Enduido+Lija')))
-    setHerr((h.data || []).filter(x => (x.sectores || []).includes('Enduido+Lija')))
+    // Llanas del sector Enduido+Lija, agrupadas por código con sus lotes
+    const lm = {}
+    for (const x of (h.data || [])) {
+      if (['discontinuado', 'eliminado'].includes(x.estado_vida)) continue
+      if (!(x.sectores || []).includes('Enduido+Lija') || !x.codigo || !x.lote) continue
+      const c = String(x.codigo).trim()
+      if (!lm[c]) lm[c] = { nombre: x.nombre || c, lotes: [] }
+      const l = String(x.lote).trim(); if (l && !lm[c].lotes.includes(l)) lm[c].lotes.push(l)
+    }
+    setHerrLotes(lm)
     // Insumos candidatos: los que digan "enduido" primero; si no hay, todos
     const todosIns = ins.data || []
     const enduidoIns = todosIns.filter(x => `${x.descripcion || ''} ${x.codigo || ''}`.toLowerCase().includes('enduido'))
@@ -81,7 +93,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
       setF(s => ({
         ...s,
         jornadas: Array.isArray(d.jornadas) && d.jornadas.length ? d.jornadas : s.jornadas,
-        personal: d.personal || [], maquinasUsadas: d.maquinasUsadas || [], herramientas: d.herramientas || [],
+        personal: d.personal || [], maquinasUsadas: d.maquinasUsadas || [], llanas: Array.isArray(d.llanas) ? d.llanas.filter(m => m && m.cod && m.lote) : [],
         supervisor: d.supervisor || '',
         enduido_id: d.enduido_id || defEnd, enduido_lote: d.enduido_lote || '', enduido_kg: d.enduido_kg ?? '',
         prodDiaria: Array.isArray(d.prodDiaria) && d.prodDiaria.length ? d.prodDiaria : (ot.data.piezas ? [{ fecha: ot.data.fecha_inicio || s.prodDiaria[0].fecha, cant: ot.data.piezas }] : s.prodDiaria),
@@ -94,7 +106,6 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
 
   const togglePers = ap => setF(s => ({ ...s, personal: s.personal.includes(ap) ? s.personal.filter(x => x !== ap) : [...s.personal, ap] }))
   const toggleMaquina = id => setF(s => { const arr = s.maquinasUsadas || []; return { ...s, maquinasUsadas: arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id] } })
-  const toggleHerr = id => setF(s => { const arr = s.herramientas || []; return { ...s, herramientas: arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id] } })
   const setJornada = (i, campo, val) => setF(s => { const n = clone(s); n.jornadas[i][campo] = val; return n })
   const addJornada = () => setF(s => ({ ...s, jornadas: [...s.jornadas, { fecha: '', hi: '', hf: '' }] }))
   const delJornada = i => setF(s => ({ ...s, jornadas: s.jornadas.length > 1 ? s.jornadas.filter((_, j) => j !== i) : s.jornadas }))
@@ -105,18 +116,25 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
   async function guardar() {
     setG(true)
     const alcanzo = conforme >= target && conforme > 0
-    const COL = 'usos_enduido_lija'
     const prevD = prevOt?.datos || {}
-    const targets = [
-      ...(f.maquinasUsadas || []).map(id => ({ tabla: 'maquinas', id })),
-      ...(f.herramientas || []).map(id => ({ tabla: 'herramental', id })),
-    ]
-    const prevU = (prevD.usosEnduidoLija && typeof prevD.usosEnduidoLija === 'object') ? prevD.usosEnduidoLija : {}
-    const nuevoU = {}, acciones = []
-    for (const t of targets) { const key = `${t.tabla}:${t.id}`; nuevoU[key] = conforme; const d = conforme - int(prevU[key]); if (d) acciones.push({ tabla: t.tabla, id: t.id, delta: d }) }
-    for (const key of Object.keys(prevU)) { if (key in nuevoU) continue; const [tabla, id] = key.split(':'); if (int(prevU[key])) acciones.push({ tabla, id, delta: -int(prevU[key]) }) }
+    // Reconciliar usos: llanas → usos_<modelo> (por codigo+lote); máquinas → usos_<modelo> (por id)
+    const objUso = conforme
+    const prevLla = (prevD.llanasCredit && typeof prevD.llanasCredit === 'object') ? { ...prevD.llanasCredit } : {}
+    const prevMaq = (prevD.maqCredit && typeof prevD.maqCredit === 'object') ? { ...prevD.maqCredit } : {}
+    const curLla = Object.fromEntries((f.llanas || []).filter(m => m.cod && String(m.lote || '').trim()).map(m => [`${m.cod}|${String(m.lote).trim()}`, objUso]))
+    const curMaq = Object.fromEntries((f.maquinasUsadas || []).map(id => [id, objUso]))
+    const acciones = []
+    const nuevoLla = {}, nuevoMaq = {}
+    for (const k of new Set([...Object.keys(prevLla), ...Object.keys(curLla)])) {
+      const obj = k in curLla ? curLla[k] : 0, d = obj - int(prevLla[k]); const [cod, l] = k.split('|')
+      if (d) acciones.push({ t: 'herr', cod, lote: l, col: colUsos, delta: d }); if (obj) nuevoLla[k] = obj
+    }
+    for (const k of new Set([...Object.keys(prevMaq), ...Object.keys(curMaq)])) {
+      const obj = k in curMaq ? curMaq[k] : 0, d = obj - int(prevMaq[k])
+      if (d) acciones.push({ t: 'maq', id: k, col: colUsos, delta: d }); if (obj) nuevoMaq[k] = obj
+    }
 
-    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, herramientas: f.herramientas, prodDiaria: f.prodDiaria, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, usosEnduidoLija: nuevoU, enduido_id: f.enduido_id || null, enduido_lote: f.enduido_lote || null, enduido_kg: numf(f.enduido_kg) }
+    const datos = { jornadas: f.jornadas, personal: f.personal, maquinasUsadas: f.maquinasUsadas, llanas: f.llanas, prodDiaria: f.prodDiaria, ok: conforme, no_conforme: int(f.no_conforme), notas: f.notas, supervisor: f.supervisor || null, llanasCredit: nuevoLla, maqCredit: nuevoMaq, enduido_id: f.enduido_id || null, enduido_lote: f.enduido_lote || null, enduido_kg: numf(f.enduido_kg) }
     const ultJor = f.jornadas[f.jornadas.length - 1] || {}
     const payload = {
       lote_id: lote.id, etapa: 'enduido_lija',
@@ -131,8 +149,15 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
 
     for (const a of acciones) {
       try {
-        const { data: row } = await supabase.from(a.tabla).select(`id,${COL}`).eq('id', a.id).single()
-        if (row) await supabase.from(a.tabla).update({ [COL]: Math.max(0, (row[COL] || 0) + a.delta) }).eq('id', a.id)
+        if (a.t === 'maq') {
+          const { data: mq } = await supabase.from('maquinas').select(`id,${a.col}`).eq('id', a.id).single()
+          if (mq) await supabase.from('maquinas').update({ [a.col]: Math.max(0, (mq[a.col] || 0) + a.delta) }).eq('id', a.id)
+        } else {
+          let query = supabase.from('herramental').select(`id,${a.col}`).eq('codigo', a.cod)
+          if (a.lote != null) query = query.eq('lote', a.lote)
+          const { data: hr } = await query.limit(1)
+          if (hr?.[0]) await supabase.from('herramental').update({ [a.col]: Math.max(0, (hr[0][a.col] || 0) + a.delta) }).eq('id', hr[0].id)
+        }
       } catch (_) { /* no bloquea */ }
     }
 
@@ -216,16 +241,24 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
             </select>
           </Sec>
 
-          <Sec t="🔧 Herramental (espátula, lija AA, llanas)">
-            {herr.length === 0 ? (
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>Cargá espátula y lija AA en <b>Herramental</b> con el sector "Enduido+Lija".</div>
+          <Sec t="🔧 Llanas usadas (elegí los lotes)">
+            {Object.keys(herrLotes).length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>Cargá las llanas (Llana 80cm, Llana 40cm) con su lote en <b>Herramental</b>, sector "Enduido+Lija".</div>
             ) : (
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                {herr.map(h => { const sel = (f.herramientas || []).includes(h.id); return (
-                  <button key={h.id} onClick={() => toggleHerr(h.id)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(45,212,191,0.15)' : 'var(--surface2)', color: sel ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(45,212,191,0.45)' : 'var(--border)'}` }}>{h.nombre}{h.codigo ? ` · ${h.codigo}` : ''}</button>
-                ) })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Object.entries(herrLotes).map(([cod, info]) => (
+                  <div key={cod}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }}>{info.nombre} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· {cod}</span></div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {info.lotes.map(l => { const sel = llanaSel(cod, l); return (
+                        <button key={l} onClick={() => toggleLlana(cod, l)} style={{ padding: '4px 11px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(45,212,191,0.15)' : 'var(--surface2)', color: sel ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(45,212,191,0.45)' : 'var(--border)'}` }}>{sel ? '✓ ' : ''}Lote {l}</button>
+                      ) })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
+            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>A cada llana/lote tildada se le suman los <b>{conforme || 0} usos</b> (= paneles) en Herramental al guardar.</div>
           </Sec>
 
           {maquinas.length > 0 && (
