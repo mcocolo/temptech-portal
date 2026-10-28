@@ -25,17 +25,34 @@ export default function RequerimientosPopup() {
 
   async function cargar() {
     const { data } = await supabase.from('requerimientos').select('*').neq('estado', 'cumplido').order('created_at', { ascending: false })
-    // Pendientes para mí (destinatario) donde la pelota está de mi lado:
-    // todavía no escribí nada, o el último mensaje no es mío (el que lo pidió me volvió a escribir).
+    // Me aparece si soy participante (creador o destinatario) y la pelota está de mi lado:
+    //  - destinatario sin ninguna respuesta todavía → debe responder
+    //  - en adelante, la tiene quien NO mandó el último mensaje (ida y vuelta)
     const mios = (data || []).filter(r => {
-      if (!(Array.isArray(r.destinatarios) && r.destinatarios.some(d => d.id === miId))) return false
+      const esCreador = r.created_by_id === miId
+      const esDest = Array.isArray(r.destinatarios) && r.destinatarios.some(d => d.id === miId)
+      if (!esCreador && !esDest) return false
       const msgs = Array.isArray(r.mensajes) ? r.mensajes : []
-      const ultimo = msgs[msgs.length - 1]
-      const yaRespondi = !!r.respuesta || msgs.some(m => m.autor_id === miId)
-      return !yaRespondi || (ultimo && ultimo.autor_id && ultimo.autor_id !== miId)
+      const hilo = [...(r.respuesta ? [{ autor_id: null }] : []), ...msgs]
+      if (hilo.length === 0) return esDest   // nadie respondió aún → actúa el destinatario
+      const ultimo = hilo[hilo.length - 1]
+      return ultimo.autor_id !== miId        // la pelota la tiene quien no mandó el último
     })
     setPendientes(mios)
     setMostrar(mios.length > 0)
+  }
+
+  // Marcar cumplido (solo el creador o un admin)
+  async function cumplir(r) {
+    if (r.created_by_id !== miId && !isAdmin) return
+    setProcesando(true)
+    const { error } = await supabase.from('requerimientos').update({ estado: 'cumplido', respondido_por: nombreUsuario, respondido_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', r.id)
+    setProcesando(false)
+    if (error) { toast.error('Error: ' + error.message); return }
+    toast.success('Requerimiento cumplido ✅')
+    const resto = pendientes.filter(x => x.id !== r.id)
+    setPendientes(resto)
+    if (resto.length === 0) setMostrar(false)
   }
 
   // El destinatario responde (agrega mensaje al hilo). NO marca cumplido (eso lo hace quien lo pidió).
@@ -66,8 +83,8 @@ export default function RequerimientosPopup() {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ padding: '22px 24px 10px' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-display)' }}>📋 Tenés {pendientes.length} requerimiento{pendientes.length !== 1 ? 's' : ''} pendiente{pendientes.length !== 1 ? 's' : ''}</div>
-          <p style={{ color: 'var(--text3)', fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>Respondé acá o más tarde desde el menú <b style={{ color: 'var(--text2)' }}>Requerimientos</b>. Vuelve a aparecer hasta que respondas. Quien lo pidió lo da por cumplido.</p>
+          <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-display)' }}>📋 Tenés {pendientes.length} requerimiento{pendientes.length !== 1 ? 's' : ''} que necesita{pendientes.length !== 1 ? 'n' : ''} tu atención</div>
+          <p style={{ color: 'var(--text3)', fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>Respondé o revisá la contestación acá, o más tarde desde el menú <b style={{ color: 'var(--text2)' }}>Requerimientos</b>. Quien lo pidió lo da por cumplido.</p>
         </div>
         <div style={{ padding: '4px 24px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {pendientes.map(r => { const msgs = Array.isArray(r.mensajes) ? r.mensajes : []; const ult = msgs[msgs.length - 1]; return (
@@ -94,6 +111,7 @@ export default function RequerimientosPopup() {
               ) : (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                   <button onClick={() => { setRespAbierto(r.id); setRespTexto('') }} style={{ background: 'rgba(123,159,255,0.12)', color: '#7b9fff', border: '1px solid rgba(123,159,255,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✍️ Responder</button>
+                  {(r.created_by_id === miId || isAdmin) && <button onClick={() => cumplir(r)} disabled={procesando} style={{ background: 'rgba(61,214,140,0.12)', color: '#3dd68c', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>✓ Marcar cumplido</button>}
                 </div>
               )}
             </div>
