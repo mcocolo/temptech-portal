@@ -67,6 +67,8 @@ export default function Aguj2OT({ lote, onClose, onDone }) {
       if (!lm[c]) lm[c] = { nombre: x.nombre || c, lotes: [] }
       const l = String(x.lote).trim(); if (!lm[c].lotes.includes(l)) lm[c].lotes.push(l)
     }
+    const soloNum = s => { const m = String(s).match(/\d+/); return m ? parseInt(m[0]) : NaN }
+    for (const c of Object.keys(lm)) lm[c].lotes.sort((a, b) => { const na = soloNum(a), nb = soloNum(b); if (!isNaN(na) && !isNaN(nb)) return na - nb; return String(a).localeCompare(String(b)) })
     setHerrLotes(lm)
     if (ot.data) {
       setPrevOt(ot.data)

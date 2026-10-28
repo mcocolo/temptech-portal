@@ -30,6 +30,7 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
   const [empleados, setEmpleados] = useState([])
   const [maquinas, setMaquinas] = useState([])
   const [herrLotes, setHerrLotes] = useState({})   // codigo -> { nombre, lotes: [] } (llanas)
+  const [llanaCod, setLlanaCod] = useState('')     // tipo de llana elegido para ver sus lotes
   const [insumos, setInsumos] = useState([])
   const [pausas, setPausas] = useState(DEFAULT_BREAKS)
   const [prevOt, setPrevOt] = useState(null)
@@ -72,7 +73,11 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
       if (!lm[c]) lm[c] = { nombre: x.nombre || c, lotes: [] }
       const l = String(x.lote).trim(); if (l && !lm[c].lotes.includes(l)) lm[c].lotes.push(l)
     }
+    // Ordenar lotes numéricamente (1, 2, 3 … 20)
+    const soloNum = s => { const m = String(s).match(/\d+/); return m ? parseInt(m[0]) : NaN }
+    for (const c of Object.keys(lm)) lm[c].lotes.sort((a, b) => { const na = soloNum(a), nb = soloNum(b); if (!isNaN(na) && !isNaN(nb)) return na - nb; return String(a).localeCompare(String(b)) })
     setHerrLotes(lm)
+    setLlanaCod(c => c || Object.keys(lm)[0] || '')
     // Insumos candidatos: los que digan "enduido" primero; si no hay, todos
     const todosIns = ins.data || []
     const enduidoIns = todosIns.filter(x => `${x.descripcion || ''} ${x.codigo || ''}`.toLowerCase().includes('enduido'))
@@ -241,22 +246,33 @@ export default function EnduidoLijaOT({ lote, onClose, onDone }) {
             </select>
           </Sec>
 
-          <Sec t="🔧 Llanas usadas (elegí los lotes)">
+          <Sec t="🔧 Llanas usadas">
             {Object.keys(herrLotes).length === 0 ? (
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>Cargá las llanas (Llana 80cm, Llana 40cm) con su lote en <b>Herramental</b>, sector "Enduido+Lija".</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {Object.entries(herrLotes).map(([cod, info]) => (
-                  <div key={cod}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }}>{info.nombre} <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· {cod}</span></div>
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginBottom: 10, maxWidth: 320 }}>
+                  <div>
+                    <label style={lbl}>Tipo de llana</label>
+                    <select value={llanaCod} onChange={e => setLlanaCod(e.target.value)} style={{ ...iSt, cursor: 'pointer' }}>
+                      {Object.entries(herrLotes).map(([cod, info]) => { const n = f.llanas.filter(m => m.cod === cod).length; return (
+                        <option key={cod} value={cod}>{info.nombre} · {cod}{n ? ` (${n} sel.)` : ''}</option>
+                      ) })}
+                    </select>
+                  </div>
+                </div>
+                {llanaCod && herrLotes[llanaCod] && (
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 5 }}>Elegí los lotes usados de <b>{herrLotes[llanaCod].nombre}</b>:</div>
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                      {info.lotes.map(l => { const sel = llanaSel(cod, l); return (
-                        <button key={l} onClick={() => toggleLlana(cod, l)} style={{ padding: '4px 11px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(45,212,191,0.15)' : 'var(--surface2)', color: sel ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(45,212,191,0.45)' : 'var(--border)'}` }}>{sel ? '✓ ' : ''}Lote {l}</button>
+                      {herrLotes[llanaCod].lotes.map(l => { const sel = llanaSel(llanaCod, l); return (
+                        <button key={l} onClick={() => toggleLlana(llanaCod, l)} style={{ padding: '4px 11px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', background: sel ? 'rgba(45,212,191,0.15)' : 'var(--surface2)', color: sel ? '#2dd4bf' : 'var(--text3)', border: `1px solid ${sel ? 'rgba(45,212,191,0.45)' : 'var(--border)'}` }}>{sel ? '✓ ' : ''}Lote {l}</button>
                       ) })}
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+                {f.llanas.length > 0 && <div style={{ fontSize: 10, color: '#2dd4bf', marginTop: 8 }}>Seleccionadas: {f.llanas.map(m => `${m.cod} L${m.lote}`).join(' · ')}</div>}
+              </>
             )}
             <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 6 }}>A cada llana/lote tildada se le suman los <b>{conforme || 0} usos</b> (= paneles) en Herramental al guardar.</div>
           </Sec>
