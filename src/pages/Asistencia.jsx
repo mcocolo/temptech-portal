@@ -208,7 +208,7 @@ export default function Asistencia() {
       </div>
 
       {vista === 'mes' ? (
-        <VistaMes lista={lista} susp={susp} examenes={examenes} vacaciones={vacaciones} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
+        <VistaMes lista={lista} susp={susp} examenes={examenes} vacaciones={vacaciones} verTodosVales={isSuperadmin} miNombre={profile?.full_name || user?.email || ''} onAbrirDia={f => { setFecha(f); setVista('dia') }} />
       ) : loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}>Cargando…</div>
       ) : lista.length === 0 ? (
@@ -347,7 +347,19 @@ const MARCA = {
   vac:        { txt: '🏖️', color: '#f472b6', bg: 'rgba(244,114,182,0.16)', label: 'Vacaciones' },
   incompleto: { txt: '·', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', label: 'Incompleto' },
 }
-function VistaMes({ lista, susp = [], examenes = [], vacaciones = [], onAbrirDia }) {
+function VistaMes({ lista, susp = [], examenes = [], vacaciones = [], onAbrirDia, verTodosVales = false, miNombre = '' }) {
+  const normN = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
+  const yo = normN(miNombre)
+  const esMiEmpleado = e => {
+    if (!yo) return false
+    const full = normN(`${e.nombre || ''} ${e.apellido || ''}`)
+    const fullInv = normN(`${e.apellido || ''} ${e.nombre || ''}`)
+    const apodo = normN(e.apodo || '')
+    return (full && (full.includes(yo) || yo.includes(full)))
+      || (fullInv && (fullInv.includes(yo) || yo.includes(fullInv)))
+      || (apodo && (yo.includes(apodo) || apodo.includes(yo)))
+  }
+  const puedeVerVale = e => verTodosVales || esMiEmpleado(e)
   const suspendidoEn = (empId, f) => susp.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const examenEn = (empId, f) => examenes.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
   const vacacionEn = (empId, f) => vacaciones.some(s => s.empleado_id === empId && f >= s.fecha && f <= (s.fecha_hasta || s.fecha))
@@ -454,7 +466,7 @@ function VistaMes({ lista, susp = [], examenes = [], vacaciones = [], onAbrirDia
                     <td style={{ textAlign: 'center', fontWeight: 800, color: '#3dd68c', borderLeft: '1px solid var(--border)' }}>{oks}</td>
                     <td style={{ textAlign: 'center', fontWeight: 700, color: heTot > 0 ? '#fbbf24' : 'var(--text3)', borderLeft: '1px solid var(--border)' }}>{fmtHm(heTot) || '—'}</td>
                     <td style={{ textAlign: 'center', fontWeight: 800, color: presente ? '#3dd68c' : 'var(--border2)', background: presente ? 'rgba(61,214,140,0.12)' : 'transparent', borderLeft: '1px solid var(--border)' }} title={presente ? 'Cumple presentismo' : 'No cumple (tuvo A/M/E)'}>{presente ? 'P' : '·'}</td>
-                    <td style={{ textAlign: 'right', padding: '0 10px', fontWeight: 700, color: (valesEmp[e.id] || 0) > 0 ? '#fbbf24' : 'var(--text3)', borderLeft: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{(valesEmp[e.id] || 0) > 0 ? fmtMonto(valesEmp[e.id]) : '—'}</td>
+                    <td style={{ textAlign: 'right', padding: '0 10px', fontWeight: 700, color: (valesEmp[e.id] || 0) > 0 ? '#fbbf24' : 'var(--text3)', borderLeft: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{!puedeVerVale(e) ? <span title="Solo visible para el empleado y el superadmin" style={{ color: 'var(--text3)' }}>🔒</span> : (valesEmp[e.id] || 0) > 0 ? fmtMonto(valesEmp[e.id]) : '—'}</td>
                   </tr>
                 )
               })}
