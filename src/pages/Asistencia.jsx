@@ -266,7 +266,7 @@ export default function Asistencia() {
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>{[e.nombre, e.apellido].filter(Boolean).join(' ')}</div>
                     </td>
                     <td colSpan={6} style={{ padding: '8px 12px', textAlign: 'left' }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: '#3dd68c', background: 'rgba(61,214,140,0.14)', border: '1px solid rgba(61,214,140,0.4)', borderRadius: 20, padding: '4px 12px' }}>🏖️ VACACIONES</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#f472b6', background: 'rgba(244,114,182,0.16)', border: '1px solid rgba(244,114,182,0.4)', borderRadius: 20, padding: '4px 12px' }}>🏖️ VACACIONES</span>
                     </td>
                   </tr>
                 )
@@ -344,7 +344,7 @@ const MARCA = {
   med:        { txt: 'M', color: '#a78bfa', bg: 'rgba(167,139,250,0.14)', label: 'Médico' },
   sus:        { txt: 'S', color: '#ff5577', bg: 'rgba(255,85,119,0.14)', label: 'Suspendido' },
   exa:        { txt: 'E', color: '#38bdf8', bg: 'rgba(56,189,248,0.14)', label: 'Examen' },
-  vac:        { txt: 'V', color: '#3dd68c', bg: 'rgba(61,214,140,0.14)', label: 'Vacaciones' },
+  vac:        { txt: '🏖️', color: '#f472b6', bg: 'rgba(244,114,182,0.16)', label: 'Vacaciones' },
   incompleto: { txt: '·', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', label: 'Incompleto' },
 }
 function VistaMes({ lista, susp = [], examenes = [], vacaciones = [], onAbrirDia }) {
